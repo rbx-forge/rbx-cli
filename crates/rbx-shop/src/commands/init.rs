@@ -288,8 +288,7 @@ pub async fn run(
         }
         if report.merges.is_empty() && report.mismatches.is_empty() {
             println!(
-                "{} No products matching the '{}' gift-label convention found.",
-                "ℹ".blue(),
+                "No products matching the '{}' gift-label convention found.",
                 label
             );
         }
@@ -307,10 +306,17 @@ pub async fn run(
 
     let config = Config {
         experience,
-        owner: Some(rbx_core::owner::Owner {
-            kind: rbx_core::owner::OwnerType::User,
-            id: 0,
-        }),
+        // No [owner] block. It used to be written as `type = "user", id = 0`,
+        // a placeholder that is now worse than absent: `sync` reads the owner
+        // from Roblox before creating a badge, and this section is only the
+        // fallback for when that call cannot answer. A fallback carrying `user`
+        // for a group-owned game is a wrong answer waiting for the day the
+        // lookup fails — and it was wrong for the first universe it was tried
+        // against, which is owned by a group.
+        //
+        // Omitting it is also the honest shape: ownership is a fact about the
+        // universe, not a decision this file gets to make.
+        owner: None,
         codegen: CodegenConfig::default(),
         icons: icons_config,
         gifts: Default::default(),
@@ -323,9 +329,8 @@ pub async fn run(
 
     if dry_run {
         println!(
-            "\n{} Dry run — would create {} with {} passes, {} badges, {} products (env: {}). \
+            "\nDry run — would create {} with {} passes, {} badges, {} products (env: {}). \
              No files written.",
-            "ℹ".blue(),
             config_path.display(),
             config.passes.len(),
             config.badges.len(),
@@ -371,15 +376,13 @@ pub async fn run(
 
     if !standalone {
         println!(
-            "{} Multi-env mode initialised on '{}'. Run `rbx shop pull --env <other>` \
+            "Multi-env mode initialised on '{}'. Run `rbx shop pull --env <other>` \
              to layer additional envs (overlays will be written automatically when remote diverges).",
-            "ℹ".blue(),
             env_name
         );
     } else {
         println!(
-            "{} Standalone mode. Fill in [creator] in the config before running sync if you plan to create badges.",
-            "ℹ".blue()
+            "Standalone mode. [owner] in the config is only the fallback for badge payment; sync reads the owner from Roblox first.",
         );
     }
 
@@ -407,19 +410,35 @@ async fn download_icon(
         return Ok((None, None));
     }
 
-    let relative_str = format!(
-        "{}/{}-{}-{}.png",
-        icons_config.dir.display(),
-        kind,
-        resource_id,
-        name
-    );
+    // The display name goes through the filesystem, so it cannot go in raw.
+    // Roblox allows `?` in a pass name and Windows does not allow it in a
+    // filename: `Auto collect?` failed here with os error 123, and the import
+    // reported "shop skipped" rather than naming the character. When nothing
+    // of the name survives, the id alone is the filename — a stem is not
+    // optional.
+    let safe = rbx_core::fs_name::safe_component(name);
+    let relative_str = if safe.is_empty() {
+        format!(
+            "{}/{}-{}.png",
+            icons_config.dir.display(),
+            kind,
+            resource_id
+        )
+    } else {
+        format!(
+            "{}/{}-{}-{}.png",
+            icons_config.dir.display(),
+            kind,
+            resource_id,
+            safe
+        )
+    };
     let relative = PathBuf::from(&relative_str);
     let full_path = config_dir.join(&relative);
 
     println!("  {} Downloading {} '{}' icon...", "↓".cyan(), kind, name);
 
-    let bytes = client.download_asset(asset_id).await?;
+    let bytes = client.download_icon(asset_id).await?;
     if let Some(parent) = full_path.parent() {
         std::fs::create_dir_all(parent)?;
     }

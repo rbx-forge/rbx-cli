@@ -99,7 +99,7 @@ pub async fn run(
         if !had_any_changes {
             println!("{} Already up to date with remote (all envs).", "✓".green());
         } else {
-            println!("\n{} Dry run — no changes applied.", "ℹ".blue());
+            println!("\nDry run — no changes applied.");
         }
         return Ok(());
     }
@@ -162,7 +162,7 @@ pub async fn run(
         let client = client_cache
             .get(&dl.env)
             .expect("client should exist for env");
-        let bytes = client.download_asset(dl.asset_id).await?;
+        let bytes = client.download_icon(dl.asset_id).await?;
         if let Some(parent) = dl.save_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -1392,13 +1392,16 @@ fn resolve_icon(
             let save_path = if let Some(local_path) = local_icon {
                 config_dir.join(local_path)
             } else {
-                config_dir.join(format!(
-                    "{}/{}-{}-{}.png",
-                    icon_dir.display(),
-                    kind,
-                    resource_id,
-                    name
-                ))
+                // Same rule as `shop init`: the display name is Roblox's, and
+                // Roblox allows characters Windows refuses in a filename. See
+                // `rbx_core::fs_name`.
+                let safe = rbx_core::fs_name::safe_component(name);
+                let stem = if safe.is_empty() {
+                    format!("{kind}-{resource_id}")
+                } else {
+                    format!("{kind}-{resource_id}-{safe}")
+                };
+                config_dir.join(format!("{}/{stem}.png", icon_dir.display()))
             };
             downloads.push(PendingDownload {
                 env: env.to_string(),

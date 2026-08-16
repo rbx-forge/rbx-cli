@@ -513,8 +513,8 @@ async fn a_badge_whose_refetch_fails_aborts_the_pull_instead_of_dropping_it() {
 /// it, and decodes nothing — unlike the upload path in `sync`.
 const ICON_BYTES: &[u8] = b"\x89PNG\r\n\x1a\n-- stand-in asset --";
 
-/// Two hops: the asset-delivery API answers with a CDN location, and the
-/// bytes come from there. Both have to happen exactly once, and the result
+/// Two hops: the thumbnails service answers with a CDN url, and the bytes
+/// come from there. Both have to happen exactly once, and the result
 /// has to land in three places — the file, the lockfile hash, and the
 /// config's `icon` key.
 #[tokio::test]
@@ -536,9 +536,12 @@ async fn accept_remote_downloads_the_icon_and_records_it_in_config_and_lockfile(
     )
     .await;
     Mock::given(method("GET"))
-        .and(path_matcher("/asset-delivery-api/v1/assetId/900"))
+        .and(path_matcher("/v1/assets"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "location": format!("{}/cdn/900.png", server.uri())
+            "data": [{
+                "state": "Completed",
+                "imageUrl": format!("{}/cdn/900.png", server.uri())
+            }]
         })))
         .expect(1)
         .mount(&server)
@@ -596,10 +599,7 @@ async fn accept_local_clears_the_hash_and_downloads_nothing() {
     shop.pull_accepting(&server, false, true).await.unwrap();
 
     assert_eq!(shop.env_lock().passes["VIP"].icon_hash, None);
-    assert_eq!(
-        count(&server, "/asset-delivery-api/v1/assetId/901").await,
-        0
-    );
+    assert_eq!(count(&server, "/v1/assets").await, 0);
 }
 
 const PASS_WITH_ICON: &str = "\
@@ -643,10 +643,7 @@ async fn an_icon_conflict_aborts_the_pull_before_anything_is_written() {
 
     assert_eq!(shop.contents(), PASS_WITH_ICON);
     assert_eq!(shop.read(LOCKFILE_NAME), lock_before);
-    assert_eq!(
-        count(&server, "/asset-delivery-api/v1/assetId/901").await,
-        0
-    );
+    assert_eq!(count(&server, "/v1/assets").await, 0);
 }
 
 // ── env overlays ──

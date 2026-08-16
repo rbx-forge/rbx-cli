@@ -86,8 +86,7 @@ pub fn run(ctx: &ShopCtx<'_>, sort: ShowSort, flat: bool, json: bool) -> Result<
     if env.is_none() && !config.envs.is_empty() {
         let names: Vec<&str> = config.envs.keys().map(|s| s.as_str()).collect();
         println!(
-            "\n{} per-env overlays defined: {} — pass {} to include env-specific resources",
-            "ℹ".blue(),
+            "\nper-env overlays defined: {} — pass {} to include env-specific resources",
             names.join(", "),
             "--env <name>".cyan()
         );

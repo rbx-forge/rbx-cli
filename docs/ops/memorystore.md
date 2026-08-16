@@ -154,11 +154,11 @@ Nothing wakes a running server when a value changes. A server reads the map when
 
 That is a fact about the servers, not about this command: `set` and `delete` above write through `memory-store.sorted-map:write`, and they write immediately.
 
-Pushing the change to servers immediately is MessagingService's job, and [`rbx publish`](./publish.md) sends that message. The pairing is a memory store item for the value and a publish for the nudge:
+Pushing the change to servers immediately is MessagingService's job, and [`rbx message`](./message.md) sends that message. The pairing is a memory store item for the value and a publish for the nudge:
 
 ```sh
 rbx memorystore --map Cache set rotation --file rotation.json --ttl 1h --apply --env prod
-rbx publish --topic cache --payload '{"key":"rotation"}' --apply --env prod
+rbx message --topic cache --payload '{"key":"rotation"}' --apply --env prod
 ```
 
 Publish a reference rather than the value itself. The message is capped at 1114 bytes, the item is not, and a server that missed the message still finds the value on its next read.

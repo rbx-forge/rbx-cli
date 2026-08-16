@@ -153,7 +153,7 @@ async fn sync_one_env(
     println!("\n{}", plan.summary());
 
     if dry_run {
-        println!("\n{} Dry run — no changes applied.", "ℹ".blue());
+        println!("\nDry run — no changes applied.");
         return Ok(false);
     }
 

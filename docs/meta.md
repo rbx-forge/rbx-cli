@@ -382,7 +382,7 @@ $env:RBX_COOKIE = (lune run get-cookie)
 | --- | --- | --- |
 | Universe | `universe:read`, `universe:write` | [Universe API](https://create.roblox.com/docs/cloud/reference/Universe) |
 | Place | `universe.place:read`, `universe.place:write` | [Place API](https://create.roblox.com/docs/cloud/reference/Place) |
-| Icons & thumbnails | `universe.image:read`, `universe.image:write` | Uses `legacy-game-internationalization` endpoints |
+| Icons & thumbnails | none to read; see note to write | `pull` reads them from `thumbnails.roblox.com`, the public service, with no key attached. `sync` uploads through `legacy-game-internationalization`, whose scope is not in the catalog and has not been established here — if an upload is refused, that is the thing to look for |
 
 ## Lockfile
 

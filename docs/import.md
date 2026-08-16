@@ -117,8 +117,8 @@ The import calls each tool's own read paths, so it needs the read half of what t
 | --- | --- |
 | Resolve the universe | `universe:read` |
 | List places | none — the legacy `develop` host answers without any credential |
-| Shop | `game-pass:read`, `developer-product:read`, `legacy-universe.badge:read`, `legacy-asset:manage` for icon downloads |
-| Meta | `universe:read`, `universe.place:read`, `universe.image:read` |
+| Shop | `game-pass:read`, `developer-product:read`, `legacy-badge:manage` to list badges, `legacy-asset:manage` for icon downloads. Without that last one icons still arrive, from the public thumbnail service, but rescaled rather than as stored |
+| Meta | `universe:read`, `universe.place:read`. Icons and thumbnails need nothing: `pull` reads them from `thumbnails.roblox.com`, the public service, with no key attached |
 | Config | `universe:read` |
 
 `rbx doctor --universe-id <id>` answers whether the loaded key carries them, before you run this.

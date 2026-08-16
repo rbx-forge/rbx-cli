@@ -166,7 +166,7 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 
 - `default_enabled` - (optional) Whether keys are enabled by default (defaults to `true`)
 - `default_expiration_months` - (optional) Default months until key expiry; omit to allow keys without expiry
-- `default_allowed_cidrs` - (optional) Default IP CIDR blocks; omit or empty list defaults to public IP of creator
+- `default_allowed_cidrs` - Default IP CIDR blocks for keys that set no `allowed_cidrs` of their own. **Not optional in practice**: with no allowlist from either place, `create` and `update` refuse and name the three ways out — set it here, set `allowed_cidrs` on the key, or pass `--no-ip` to allow every address. Nothing is inferred; neither this tool nor Roblox fills in your address for you
 - `default_envs` - (optional) Default env list used when a key has no `envs` field of its own. Each name must exist in `rbxplace.toml`.
 - `name_prefix` - (optional) Prepended verbatim to every key's display name on Roblox. You control the separator: use `mygame_` for underscore, `mygame-` for dash, etc. Useful when the same `rbxapikey.toml` is reused across games so the Creator Hub distinguishes same-named keys (e.g. `mygame_deploy`, `othergame_deploy`). Does not change the local TOML key.
 - `readonly` - (optional) Refuse to load this file if any key in it asks for an operation other than `read` or `list`. See [Read-only by declaration](#read-only-by-declaration)

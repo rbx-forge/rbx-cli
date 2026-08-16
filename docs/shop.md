@@ -670,8 +670,8 @@ A resource defined only in an overlay (not in base) is treated as env-exclusive:
 | --- | --- |
 | Game Passes | `game-pass:read`, `game-pass:write` |
 | Developer Products | `developer-product:read`, `developer-product:write` |
-| Badges | `legacy-universe.badge:read`, `legacy-universe.badge:write`, `legacy-universe.badge:manage-and-spend-robux` |
-| Assets (icons) | `legacy-asset:manage` |
+| Badges | `legacy-badge:manage` to list and read, `legacy-universe.badge:write` and `legacy-universe.badge:manage-and-spend-robux` to create |
+| Assets (icons) | `legacy-asset:manage` to read the asset as stored. Without it the public thumbnail service answers instead, at a rescaled size. Uploading a badge icon goes to `legacy-publish`, covered by the badge scopes above |
 | Badge payment source | `universe:read` — optional. `sync` uses it to read who owns the universe before creating a badge, and falls back to `[owner]` in the config when the key lacks it |
 
 ## Code generation

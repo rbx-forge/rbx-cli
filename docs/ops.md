@@ -87,7 +87,7 @@ Scopes by subcommand:
 | `restart forecast` / `status` | `universe:read` | read |
 | `restart launch` | `universe:write` | **write** |
 | `data` reads | `universe-datastores.objects:read,list` | read |
-| `data` writes | `universe-datastores.objects:create,update` + `control:create` | **write** |
+| `data` writes | `universe-datastores.objects:create,update` + `universe-datastores.control:create` | **write** |
 | `data revisions` / `restore` | `universe-datastores.versions:list,read` | read |
 | `memorystore get` / `list` | `memory-store.sorted-map:read` | read |
 | `memorystore set` / `delete` | `memory-store.sorted-map:write` | **write** |

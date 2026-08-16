@@ -56,6 +56,10 @@ pub enum ApikeyCommands {
         /// Skip post-create introspect verification.
         #[arg(long = "no-verify")]
         no_verify: bool,
+
+        /// Skip the confirmation that names the account the key is minted on.
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
     },
 
     /// Check whether you can create keys for an experience
@@ -292,7 +296,8 @@ pub async fn run(cli: ApikeyCli, global: &GlobalFlags) -> Result<()> {
             no_ip,
             force,
             no_verify,
-        } => commands::create::run(global, key.as_deref(), all, no_ip, force, no_verify).await,
+            yes,
+        } => commands::create::run(global, key.as_deref(), all, no_ip, force, no_verify, yes).await,
 
         ApikeyCommands::CanManage => commands::permissions::run(global, &global.place_id).await,
 

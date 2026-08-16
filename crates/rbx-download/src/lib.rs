@@ -306,23 +306,13 @@ async fn fetch_details(ctx: &Ctx, id: u64) -> Result<(Option<String>, Option<i64
 }
 
 fn save(ctx: &Ctx, id: u64, name: &Option<String>, ext: &str, bytes: &[u8]) -> Result<String> {
-    let filename = match name.as_deref().map(sanitize) {
+    let filename = match name.as_deref().map(rbx_core::fs_name::safe_component) {
         Some(safe) if !safe.is_empty() => format!("{id}_{safe}.{ext}"),
         _ => format!("{id}.{ext}"),
     };
     let path = ctx.output.join(&filename);
     std::fs::write(&path, bytes).with_context(|| format!("writing {}", path.display()))?;
     Ok(filename)
-}
-
-/// Keep alphanumerics, spaces, dashes and underscores; collapse surrounding
-/// whitespace. Mirrors the original tool's filename cleaning.
-fn sanitize(name: &str) -> String {
-    name.chars()
-        .filter(|c| c.is_alphanumeric() || matches!(c, ' ' | '-' | '_'))
-        .collect::<String>()
-        .trim()
-        .to_string()
 }
 
 fn read_ids_file(path: &PathBuf) -> Result<Vec<u64>> {

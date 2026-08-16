@@ -150,10 +150,23 @@ pub(crate) async fn run_with(
                 // Recorded rather than raised: a key missing one scope should
                 // not leave a half-adopted directory behind.
                 println!("  {} {} skipped", "!".yellow(), domain);
+                // Name the command that would actually run, which is the same
+                // question `import` just answered: `pull` layers onto a config
+                // that exists, `init --from-remote` creates one that does not.
+                // Hardcoding `pull` sent people to the one command that cannot
+                // work in the case that just happened — a failed `init` leaves
+                // no file, and `pull` refuses without one.
+                let remedy = if dir.join(config_file(*domain)).exists() {
+                    format!("fix the cause and run `rbx {domain} pull --env {env}`")
+                } else {
+                    format!(
+                        "fix the cause and run `rbx {domain} init --from-remote --env {env}`                          — {} was never written, so there is nothing to pull into yet",
+                        config_file(*domain)
+                    )
+                };
                 gaps.push(
-                    Gap::new(*domain, format!("{domain} import"), format!("{err:#}")).with_remedy(
-                        format!("fix the cause and run `rbx {domain} pull --env {env}`"),
-                    ),
+                    Gap::new(*domain, format!("{domain} import"), format!("{err:#}"))
+                        .with_remedy(remedy),
                 );
             }
             Err(err) => return Err(err.context(format!("importing {domain}"))),
@@ -454,7 +467,7 @@ fn print_plan(
     places_path: &Path,
     domains: &[Domain],
 ) {
-    println!("\n{} Dry run — nothing written.\n", "ℹ".blue());
+    println!("\nDry run — nothing written.\n");
     println!("Would write:");
     println!(
         "  {} [{}] universe_id = {}",

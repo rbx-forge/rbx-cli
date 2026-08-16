@@ -18,6 +18,25 @@ use rbx_core::GlobalFlags;
 use super::update::{build_cidrs, build_description};
 use super::{make_client, require_no_collision};
 
+/// Name the account and ask, before a credential is minted on it.
+///
+/// `create` used to print `Creator: user_id=<n>` and go straight on, which is
+/// the one thing the other write verbs do not do — and the worst place for it.
+/// A key is minted on whichever account the cookie signs in as, Studio
+/// auto-detection follows whichever account Studio happens to be signed into,
+/// and the numeric id printed after the fact is not something a person can act
+/// on. `docs/apikey.md` claimed all five write verbs stopped to ask; four did.
+fn confirm_creator(
+    account: &rbx_core::session::SessionAccount,
+    what: &str,
+    yes: bool,
+) -> Result<()> {
+    rbx_core::confirm::confirm_always(
+        &format!("Create {what} on account {}?", account.label()),
+        yes,
+    )
+}
+
 pub async fn run(
     global: &GlobalFlags,
     name: Option<&str>,
@@ -25,6 +44,7 @@ pub async fn run(
     no_ip: bool,
     force: bool,
     skip_verify: bool,
+    yes: bool,
 ) -> Result<()> {
     require_no_collision(all, name)?;
 
@@ -73,8 +93,9 @@ pub async fn run(
             println!("{}", "--no-ip: keys accept calls from any IP".yellow());
         }
 
-        let creator_id = client.authenticated_account().await?.id;
-        println!("Creator: user_id={}", creator_id);
+        let account = client.authenticated_account().await?;
+        let creator_id = account.id;
+        confirm_creator(&account, &format!("{} key(s)", chosen.len()), yes)?;
 
         for n in &chosen {
             create_one(
@@ -98,8 +119,14 @@ pub async fn run(
         println!("{}", "--no-ip: key accepts calls from any IP".yellow());
     }
 
-    let creator_id = client.authenticated_account().await?.id;
-    println!("Creator: user_id={}", creator_id);
+    let account = client.authenticated_account().await?;
+    let creator_id = account.id;
+    let what = if all {
+        "every key in rbxapikey.toml".to_string()
+    } else {
+        format!("\"{}\"", name.unwrap_or("?"))
+    };
+    confirm_creator(&account, &what, yes)?;
 
     if all {
         let mut names: Vec<String> = cfg.keys.keys().cloned().collect();

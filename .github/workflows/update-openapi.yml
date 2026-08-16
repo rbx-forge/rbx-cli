@@ -121,6 +121,33 @@ jobs:
           cargo test -p rbx-spec-drift --test openapi_drift -- --nocapture 2>&1 | tee drift.log
           echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+      - name: Regenerate the embedded scope catalog
+        id: catalog
+        if: steps.refresh.outputs.changed == 'true'
+        # The catalog is parsed out of the same document this workflow just
+        # vendored, so it belongs in the same pull request. Left to a separate
+        # gesture it drifts from the spec beside it, which is exactly what had
+        # happened when this step was added: the committed catalog pointed at
+        # an upstream commit three days older than spec/openapi.json.
+        #
+        # `file://` reads the vendored copy rather than the network, so the
+        # catalog is generated from the same bytes the drift check tested and
+        # cannot disagree with them. Run from the crate directory because the
+        # command writes to a path relative to itself, and it records the
+        # permalink from spec/source.json rather than this local path.
+        run: |
+          set -euo pipefail
+          cd crates/rbx-apikey
+          cargo run -q -p rbx --bin rbx --             apikey catalog regenerate "file://../../spec/openapi.json"
+          cd ../..
+          if git diff --quiet -- crates/rbx-apikey/src/data/catalog.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The catalog is unchanged by this refresh."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- crates/rbx-apikey/src/data/catalog.json
+          fi
+
       - name: Compose the pull request body
         if: steps.refresh.outputs.changed == 'true'
         run: |
@@ -137,6 +164,11 @@ jobs:
             echo
             echo "Upstream: [\`${UPSTREAM_REPO}@${{ steps.upstream.outputs.sha }}\`](https://github.com/${UPSTREAM_REPO}/commit/${{ steps.upstream.outputs.sha }}) (${{ steps.upstream.outputs.date }})"
             echo "Document: \`${UPSTREAM_DOC}\`"
+            if [ "${{ steps.catalog.outputs.changed }}" = "true" ]; then
+              echo "Scope catalog: **regenerated** from the same bytes."
+            else
+              echo "Scope catalog: unchanged by this refresh."
+            fi
             echo
             echo "$verdict"
             echo
@@ -163,19 +195,23 @@ jobs:
         if: steps.refresh.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          # Only the vendored document and its provenance. `drift.log` and
-          # `pr-body.md` are scratch files and must not be committed.
-          add-paths: spec/
+          # The vendored document, its provenance, and the catalog parsed out
+          # of it. `drift.log` and `pr-body.md` are scratch files and must not
+          # be committed.
+          add-paths: |
+            spec/
+            crates/rbx-apikey/src/data/catalog.json
           branch: chore/update-openapi
           # Reuse the branch so a daily run updates the open PR instead of
           # opening a new one every morning.
           delete-branch: true
           commit-message: |
-            chore(spec): refresh vendored Roblox OpenAPI document
+            chore(spec): refresh vendored Roblox OpenAPI document and scope catalog
 
             Upstream ${{ env.UPSTREAM_REPO }}@${{ steps.upstream.outputs.sha }}
-            (${{ steps.upstream.outputs.date }}).
-          title: "chore(spec): refresh vendored Roblox OpenAPI document"
+            (${{ steps.upstream.outputs.date }}). The catalog is regenerated
+            from the same vendored bytes, so the two cannot disagree.
+          title: "chore(spec): refresh vendored Roblox OpenAPI document and scope catalog"
           body-path: pr-body.md
           labels: |
             dependencies

@@ -1,0 +1,110 @@
+{
+  "activeServersFetchError": null,
+  "gameServers": [
+    {
+      "createTime": "2026-08-03T18:32:53.1347089+00:00",
+      "engineVersion": "0.732.0.7321044",
+      "frameRate": null,
+      "full": false,
+      "jobId": "00000000-0000-4000-8000-000000000001",
+      "maxOccupancy": 7,
+      "memoryUsageBytes": 502906880,
+      "occupancy": 1,
+      "placeId": "55443322110099",
+      "placeVersion": "3991",
+      "playerIds": [
+        1000000000
+      ],
+      "shutDown": false,
+      "status": "active",
+      "terminationTime": null,
+      "type": 1,
+      "uptime": "00:00:02"
+    },
+    {
+      "createTime": "2026-08-03T18:32:51.9885085+00:00",
+      "engineVersion": "0.732.0.7321044",
+      "frameRate": null,
+      "full": false,
+      "jobId": "00000000-0000-4000-8000-000000000002",
+      "maxOccupancy": 7,
+      "memoryUsageBytes": 500850688,
+      "occupancy": 1,
+      "placeId": "55443322110099",
+      "placeVersion": "3991",
+      "playerIds": [
+        1000000000
+      ],
+      "shutDown": false,
+      "status": "active",
+      "terminationTime": null,
+      "type": 1,
+      "uptime": "00:00:04"
+    },
+    {
+      "createTime": "2026-08-03T18:31:59.952797+00:00",
+      "engineVersion": "0.732.0.7321044",
+      "frameRate": 59.98705,
+      "full": false,
+      "jobId": "00000000-0000-4000-8000-000000000003",
+      "maxOccupancy": 7,
+      "memoryUsageBytes": 614887424,
+      "occupancy": 1,
+      "placeId": "55443322110099",
+      "placeVersion": "3991",
+      "playerIds": [
+        1000000000
+      ],
+      "shutDown": false,
+      "status": "active",
+      "terminationTime": null,
+      "type": 1,
+      "uptime": "00:00:14"
+    },
+    {
+      "createTime": "2026-08-03T18:31:48.5111779+00:00",
+      "engineVersion": "0.732.0.7321044",
+      "frameRate": null,
+      "full": false,
+      "jobId": "00000000-0000-4000-8000-000000000004",
+      "maxOccupancy": 7,
+      "memoryUsageBytes": 500187136,
+      "occupancy": 1,
+      "placeId": "55443322110099",
+      "placeVersion": "3991",
+      "playerIds": [
+        1000000000
+      ],
+      "shutDown": false,
+      "status": "active",
+      "terminationTime": null,
+      "type": 1,
+      "uptime": "00:00:03"
+    },
+    {
+      "createTime": "2026-08-03T18:31:46.9578733+00:00",
+      "engineVersion": "0.732.0.7321044",
+      "frameRate": 59.959984,
+      "full": false,
+      "jobId": "00000000-0000-4000-8000-000000000005",
+      "maxOccupancy": 7,
+      "memoryUsageBytes": 629018624,
+      "occupancy": 2,
+      "placeId": "55443322110099",
+      "placeVersion": "3991",
+      "playerIds": [
+        1000000000,
+        1000000001
+      ],
+      "shutDown": false,
+      "status": "active",
+      "terminationTime": null,
+      "type": 1,
+      "uptime": "00:00:43"
+    }
+  ],
+  "nextPageToken": "c2FuaXRpc2VkLXBhZ2UtdG9rZW4",
+  "previousPageToken": null,
+  "shutdownServersFetchError": null,
+  "totalCount": 83812
+}

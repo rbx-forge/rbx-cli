@@ -1,0 +1,25 @@
+[package]
+name = "rbx-env"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: read rbxplace.toml — list envs, print a single resolved id"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+toml.workspace = true
+insta = "1"
+
+[lints]
+workspace = true

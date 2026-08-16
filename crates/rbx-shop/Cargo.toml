@@ -1,0 +1,40 @@
+[package]
+name = "rbx-shop"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: declaratively manage Roblox game passes, badges, and developer products"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+schemars = { workspace = true, optional = true }
+serde_json.workspace = true
+toml.workspace = true
+# Same pin as rbx-meta. `pull`/`rename` edit rbxshop.toml in place through it
+# rather than reserialising the model, which dropped user comments.
+toml_edit = "0.22"
+colored.workspace = true
+dialoguer.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[dev-dependencies]
+wiremock.workspace = true
+tempfile.workspace = true
+# Full-output snapshots for codegen. Not a workspace dep: only the two crates
+# that emit generated modules need it.
+insta = "1"
+
+[features]
+# Adds `JsonSchema` to the config models. Off by default so `schemars` never
+# reaches the shipped binary; `rbx-schema` is the only thing that turns it on.
+schema = ["dep:schemars"]
+
+[lints]
+workspace = true

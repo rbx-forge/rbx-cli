@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxconfig.toml",
+  "description": "In-experience config entries per environment, published through the Open Cloud Configs API. See docs/config.md.",
+  "type": "object",
+  "additionalProperties": {
+    "$ref": "#/definitions/EnvConfig"
+  },
+  "definitions": {
+    "EntryConfig": {
+      "type": "object",
+      "required": [
+        "value"
+      ],
+      "properties": {
+        "description": {
+          "description": "Why this entry exists, for whoever reads the diff. Not sent to Roblox.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "description": "The value published for this key. Any TOML value: a bool, a number, a string, or a table for structured config.\n\nDescribed to the schema as an arbitrary JSON value, which is what it is: the Configs API stores JSON, and constraining the shape here would reject entries the tool publishes happily."
+        }
+      }
+    },
+    "EnvConfig": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/EntryConfig"
+          }
+        }
+      }
+    }
+  }
+}

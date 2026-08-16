@@ -1,0 +1,545 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxshop.toml",
+  "description": "Game passes, badges, and developer products: prices, icons, gift twins, codegen output, and per-env overlays. See docs/shop.md.",
+  "type": "object",
+  "properties": {
+    "badges": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/BadgeConfig"
+      }
+    },
+    "codegen": {
+      "$ref": "#/definitions/CodegenConfig"
+    },
+    "envs": {
+      "description": "Per-env overlays. When `--env <name>` is targeted, each overlay map is merged on top of the base. Resources defined only in `envs.<name>` are added as env-exclusive.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/EnvOverlay"
+      }
+    },
+    "experience": {
+      "description": "Optional standalone fallback universe ID. Only consulted when no `--env` is passed. With `--env <name>`, the universe id comes from rbxplace.toml.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Experience"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "gifts": {
+      "$ref": "#/definitions/GiftsConfig"
+    },
+    "icons": {
+      "$ref": "#/definitions/IconsConfig"
+    },
+    "include": {
+      "description": "Extra files (relative to this one) whose `passes`/`badges`/`products` tables (and their `[envs.<name>.*]` overlays) get merged in at load time via `Config::load_merged`. Only meaningful on the main file — included files must be \"pure\" resource files (no `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their own). See `docs/shop.md` for the `pull`/`rename` limitation this currently carries.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/IncludeConfig"
+        }
+      ]
+    },
+    "owner": {
+      "description": "Who owns this project — global to the config, not env-scoped. The one thing it decides is the payment source for badge creation, and that is not a free choice: Roblox pays a group-owned game's badge out of group funds and a user-owned game's out of the user's, with no way to cross them. So the payer is the owner, necessarily, and this is an override of `[owner]` in `rbxplace.toml` rather than a second concept.\n\nOptional. When absent, `ShopCtx::resolve_owner_type` falls back to `rbxplace.toml`: the env's own `[<env>.owner]` first, then top-level.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Owner"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "passes": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/PassConfig"
+      }
+    },
+    "products": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ProductConfig"
+      }
+    }
+  },
+  "definitions": {
+    "BadgeConfig": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "default": true,
+          "type": "boolean"
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "BadgeOverlay": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "CodegenConfig": {
+      "type": "object",
+      "properties": {
+        "extra": {
+          "description": "Extra entries injected into every env module: `\"path.to.key\" = asset_id`. Shared across all envs (no overlay support for extras).",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "output": {
+          "description": "Path to the generated Luau module **folder** (no extension). The folder will contain `init.luau` (dispatcher + type alias) plus one `<env>.luau` per env. If left unset, code generation is disabled.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "paths": {
+          "$ref": "#/definitions/CodegenPaths"
+        },
+        "style": {
+          "description": "Code generation style applied within each env module: \"flat\" or \"nested\".",
+          "allOf": [
+            {
+              "$ref": "#/definitions/CodegenStyle"
+            }
+          ]
+        },
+        "typescript": {
+          "description": "Also generate a TypeScript definition file (`init.d.ts` next to `init.luau`).",
+          "type": "boolean"
+        }
+      }
+    },
+    "CodegenPaths": {
+      "type": "object",
+      "properties": {
+        "badges": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "passes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "products": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "CodegenStyle": {
+      "type": "string",
+      "enum": [
+        "flat",
+        "nested"
+      ]
+    },
+    "EnvOverlay": {
+      "description": "Per-env overlay grouping the three resource maps. All fields are optional — merging is done resource by resource, field by field. A resource defined only in the overlay (not in base) is treated as env-exclusive.",
+      "type": "object",
+      "properties": {
+        "badges": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/BadgeOverlay"
+          }
+        },
+        "passes": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/PassOverlay"
+          }
+        },
+        "products": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/ProductOverlay"
+          }
+        }
+      }
+    },
+    "Experience": {
+      "type": "object",
+      "required": [
+        "universe_id"
+      ],
+      "properties": {
+        "universe_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "GiftsConfig": {
+      "type": "object",
+      "properties": {
+        "capitalize_key": {
+          "description": "When true, the source key's first letter is uppercased in the *derived* gift key only (never in the source's own TOML key) — e.g. with `key_prefix = \"gift\"`: `vipPass` -> `giftVipPass` instead of the default `giftvipPass`. Default: `false` (exact concatenation).",
+          "default": false,
+          "type": "boolean"
+        },
+        "key_prefix": {
+          "description": "Prefixed to the source's TOML key to build the resolved/codegen key, e.g. with the default \"Gift\": `VIP` -> `GiftVIP`, `vip_pass` -> `Giftvip_pass`. Must be non-empty. The source's own TOML key is never modified by this — see `capitalize_key` for the one exception, which only affects the copy used in this derived string.",
+          "default": "Gift",
+          "type": "string"
+        },
+        "label": {
+          "description": "Prefixed to the source's resolved display name for the derived gift product (e.g. \"VIP Pass\" -> `\"[GIFT] VIP Pass\"`). This is the Roblox display name, independent of `key_prefix` below.",
+          "default": "[GIFT] ",
+          "type": "string"
+        }
+      }
+    },
+    "IconsConfig": {
+      "type": "object",
+      "properties": {
+        "bleed": {
+          "description": "Apply alpha bleed to icons before uploading (default: true)",
+          "default": true,
+          "type": "boolean"
+        },
+        "dir": {
+          "description": "Directory for downloaded icons (default: \"icons\")",
+          "default": "icons",
+          "type": "string"
+        }
+      }
+    },
+    "IncludeConfig": {
+      "type": "object",
+      "properties": {
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "Owner": {
+      "description": "Who owns the project. Tools without their own owner field fall back to this one.",
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "description": "The user or group id.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "type": {
+          "description": "`\"user\"` or `\"group\"`.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/OwnerType"
+            }
+          ]
+        }
+      }
+    },
+    "OwnerType": {
+      "description": "Whether a project is owned by a user account or by a group.",
+      "type": "string",
+      "enum": [
+        "group",
+        "user"
+      ]
+    },
+    "PassConfig": {
+      "type": "object",
+      "properties": {
+        "create_gift": {
+          "description": "When true, an extra developer product is derived automatically at resolve time — same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "for_sale": {
+          "default": true,
+          "type": "boolean"
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "regional_pricing": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "PassOverlay": {
+      "type": "object",
+      "properties": {
+        "create_gift": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "for_sale": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "regional_pricing": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "ProductConfig": {
+      "type": "object",
+      "required": [
+        "price"
+      ],
+      "properties": {
+        "create_gift": {
+          "description": "When true, an extra developer product is derived automatically at resolve time — same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
+          "default": false,
+          "type": "boolean"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "for_sale": {
+          "default": true,
+          "type": "boolean"
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "regional_pricing": {
+          "default": false,
+          "type": "boolean"
+        },
+        "store_page": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
+    "ProductOverlay": {
+      "type": "object",
+      "properties": {
+        "create_gift": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "for_sale": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "price": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "regional_pricing": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "store_page": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

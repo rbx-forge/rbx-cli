@@ -1,0 +1,28 @@
+[package]
+name = "rbx-check"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: run every tool's check in one pass and aggregate the exit code"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+serde.workspace = true
+tokio.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+rbx-env = { path = "../rbx-env" }
+rbx-shop = { path = "../rbx-shop" }
+rbx-meta = { path = "../rbx-meta" }
+rbx-config = { path = "../rbx-config" }
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,32 @@
+[package]
+name = "rbx-import"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: adopt an existing universe in one command"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+# `import` is composition: each domain is imported by driving the command that
+# already knows how, rather than by reimplementing it here.
+rbx-init = { path = "../rbx-init" }
+rbx-shop = { path = "../rbx-shop" }
+rbx-meta = { path = "../rbx-meta" }
+rbx-config = { path = "../rbx-config" }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+tokio.workspace = true
+
+[lints]
+workspace = true

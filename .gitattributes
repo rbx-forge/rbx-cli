@@ -1,0 +1,20 @@
+# Normalise line endings in the repository to LF, whatever the working tree
+# uses. Without this, a file saved with CRLF on Windows reads as a whole-file
+# rewrite in `git diff`, and a distracted `git add -A` commits that rewrite over
+# every line the author never touched. Git detects binary content on its own and
+# leaves it alone.
+* text=auto
+
+# The vendored Roblox document is copied byte for byte by .github/workflows/
+# update-openapi.yml, and its diffs are read to spot real Roblox changes. Keep
+# git out of its content entirely.
+spec/openapi.json -text
+
+# Rust sources check out with LF on every platform, not just in the repository.
+# `text=auto` above normalises what is stored and then hands the working tree
+# the platform's ending, so a Windows checkout gives `include_str!` and every
+# multi-line string literal CRLF line endings. That is invisible until the
+# literal is a shell script: `rbx completions bash` emits a hook that a shell
+# refuses on line 1. Pinning the checkout ending is the fix that does not
+# depend on remembering.
+*.rs text eol=lf

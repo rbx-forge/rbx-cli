@@ -1,0 +1,25 @@
+# TEMPLATE. Copy to `rbxplace.toml` next to this file and fill in the real ids
+# from `.local/real-ids.toml` (gitignored):
+#
+#   cp rbxplace.example.toml rbxplace.toml
+#
+# `rbxplace.toml` itself is gitignored.
+#
+# Production universe, read only, forever.
+#
+# Deliberately its own file rather than another env in ../testenv/rbxplace.toml.
+# `--env all` expands to every env in whichever places file is loaded, so an
+# env listed here can never be swept up by a command run from testenv/, and the
+# write key that will eventually live in testenv/ cannot name an env that does
+# not exist in its file.
+#
+# Reaching this universe takes two explicit choices: being in this directory,
+# and naming the env. Neither happens by accident.
+
+# PLACEHOLDER ids — see testenv/rbxplace.example.toml for the note. The real
+# ones are in .local/real-ids.toml, gitignored.
+[prod_readonly]
+universe_id = 5544332211
+
+[prod_readonly.places]
+main = 55443322110099

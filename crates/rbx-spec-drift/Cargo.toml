@@ -1,0 +1,21 @@
+[package]
+name = "rbx-spec-drift"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Test-only crate: asserts the endpoints this workspace calls still exist in the vendored Roblox OpenAPI document"
+publish = false
+
+# This crate ships no code. It exists purely to host the integration test in
+# `tests/`, and deliberately depends on nothing in this workspace so that
+# `cargo test -p rbx-spec-drift` keeps working (and keeps reporting drift) even
+# while another crate is mid-refactor and does not compile.
+[dependencies]
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,201 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+# Cancel in-flight runs for the same ref when a new push arrives. Avoids
+# burning CI minutes on commits the user has already superseded.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Everything here runs on Linux. The private repo bills macOS at 10x and Windows
+# at 2x, so other platforms are covered from a Linux runner where that is
+# possible — the `macos` job cross-*checks* the target the release ships — and
+# rented for real only where it is not, which is the one narrow exception the
+# `windows` job explains. Local lefthook and cfg-gate review catch most
+# OS-specific regressions before push.
+jobs:
+  test:
+    # `cargo test --workspace` compiles and links every target in the workspace,
+    # so it doubles as the build check. A separate `cargo build --workspace` job
+    # paid a second runner to link the same binaries again.
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - run: cargo test --workspace --verbose
+
+  fmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - run: cargo fmt --all -- --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  windows:
+    # The platform-dependent crates are the ones Linux CI can never exercise:
+    # `rbx-open` dispatches a `roblox-studio:` URI, and `rbx-core` auto-detects
+    # the .ROBLOSECURITY cookie from a local Studio install. Those are the most
+    # likely places for a regression and, until now, the only ones whose tests
+    # ran nowhere: the release workflow compiles for Windows at tag time but
+    # never runs a test there.
+    #
+    # `rbx-switch` used to be the third. It left the workspace for
+    # rbx-forge/rbx-switch, whose own CI is Windows-only for exactly this
+    # reason.
+    #
+    # Windows runners bill at 2x, so this is deliberately narrow: it only fires
+    # when one of those two crates changes, and it tests only them. A few
+    # runs a month.
+    name: Windows (platform-dependent crates)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - name: Did anything platform-dependent change?
+        id: changed
+        shell: bash
+        run: |
+          base='${{ github.event.pull_request.base.sha }}'
+          if [ -z "$base" ]; then base="${{ github.event.before }}"; fi
+          # First push to a branch reports an all-zero "before"; test in that case.
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only "$base"..HEAD \
+             | grep -qE '^crates/(rbx-open|rbx-core)/|^\.github/workflows/ci\.yml$'; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "No platform-dependent crate changed; skipping the Windows run."
+          fi
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        if: steps.changed.outputs.run == 'true'
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+        if: steps.changed.outputs.run == 'true'
+      - if: steps.changed.outputs.run == 'true'
+        run: cargo test -p rbx-open -p rbx-core
+
+  macos:
+    # The release workflow ships an `aarch64-apple-darwin` binary, and until
+    # this job existed nothing compiled that target until tag time — the most
+    # expensive moment to discover a break. The gap was never theoretical:
+    # `rbx-switch` used to carry a whole `#[cfg(target_os = "macos")]` module
+    # that no other job touched, and cfg-gated code stays invisible to every
+    # Linux job by construction.
+    #
+    # Cross-*checking* from Linux rather than running on a macOS runner, which
+    # bills at 10x: `cargo check` does not link, so the target's std is all it
+    # needs. This catches what actually breaks a release build — cfg-gated code
+    # that stopped compiling, a platform-conditional dependency that no longer
+    # resolves — at Linux prices, on every push.
+    #
+    # What it deliberately does not do is run tests. Executing macOS tests
+    # needs a macOS runner, and the same Linux-first reasoning that keeps the
+    # `windows` job narrow applies here with a bill five times larger. A macOS
+    # regression that compiles is a tier-2 bug on tier-2 commands; a macOS
+    # regression that does not compile stops the release, which is what this
+    # guards.
+    name: macOS (cross-check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          targets: aarch64-apple-darwin
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      # A plain `cargo check --target aarch64-apple-darwin` does not survive
+      # this workspace: blake3 (via rbx-core) compiles a NEON C file on
+      # aarch64, and an Ubuntu runner has no C compiler that can target Darwin.
+      # zig is one, ships the macOS libc headers, and installs in seconds —
+      # which is the whole reason this stays off a 10x runner.
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+      # From PyPI, not `taiki-e/install-action` or `cargo install`: the action
+      # has no recipe for this tool and falls back to a cargo-binstall old
+      # enough to reject `edition = "2024"` in cargo-zigbuild's own manifest,
+      # and `cargo install` would compile it from source on every run. Pinned
+      # exactly, like the action SHAs above.
+      - run: pip install cargo-zigbuild==0.23.0
+      # Matches the one target the release ships. Keep the two in step: a
+      # target added to release.yml and not here is a target nobody compiles
+      # until tag time again.
+      #
+      # `cargo-zigbuild check`, not `cargo zigbuild check`: as a cargo
+      # subcommand it only takes the build path, and subcommands other than
+      # build are reached by invoking the binary directly.
+      - run: cargo-zigbuild check --workspace --target aarch64-apple-darwin
+
+  schemas:
+    # The schemas in schemas/ are derived from the serde config models, so a
+    # field added without regenerating leaves editors validating a file format
+    # that no longer exists — and silently, since a stale schema still loads.
+    #
+    # Same contract as `rbx env gen-module --check`: exit 2 means "the
+    # committed file is stale, regenerate and commit", distinct from 1 meaning
+    # "the command blew up". The failure names the command that fixes it.
+    name: Schemas up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - run: cargo run -p rbx-schema -- --check
+
+  doc:
+    name: Doc
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - run: cargo doc --workspace --no-deps --document-private-items
+
+
+  completions:
+    # The half of the completion feature no unit test can reach.
+    #
+    # The tests in `crates/rbx/src/completions.rs` pin the contract between the
+    # two halves: each generated script carries its hook and asks for the right
+    # lister, and the listers print the right lines. Whether the graft survives
+    # the shell's own completion system is a question only a shell can answer,
+    # and the runner is the only place all four are installed at once — zsh and
+    # fish had never been driven at all before this job existed (#102).
+    #
+    # ubuntu-latest ships bash; the other three are apt/one-liners away, which
+    # is the whole cost of the job.
+    name: Shell completions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      # pwsh is already on the runner image; zsh and fish are not.
+      - name: Install zsh and fish
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh fish
+      - run: cargo build -p rbx
+      - run: bash scripts/completion-smoke.sh target/debug/rbx

@@ -1,0 +1,29 @@
+[package]
+name = "rbx-doctor"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: diagnose credentials, key validity and scope coverage"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+rbx-apikey = { path = "../rbx-apikey" }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+# Test-only: this crate's own code is runtime-agnostic `async fn`, and tokio is
+# here for `#[tokio::test]` to drive the wiremock exchanges.
+tokio.workspace = true
+
+[lints]
+workspace = true

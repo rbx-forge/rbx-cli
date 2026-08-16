@@ -1,0 +1,79 @@
+name: Bug report
+description: Something the tool does that it shouldn't, or doesn't do that it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Found a security problem instead? Don't file it here — use a
+        [private advisory](https://github.com/rbx-forge/rbx-cli/security/advisories/new).
+        See [SECURITY.md](https://github.com/rbx-forge/rbx-cli/blob/main/SECURITY.md).
+
+        **Redact before pasting.** Universe ids, place ids and key prefixes are
+        rarely needed to understand a failure; API keys and cookies never are.
+
+  - type: input
+    id: version
+    attributes:
+      label: rbx --version
+      placeholder: "rbx 0.11.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      description: Name and version. Say if you're on WSL.
+      placeholder: "Windows 11 24H2 / macOS 15.3 / Ubuntu 24.04"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command you ran
+      description: The full command line, redacted. Rendered as shell, no backticks needed.
+      render: shell
+      placeholder: rbx shop sync --env staging
+    validations:
+      required: true
+
+  - type: textarea
+    id: output
+    attributes:
+      label: What happened
+      description: >
+        The output, redacted. If the failure is an HTTP error, the status line
+        matters more than the body.
+      render: shell
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config
+      description: >
+        The section of `rbxplace.toml` / `rbxshop.toml` / `rbxmeta.toml` the
+        command reads, with ids replaced by placeholders. Skip if not relevant.
+      render: toml
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Anything else
+      description: >
+        Does it reproduce every time? Did it work in an earlier version — which
+        one? Does `rbx doctor` say anything?
+    validations:
+      required: false

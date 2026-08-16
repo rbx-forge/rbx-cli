@@ -1,0 +1,118 @@
+[workspace]
+resolver = "2"
+members = [
+    # One binary. Live operations used to ship as a second one, `rbx-ops`; the
+    # post-mortem of why that boundary did not hold is in TODO.md.
+    "crates/rbx",
+    "crates/rbx-check",
+    "crates/rbx-core",
+    "crates/rbx-probe",
+    "crates/rbx-ads",
+    "crates/rbx-analytics",
+    "crates/rbx-ban",
+    "crates/rbx-restart",
+    "crates/rbx-data",
+    "crates/rbx-memorystore",
+    "crates/rbx-message",
+    "crates/rbx-servers",
+    "crates/rbx-shop",
+    "crates/rbx-place",
+    "crates/rbx-meta",
+    "crates/rbx-config",
+    "crates/rbx-env",
+    "crates/rbx-apikey",
+    "crates/rbx-doctor",
+    "crates/rbx-import",
+    "crates/rbx-init",
+    "crates/rbx-open",
+    "crates/rbx-download",
+    "crates/rbx-spec-drift",
+    # Dev tool, never released: writes schemas/*.json from the serde models.
+    # Built from source, so `schemars` stays out of the shipped binary.
+    "crates/rbx-schema",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+# Verified, not aspirational: 1.88 is the lowest toolchain that compiles the
+# workspace and its test targets. It is set by a dependency, not by our code —
+# `image 0.25.10` declares 1.88, and below that `icu_*` wants 1.86 and `ravif`
+# wants edition 2024. Our own sources need only 1.82 (`Option::is_none_or`).
+#
+# So this moves when a dependency moves it. Bumping is fine; bumping silently
+# is not, which is the whole reason to declare it — precompiled binaries mean
+# most users never build this, and the ones who do deserve a real number rather
+# than a compile error three crates deep.
+rust-version = "1.88"
+license = "MPL-2.0"
+repository = "https://github.com/rbx-forge/rbx-cli"
+homepage = "https://github.com/rbx-forge/rbx-cli"
+authors = ["rbx-forge"]
+keywords = ["roblox", "open-cloud", "cli", "deployment"]
+categories = ["command-line-utilities", "game-development"]
+
+# Release profile tuned for a distributed CLI binary. Slower to compile,
+# but the resulting binary is ~30-50% smaller and starts faster.
+[profile.release]
+lto = "thin"          # fat cost 126s more on a cold build, for 0.8 MB less binary
+codegen-units = 1     # one codegen unit = best inlining at the cost of parallelism
+strip = true          # strip symbol tables; backtraces still work via panic=unwind
+
+[workspace.lints.rust]
+unsafe_code = "warn"
+missing_debug_implementations = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Default-on lints (correctness, suspicious, style, complexity, perf) stay
+# at their default level (warn). Restriction-group lints like `unwrap_used`
+# are deliberately not enabled here: they generate too much noise on patterns
+# that are correct by construction (e.g. `map.get(&k).unwrap()` right after
+# `map.insert(k, ...)`). Per-PR review handles those.
+todo = "warn"
+dbg_macro = "warn"
+print_stdout = "allow"   # CLI tool, println! is intentional
+print_stderr = "allow"
+
+[workspace.dependencies]
+anyhow = "1"
+# Refcounted buffer for request bodies a retry closure may have to send more
+# than once: cloning a `Bytes` bumps a counter instead of re-allocating the
+# multi-megabyte place file on every attempt.
+bytes = "1"
+clap = { version = "4", features = ["derive", "env"] }
+clap_complete = "4"
+# Not `features = ["full"]`. This workspace has zero `tokio::spawn`; tokio is
+# here as reqwest's runtime, plus the few pieces the CLI touches directly:
+# `macros` for `#[tokio::main]` and `#[tokio::test]`, `time` for retry backoff
+# and analytics polling, `sync` for the `Mutex` guarding cached API lookups.
+# "full" additionally pulls in fs, io-util, net, process, signal — compile cost
+# for surface nothing calls. Adding one back is a one-line, considered change.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+reqwest = { version = "0.12", features = ["json", "multipart", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# JSON Schema generation for the TOML config files. Optional in every crate
+# that has it, behind a `schema` feature, so it stays out of the shipped
+# binary: only `rbx-schema` (source-built, never released) turns it on.
+schemars = { version = "0.8", default-features = false, features = ["derive"] }
+toml = "0.8"
+blake3 = "1"
+colored = "2"
+# Decoders only, and not every decoder: this workspace decodes an icon a user
+# hands it and always encodes PNG (`ImageFormat::Png`, the one encode site in
+# the tree). The default features add an AVIF encoder — `rav1e`, an AV1 video
+# encoder — to a tool that writes PNGs. The decoders kept are the formats
+# somebody plausibly saves an icon as.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+bit-vec = "0.8"
+# The library, not its command line. One call site in this workspace,
+# `rbx_cookie::get_value()` in `rbx_core::env`. The default `cli` feature
+# brings a second copy of clap (2.34, beside our 4.x), `env_logger` and
+# `atty` — the last of which carries an advisory of its own.
+rbx_cookie = { version = "0.1", default-features = false }
+dialoguer = "0.11"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3"
+wiremock = "0.6"

@@ -1,0 +1,32 @@
+{
+  "done": true,
+  "metadata": {
+    "createdTime": "2026-08-03T18:31:41.5443028+00:00"
+  },
+  "path": "v1/universes/000/operations/metrics/sanitised",
+  "response": {
+    "values": [
+      {
+        "breakdowns": [],
+        "dataPoints": [
+          {
+            "time": "2026-07-28T00:00:00+00:00",
+            "value": 1245
+          },
+          {
+            "time": "2026-07-29T00:00:00+00:00",
+            "value": 1310
+          },
+          {
+            "time": "2026-07-30T00:00:00+00:00",
+            "value": 1288
+          },
+          {
+            "time": "2026-07-31T00:00:00+00:00",
+            "value": 1180
+          }
+        ]
+      }
+    ]
+  }
+}

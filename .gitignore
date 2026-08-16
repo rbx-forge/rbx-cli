@@ -1,0 +1,68 @@
+/target
+
+# `mdbook build` output. The site is built by CI from docs/ on every push to
+# main and served from GitHub Pages; nothing rendered is ever committed.
+/book
+
+# Editor/tool configs
+.idea/
+.vscode/
+.zed/
+.claude/
+
+# testenv/ holds the config for the throwaway experience the ops subcommands
+# are developed against; prodread/ reads the live one. Anything holding a real
+# key is not committed.
+testenv/.secrets/
+testenv/*.lock.toml
+prodread/.secrets/
+prodread/*.lock.toml
+
+# The configs themselves, because to be useful they have to hold real values: a
+# real public IP in the key allowlists, real universe and place ids. Scrubbing
+# them and committing placeholders worked, but only by discipline — the moment
+# somebody pastes their own IP back in to actually run something, a tracked
+# file holds personal data and is one `git commit -a` from being published.
+#
+# What is committed instead is the `.example` next to each one, which keeps
+# every comment (the scope reasoning, and the rule that nothing in prodread/
+# may ever hold a write scope). Copy it, fill it from .local/real-ids.toml, and
+# git stops being able to see the result.
+#
+# Listed as a pattern rather than file by file: `rbx meta init`, `rbx shop
+# init` and `rbx config pull` each write another `rbx*.toml` here the moment
+# somebody exercises them against the test universe, and a rule that has to be
+# extended for every new command is a rule that will be one command behind. The
+# `.example` files are the exception, since they are the committed half.
+testenv/rbx*.toml
+!testenv/*.example.toml
+prodread/rbx*.toml
+!prodread/*.example.toml
+
+# Python bytecode from scripts/
+__pycache__/
+*.pyc
+
+# Scratch sheet with real universe ids and personal notes. Not for the repo.
+TRY-IT.md
+
+# The real identifiers the committed configs carry placeholders for: public IP
+# for the key allowlists, and the live universe/place ids. They are personal
+# and operational data, so they live here and are copied into testenv/ and
+# prodread/ by hand when running against real Open Cloud. Never tracked.
+.local/
+
+# Local copies written before an overwrite, and profile templates used for
+# ad-hoc testing. Neither belongs to the repository.
+*.backup.json
+testenv/playerdata.template.json
+
+# Place files used to exercise `rbx place` against the throwaway universe. A
+# .rbxl is an opaque binary that can carry anything that was in the place when
+# it was saved, so it is ignored by extension rather than by name: the point is
+# that no future one gets committed either.
+*.rbxl
+*.rbxlx
+
+# staging area for the extracted crate, never committed here
+extracted/

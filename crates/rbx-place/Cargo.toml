@@ -1,0 +1,30 @@
+[package]
+name = "rbx-place"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: upload, download, promote, and rollback Roblox place files"
+
+[dependencies]
+anyhow.workspace = true
+bytes.workspace = true
+clap.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+colored.workspace = true
+dialoguer.workspace = true
+chrono.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

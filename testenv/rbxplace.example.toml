@@ -1,0 +1,23 @@
+# TEMPLATE. Copy to `rbxplace.toml` next to this file and fill in the real ids
+# from `.local/real-ids.toml` (gitignored):
+#
+#   cp rbxplace.example.toml rbxplace.toml
+#
+# `rbxplace.toml` itself is gitignored. The ids are left out of the repository
+# because they tie it publicly to a live Roblox experience.
+#
+# Test environment for developing rbx-ops.
+#
+# A private, published experience that has never had a player. It exists so
+# the ops subcommands can be exercised against real Open Cloud rather than
+# only against wiremock: real pagination, real error bodies, real enum values.
+#
+# Deliberately not one of the otherproject envs. Nothing here should ever be
+# able to touch a universe that will hold player data.
+
+# PLACEHOLDER ids. Replace them in your own `rbxplace.toml`; leave them here.
+[ops]
+universe_id = 66778899001
+
+[ops.places]
+main = 77889900112233

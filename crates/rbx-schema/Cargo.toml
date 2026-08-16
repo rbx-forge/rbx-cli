@@ -1,0 +1,31 @@
+[package]
+name = "rbx-schema"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Dev tool: generates the JSON Schemas for the rbx TOML config files"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+schemars.workspace = true
+serde_json.workspace = true
+
+rbx-core = { path = "../rbx-core", features = ["schema"] }
+rbx-apikey = { path = "../rbx-apikey", features = ["schema"] }
+rbx-config = { path = "../rbx-config", features = ["schema"] }
+rbx-meta = { path = "../rbx-meta", features = ["schema"] }
+rbx-shop = { path = "../rbx-shop", features = ["schema"] }
+
+[dev-dependencies]
+# A draft-7 validator, so the tests can assert the thing that actually matters:
+# the schema accepts every config file this repository ships. Dev-only, in a
+# crate that is never released.
+boon = "0.6"
+toml.workspace = true
+
+[lints]
+workspace = true

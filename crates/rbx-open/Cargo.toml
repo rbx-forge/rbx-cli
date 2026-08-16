@@ -1,0 +1,19 @@
+[package]
+name = "rbx-open"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: launch Roblox Studio at a specific place via rbxplace.toml"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+dialoguer.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[lints]
+workspace = true

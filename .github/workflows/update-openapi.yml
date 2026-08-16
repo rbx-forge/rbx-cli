@@ -1,0 +1,182 @@
+name: Update OpenAPI spec
+
+# Refreshes the vendored Roblox OpenAPI document and opens a pull request when
+# it changed. The PR is the early warning: if Roblox moved or removed an
+# endpoint we call, the drift test fails and the failure is quoted in the PR
+# body for a human to read.
+#
+# This never pushes to main. Every change to spec/ arrives as a reviewable PR.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:17 UTC daily. Deliberately not on the hour: scheduled jobs at :00 sit
+    # in GitHub's busiest queue and start late.
+    - cron: "17 6 * * *"
+
+# Never let two refreshes race: the second would branch from a tree the first
+# has already changed. `cancel-in-progress: false` because a run that is
+# already opening a PR should be allowed to finish.
+concurrency:
+  group: update-openapi
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM_REPO: Roblox/creator-docs
+  UPSTREAM_DOC: content/en-us/reference/cloud/openapi.json
+
+jobs:
+  refresh:
+    name: Refresh vendored spec
+    # Single Linux job on purpose: this repo is on the GitHub Free plan and CI
+    # is Linux-only to keep minutes affordable.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve the upstream commit that last touched the document
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # The document's own last-touching commit, not the repo HEAD: that is
+          # what spec/source.json claims, so it has to be what we pin.
+          commit=$(gh api \
+            "repos/${UPSTREAM_REPO}/commits?path=${UPSTREAM_DOC}&per_page=1" \
+            --jq '.[0]')
+          sha=$(printf '%s' "$commit" | jq -r '.sha')
+          date=$(printf '%s' "$commit" | jq -r '.commit.committer.date' | cut -dT -f1)
+          if [ -z "$sha" ] || [ "$sha" = "null" ]; then
+            echo "Could not resolve an upstream commit for ${UPSTREAM_DOC}." >&2
+            exit 1
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "date=$date" >> "$GITHUB_OUTPUT"
+          echo "Upstream document pinned at $sha ($date)."
+
+      - name: Check out only the document from the upstream repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ env.UPSTREAM_REPO }}
+          ref: ${{ steps.upstream.outputs.sha }}
+          # Sparse checkout with cone mode OFF so the pattern is a single file
+          # path rather than a directory prefix. creator-docs is a very large
+          # repository; cloning it whole to read one file is wasteful.
+          sparse-checkout: ${{ env.UPSTREAM_DOC }}
+          sparse-checkout-cone-mode: false
+          fetch-depth: 1
+          path: upstream
+          persist-credentials: false
+
+      - name: Update spec/openapi.json and spec/source.json
+        id: refresh
+        run: |
+          set -euo pipefail
+          src="upstream/${UPSTREAM_DOC}"
+          test -s "$src" || { echo "Sparse checkout produced no document at $src" >&2; exit 1; }
+          # Copied byte-for-byte. Never reformat: diffs between refreshes have
+          # to show real Roblox changes and nothing else.
+          cp "$src" spec/openapi.json
+          jq -n \
+            --arg repository "$UPSTREAM_REPO" \
+            --arg commit "${{ steps.upstream.outputs.sha }}" \
+            --arg commit_date "${{ steps.upstream.outputs.date }}" \
+            --arg document "$UPSTREAM_DOC" \
+            '{repository: $repository,
+              commit: $commit,
+              commit_date: $commit_date,
+              document: $document,
+              vendored: "spec/openapi.json"}' > spec/source.json
+          # The upstream working copy must not end up in the PR.
+          rm -rf upstream
+          if git diff --quiet -- spec/; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The vendored document is already current; nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- spec/
+          fi
+
+      - name: Install Rust
+        if: steps.refresh.outputs.changed == 'true'
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - name: Run the API drift check
+        id: drift
+        if: steps.refresh.outputs.changed == 'true'
+        # Deliberately non-fatal. A failing drift check is the most important
+        # thing this workflow can find, so it must still open the PR that
+        # reports it rather than dying here where nobody is watching.
+        continue-on-error: true
+        run: |
+          set +e
+          cargo test -p rbx-spec-drift --test openapi_drift -- --nocapture 2>&1 | tee drift.log
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Compose the pull request body
+        if: steps.refresh.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.drift.outputs.exit }}" = "0" ]; then
+            verdict="The drift check **passed**: every endpoint this workspace calls is still present in the refreshed document."
+            action="Review the diff for changes this check cannot see — renamed response fields, new required parameters, changed enum values — then merge."
+          else
+            verdict="The drift check **FAILED**. At least one endpoint this workspace calls is gone from the refreshed document."
+            action="Do not merge until a human has decided what to do. Read the failure below: it names the missing path, the call sites that use it, and the closest paths Roblox still documents."
+          fi
+          {
+            echo "## Vendored Roblox OpenAPI document refreshed"
+            echo
+            echo "Upstream: [\`${UPSTREAM_REPO}@${{ steps.upstream.outputs.sha }}\`](https://github.com/${UPSTREAM_REPO}/commit/${{ steps.upstream.outputs.sha }}) (${{ steps.upstream.outputs.date }})"
+            echo "Document: \`${UPSTREAM_DOC}\`"
+            echo
+            echo "$verdict"
+            echo
+            echo "### A human has to review this"
+            echo
+            echo "This PR is an *alarm*, not a fix. Roblox changed the document; whether that"
+            echo "breaks us is a judgement call this automation cannot make. $action"
+            echo
+            echo "Note that the drift check only verifies that endpoint **paths** still exist."
+            echo "It cannot see a renamed or retyped response field, which is the other way a"
+            echo "Roblox change turns into \`Failed to parse response\` for users. The diff on"
+            echo "\`spec/openapi.json\` is the place to look for those."
+            echo
+            echo "<details><summary>Drift check output</summary>"
+            echo
+            echo '```'
+            cat drift.log
+            echo '```'
+            echo
+            echo "</details>"
+          } > pr-body.md
+
+      - name: Open a pull request
+        if: steps.refresh.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          # Only the vendored document and its provenance. `drift.log` and
+          # `pr-body.md` are scratch files and must not be committed.
+          add-paths: spec/
+          branch: chore/update-openapi
+          # Reuse the branch so a daily run updates the open PR instead of
+          # opening a new one every morning.
+          delete-branch: true
+          commit-message: |
+            chore(spec): refresh vendored Roblox OpenAPI document
+
+            Upstream ${{ env.UPSTREAM_REPO }}@${{ steps.upstream.outputs.sha }}
+            (${{ steps.upstream.outputs.date }}).
+          title: "chore(spec): refresh vendored Roblox OpenAPI document"
+          body-path: pr-body.md
+          labels: |
+            dependencies
+            api-drift

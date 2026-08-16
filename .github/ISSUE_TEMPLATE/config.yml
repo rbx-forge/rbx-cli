@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/rbx-forge/rbx-cli/security/advisories/new
+    about: Report privately. Never in a public issue.
+  - name: Documentation
+    url: https://github.com/rbx-forge/rbx-cli/tree/main/docs
+    about: One page per command, plus the ops and CI guides. Check here first.
+  - name: Scope and non-goals
+    url: https://github.com/rbx-forge/rbx-cli#what-this-tool-does-not-do
+    about: What the tool deliberately does not do, and why.

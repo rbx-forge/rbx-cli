@@ -1,0 +1,120 @@
+# TEMPLATE. Copy to `rbxapikey.toml` next to this file, then fill in the real
+# values from `.local/real-ids.toml` (gitignored):
+#
+#   cp rbxapikey.example.toml rbxapikey.toml
+#
+# `rbxapikey.toml` itself is gitignored, which is the point: a real public IP
+# in an allowlist is personal data and an operational disclosure, and it cannot
+# be committed by accident if the path holding it is not a path git watches.
+# Edit *this* file only for changes worth sharing — a new key, a scope
+# decision, a comment. Never paste a real value into it.
+#
+# rbxapikey.toml for the rbx-ops test environment.
+#
+# Run from this directory:
+#   cd testenv && rbx apikey create readonly
+#
+# NOTE: Roblox moderation (Response.InvalidNameOrDescription) rejects key names
+# containing "rbx" or "roblox" glued to an API or commerce term. Neither the
+# prefix nor any key name below contains either, so no `name = ...` override is
+# needed here (unlike otherproject/rbxapikey.toml, where the keys are named
+# after the tools).
+
+[settings]
+# Must match the current public IP of the machine that will use the key.
+# A stale entry fails as an opaque 401, so check this first when a call that
+# should work does not.
+#
+# PLACEHOLDER. 203.0.113.0/24 is the reserved documentation range (RFC 5737),
+# so this value never matches a real machine and every call will 401 until it
+# is replaced in your own copy. The real one is in .local/real-ids.toml.
+default_allowed_cidrs = ["203.0.113.7/32"]
+default_enabled = true
+default_envs = ["ops"]
+default_expiration_months = 3
+default_secret_file = ".secrets/{name}.env"
+name_prefix = "opsdev_"
+
+# Everything rbx-ops needs today. All read, so a mistake with this key cannot
+# change anything: worst case it reads something it did not need to.
+#
+# Scope sources (Roblox openapi.json, x-roblox-scopes):
+#   universe:read                  GameServers_ListGameServers,
+#                                  GameServers_ListGameServerLogs,
+#                                  GameServers_GetFilterOptions,
+#                                  Restarts_ListRestartStatuses,
+#                                  Restarts_ForecastRestart
+#   universe.user-restriction:read Cloud_ListUserRestrictions,
+#                                  Cloud_GetUserRestriction,
+#                                  Cloud_ListUserRestrictionLogs
+#   universe.analytics:read        analytics-query-api metrics + dimension-values
+[keys.readonly]
+description = "Read-only key for developing the ops toolkit."
+scopes = [
+    "universe:read",
+    "universe.user-restriction:read",
+    "universe.analytics:read",
+]
+
+# Not created yet, and deliberately a separate key rather than extra scopes on
+# the one above. Creating it should stay a deliberate act, so that the key
+# sitting in a shell history or an editor buffer during development is the one
+# that cannot ban anyone.
+#
+#   universe.user-restriction:write  Cloud_UpdateUserRestriction
+#   user.user-notification:write     Cloud_CreateUserNotification
+#   universe:write                   Restarts_LaunchRestart
+#
+[keys.write]
+description = "Write key for the ops toolkit. Test universe only."
+envs = ["ops"]
+scopes = [
+    "universe.user-restriction:read,write",
+    "universe-datastores.objects:read,update,create,list,delete",
+    # control governs the data store itself; objects governs its entries. Creating
+    # an entry in a store that does not exist yet needs both.
+    "universe-datastores.control:create,list,snapshot",
+    "universe-datastores.versions:list,read",
+]
+
+# Exists to answer one question: does Roblox accept a memory-store scope
+# targeted at a universe?
+#
+# The catalog called these scopes creator-target until 2026-08-13, which was
+# the fall-through default of `infer_target_type` rather than anything the API
+# said, and the stated reason `rbx-ops memorystore` had been declined. The spec
+# publishes no `targetResourceSpecifier` for any memory-store operation, so the
+# spec cannot settle it and the Creator Hub UI is only suggestive. Creating the
+# key is the test: a wrong target fails at creation, and `apikey introspect`
+# reads back what Roblox actually stored.
+#
+# One scope on purpose. `flush` and the queues would widen the key without
+# telling us anything the sorted map does not.
+#
+#   memory-store.sorted-map:read   Cloud_ListMemoryStoreSortedMapItems,
+#                                  Cloud_GetMemoryStoreSortedMapItem
+#   memory-store.sorted-map:write  Cloud_CreateMemoryStoreSortedMapItem,
+#                                  Cloud_UpdateMemoryStoreSortedMapItem,
+#                                  Cloud_DeleteMemoryStoreSortedMapItem
+#
+# Declared but not currently created. It was created on 2026-08-13 to answer
+# the question above, and deleted once it had: an unused credential that can be
+# rebuilt from this block in one command is not worth leaving live for three
+# months. `rbx apikey create memstore` brings it back when the memorystore work
+# starts.
+[keys.memstore]
+description = "Probe the memory-store scope target. Test universe only."
+envs = ["ops"]
+scopes = ["memory-store.sorted-map:read,write"]
+
+# A `msgpublish` key lived here on 2026-08-13, long enough to confirm that
+# `rbx-ops publish` reaches Roblox and to measure the message size limit, which
+# turned out to be 1114 bytes rather than the documented 1 KB. Deleted the same
+# session; the finding is in docs/ops/publish.md and the crate's constant.
+
+# A `shopscopes` key lived here on 2026-08-13, long enough to read back what
+# Roblox stores for `developer-product` and `game-pass` after both moved from a
+# `none` target to a universe target. It answered `universeIds`, and both read
+# endpoints returned 200. Deleted the same session; the finding is in TODO.md.
+# Not left behind as a declared key, because `apikey create --all` would
+# recreate it and nothing needs it now.

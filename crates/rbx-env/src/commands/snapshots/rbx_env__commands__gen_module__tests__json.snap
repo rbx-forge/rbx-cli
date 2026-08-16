@@ -1,0 +1,34 @@
+---
+source: crates/rbx-env/src/commands/gen_module.rs
+expression: generate_json(&envs).unwrap()
+---
+[
+  {
+    "env": "development",
+    "placeIds": [
+      {
+        "id": 1002,
+        "name": "lobby"
+      },
+      {
+        "id": 1001,
+        "name": "main"
+      }
+    ],
+    "universeId": 100
+  },
+  {
+    "env": "prod",
+    "placeIds": [
+      {
+        "id": 2002,
+        "name": "arena"
+      },
+      {
+        "id": 2001,
+        "name": "main"
+      }
+    ],
+    "universeId": 200
+  }
+]

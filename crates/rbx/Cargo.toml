@@ -1,0 +1,58 @@
+[package]
+name = "rbx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Roblox developer toolkit (subcommands: shop, place, meta, config, apikey, init, open, download)"
+
+[[bin]]
+name = "rbx"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+clap_complete.workspace = true
+tokio.workspace = true
+colored.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+rbx-check = { path = "../rbx-check" }
+rbx-shop = { path = "../rbx-shop" }
+rbx-place = { path = "../rbx-place" }
+rbx-meta = { path = "../rbx-meta" }
+rbx-config = { path = "../rbx-config" }
+rbx-env = { path = "../rbx-env" }
+rbx-apikey = { path = "../rbx-apikey" }
+rbx-doctor = { path = "../rbx-doctor" }
+rbx-import = { path = "../rbx-import" }
+rbx-init = { path = "../rbx-init" }
+rbx-open = { path = "../rbx-open" }
+rbx-download = { path = "../rbx-download" }
+
+# Live operations. One binary: Rokit resolves one artifact per repository, so
+# two binaries from one repo cannot both be installed. See docs/ops.md.
+rbx-servers = { path = "../rbx-servers" }
+rbx-analytics = { path = "../rbx-analytics" }
+rbx-ads = { path = "../rbx-ads" }
+rbx-ban = { path = "../rbx-ban" }
+rbx-restart = { path = "../rbx-restart" }
+rbx-data = { path = "../rbx-data" }
+rbx-memorystore = { path = "../rbx-memorystore" }
+rbx-message = { path = "../rbx-message" }
+rbx-probe = { path = "../rbx-probe" }
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"
+# For tests/json_output.rs, which runs the binary and parses its stdout. The
+# `--json` contract is about what reaches the process's streams, so it can only
+# be tested from outside the process.
+serde_json.workspace = true
+tempfile.workspace = true
+wiremock.workspace = true
+
+[lints]
+workspace = true

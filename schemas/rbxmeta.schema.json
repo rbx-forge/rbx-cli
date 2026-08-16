@@ -1,0 +1,511 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxmeta.toml",
+  "description": "Universe and place metadata: name, description, devices, social links, server fill, media, and per-env overlays. See docs/meta.md.",
+  "type": "object",
+  "properties": {
+    "envs": {
+      "description": "Per-env overrides, layered on top of `[game]` and `[media]` when the corresponding `--env` is targeted.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/EnvOverlay"
+      }
+    },
+    "experience": {
+      "description": "Optional fallback experience IDs. Only consulted when no `--env` is passed.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Experience"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "game": {
+      "$ref": "#/definitions/Game"
+    },
+    "media": {
+      "$ref": "#/definitions/MediaConfig"
+    }
+  },
+  "definitions": {
+    "Devices": {
+      "type": "object",
+      "properties": {
+        "console": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "desktop": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "mobile": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "tablet": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "vr": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "EnvOverlay": {
+      "description": "Per-env overlay layered on top of `[game]` + `[media]` when the matching `--env` is targeted. All fields are optional; missing fields fall through to the base values.",
+      "type": "object",
+      "properties": {
+        "allow_copying": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "beta_mode": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "devices": {
+          "$ref": "#/definitions/Devices"
+        },
+        "media": {
+          "$ref": "#/definitions/MediaOverlay"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "private_server": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PrivateServer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server_fill": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ServerFill"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server_size": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "social_links": {
+          "$ref": "#/definitions/SocialLinks"
+        },
+        "studio_access_to_apis_allowed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "visibility": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Visibility"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "voice_chat": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "Experience": {
+      "type": "object",
+      "required": [
+        "place_id",
+        "universe_id"
+      ],
+      "properties": {
+        "place_id": {
+          "description": "Root place ID. Used to write displayName/description/serverSize.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "universe_id": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Game": {
+      "type": "object",
+      "properties": {
+        "allow_copying": {
+          "description": "Allow other users to copy this place. Requires cookie (not exposed by Open Cloud).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "beta_mode": {
+          "description": "Beta mode toggle: limits the experience's reach by hiding it from Home Recommendations. Requires cookie (experience-releases endpoint).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "devices": {
+          "$ref": "#/definitions/Devices"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "private_server": {
+          "description": "Private server settings. Omit the entire table to disable private servers.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PrivateServer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server_fill": {
+          "description": "Server fill mode. Requires cookie (not exposed by Open Cloud).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ServerFill"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "server_size": {
+          "description": "Max concurrent players per server.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "social_links": {
+          "$ref": "#/definitions/SocialLinks"
+        },
+        "studio_access_to_apis_allowed": {
+          "description": "Studio API access toggle. Requires cookie (universe configuration endpoint).",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "visibility": {
+          "description": "Public vs private visibility. Read via Open Cloud, write requires cookie.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Visibility"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "voice_chat": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "MediaConfig": {
+      "type": "object",
+      "properties": {
+        "bleed": {
+          "description": "Apply alpha bleed to PNG icons/thumbnails before uploading (default: true).",
+          "default": true,
+          "type": "boolean"
+        },
+        "dir": {
+          "description": "Destination directory for `pull --accept-remote` downloads.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icon": {
+          "description": "Path to the game icon PNG (relative to the config file).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language_code": {
+          "description": "Language code used for localized icon/thumbnail upload (default: \"en_us\").",
+          "default": "en_us",
+          "type": "string"
+        },
+        "thumbnails": {
+          "description": "Up to 10 thumbnail PNG paths, in display order.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "MediaOverlay": {
+      "type": "object",
+      "properties": {
+        "bleed": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "dir": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "icon": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "language_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "thumbnails": {
+          "description": "`Some(vec)` overrides base thumbnails; `None` means inherit.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "PrivateServer": {
+      "type": "object",
+      "required": [
+        "price"
+      ],
+      "properties": {
+        "price": {
+          "description": "Price in Robux. 0 = free private servers, > 0 = paid.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ServerFill": {
+      "oneOf": [
+        {
+          "description": "Roblox decides fill behavior automatically.",
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "automatic"
+              ]
+            }
+          }
+        },
+        {
+          "description": "New players go to empty servers first.",
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "empty"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Reserve N slots in each server for friends/invites.",
+          "type": "object",
+          "required": [
+            "mode",
+            "reserved_slots"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "custom"
+              ]
+            },
+            "reserved_slots": {
+              "type": "integer",
+              "format": "uint32",
+              "minimum": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "SocialLink": {
+      "type": "object",
+      "required": [
+        "title",
+        "url"
+      ],
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "SocialLinks": {
+      "type": "object",
+      "properties": {
+        "discord": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "facebook": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "guilded": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "roblox_group": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "twitch": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "twitter": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "youtube": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/SocialLink"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Visibility": {
+      "type": "string",
+      "enum": [
+        "public",
+        "private"
+      ]
+    }
+  }
+}

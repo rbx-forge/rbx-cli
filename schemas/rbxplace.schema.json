@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxplace.toml",
+  "description": "Environment map shared by every rbx subcommand: env name to universe id, the places under it, and the project owner. See docs/env.md.",
+  "type": "object",
+  "properties": {
+    "codegen": {
+      "description": "Codegen output path for `rbx env gen-module`.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/PlacesCodegen"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "owner": {
+      "description": "Default owner for every env. Per-env `[<env>.owner]` overrides win when set. See `PlacesFile::resolve_owner`.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Owner"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": {
+    "$ref": "#/definitions/Environment"
+  },
+  "definitions": {
+    "Environment": {
+      "description": "One `[<env>]` table: a named environment pointing at one universe.\n\n`universe_id` is required; everything else is optional. An unrecognised key is kept rather than rejected, and reported on stderr instead.",
+      "type": "object",
+      "required": [
+        "universe_id"
+      ],
+      "properties": {
+        "codegen": {
+          "description": "Whether game code should see this env (default: `true`).\n\n`false` marks an env that exists for tooling only — a universe you upload to from CI and never ship. It stays a normal env everywhere else: `--env` resolves it, `--env all` includes it, `list` and `get` report it. It is only kept out of the generated modules, so adding one does not widen the `EnvironmentType` union and force game code to acknowledge an env it never runs in.\n\nThe trade, and it is real: nothing then maps that universe back to an env at runtime. Boot the game there and code that resolves its env from `game.GameId` will not find one. Correct for a universe that only ever receives uploads, wrong for one that runs gameplay.",
+          "default": true,
+          "type": "boolean"
+        },
+        "confirm": {
+          "description": "Prompt before a write to this env: `upload`, `sync`, `rollback`, `promote`. Defaults to `false`.",
+          "default": false,
+          "type": "boolean"
+        },
+        "env": {
+          "description": "What game code matches on, when it should differ from the section name.\n\nA rename, not an alias: two envs resolving to the same name is an error, not two spellings of one env.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "owner": {
+          "description": "Per-env owner override. When unset, callers fall back to the top-level `[owner]` (see `PlacesFile::resolve_owner`).",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Owner"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "places": {
+          "description": "Per-place id map. Tools that operate at universe scope (rbx shop, rbx meta universe-level fields) leave this empty; tools that need a place id (rbx place, rbx meta place-level fields) read it.",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
+        "universe_id": {
+          "description": "The universe this env targets. Required.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": true
+    },
+    "Owner": {
+      "description": "Who owns the project. Tools without their own owner field fall back to this one.",
+      "type": "object",
+      "required": [
+        "id",
+        "type"
+      ],
+      "properties": {
+        "id": {
+          "description": "The user or group id.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "type": {
+          "description": "`\"user\"` or `\"group\"`.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/OwnerType"
+            }
+          ]
+        }
+      }
+    },
+    "OwnerType": {
+      "description": "Whether a project is owned by a user account or by a group.",
+      "type": "string",
+      "enum": [
+        "group",
+        "user"
+      ]
+    },
+    "PlacesCodegen": {
+      "description": "Reserved `[codegen]` block: where `rbx env gen-module` writes its module.\n\nThe path lives here rather than only in `--out` so the hook, the CI job and the developer cannot disagree about it — a `--check` pointed at a path nobody generates passes green while verifying nothing.",
+      "type": "object",
+      "properties": {
+        "output": {
+          "description": "Output file path. The format follows the extension: `.lua`, `.luau`, `.json` or `.ts`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

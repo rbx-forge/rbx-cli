@@ -1,0 +1,57 @@
+# TEMPLATE. Copy to `rbxapikey.toml` next to this file and fill in the real
+# CIDR from `.local/real-ids.toml` (gitignored):
+#
+#   cp rbxapikey.example.toml rbxapikey.toml
+#
+# `rbxapikey.toml` itself is gitignored. See testenv/rbxapikey.example.toml for
+# why the allowlist entry never belongs in a tracked file.
+#
+# Read-only key for the live production universe.
+#
+# RULE: nothing in this directory may ever hold a write scope. Writes go to
+# ../testenv/. `readonly = true` below enforces it: `rbx apikey` refuses to
+# load this file if any key here asks for an operation other than read or list.
+#
+# It used to say the rule was enforced by Roblox, because a key is bound to its
+# scopes at creation. Half of that is true — no call widens a key at runtime,
+# so whatever holds the secret cannot escalate it. The other half was wrong and
+# was disproved by running `rbx apikey update` on an already created key and
+# watching Roblox accept a write scope. The verb that widens a key is one this
+# tool ships, and this file is the one somebody would edit to use it. So the
+# guard lives in code now, where a comment cannot be edited past.
+#
+# If a write against production ever becomes genuinely necessary, it gets its
+# own deliberate key, created for that one task and deleted after. It does not
+# get added to this file.
+
+[settings]
+# Refuse any key here that asks for more than read or list.
+readonly = true
+# PLACEHOLDER, like every id in this directory — see
+# testenv/rbxapikey.example.toml for the full note. The real value lives in
+# .local/real-ids.toml, gitignored.
+default_allowed_cidrs = ["203.0.113.7/32"]
+default_enabled = true
+default_envs = ["prod_readonly"]
+default_expiration_months = 3
+default_secret_file = ".secrets/{name}.env"
+name_prefix = "prodread_"
+
+# Minimal on purpose. Only the two things production can teach us that the test
+# universe cannot:
+#
+#   universe:read            real terminated servers, with actual `crashed` and
+#                            `out_of_memory` rows rather than an empty array
+#   universe.analytics:read  metrics with data in them, the one thing that was
+#                            unverifiable without a live game
+#
+# `universe.user-restriction:read` is deliberately absent. Its envelope was
+# already confirmed against the test universe, and the only thing production
+# would add is real moderation data about real players, which is not needed to
+# write the client.
+[keys.viewer]
+description = "Read-only key for reading live server history and analytics."
+scopes = [
+    "universe:read",
+    "universe.analytics:read",
+]

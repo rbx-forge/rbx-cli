@@ -1,0 +1,33 @@
+# Git hooks managed by lefthook. Install once with `lefthook install`.
+# https://lefthook.dev/
+
+pre-commit:
+  parallel: true
+  commands:
+    fmt:
+      # Same check the CI runs. Catching it locally avoids round-trips.
+      glob: "*.rs"
+      run: cargo fmt --all -- --check
+      fail_text: "rustfmt found unformatted files. Run `cargo fmt --all` then re-stage."
+    clippy:
+      # --all-targets so tests + benches are linted too. -D warnings to
+      # mirror the CI configuration.
+      glob: "*.rs"
+      run: cargo clippy --workspace --all-targets -- -D warnings
+      fail_text: "clippy found warnings. Fix them, or run `cargo clippy --fix` for auto-fixable ones."
+    doc:
+      # The third CI job that reads `*.rs` and the one nothing local caught:
+      # `rustdoc::private_intra_doc_links` fires when a public doc comment
+      # links to a private item, which neither rustfmt nor clippy sees. A PR
+      # shipped a red Doc job on 2026-08-15 for exactly that, and the round
+      # trip to find out cost more than this hook costs to run.
+      glob: "*.rs"
+      run: cargo doc --workspace --no-deps --document-private-items
+      env:
+        RUSTDOCFLAGS: "-D warnings"
+      fail_text: "rustdoc found warnings. A public doc comment linking to a private item is the usual cause."
+
+# commit-msg hook intentionally omitted. Conventional Commits is a convention
+# kept by discipline, not by tooling: the CHANGELOG is written by hand at
+# release time, so a commit that doesn't follow the format costs nothing more
+# than a slightly less readable log. Less tooling friction.

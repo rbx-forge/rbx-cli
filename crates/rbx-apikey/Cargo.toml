@@ -1,0 +1,35 @@
+[package]
+name = "rbx-apikey"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: declaratively manage Roblox Open Cloud API keys"
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+schemars = { workspace = true, optional = true }
+serde_json.workspace = true
+toml.workspace = true
+colored.workspace = true
+dialoguer.workspace = true
+chrono.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+
+[features]
+# Adds `JsonSchema` to the config models. Off by default so `schemars` never
+# reaches the shipped binary; `rbx-schema` is the only thing that turns it on.
+schema = ["dep:schemars"]
+
+[lints]
+workspace = true

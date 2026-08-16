@@ -1,9 +1,11 @@
 //! Launch Roblox Studio at a specific place via `rbxplace.toml`.
 //!
-//! Resolution order for env and place:
-//! 1. The global `--env <name>` / `--place <name>` flags from `rbx-core`.
-//! 2. Positional `<env> <place>` arguments to `rbx open`.
-//! 3. Interactive picker (dialoguer) if either is still missing.
+//! Resolution order, most direct first:
+//! 1. `--place-id <id>` : opened as given, no file and no network.
+//! 2. `--universe-id <id>` : the universe's places are listed from Roblox, and
+//!    a single-place universe opens without a prompt.
+//! 3. `rbxplace.toml`, addressed by the global `--env` / `--place` flags, then
+//!    by the positional `<env> <place>` arguments, then by a picker.
 
 use std::process::Command;
 
@@ -16,6 +18,8 @@ use colored::Colorize;
 use dialoguer::Select;
 
 use rbx_core::places::PlacesFile;
+
+use rbx_core::universe::{UniversePlace, DEVELOP_HOST};
 
 use rbx_core::GlobalFlags;
 
@@ -47,6 +51,39 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
         return Ok(());
     }
 
+    // `--universe-id` is a global flag, so it already parsed here before this
+    // branch existed — and was then silently dropped on the way to
+    // `rbxplace.toml`, whose absence produced an error advising per-subcommand
+    // flags that `open` does not have. Accepting a flag and ignoring it is
+    // worse than rejecting it.
+    //
+    // The listing needs no credential (see `rbx_core::universe`), so this path
+    // works in a bare directory, which is the point: adopting somebody else's
+    // universe id is exactly when there is no project to read.
+    if let Some(universe_id) = global.universe_id {
+        // The explicit `--cookie` only, never `resolve_cookie()`. That helper
+        // can go looking for a local Studio session and ask for consent to use
+        // it, and asking to borrow a full-account credential for a call that
+        // answers anonymously is a bad trade to offer.
+        let places = rbx_core::universe::list_places(
+            &rbx_core::api::build_client(),
+            &rbx_core::api::ApiBase::new(DEVELOP_HOST),
+            global.cookie.as_deref(),
+            universe_id,
+        )
+        .await?;
+
+        let chosen = pick_universe_place(universe_id, &places)?;
+        open_place(chosen.id)?;
+        println!(
+            "{} Opening {} (place {})",
+            "✓".green(),
+            label(chosen).cyan(),
+            chosen.id
+        );
+        return Ok(());
+    }
+
     let places = PlacesFile::load(&global.places)?;
 
     // Env: positional > global --env > interactive picker
@@ -71,6 +108,47 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
     );
 
     Ok(())
+}
+
+/// What to call a place in output. Roblox omits the name on some places, and
+/// an entry rendered as an empty string is one the reader cannot pick from.
+fn label(place: &UniversePlace) -> String {
+    let name = place.name.trim();
+    match (name.is_empty(), place.is_root) {
+        (true, true) => format!("place {} (start place)", place.id),
+        (true, false) => format!("place {}", place.id),
+        (false, true) => format!("{name} (start place)"),
+        (false, false) => name.to_string(),
+    }
+}
+
+/// Choose among a universe's places: none is an error, one opens silently,
+/// several ask.
+fn pick_universe_place(universe_id: u64, places: &[UniversePlace]) -> Result<&UniversePlace> {
+    match places {
+        // `list_places` seeds the root, so an empty result means the universe
+        // reported nothing at all rather than "no extra places".
+        [] => bail!(
+            "Universe {universe_id} reported no places. Check the id: a place id passed where \
+             a universe id belongs is the usual mistake."
+        ),
+        [only] => Ok(only),
+        several => {
+            // The id goes on every row. Two places in one universe are allowed
+            // to share a display name, and picking blind between two identical
+            // rows is how the wrong one gets opened.
+            let items: Vec<String> = several
+                .iter()
+                .map(|p| format!("{}  ({})", label(p), p.id))
+                .collect();
+            let selection = Select::new()
+                .with_prompt(format!("Select a place in universe {universe_id}"))
+                .default(0)
+                .items(&items)
+                .interact()?;
+            Ok(&several[selection])
+        }
+    }
 }
 
 fn pick_env(places: &PlacesFile) -> Result<String> {
@@ -180,4 +258,46 @@ fn open_place(place_id: u64) -> Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn place(id: u64, name: &str, is_root: bool) -> UniversePlace {
+        UniversePlace {
+            id,
+            name: name.to_string(),
+            is_root,
+        }
+    }
+
+    /// The whole point of the universe path: one place must not stop to ask.
+    /// A prompt here would also hang a non-interactive run.
+    #[test]
+    fn a_single_place_universe_is_chosen_without_a_prompt() {
+        let places = vec![place(111, "Start", true)];
+        let chosen = pick_universe_place(7, &places).expect("one place is unambiguous");
+        assert_eq!(chosen.id, 111);
+    }
+
+    /// `list_places` seeds the root, so an empty vec means the universe
+    /// answered with nothing — most often a place id passed as a universe id.
+    #[test]
+    fn no_places_is_an_error_that_names_the_likely_mistake() {
+        let error = pick_universe_place(7, &[]).expect_err("nothing to open");
+        assert!(error.to_string().contains("place id"), "got: {error}");
+    }
+
+    #[test]
+    fn a_nameless_place_is_still_identifiable() {
+        assert_eq!(label(&place(111, "", false)), "place 111");
+        assert_eq!(label(&place(111, "   ", true)), "place 111 (start place)");
+    }
+
+    #[test]
+    fn the_start_place_is_marked_so_it_can_be_told_apart() {
+        assert_eq!(label(&place(111, "Start", true)), "Start (start place)");
+        assert_eq!(label(&place(222, "Lobby", false)), "Lobby");
+    }
 }

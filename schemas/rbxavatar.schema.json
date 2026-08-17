@@ -1,0 +1,899 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxavatar.toml",
+  "description": "The modern avatar rules, sent verbatim as `engineAvatarSettings`: rig, animations, clothing, accessories, collisions and body scaling. Pointed at by `game.engine_avatar_settings` in rbxmeta.toml. See docs/meta.md. \n\nGUIDANCE, NOT VALIDATION. Roblox describes this field as an opaque JSON string and publishes no schema for what is inside it, so nothing detects drift here the way CI detects it for the other schemas in this folder: they are regenerated from the models the CLI parses with and a stale one fails the build, while this one is maintained by hand. Key names and mode meanings were read from the Phoenix-CLI worked example on 2026-08-17. `additionalProperties` is open throughout, so a key Roblox adds after that date is one your editor stays quiet about and `rbx meta` sends anyway.",
+  "type": "object",
+  "properties": {
+    "AvatarAccessoryRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarAccessoryRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "AvatarAnimationRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarAnimationRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "AvatarBodyRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarBodyRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "AvatarClothingRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarClothingRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "AvatarCollisionRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarCollisionRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "AvatarRules": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/AvatarRules"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "version": {
+      "description": "Schema version of the document itself. `1` is the only value seen so far.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int64"
+    }
+  },
+  "definitions": {
+    "AvatarAccessoryRules": {
+      "description": "Accessories: which ones, and what happens to the oversized ones.",
+      "type": "object",
+      "properties": {
+        "AccessoryMode": {
+          "description": "`0` = no limit bounds, `1` = apply `LimitBounds`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomAccessoryMode": {
+          "description": "`0` = player choice, `1` = replace with the custom accessories below.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomBackAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomBackAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomFaceAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomFaceAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomFrontAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomFrontAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomHairAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomHairAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomHeadAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomHeadAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomNeckAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomNeckAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomShoulderAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomShoulderAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomWaistAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomWaistAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "EnableSound": {
+          "description": "Whether accessory sounds play.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "EnableVFX": {
+          "description": "Whether accessory particle effects play.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "LimitBounds": {
+          "description": "Padding around the avatar, as a percentage. Three numbers.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        },
+        "LimitMethod": {
+          "description": "What happens to an accessory past the bounds: `0` = scaled down, `1` = removed.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    },
+    "AvatarAnimationRules": {
+      "description": "Which animations play, and whether players may bring their own.",
+      "type": "object",
+      "properties": {
+        "AnimationClipsMode": {
+          "description": "`0` = player choice, `1` = the custom clips named in this table.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "AnimationPacksMode": {
+          "description": "`0` = player choice, `1` = standard R15, `2` = standard R6.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomClimbAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomClimbAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomFallAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomFallAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomIdleAlt1AnimationEnabled": {
+          "description": "First alternate idle. Roblox cycles between the alternates.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomIdleAlt1AnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomIdleAlt2AnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomIdleAlt2AnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomIdleAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomIdleAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomJumpAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomJumpAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomRunAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomRunAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomSwimAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomSwimAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomSwimIdleAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomSwimIdleAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomWalkAnimationEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomWalkAnimationId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    },
+    "AvatarBodyRules": {
+      "description": "Body shape, scale, and which parts are forced.\n\nThe `Custom*Scale` fields are `[min, max]` pairs, not single values.",
+      "type": "object",
+      "properties": {
+        "AppearanceMode": {
+          "description": "`0` = player choice, `1` = the custom body parts below.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "BuildMode": {
+          "description": "`0` = player choice, `1` = forced non-uniform scale.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomBodyBundleId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomBodyType": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomBodyTypeScale": {
+          "description": "Min and max \"rthro\" scale, each `0` to `1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "CustomEyebrowEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomEyebrowId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomEyelashEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomEyelashId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomFaceEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomFaceId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomHeadEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomHeadId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomHeadScale": {
+          "description": "Min and max head scale, each `0` to `1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "CustomHeight": {
+          "description": "Min and max height in studs, used when `ScaleMode` is forced height.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "CustomHeightScale": {
+          "description": "Min and max height scale, each `0` to `1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "CustomLeftArmEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomLeftArmId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomLeftLegEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomLeftLegId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomMoodEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomMoodId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomProportionsScale": {
+          "description": "Min and max proportions scale, each `0` to `1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "CustomRightArmEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomRightArmId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomRightLegEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomRightLegId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomTorsoEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomTorsoId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomWidthScale": {
+          "description": "Min and max width scale, each `0` to `1`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "KeepPlayerHead": {
+          "description": "Whether the player keeps their own head when body parts are forced.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "ScaleMode": {
+          "description": "`0` = player choice, `1` = forced height.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    },
+    "AvatarClothingRules": {
+      "description": "What players wear, and how far it may stick out.",
+      "type": "object",
+      "properties": {
+        "ClothingMode": {
+          "description": "`0` = no limit bounds, `1` = apply `LimitBounds`.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomClassicPantsAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomClassicPantsAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomClassicShirtsAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomClassicShirtsAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomClassicTShirtsAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomClassicTShirtsAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomClothingMode": {
+          "description": "`0` = player choice, `1` = replace with the custom clothing below.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomDressSkirtAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomDressSkirtAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomJacketAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomJacketAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomLeftShoesAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomLeftShoesAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomPantsAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomPantsAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomRightShoesAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomRightShoesAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomShirtAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomShirtAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomShortsAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomShortsAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomSweaterAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomSweaterAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "CustomTShirtAccessoryEnabled": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "CustomTShirtAccessoryId": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "LimitBounds": {
+          "description": "Padding around the avatar, as a percentage, beyond which clothing is removed or scaled. Three numbers.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      }
+    },
+    "AvatarCollisionRules": {
+      "description": "How avatars collide with the world and with each other.",
+      "type": "object",
+      "properties": {
+        "CollisionMode": {
+          "description": "`0` = default (outer box), `1` = single collider, `2` = legacy (inner box).\n\nA third numbering for collisions, and again not the one `[game.avatar] collision` uses — that field is the older `universeCollisionType`, where `1` = inner box and `2` = outer box.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "HitAndTouchDetectionMode": {
+          "description": "What touch events fire against: `0` = avatar geometry, `1` = colliders.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "LegacyCollisionMode": {
+          "description": "Purpose undocumented; observed as `1` in every example seen. Left in the schema because omitting a key people will find in their own file is how a schema teaches them to ignore it.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        },
+        "SingleColliderSize": {
+          "description": "Size of the collider used when `CollisionMode` is single collider. Three numbers.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number",
+            "format": "double"
+          },
+          "maxItems": 3,
+          "minItems": 3
+        }
+      }
+    },
+    "AvatarRules": {
+      "description": "Which rig players get.",
+      "type": "object",
+      "properties": {
+        "AvatarType": {
+          "description": "`0` = R6, `1` = R15, `2` = both.\n\n**Not the same numbering as `[game.avatar] type`**, which is Roblox's older `universeAvatarType` and runs `1` = R6, `2` = player choice, `3` = R15. The two fields describe the same idea through different endpoints and disagree on the integers; setting one from the other's value silently picks the wrong rig.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "int64"
+        }
+      }
+    }
+  }
+}

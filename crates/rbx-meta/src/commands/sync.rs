@@ -4,7 +4,7 @@ use colored::Colorize;
 use crate::api::RbxClient;
 use crate::config::Config;
 use crate::ctx::MetaCtx;
-use crate::diff::{build_plan, config_to_lock, desired_order, IconPlan, SyncPlan};
+use crate::diff::{build_plan, desired_order, IconPlan, SyncPlan};
 use crate::lockfile::{Lockfile, MediaLock, LOCKFILE_NAME, LOCKFILE_VERSION};
 use rbx_core::confirm::confirm_destructive;
 use rbx_core::places::PlacesFile;
@@ -97,7 +97,8 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     if plan.needs_cookie() && cookie.is_none() {
         bail!(
             "Cannot apply legacy / cookie-only fields (server_fill / allow_copying / visibility / \
-             studio_access_to_apis_allowed / beta_mode) without a cookie. \
+             studio_access_to_apis_allowed / beta_mode / genre / avatar / \
+             engine_avatar_settings / paid_access / permissions) without a cookie. \
              Pass --cookie, set RBX_COOKIE, or sign in to Roblox Studio."
         );
     }
@@ -225,8 +226,20 @@ async fn apply_plan(
         client
             .patch_universe(patch.body.clone(), &patch.mask)
             .await?;
-        let new_game_lock = config_to_lock(game);
-        lockfile.env_mut(env).game = new_game_lock;
+        // Only the fields this call actually wrote.
+        //
+        // This used to assign `config_to_lock(game)` wholesale, which recorded
+        // the cookie-only fields as applied too — before the legacy patch that
+        // applies them had run, and regardless of whether it then failed. The
+        // two blocks below already do it the narrow way; this one did not, and
+        // the mismatch stopped being cosmetic when `permissions` and the
+        // avatar scale tables arrived: those are write-only, so the lockfile is
+        // the *only* record of them and no `pull` can ever correct it.
+        let el = lockfile.env_mut(env);
+        el.game.voice_chat = game.voice_chat;
+        el.game.private_server = game.private_server.clone();
+        el.game.devices = game.devices.clone();
+        el.game.social_links = game.social_links.clone();
         lockfile.save(lockfile_path)?;
         println!("  {} universe patched", "✓".green());
     }
@@ -260,11 +273,22 @@ async fn apply_plan(
             "\n{} universe config (legacy, cookie)...",
             "Patching".cyan().bold()
         );
-        client
+        let response = client
             .patch_universe_config_legacy(patch.body.clone())
             .await?;
-        lockfile.env_mut(env).game.studio_access_to_apis_allowed =
-            game.studio_access_to_apis_allowed;
+        report_engine_echo(patch, &response);
+        let el = lockfile.env_mut(env);
+        el.game.studio_access_to_apis_allowed = game.studio_access_to_apis_allowed;
+        el.game.permissions = game.permissions;
+        el.game.avatar = game.avatar;
+        el.game.paid_access = game.paid_access.clone();
+        el.game.genre = game.genre;
+        // From the patch, not recomputed: the hash has to describe the exact
+        // document that just went over the wire. `None` here means this patch
+        // carried no engine settings, so whatever the lock held still stands.
+        if let Some(hash) = &patch.engine_avatar_settings_hash {
+            el.game.engine_avatar_settings_hash = Some(hash.clone());
+        }
         lockfile.save(lockfile_path)?;
         println!("  {} legacy universe config patched", "✓".green());
     }
@@ -665,6 +689,64 @@ mod ordering_tests {
         paths_in_order(server).await
     }
 
+    /// The avatar echo is read from a response that used to be discarded, so
+    /// the wiring is worth one test: the run completes, and the lockfile
+    /// records the hash the patch carried rather than one recomputed from a
+    /// file that may have changed since.
+    #[tokio::test]
+    async fn an_avatar_echo_is_read_without_failing_the_sync() {
+        let server = MockServer::start().await;
+        // Mounted first: wiremock takes the earliest matching mock, and
+        // `accept_everything` below would otherwise answer this path with `{}`.
+        Mock::given(path_regex(r".*/v2/universes/.*/configuration"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                // One key sent back, one silently dropped.
+                "engineAvatarSettings": r#"{"AvatarRules":{"AvatarType":1}}"#
+            })))
+            .mount(&server)
+            .await;
+        accept_everything(&server).await;
+
+        let plan = SyncPlan {
+            universe_legacy_patch: Some(crate::diff::UniverseLegacyPatch {
+                body: json!({
+                    "engineAvatarSettings":
+                        r#"{"AvatarRules":{"AvatarType":1,"AvatarTpye":2}}"#
+                }),
+                descriptions: vec!["engine_avatar_settings".into()],
+                engine_avatar_settings_hash: Some("deadbeef".into()),
+            }),
+            ..SyncPlan::default()
+        };
+
+        let cookie = format!("live-{}", server.uri());
+        let session = session_service(200).await;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let lockfile_path = dir.path().join(LOCKFILE_NAME);
+        let mut lockfile = Lockfile::default();
+
+        apply_plan(
+            &client(&server, &session, &cookie),
+            &plan,
+            &crate::config::Game::default(),
+            ApplyTarget {
+                env: "test",
+                universe_id: UNIVERSE,
+                place_id: PLACE,
+            },
+            &mut lockfile,
+            &lockfile_path,
+        )
+        .await
+        .expect("a dropped key is a warning, not a failed sync");
+
+        assert_eq!(
+            lockfile.env_view("test").game.engine_avatar_settings_hash,
+            Some("deadbeef".to_string()),
+            "the hash recorded is the one the patch carried"
+        );
+    }
+
     fn position(paths: &[String], needle: &str) -> usize {
         paths
             .iter()
@@ -917,6 +999,81 @@ mod ordering_tests {
         assert!(
             !paths_in_order(&server).await.is_empty(),
             "the apply must have gone ahead"
+        );
+    }
+}
+
+/// Say what Roblox did with the avatar document, if it was sent one.
+///
+/// Printed after the write rather than gating it: by the time there is an echo
+/// to read, the write has landed. See `crate::engine_echo` for why a
+/// difference is a warning and not an error.
+fn report_engine_echo(patch: &crate::diff::UniverseLegacyPatch, response: &str) {
+    let Some(sent) = patch
+        .body
+        .get("engineAvatarSettings")
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    let Some(echo) = crate::engine_echo::compare(sent, response) else {
+        // Measured against a live universe on 2026-08-17: this is what actually
+        // happens. The specification says the PATCH answers with
+        // `UniverseSettingsResponseV2`, `engineAvatarSettings` included; the
+        // endpoint returned nothing usable, and a deliberately misspelled key
+        // went unreported.
+        //
+        // So the check says it could not run, rather than saying nothing and
+        // leaving a reader to assume the document was verified. The byte count
+        // is the diagnosis: `0 bytes` means an empty response, anything else
+        // means a body that does not carry the field, and the two want
+        // different fixes.
+        println!(
+            "{}",
+            format!(
+                "    Roblox returned no avatar echo to check against ({} bytes); \
+                 misspelled keys cannot be reported.",
+                response.len()
+            )
+            .dimmed()
+        );
+        return;
+    };
+
+    if !echo.dropped.is_empty() {
+        println!(
+            "  {} Roblox did not keep {} avatar key{} — {} not applied:",
+            "!".yellow(),
+            echo.dropped.len(),
+            if echo.dropped.len() == 1 { "" } else { "s" },
+            if echo.dropped.len() == 1 {
+                "it was"
+            } else {
+                "they were"
+            },
+        );
+        for key in &echo.dropped {
+            println!("      {}", key.yellow());
+        }
+        println!(
+            "{}",
+            "    A misspelling is the usual cause. The rest of the document applied.".dimmed()
+        );
+    }
+
+    if !echo.added.is_empty() {
+        // Lower volume than a drop, and on purpose: Roblox completing a partial
+        // document is the normal case, and the only reason to mention it is
+        // that it is how somebody learns the full shape without guessing.
+        println!(
+            "{}",
+            format!(
+                "    Roblox filled in {} default{}: {}",
+                echo.added.len(),
+                if echo.added.len() == 1 { "" } else { "s" },
+                echo.added.join(", ")
+            )
+            .dimmed()
         );
     }
 }

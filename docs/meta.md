@@ -188,6 +188,8 @@ name = "My Awesome Game"
 description = "A really fun multiplayer game."
 server_size = 50             # max concurrent players per server
 voice_chat = false
+genre = "adventure"          # cookie-only, legacy genre list
+engine_avatar_settings = "avatar-settings.toml"   # cookie-only, opaque passthrough
 
 # The fields below have no Open Cloud endpoint, so a `sync` whose plan touches
 # one needs a session cookie. Leave them out and the rest of this file syncs
@@ -213,6 +215,48 @@ reserved_slots = 5           # only with mode = "custom"
 [game.social_links.discord]
 title = "Join our Discord"
 url = "https://discord.gg/example"
+
+# All four keys or none — Roblox takes this object whole. Cookie-only, and
+# write-only: no Roblox endpoint returns it, so `pull` cannot adopt it.
+[game.permissions]
+third_party_teleport = false
+third_party_asset = false
+third_party_purchase = false
+client_teleport = true
+
+[game.avatar]
+type = "player_choice"               # "r6" | "r15" | "player_choice"
+animation = "player_choice"          # "standard" | "player_choice"
+collision = "outer_box"              # "inner_box" | "outer_box"
+joint_positioning = "artist_intent"  # "standard" | "artist_intent"
+
+# Both scale tables need all five keys. Write-only, like [game.permissions].
+[game.avatar.min_scale]
+height = 0.9
+width = 0.7
+head = 0.95
+body_type = 0.0
+proportion = 0.0
+
+# All ten slots or none, for the same reason as [game.permissions]: Roblox
+# replaces the array rather than merging into it. Write-only.
+[game.avatar.asset_overrides]
+face = "player_choice"
+head = "player_choice"
+torso = "player_choice"
+left_arm = "player_choice"
+right_arm = "player_choice"
+left_leg = "player_choice"
+right_leg = "player_choice"
+t_shirt = "player_choice"
+shirt = "player_choice"
+pants = 12345678            # an asset id forces that slot
+
+# Omit this table to leave paid access unmanaged. `mode = "free"` is an
+# instruction to turn it off, which is not the same thing.
+[game.paid_access]
+mode = "paid"                # "free" | "paid"
+price = 25                   # Robux, only with mode = "paid"
 
 [media]
 icon = "assets/icon.png"
@@ -252,6 +296,8 @@ Scalar fields live directly under `[game]`. Grouped multi-field settings (device
 | `visibility` | `string` | Open Cloud read / Cookie write | `"public"` or `"private"` |
 | `studio_access_to_apis_allowed` | `bool` | Cookie | Allow Studio scripts to call Open Cloud / data store APIs |
 | `beta_mode` | `bool` | Cookie | Enable Experience Beta mode (hides from Home Recommendations) |
+| `engine_avatar_settings` | `string` | Cookie | Path to a `.toml` or `.json` file holding the modern avatar rules, relative to this config file. Passed through opaquely — see the section below |
+| `genre` | `string` | Cookie | Legacy genre. One of `all`, `tutorial`, `scary`, `town_and_city`, `war`, `funny`, `fantasy`, `adventure`, `sci_fi`, `pirate`, `fps`, `rpg`, `sports`, `ninja`, `wild_west`. Legacy in Roblox's own sense — discovery moved to experience types and tags years ago — but the field still round-trips, so a config that does not model it loses whatever it was set to on the next `pull` |
 
 </details>
 
@@ -290,6 +336,186 @@ Server fill mode. **Requires cookie**: not exposed by Open Cloud.
 | --- | --- | --- | --- |
 | `mode` | `string` | **Yes** | `"automatic"`, `"empty"`, or `"custom"` |
 | `reserved_slots` | `u32` | Only with `mode = "custom"` | Number of slots reserved per server |
+
+</details>
+
+<details>
+<summary><code>[game.permissions]</code></summary>
+
+What the experience lets other experiences and the client do to it. **Requires cookie.**
+
+**All four fields are required.** That is the API's doing, not a style choice: Roblox takes `permissions` as one object, so writing one flag writes all four, and it exposes no endpoint that returns them. There is no way to fill in the flags a partial table left out — not from Roblox, and not from a first-run lockfile. A table with three of the four keys is a load error rather than a write whose result nobody can predict.
+
+The same absence means **`pull` and `init` cannot adopt these**. The lockfile records what `rbx meta` last wrote, which is what `check` and `sync` compare against; a change made in the Creator Dashboard will not be noticed until the next `sync` overwrites it.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `third_party_teleport` | `bool` | **Yes** | Whether another experience may teleport players into this one |
+| `third_party_asset` | `bool` | **Yes** | Whether this experience may load assets it does not own |
+| `third_party_purchase` | `bool` | **Yes** | Whether this experience may prompt purchases for another creator's products |
+| `client_teleport` | `bool` | **Yes** | Whether client-initiated teleports are allowed |
+
+</details>
+
+<details>
+<summary><code>[game.avatar]</code></summary>
+
+Avatar rules. **Requires cookie.** The four mode fields are read back by `pull`; the two scale tables are not (see below).
+
+| Field | Type | Values | Description |
+| --- | --- | --- | --- |
+| `type` | `string` | `r6`, `r15`, `player_choice` | Which rig players get |
+| `animation` | `string` | `standard`, `player_choice` | Whether players keep their own animations |
+| `collision` | `string` | `inner_box`, `outer_box` | The shape of an avatar's collision box |
+| `joint_positioning` | `string` | `standard`, `artist_intent` | How avatar joints are positioned |
+
+</details>
+
+<details>
+<summary><code>[game.avatar.min_scale]</code> / <code>[game.avatar.max_scale]</code></summary>
+
+The scale range players are held to. **Requires cookie**, and **write-only**: Roblox returns neither table from any endpoint, so `pull` leaves whatever the config says rather than inventing a range.
+
+**All five fields are required in each table**, for the same reason as `[game.permissions]`: Roblox takes each table as one object, and a table with three keys is an object it reads as "the other two are zero".
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `height` | `float` | **Yes** | Height multiplier |
+| `width` | `float` | **Yes** | Width multiplier |
+| `head` | `float` | **Yes** | Head multiplier |
+| `body_type` | `float` | **Yes** | Body-type ("rthro") multiplier, 0 to 1 |
+| `proportion` | `float` | **Yes** | Proportions multiplier, 0 to 1 |
+
+Roblox's model declares a sixth field, `depth`, and this sends five. That is on precedent rather than principle: Mantle carries the same five and wrote avatar scales against real experiences for years, and `depth` appears in no avatar scaling UI to compare against. It is the strongest evidence available, and it is not proof — **nothing here has sent this object to Roblox yet.** If a synced experience comes back with squashed avatars, this is the first place to look.
+
+</details>
+
+<details>
+<summary><code>[game.avatar.asset_overrides]</code></summary>
+
+Forces what players wear in each of the ten slots Roblox exposes. **Requires cookie**, and **write-only**.
+
+**All ten slots are required.** Roblox takes `universeAvatarAssetOverrides` as one array and replaces it wholesale, so a table naming three slots is a request to reset the other seven — and since no endpoint returns the array, nothing could fill in the missing seven either.
+
+Each slot is one of two things:
+
+- an **asset id**, forcing every player into that asset for the slot
+- the string **`"player_choice"`**, leaving the slot to the player
+
+```toml
+[game.avatar.asset_overrides]
+face = "player_choice"
+head = "player_choice"
+torso = "player_choice"
+left_arm = "player_choice"
+right_arm = "player_choice"
+left_leg = "player_choice"
+right_leg = "player_choice"
+t_shirt = "player_choice"
+shirt = 987654321
+pants = 12345678
+```
+
+Anything other than an id or `"player_choice"` is a load error naming the valid value, rather than a slot silently skipped.
+
+</details>
+
+<details>
+<summary><code>game.engine_avatar_settings</code></summary>
+
+Path to a file holding the modern avatar rules — animation rules, clothing rules, accessory rules, collision rules, body rules. **Requires cookie**, and **write-only**.
+
+**TOML or JSON, decided by the extension.** Roblox's field is a JSON string, so anything dumped out of Studio or copied from someone's example is already JSON and refusing it would mean hand-converting a hundred and fifty keys. But a project whose every other config file is TOML should not have to grow one that is not. Both are accepted; both land on the same document before it is hashed and sent, so rewriting `avatar.toml` as `avatar.json` with the same content changes nothing and re-sends nothing.
+
+> **Measured 2026-08-17, against a live test universe.** This document is
+> currently a **write-only, unverifiable channel**, and that is worth knowing
+> before you rely on it.
+>
+> Three things were established by sending real documents:
+>
+> - The `PATCH` accepts any inner content. To that endpoint the field is an
+>   opaque string, so it validates nothing — **a `200` says the request was
+>   transported, not that Roblox understood the document.**
+> - Roblox returns no echo. The specification says the response carries
+>   `engineAvatarSettings` back; it does not, so a misspelled key cannot be
+>   reported (see below).
+> - The resulting settings were not visible in the Creator Hub. They live in
+>   Studio's `Game Settings → Avatar`, and even there the mapping to this
+>   document has not been confirmed.
+>
+> The practical consequence: **nothing — not this tool, not the dashboard —
+> can currently tell you that an avatar document took effect.** Treat it as
+> fire-and-forget, keep the document small, and verify in game rather than by
+> reading a setting back. This is also why `schemas/rbxavatar.schema.json`
+> exists: an editor catching a typo before the write is the only check
+> available anywhere in the loop.
+
+**A key Roblox did not understand is reported after the sync.** This is the one place Roblox says anything about the inside of the document: the `PATCH` responds with the configuration it ended up with, `engineAvatarSettings` included, so `sync` compares that echo against what it sent.
+
+```
+  ✓ legacy universe config patched
+  ! Roblox did not keep 1 avatar key — it was not applied:
+      AvatarRules.AvatarTpye
+    A misspelling is the usual cause. The rest of the document applied.
+```
+
+**As measured, this does not currently fire**: the response carried no
+`engineAvatarSettings` and a deliberately misspelled key went unreported. The
+sync now says so — `Roblox returned no avatar echo to check against (N bytes)` —
+rather than staying silent and letting a reader assume the document was
+verified. The byte count is the diagnosis, and the check is kept because it
+costs a comparison on a response that was already arriving.
+
+When it does fire, it is a warning and not an error, because by the time there is an echo to read the write has already landed — failing then would report an error for something that succeeded. Keys Roblox *filled in* are reported too, more quietly: that is the normal completion of a partial document, and it is how you learn the full shape without guessing.
+
+`schemas/rbxavatar.schema.json` describes this document, so an editor completes the key names and shows what each numeric mode means on hover. Name the file `rbxavatar.toml` and the associations in the [README](../README.md#editor-support) match it without editing. The schema is **guidance, not a gate**: `additionalProperties` is open everywhere, so a key Roblox adds tomorrow is one your editor stays quiet about and `rbx meta` sends anyway — the same reason the document is not modelled in the first place.
+
+Watch one trap the schema calls out on hover: `AvatarRules.AvatarType` here runs `0` = R6, `1` = R15, `2` = both, while `[game.avatar] type` is the older `universeAvatarType` and runs `1` = R6, `2` = player choice, `3` = R15. Same idea, two endpoints, different integers.
+
+An extension that is neither is refused by name rather than sniffed — guessing from the content would let a `.txt` through and turn a typo in the path into a silent success. The one thing TOML cannot express is `null`; nothing in the documents Roblox accepts here uses one, but a document that needed it would have to be the JSON form.
+
+**This tool does not model what is in the file.** It reads it, checks it parses as JSON, and sends it. That is a deliberate limit rather than a shortcut, and the reason is in Roblox's own specification: the field is typed as a JSON *string*, and it is annotated *"This is an experimental field which may be changed or removed in future."* Modelling its structure would be inventing a contract nobody offered, and would break the day Roblox redefined a key. A file you control, versioned next to the rest of the config, keeps working whatever happens inside it.
+
+The trade-off is stated plainly: a typo in a key name reaches Roblox. What is checked locally is that the file exists and parses — a malformed file fails before a cookie-authenticated write, not as an opaque `400` after it.
+
+```toml
+[game]
+engine_avatar_settings = "avatar-settings.toml"
+```
+
+```toml
+# avatar-settings.toml — the same document the JSON form would carry
+version = 1
+
+[AvatarRules]
+AvatarType = 1
+
+[AvatarCollisionRules]
+CollisionMode = 1
+SingleColliderSize = [2, 3, 1]
+```
+
+Roblox's semantics line up with this file's: an absent or empty value is not written, so omitting the key leaves the settings alone. A file containing `{}` is how you clear them, and that reaches the wire rather than being read as "nothing to send".
+
+The diff is on a hash of the *canonical* serialisation, recorded in the lockfile as `engine_avatar_settings_hash`. Reindenting the file or reordering its keys is therefore not a change to re-send; editing a value is.
+
+To get a starting document, the most complete public example is [Phoenix-CLI's `Test/ConfigToFile.luau`](https://github.com/PhoenixEntertainment/Phoenix-CLI/blob/main/Test/ConfigToFile.luau), which spells out every key with a comment on what it does.
+
+</details>
+
+<details>
+<summary><code>[game.paid_access]</code></summary>
+
+Whether players pay to enter. **Requires cookie.**
+
+Omitting the table leaves paid access unmanaged; `mode = "free"` actively turns it off. Those are different states, which is why this is a tagged table rather than a bare price — a price of zero means neither.
+
+`isForSale` and `price` are sent together, because Roblox ignores a price on an experience that is not for sale, and an experience switched on for sale with no price is free by accident.
+
+| Field | Type | Required | Description |
+| --- | --- | --- | --- |
+| `mode` | `string` | **Yes** | `"free"` or `"paid"` |
+| `price` | `u64` | Only with `mode = "paid"` | Price in Robux |
 
 </details>
 
@@ -335,18 +561,35 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.visibility` | Open Cloud read / **Cookie** write | Legacy `activate` / `deactivate` |
 | `game.studio_access_to_apis_allowed` | **Cookie** | Legacy `/v2/universes/{id}/configuration` |
 | `game.beta_mode` | **Cookie** | `apis.roblox.com/experience-releases/.../release_status` |
+| `game.genre` | **Cookie** | Legacy `/v2/universes/{id}/configuration`, read back from `/v1/.../configuration` |
+| `game.avatar.type`, `.animation`, `.collision`, `.joint_positioning` | **Cookie** | Same pair of endpoints. Sent as the integers Roblox uses |
+| `game.avatar.min_scale`, `.max_scale` | **Cookie**, write-only | `universeAvatarMinScales` / `MaxScales`. Not returned by any GET, so `pull` leaves them alone |
+| `game.avatar.asset_overrides` | **Cookie**, write-only | `universeAvatarAssetOverrides`. Sent whole, ten slots |
+| `game.engine_avatar_settings` | **Cookie**, write-only | `engineAvatarSettings`, a JSON string. Read from a `.toml` or `.json` file and passed through unmodelled |
+| `game.paid_access` | **Cookie** | `isForSale` + `price`, sent together |
+| `game.permissions.*` | **Cookie**, write-only | The `permissions` object. Not returned by any GET — see below |
 
 ### Not supported
 
 Open Cloud does not expose these fields and `rbx meta` does not (yet) handle them via cookie:
 
-- Genre
-- Friends-only visibility (only `public` / `private` supported)
-- Paid access (`isForSale` + price)
-- Avatar configuration (type, animation, collision, scales, asset overrides)
+- Friends-only visibility (only `public` / `private` supported; the API field is `isFriendsOnly`)
 - Age rating (write)
-- Third-party purchase / teleport permissions
+- `optInRegions` / `optOutRegions`. Declined rather than pending; the reasoning is in `TODO.md`. In short: the enum has one real value (`China`), it is write-only like the fields above, and whether an experience is actually available there is decided by a Roblox moderation status that no config file can set. A key that looked like a switch would be a request
 - Badges, game passes, developer products - use [rbx shop](./shop.md) instead
+
+### Write-only fields
+
+A field being cookie-only means the API key alone cannot write it. A field being **write-only** means something stronger: Roblox exposes no request that returns it, so nothing can read it back.
+
+- `game.permissions.*`
+- `game.avatar.min_scale`, `game.avatar.max_scale`
+- `game.avatar.asset_overrides`
+- `game.engine_avatar_settings`
+
+The read used by `pull` and `init` is `GET /v1/universes/{id}/configuration`, and it carries neither. The endpoint that does — `/v2/universes/{id}/configuration` — answers to `PATCH` only.
+
+The consequence, in one sentence: **`pull` never touches these, and `check` compares them against the lockfile rather than against Roblox.** A pull keeps whatever the previous lockfile recorded for them rather than adopting what the config asks for — taking the config's word would make the lockfile assert that Roblox holds a value nobody checked, and the next `sync` would then send nothing while `check` reported agreement. Setting one in the Creator Dashboard will not show up as drift; the next `sync` that touches the field will simply overwrite it.
 
 ### Cookie-only fields
 
@@ -357,6 +600,11 @@ The Open Cloud API doesn't expose every metadata field. These fields require a c
 - `game.visibility` (write only; read is via Open Cloud)
 - `game.studio_access_to_apis_allowed`
 - `game.beta_mode`
+- `game.genre`
+- `game.avatar.*`
+- `game.engine_avatar_settings`
+- `game.paid_access`
+- `game.permissions.*`
 
 The cookie is provided via the global `--cookie` flag, the `RBX_COOKIE` env var, or a local Roblox Studio install (Windows registry, macOS plist) — that last one opt-in, asked once or declined where there is nobody to ask. `--auto-cookie` is the standing yes and `--no-auto-cookie` the standing no. `pull` and `init` skip these fields and say so when no cookie is available; `sync` stops before applying anything if the plan touches one.
 

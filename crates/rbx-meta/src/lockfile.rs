@@ -5,7 +5,10 @@ use anyhow::{Context, Result};
 use rbx_core::lockfile::{LockfileFormat, LockfileMigration};
 use serde::{Deserialize, Serialize};
 
-use crate::config::{Devices, PrivateServer, ServerFill, SocialLinks, Visibility};
+use crate::config::{
+    Avatar, Devices, Genre, PaidAccess, Permissions, PrivateServer, ServerFill, SocialLinks,
+    Visibility,
+};
 
 pub const LOCKFILE_NAME: &str = "rbxmeta.lock.toml";
 pub const LOCKFILE_VERSION: u32 = 1;
@@ -26,7 +29,7 @@ pub const FORMAT: LockfileFormat = LockfileFormat {
     migrations: MIGRATIONS,
 };
 
-#[derive(Debug, Default, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, PartialEq, Deserialize, Serialize)]
 pub struct Lockfile {
     pub version: u32,
 
@@ -35,7 +38,7 @@ pub struct Lockfile {
     pub envs: BTreeMap<String, EnvLock>,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct EnvLock {
     pub universe_id: u64,
     pub place_id: u64,
@@ -47,7 +50,7 @@ pub struct EnvLock {
     pub media: MediaLockfile,
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Deserialize, Serialize)]
 pub struct GameLock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -84,6 +87,33 @@ pub struct GameLock {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub server_fill: Option<ServerFill>,
+
+    /// The permissions this tool last wrote.
+    ///
+    /// Not "what Roblox has": Roblox exposes no GET for these, so unlike every
+    /// other field here this one cannot be re-read. A change made in the
+    /// dashboard will not be noticed until the next `sync` overwrites it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Permissions>,
+
+    #[serde(default, skip_serializing_if = "Avatar::is_empty")]
+    pub avatar: Avatar,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paid_access: Option<PaidAccess>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub genre: Option<Genre>,
+
+    /// Hash of the `engine_avatar_settings` document as it was last sent.
+    ///
+    /// The hash and not the content: the document is a whole avatar
+    /// configuration, and a lockfile is a record of what was applied rather
+    /// than a second copy of the input. Hashing the *canonical* serialisation
+    /// rather than the file bytes is what keeps reformatting the JSON from
+    /// looking like a change.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub engine_avatar_settings_hash: Option<String>,
 }
 
 impl GameLock {
@@ -100,6 +130,11 @@ impl GameLock {
             && self.devices.is_empty()
             && self.social_links.is_empty()
             && self.server_fill.is_none()
+            && self.permissions.is_none()
+            && self.avatar.is_empty()
+            && self.paid_access.is_none()
+            && self.genre.is_none()
+            && self.engine_avatar_settings_hash.is_none()
     }
 }
 

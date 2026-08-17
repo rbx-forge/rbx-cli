@@ -16,11 +16,14 @@ use crate::api::media::RemoteMedia;
 use crate::api::models::ApiSocialLink;
 use crate::api::RbxClient;
 use crate::config::{
-    Config, Devices, EnvOverlay, MediaConfig, MediaOverlay, PrivateServer, ServerFill, SocialLink,
-    SocialLinks, Visibility,
+    AnimationType, AssetOverride, AssetOverrides, Avatar, AvatarType, CollisionType, Config,
+    Devices, EnvOverlay, Genre, JointPositioningType, MediaConfig, MediaOverlay, PaidAccess,
+    Permissions, PrivateServer, ServerFill, SocialLink, SocialLinks, Visibility,
 };
 use crate::ctx::MetaCtx;
-use crate::lockfile::{Lockfile, MediaLock, DEFAULT_ENV, LOCKFILE_NAME, LOCKFILE_VERSION};
+use crate::lockfile::{
+    GameLock, Lockfile, MediaLock, DEFAULT_ENV, LOCKFILE_NAME, LOCKFILE_VERSION,
+};
 use rbx_core::confirm::confirm_always;
 use rbx_core::image::{hash_bytes, process_bytes};
 
@@ -94,17 +97,37 @@ pub async fn run(
         (None, None)
     };
 
-    let remote_studio_access = match client.get_universe_config_legacy().await {
-        Ok(cfg) => cfg.studio_access_to_apis_allowed,
+    // One read, several fields. `permissions` and the avatar scale tables are
+    // deliberately absent from it — Roblox exposes no GET that returns them,
+    // so they are write-only and `pull` leaves whatever the config says.
+    // A failure warns and yields an empty configuration, which is exactly the
+    // right shape: every field then resolves to `None`, meaning "not
+    // confirmed", and `reconcile_lock` keeps the previous lock entry rather
+    // than recording what the config asked for. No separate flag is needed —
+    // the absence *is* the signal, and it covers a value Roblox sent that this
+    // build does not recognise just as well as a call that never happened.
+    let universe_config = match client.get_universe_config_legacy().await {
+        Ok(cfg) => cfg,
         Err(e) => {
             eprintln!(
-                "warning: universe config fetch failed ({}). Skipping studio_access_to_apis_allowed.",
+                "warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
                 e
             );
-            None
+            Default::default()
         }
     };
+    let remote_studio_access = universe_config.studio_access_to_apis_allowed;
 
+    // `None` on failure, not the lockfile's value.
+    //
+    // Feeding the lock back in here looked like a graceful fallback and was
+    // not: `diff_apply_opt` writes whatever it is given into the *config* and
+    // lists it under "Config updates", so a user who edited `beta_mode` and
+    // pulled while this endpoint was down had their edit silently replaced by
+    // the old value and reported as something Roblox had said. `None` means
+    // "not confirmed", `diff_apply_opt` then leaves the config alone, and
+    // `reconcile_lock` carries the previous value into the lock where it
+    // belongs.
     let remote_beta_mode = if client.has_cookie() {
         match client.get_beta_mode().await {
             Ok(v) => v,
@@ -113,17 +136,60 @@ pub async fn run(
                     "warning: experience-releases fetch failed ({}). Skipping beta_mode.",
                     e
                 );
-                lockfile.env_view(&env_name).game.beta_mode
+                None
             }
         }
     } else {
-        lockfile.env_view(&env_name).game.beta_mode
+        None
     };
 
     let remote_visibility = universe
         .visibility
         .as_deref()
         .and_then(Visibility::from_open_cloud);
+
+    // Everything that came from an endpoint allowed to fail, gathered before
+    // the differential apply mutates the config. `reconcile_lock` needs the
+    // *confirmed* values, and after `diff_apply_opt` has run the config no
+    // longer distinguishes what was read from what was already written.
+    let confirmed = ConfirmedReads {
+        allow_copying: remote_allow_copying,
+        server_fill: remote_server_fill.clone(),
+        studio_access_to_apis_allowed: remote_studio_access,
+        beta_mode: remote_beta_mode,
+        genre: universe_config
+            .genre
+            .as_ref()
+            .and_then(|v| v.resolve(Genre::from_legacy, Genre::from_api_name)),
+        paid_access: match universe_config.is_for_sale {
+            Some(true) => universe_config
+                .price
+                .map(|price| PaidAccess::Paid { price }),
+            Some(false) => Some(PaidAccess::Free),
+            None => None,
+        },
+        avatar_kind: universe_config
+            .universe_avatar_type
+            .as_ref()
+            .and_then(|v| v.resolve(AvatarType::from_legacy, AvatarType::from_api_name)),
+        avatar_animation: universe_config
+            .universe_animation_type
+            .as_ref()
+            .and_then(|v| v.resolve(AnimationType::from_legacy, AnimationType::from_api_name)),
+        avatar_collision: universe_config
+            .universe_collision_type
+            .as_ref()
+            .and_then(|v| v.resolve(CollisionType::from_legacy, CollisionType::from_api_name)),
+        avatar_joint_positioning: universe_config
+            .universe_joint_positioning_type
+            .as_ref()
+            .and_then(|v| {
+                v.resolve(
+                    JointPositioningType::from_legacy,
+                    JointPositioningType::from_api_name,
+                )
+            }),
+    };
 
     // -----------------------------------------------------------------------
     // Differential apply on the in-memory config
@@ -186,6 +252,81 @@ pub async fn run(
         &mut overlay.beta_mode,
         remote_beta_mode,
         "beta_mode",
+        &mut changes,
+    );
+
+    // Avatar, genre and paid access come from the same v1 configuration read.
+    //
+    // Not `permissions`, and not the avatar scales: Roblox returns neither
+    // from any GET, so there is nothing to adopt and inventing a value would
+    // put a claim in the config that was never checked against the
+    // experience. See `api::legacy::UniverseConfigLegacy`.
+    diff_apply_opt(
+        &mut config.game.avatar.kind,
+        &mut overlay.avatar.kind,
+        universe_config
+            .universe_avatar_type
+            .as_ref()
+            .and_then(|v| v.resolve(AvatarType::from_legacy, AvatarType::from_api_name)),
+        "avatar.type",
+        &mut changes,
+    );
+    diff_apply_opt(
+        &mut config.game.avatar.animation,
+        &mut overlay.avatar.animation,
+        universe_config
+            .universe_animation_type
+            .as_ref()
+            .and_then(|v| v.resolve(AnimationType::from_legacy, AnimationType::from_api_name)),
+        "avatar.animation",
+        &mut changes,
+    );
+    diff_apply_opt(
+        &mut config.game.avatar.collision,
+        &mut overlay.avatar.collision,
+        universe_config
+            .universe_collision_type
+            .as_ref()
+            .and_then(|v| v.resolve(CollisionType::from_legacy, CollisionType::from_api_name)),
+        "avatar.collision",
+        &mut changes,
+    );
+    diff_apply_opt(
+        &mut config.game.avatar.joint_positioning,
+        &mut overlay.avatar.joint_positioning,
+        universe_config
+            .universe_joint_positioning_type
+            .as_ref()
+            .and_then(|v| {
+                v.resolve(
+                    JointPositioningType::from_legacy,
+                    JointPositioningType::from_api_name,
+                )
+            }),
+        "avatar.joint_positioning",
+        &mut changes,
+    );
+    diff_apply_opt(
+        &mut config.game.genre,
+        &mut overlay.genre,
+        universe_config
+            .genre
+            .as_ref()
+            .and_then(|v| v.resolve(Genre::from_legacy, Genre::from_api_name)),
+        "genre",
+        &mut changes,
+    );
+    diff_apply_opt(
+        &mut config.game.paid_access,
+        &mut overlay.paid_access,
+        match universe_config.is_for_sale {
+            Some(true) => universe_config
+                .price
+                .map(|price| PaidAccess::Paid { price }),
+            Some(false) => Some(PaidAccess::Free),
+            None => None,
+        },
+        "paid_access",
         &mut changes,
     );
 
@@ -369,7 +510,13 @@ pub async fn run(
     // Persist the resolved game state for this env in the lockfile.
     // -----------------------------------------------------------------------
     let (resolved_game, _resolved_media) = config.resolve_env(Some(&env_name));
-    let new_game_lock = crate::diff::config_to_lock(&resolved_game);
+    let mut new_game_lock = crate::diff::config_to_lock(&resolved_game);
+
+    reconcile_lock(
+        &mut new_game_lock,
+        &lockfile.env_view(&env_name).game,
+        &confirmed,
+    );
 
     if dry_run {
         println!("\n{}", "(dry-run: nothing written)".dimmed());
@@ -789,6 +936,83 @@ fn write_config_toml(path: &Path, config: &Config) -> Result<()> {
     Ok(())
 }
 
+/// Everything `pull` managed to read from an endpoint that is allowed to fail.
+///
+/// `None` means "not confirmed", for any of four reasons that are the same
+/// reason underneath: the endpoint was not called (no cookie), the call failed,
+/// Roblox did not send the field, or it sent a value this build does not
+/// recognise. All four leave the lockfile with nothing new to say.
+#[derive(Default)]
+pub(crate) struct ConfirmedReads {
+    pub allow_copying: Option<bool>,
+    pub server_fill: Option<ServerFill>,
+    pub studio_access_to_apis_allowed: Option<bool>,
+    pub beta_mode: Option<bool>,
+    pub genre: Option<Genre>,
+    pub paid_access: Option<PaidAccess>,
+    pub avatar_kind: Option<AvatarType>,
+    pub avatar_animation: Option<AnimationType>,
+    pub avatar_collision: Option<CollisionType>,
+    pub avatar_joint_positioning: Option<JointPositioningType>,
+}
+
+/// Rebuild the fields of the lock entry that `config_to_lock` must not derive
+/// from the config.
+///
+/// # The rule, stated once
+///
+/// **The lockfile records what Roblox was confirmed to have.** `config_to_lock`
+/// derives its whole argument from the *config*, which is the same thing only
+/// for a field that was just read back. For every other field it is a claim
+/// nobody checked, and recording it is how `sync` comes to send nothing while
+/// `check` reports agreement.
+///
+/// That failure appeared four separate times in one day, through four different
+/// doors: fields Roblox never returns, a cleared hash, a universe-configuration
+/// read that failed, and a place-configuration read that was never attempted.
+/// Rather than block them one at a time, every field here is now
+/// `confirmed.or(previous)` — never the config, ever, by construction. A fifth
+/// door would have to be a field added to `GameLock` and not to this function,
+/// which is a much smaller hole than the shape that produced the first four.
+///
+/// The fields absent from this function are the ones read through Open Cloud on
+/// a call that fails the whole command rather than warning: name, description,
+/// server size, voice chat, visibility, private servers, devices and social
+/// links. If those did not arrive, there is no lockfile to write.
+fn reconcile_lock(fresh: &mut GameLock, previous: &GameLock, confirmed: &ConfirmedReads) {
+    // Never returned by any endpoint. Only the previous entry can speak.
+    fresh.permissions = previous.permissions;
+    fresh.avatar.min_scale = previous.avatar.min_scale;
+    fresh.avatar.max_scale = previous.avatar.max_scale;
+    fresh.avatar.asset_overrides = previous.avatar.asset_overrides;
+    // `config_to_lock` clears this: it has no path to hash. Erasing it would
+    // make the next `sync` re-send an unchanged avatar document over the
+    // cookie-authenticated legacy PATCH.
+    fresh.engine_avatar_settings_hash = previous.engine_avatar_settings_hash.clone();
+
+    // Read from an endpoint that may warn instead of failing.
+    fresh.allow_copying = confirmed.allow_copying.or(previous.allow_copying);
+    fresh.server_fill = confirmed
+        .server_fill
+        .clone()
+        .or_else(|| previous.server_fill.clone());
+    fresh.studio_access_to_apis_allowed = confirmed
+        .studio_access_to_apis_allowed
+        .or(previous.studio_access_to_apis_allowed);
+    fresh.beta_mode = confirmed.beta_mode.or(previous.beta_mode);
+    fresh.genre = confirmed.genre.or(previous.genre);
+    fresh.paid_access = confirmed
+        .paid_access
+        .clone()
+        .or_else(|| previous.paid_access.clone());
+    fresh.avatar.kind = confirmed.avatar_kind.or(previous.avatar.kind);
+    fresh.avatar.animation = confirmed.avatar_animation.or(previous.avatar.animation);
+    fresh.avatar.collision = confirmed.avatar_collision.or(previous.avatar.collision);
+    fresh.avatar.joint_positioning = confirmed
+        .avatar_joint_positioning
+        .or(previous.avatar.joint_positioning);
+}
+
 fn write_game_block(doc: &mut DocumentMut, key: &str, config: &Config) {
     let game = &config.game;
     let t = ensure_table(doc, key);
@@ -810,6 +1034,133 @@ fn write_game_block(doc: &mut DocumentMut, key: &str, config: &Config) {
     write_devices_sub(doc, key, &game.devices);
     write_server_fill_sub(doc, key, game.server_fill.as_ref());
     write_social_links_sub(doc, key, &game.social_links);
+    write_avatar_sub(doc, key, &game.avatar);
+    write_asset_overrides_sub(doc, key, game.avatar.asset_overrides.as_ref());
+    write_paid_access_sub(doc, key, game.paid_access.as_ref());
+    write_permissions_sub(doc, key, game.permissions.as_ref());
+    let t = ensure_table(doc, key);
+    set_opt_str(t, "genre", game.genre.map(genre_str));
+    set_opt_path(
+        t,
+        "engine_avatar_settings",
+        game.engine_avatar_settings.as_deref(),
+    );
+}
+/// Avatar rules, as `[<parent>.avatar]`.
+///
+/// The scale tables are written from whatever the config already holds rather
+/// than from a pull: they are write-only on Roblox's side, so a pull neither
+/// learns them nor is entitled to drop them.
+fn write_avatar_sub(doc: &mut DocumentMut, parent: &str, avatar: &Avatar) {
+    if avatar.is_empty() {
+        remove_subtable(doc, parent, "avatar");
+        return;
+    }
+    let t = ensure_subtable(doc, parent, "avatar");
+    set_opt_str(t, "type", avatar.kind.map(avatar_type_str));
+    set_opt_str(t, "animation", avatar.animation.map(animation_type_str));
+    set_opt_str(t, "collision", avatar.collision.map(collision_type_str));
+    set_opt_str(
+        t,
+        "joint_positioning",
+        avatar.joint_positioning.map(joint_positioning_str),
+    );
+}
+
+/// Paid access, as `[<parent>.paid_access]`.
+fn write_paid_access_sub(doc: &mut DocumentMut, parent: &str, paid: Option<&PaidAccess>) {
+    match paid {
+        Some(paid) => {
+            let t = ensure_subtable(doc, parent, "paid_access");
+            match paid {
+                PaidAccess::Free => {
+                    set_value(t, "mode", value("free"));
+                    t.remove("price");
+                }
+                PaidAccess::Paid { price } => {
+                    set_value(t, "mode", value("paid"));
+                    set_value(t, "price", value(*price as i64));
+                }
+            }
+        }
+        None => remove_subtable(doc, parent, "paid_access"),
+    }
+}
+
+/// Third-party permissions, as `[<parent>.permissions]`. All four keys or
+/// none, matching `config::Permissions`.
+fn write_permissions_sub(doc: &mut DocumentMut, parent: &str, perms: Option<&Permissions>) {
+    match perms {
+        Some(p) => {
+            let t = ensure_subtable(doc, parent, "permissions");
+            set_value(t, "third_party_teleport", value(p.third_party_teleport));
+            set_value(t, "third_party_asset", value(p.third_party_asset));
+            set_value(t, "third_party_purchase", value(p.third_party_purchase));
+            set_value(t, "client_teleport", value(p.client_teleport));
+        }
+        None => remove_subtable(doc, parent, "permissions"),
+    }
+}
+
+/// Avatar slot overrides, as `[<parent>.avatar.asset_overrides]`.
+///
+/// Write-only on Roblox's side, so this only ever mirrors back what the config
+/// already held. It exists so the table survives a `pull` that rewrites the
+/// file, which it would not if the write-back simply did not know about it.
+fn write_asset_overrides_sub(doc: &mut DocumentMut, parent: &str, slots: Option<&AssetOverrides>) {
+    let dotted = format!("{parent}.avatar");
+    match slots {
+        Some(slots) => {
+            let t = ensure_subtable_dotted(doc, &dotted, "asset_overrides");
+            for (key, slot) in [
+                ("face", slots.face),
+                ("head", slots.head),
+                ("torso", slots.torso),
+                ("left_arm", slots.left_arm),
+                ("right_arm", slots.right_arm),
+                ("left_leg", slots.left_leg),
+                ("right_leg", slots.right_leg),
+                ("t_shirt", slots.t_shirt),
+                ("shirt", slots.shirt),
+                ("pants", slots.pants),
+            ] {
+                match slot {
+                    AssetOverride::Asset(id) => set_value(t, key, value(id as i64)),
+                    AssetOverride::PlayerChoice(_) => set_value(t, key, value("player_choice")),
+                }
+            }
+        }
+        None => remove_subtable_dotted(doc, &dotted, "asset_overrides"),
+    }
+}
+
+fn avatar_type_str(v: AvatarType) -> &'static str {
+    match v {
+        AvatarType::R6 => "r6",
+        AvatarType::PlayerChoice => "player_choice",
+        AvatarType::R15 => "r15",
+    }
+}
+
+fn animation_type_str(v: AnimationType) -> &'static str {
+    match v {
+        AnimationType::Standard => "standard",
+        AnimationType::PlayerChoice => "player_choice",
+    }
+}
+
+fn collision_type_str(v: CollisionType) -> &'static str {
+    match v {
+        CollisionType::InnerBox => "inner_box",
+        CollisionType::OuterBox => "outer_box",
+    }
+}
+
+fn joint_positioning_str(v: JointPositioningType) -> &'static str {
+    match v {
+        JointPositioningType::Standard => "standard",
+        JointPositioningType::ArtistIntent => "artist_intent",
+    }
 }
 
 fn write_private_server_sub(doc: &mut DocumentMut, parent: &str, ps: Option<&PrivateServer>) {
@@ -939,10 +1290,21 @@ fn write_env_overlay(doc: &mut DocumentMut, env: &str, overlay: &EnvOverlay) {
 
     // sub-tables under envs.<env>.<sub>
     let env_parent = format!("envs.{}", env);
+    set_opt_str(t, "genre", overlay.genre.map(genre_str));
+    set_opt_path(
+        t,
+        "engine_avatar_settings",
+        overlay.engine_avatar_settings.as_deref(),
+    );
+
     write_private_server_sub(doc, &env_parent, overlay.private_server.as_ref());
     write_devices_sub(doc, &env_parent, &overlay.devices);
     write_server_fill_sub(doc, &env_parent, overlay.server_fill.as_ref());
     write_social_links_sub(doc, &env_parent, &overlay.social_links);
+    write_avatar_sub(doc, &env_parent, &overlay.avatar);
+    write_asset_overrides_sub(doc, &env_parent, overlay.avatar.asset_overrides.as_ref());
+    write_paid_access_sub(doc, &env_parent, overlay.paid_access.as_ref());
+    write_permissions_sub(doc, &env_parent, overlay.permissions.as_ref());
     write_media_overlay(doc, &env_parent, &overlay.media);
 }
 
@@ -1139,6 +1501,30 @@ fn path_to_toml_str(p: &Path) -> String {
     p.to_string_lossy().replace('\\', "/")
 }
 
+/// The config spelling of a genre. Kept beside the other `*_str` helpers
+/// rather than as a `Display` impl, because these exist to write TOML and the
+/// enums are also printed by `Debug` in sync plans, where the two spellings
+/// are allowed to differ.
+fn genre_str(v: Genre) -> &'static str {
+    match v {
+        Genre::All => "all",
+        Genre::Tutorial => "tutorial",
+        Genre::Scary => "scary",
+        Genre::TownAndCity => "town_and_city",
+        Genre::War => "war",
+        Genre::Funny => "funny",
+        Genre::Fantasy => "fantasy",
+        Genre::Adventure => "adventure",
+        Genre::SciFi => "sci_fi",
+        Genre::Pirate => "pirate",
+        Genre::Fps => "fps",
+        Genre::Rpg => "rpg",
+        Genre::Sports => "sports",
+        Genre::Ninja => "ninja",
+        Genre::WildWest => "wild_west",
+    }
+}
+
 fn visibility_str(v: Visibility) -> &'static str {
     match v {
         Visibility::Public => "public",
@@ -1204,6 +1590,24 @@ mod tests {
         }
     }
 
+    /// Ten slots left to the player. The fixture that then overrides one of
+    /// them proves the write-back distinguishes the two forms.
+    fn all_player_choice() -> AssetOverrides {
+        let choice = AssetOverride::PlayerChoice(crate::config::PlayerChoiceMarker::PlayerChoice);
+        AssetOverrides {
+            face: choice,
+            head: choice,
+            torso: choice,
+            left_arm: choice,
+            right_arm: choice,
+            left_leg: choice,
+            right_leg: choice,
+            t_shirt: choice,
+            shirt: choice,
+            pants: choice,
+        }
+    }
+
     /// A `Config` with every optional field populated.
     ///
     /// The struct literals here are deliberately exhaustive — no
@@ -1242,6 +1646,24 @@ mod tests {
                     guilded: Some(social("prod-guilded")),
                 },
                 server_fill: Some(ServerFill::Empty),
+                permissions: Some(Permissions {
+                    third_party_teleport: false,
+                    third_party_asset: true,
+                    third_party_purchase: false,
+                    client_teleport: true,
+                }),
+                avatar: Avatar {
+                    kind: Some(AvatarType::R6),
+                    animation: Some(AnimationType::Standard),
+                    collision: Some(CollisionType::InnerBox),
+                    joint_positioning: Some(JointPositioningType::Standard),
+                    min_scale: None,
+                    max_scale: None,
+                    asset_overrides: Some(all_player_choice()),
+                },
+                paid_access: Some(PaidAccess::Free),
+                genre: Some(Genre::Adventure),
+                engine_avatar_settings: Some(PathBuf::from("prod-avatar.json")),
                 media: MediaOverlay {
                     icon: Some(PathBuf::from("assets/prod/icon.png")),
                     thumbnails: Some(vec![
@@ -1273,6 +1695,31 @@ mod tests {
                 visibility: Some(Visibility::Public),
                 studio_access_to_apis_allowed: Some(true),
                 beta_mode: Some(true),
+                permissions: Some(Permissions {
+                    third_party_teleport: true,
+                    third_party_asset: false,
+                    third_party_purchase: true,
+                    client_teleport: false,
+                }),
+                avatar: Avatar {
+                    kind: Some(AvatarType::R15),
+                    animation: Some(AnimationType::PlayerChoice),
+                    collision: Some(CollisionType::OuterBox),
+                    joint_positioning: Some(JointPositioningType::ArtistIntent),
+                    // Scale tables stay out of the parity fixture on purpose:
+                    // the mirror never writes them, because Roblox never
+                    // returns them and a pull that emitted a scale range
+                    // would be inventing one.
+                    min_scale: None,
+                    max_scale: None,
+                    asset_overrides: Some(AssetOverrides {
+                        pants: AssetOverride::Asset(12345),
+                        ..all_player_choice()
+                    }),
+                },
+                paid_access: Some(PaidAccess::Paid { price: 25 }),
+                genre: Some(Genre::TownAndCity),
+                engine_avatar_settings: Some(PathBuf::from("avatar.json")),
             },
             media: MediaConfig {
                 icon: Some(PathBuf::from("assets/icon.png")),
@@ -1447,5 +1894,189 @@ visibility = "private"
 
         let reparsed = Config::load(&path).expect("re-parse through serde");
         assert_eq!(reparsed, config);
+    }
+}
+
+#[cfg(test)]
+mod not_confirmed_tests {
+    use super::diff_apply_opt;
+
+    /// `None` means "not confirmed", and nothing may move on it.
+    ///
+    /// This is the property the `beta_mode` change relies on. That read used to
+    /// fall back to the *lockfile's* value on failure and hand it here, which
+    /// writes into the config and lists it under "Config updates" — so a user
+    /// who had edited `beta_mode` and pulled while the endpoint was down had
+    /// their edit silently replaced by an old value, and was told Roblox had
+    /// said so. Yielding `None` instead is only safe because of what is
+    /// asserted below.
+    #[test]
+    fn an_unconfirmed_read_touches_neither_the_config_nor_the_report() {
+        let mut base = Some(true);
+        let mut overlay = Some(false);
+        let mut changes = Vec::new();
+
+        diff_apply_opt(&mut base, &mut overlay, None, "beta_mode", &mut changes);
+
+        assert_eq!(base, Some(true), "the user's edit must survive");
+        assert_eq!(overlay, Some(false), "so must their env override");
+        assert!(
+            changes.is_empty(),
+            "nothing was read, so nothing may be reported as pulled: {changes:?}"
+        );
+    }
+
+    /// The control: a value that *was* confirmed still lands, or the change
+    /// above would have turned the field off rather than made it honest.
+    #[test]
+    fn a_confirmed_read_still_applies() {
+        let mut base = Some(true);
+        let mut overlay = None;
+        let mut changes = Vec::new();
+
+        diff_apply_opt(
+            &mut base,
+            &mut overlay,
+            Some(false),
+            "beta_mode",
+            &mut changes,
+        );
+
+        assert_eq!(overlay, Some(false));
+        assert_eq!(changes.len(), 1, "{changes:?}");
+    }
+}
+
+#[cfg(test)]
+mod reconcile_lock_tests {
+    use super::{reconcile_lock, ConfirmedReads};
+    use crate::config::{Avatar, AvatarType, Genre, PaidAccess, Permissions, ServerFill};
+    use crate::lockfile::GameLock;
+
+    fn perms(on: bool) -> Option<Permissions> {
+        Some(Permissions {
+            third_party_teleport: on,
+            third_party_asset: on,
+            third_party_purchase: on,
+            client_teleport: on,
+        })
+    }
+
+    /// A lock recording what Roblox was actually sent, last time.
+    fn previous() -> GameLock {
+        GameLock {
+            permissions: perms(false),
+            genre: Some(Genre::All),
+            paid_access: Some(PaidAccess::Free),
+            studio_access_to_apis_allowed: Some(false),
+            beta_mode: Some(false),
+            allow_copying: Some(false),
+            server_fill: Some(ServerFill::Automatic),
+            engine_avatar_settings_hash: Some("deadbeef".into()),
+            avatar: Avatar {
+                kind: Some(AvatarType::R6),
+                ..Avatar::default()
+            },
+            ..GameLock::default()
+        }
+    }
+
+    /// What `config_to_lock` hands over: every field taken from the config,
+    /// confirmed or not.
+    fn from_config() -> GameLock {
+        GameLock {
+            permissions: perms(true),
+            genre: Some(Genre::WildWest),
+            paid_access: Some(PaidAccess::Paid { price: 25 }),
+            studio_access_to_apis_allowed: Some(true),
+            beta_mode: Some(true),
+            allow_copying: Some(true),
+            server_fill: Some(ServerFill::Empty),
+            engine_avatar_settings_hash: None,
+            avatar: Avatar {
+                kind: Some(AvatarType::R15),
+                ..Avatar::default()
+            },
+            ..GameLock::default()
+        }
+    }
+
+    /// The rule in one test: when nothing was confirmed, **no field** may come
+    /// from the config.
+    ///
+    /// This is the shape that produced the same failure four times — fields
+    /// Roblox never returns, a cleared hash, a failed universe read, and a
+    /// place read that was never attempted. One assertion per door.
+    #[test]
+    fn nothing_confirmed_means_nothing_from_the_config() {
+        let mut fresh = from_config();
+        reconcile_lock(&mut fresh, &previous(), &ConfirmedReads::default());
+
+        assert_eq!(fresh.permissions.map(|p| p.client_teleport), Some(false));
+        assert_eq!(
+            fresh.engine_avatar_settings_hash.as_deref(),
+            Some("deadbeef")
+        );
+        assert_eq!(fresh.genre, Some(Genre::All));
+        assert_eq!(fresh.paid_access, Some(PaidAccess::Free));
+        assert_eq!(fresh.studio_access_to_apis_allowed, Some(false));
+        assert_eq!(fresh.beta_mode, Some(false));
+        assert_eq!(fresh.allow_copying, Some(false));
+        assert_eq!(fresh.server_fill, Some(ServerFill::Automatic));
+        assert_eq!(fresh.avatar.kind, Some(AvatarType::R6));
+    }
+
+    /// A confirmed value wins over the previous entry. Without this the lock
+    /// would freeze on its first value and never notice a real change.
+    #[test]
+    fn a_confirmed_read_replaces_the_previous_value() {
+        let mut fresh = from_config();
+        reconcile_lock(
+            &mut fresh,
+            &previous(),
+            &ConfirmedReads {
+                genre: Some(Genre::Pirate),
+                allow_copying: Some(true),
+                avatar_kind: Some(AvatarType::PlayerChoice),
+                ..ConfirmedReads::default()
+            },
+        );
+
+        assert_eq!(fresh.genre, Some(Genre::Pirate));
+        assert_eq!(fresh.allow_copying, Some(true));
+        assert_eq!(fresh.avatar.kind, Some(AvatarType::PlayerChoice));
+        // Untouched by that read, so still the previous entry.
+        assert_eq!(fresh.beta_mode, Some(false));
+    }
+
+    /// The write-only four ignore `ConfirmedReads` entirely: no endpoint can
+    /// confirm them, so there is no field on that struct to try.
+    #[test]
+    fn the_write_only_fields_never_come_from_a_read() {
+        let mut fresh = from_config();
+        reconcile_lock(
+            &mut fresh,
+            &previous(),
+            &ConfirmedReads {
+                genre: Some(Genre::Pirate),
+                ..ConfirmedReads::default()
+            },
+        );
+
+        assert_eq!(fresh.permissions.map(|p| p.client_teleport), Some(false));
+        assert_eq!(fresh.avatar.min_scale, None);
+    }
+
+    /// A first pull has no previous entry and nothing confirmed. Clearing is
+    /// right: the lock then says "not confirmed" rather than inventing.
+    #[test]
+    fn an_empty_previous_lock_clears_rather_than_invents() {
+        let mut fresh = from_config();
+        reconcile_lock(&mut fresh, &GameLock::default(), &ConfirmedReads::default());
+
+        assert_eq!(fresh.permissions, None);
+        assert_eq!(fresh.genre, None);
+        assert_eq!(fresh.beta_mode, None);
+        assert_eq!(fresh.engine_avatar_settings_hash, None);
     }
 }

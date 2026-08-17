@@ -62,6 +62,25 @@ jobs:
         with:
           tool: mdbook@${{ env.MDBOOK_VERSION }}
       - run: mdbook build
+      # The schemas ride along, served at
+      # https://rbx-forge.github.io/rbx-cli/schemas/<name>.schema.json
+      #
+      # Not decoration. The editor associations in README.md used to be written
+      # as relative paths — `schema.path = "schemas/rbxplace.schema.json"` —
+      # which only resolves if you have *this* repository checked out. The
+      # people the schemas exist for installed `rbx` through Rokit and have no
+      # `schemas/` directory anywhere, so the documented instructions did not
+      # work for the audience they were written for.
+      #
+      # Copied rather than symlinked, and copied *after* `mdbook build`, which
+      # writes `book/` from scratch and would take a pre-existing directory
+      # with it.
+      #
+      # This tracks `main`, which is right for an editor pointed at the tool
+      # you are developing against and wrong for a SchemaStore catalog entry —
+      # that is a public promise about a URL and wants a tag. See TODO.md.
+      - name: Publish the schemas alongside the book
+        run: cp -r schemas book/schemas
       # Skipped on pull requests: a PR build exists to prove the book still
       # builds, and must not be able to publish anything, least of all from a
       # fork whose GITHUB_TOKEN is read-only anyway.

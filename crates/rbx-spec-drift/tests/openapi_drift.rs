@@ -1243,3 +1243,49 @@ fn the_manifest_scan_sees_dependencies_and_ignores_dev_dependencies() {
         "this crate has no reqwest dependency at all and must not be counted: {crates:?}"
     );
 }
+
+/// The day this test goes red is the day `schemas/rbxavatar.schema.json` can
+/// stop being maintained by hand.
+///
+/// That schema is the one file in `schemas/` with no freshness guarantee: it
+/// describes the inside of `engineAvatarSettings`, and every other schema there
+/// is regenerated from the serde model the CLI parses with, so CI fails when
+/// one goes stale. This one has no model to regenerate from, because Roblox
+/// types the field as an opaque string and publishes nothing about its
+/// contents.
+///
+/// So this asserts the constraint still holds rather than the schema still
+/// matches — the only checkable form of the question. If Roblox ever replaces
+/// `"type": "string"` with a real object schema, this fails and says so, and
+/// the hand-written file becomes a derived one like the rest.
+///
+/// It is deliberately not a test of *our* schema. Comparing our key names
+/// against a document that describes none of them is not possible, and a test
+/// that pretended otherwise would be worse than this one.
+#[test]
+fn engine_avatar_settings_is_still_an_opaque_string() {
+    let spec: Value = serde_json::from_str(
+        &fs::read_to_string(repo_root().join("spec/openapi.json")).expect("the vendored spec"),
+    )
+    .expect("the vendored spec is valid JSON");
+
+    let field = &spec["components"]["schemas"]
+        ["Roblox.Api.Develop.Models.UniverseSettingsRequestV2"]["properties"]
+        ["engineAvatarSettings"];
+
+    assert!(
+        !field.is_null(),
+        "engineAvatarSettings has left UniverseSettingsRequestV2. Either Roblox \
+         removed the field it warned it might remove, or it moved. Check what \
+         `game.engine_avatar_settings` should now send."
+    );
+
+    assert_eq!(
+        field["type"], "string",
+        "engineAvatarSettings is no longer an opaque JSON string in the Roblox \
+         spec, which is the whole reason schemas/rbxavatar.schema.json is \
+         hand-written and unverified.\n\nIf Roblox now documents its contents, \
+         derive that schema from the spec instead and delete \
+         crates/rbx-schema/src/engine_avatar.rs.\n\nField as vendored: {field}"
+    );
+}

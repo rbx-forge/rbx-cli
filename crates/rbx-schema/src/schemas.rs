@@ -202,6 +202,27 @@ pub fn all() -> Vec<Schema> {
             "Game passes, badges, and developer products: prices, icons, gift twins, \
              codegen output, and per-env overlays. See docs/shop.md.",
         ),
+        // The one entry whose model is not what the CLI parses with, because
+        // the CLI deliberately parses this file with nothing at all. See
+        // `crate::engine_avatar` for why that is a considered exception rather
+        // than a lapse, and why the schema is worth shipping anyway.
+        build::<crate::engine_avatar::EngineAvatarSettings>(
+            "rbxavatar.toml",
+            "rbxavatar.schema.json",
+            "The modern avatar rules, sent verbatim as `engineAvatarSettings`: rig, \
+             animations, clothing, accessories, collisions and body scaling. Pointed \
+             at by `game.engine_avatar_settings` in rbxmeta.toml. See docs/meta.md. \
+             \n\n\
+             GUIDANCE, NOT VALIDATION. Roblox describes this field as an opaque JSON \
+             string and publishes no schema for what is inside it, so nothing detects \
+             drift here the way CI detects it for the other schemas in this folder: \
+             they are regenerated from the models the CLI parses with and a stale one \
+             fails the build, while this one is maintained by hand. Key names and \
+             mode meanings were read from the Phoenix-CLI worked example on \
+             2026-08-17. `additionalProperties` is open throughout, so a key Roblox \
+             adds after that date is one your editor stays quiet about and `rbx meta` \
+             sends anyway.",
+        ),
     ]
 }
 

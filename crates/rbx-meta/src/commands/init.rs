@@ -4,7 +4,8 @@ use colored::Colorize;
 use crate::api::models::ApiSocialLink;
 use crate::api::RbxClient;
 use crate::config::{
-    Config, Devices, Experience, Game, MediaConfig, PrivateServer, ServerFill, SocialLink,
+    AnimationType, Avatar, AvatarType, CollisionType, Config, Devices, Experience, Game, Genre,
+    JointPositioningType, MediaConfig, PaidAccess, PrivateServer, ServerFill, SocialLink,
     SocialLinks, Visibility,
 };
 use crate::ctx::MetaCtx;
@@ -92,15 +93,58 @@ pub async fn run(
         (None, None)
     };
 
-    let studio_access_to_apis_allowed = match client.get_universe_config_legacy().await {
-        Ok(cfg) => cfg.studio_access_to_apis_allowed,
+    // One fetch, several fields. What comes back is what `GET /v1/.../
+    // configuration` carries; `permissions` and the avatar scales are not in
+    // it and cannot be adopted here — see `api::legacy::UniverseConfigLegacy`.
+    let universe_config = match client.get_universe_config_legacy().await {
+        Ok(cfg) => cfg,
         Err(e) => {
             eprintln!(
-                "  warning: universe config fetch failed ({}). Skipping studio_access_to_apis_allowed.",
+                "  warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
                 e
             );
-            None
+            Default::default()
         }
+    };
+    let studio_access_to_apis_allowed = universe_config.studio_access_to_apis_allowed;
+    let avatar = Avatar {
+        kind: universe_config
+            .universe_avatar_type
+            .as_ref()
+            .and_then(|v| v.resolve(AvatarType::from_legacy, AvatarType::from_api_name)),
+        animation: universe_config
+            .universe_animation_type
+            .as_ref()
+            .and_then(|v| v.resolve(AnimationType::from_legacy, AnimationType::from_api_name)),
+        collision: universe_config
+            .universe_collision_type
+            .as_ref()
+            .and_then(|v| v.resolve(CollisionType::from_legacy, CollisionType::from_api_name)),
+        joint_positioning: universe_config
+            .universe_joint_positioning_type
+            .as_ref()
+            .and_then(|v| {
+                v.resolve(
+                    JointPositioningType::from_legacy,
+                    JointPositioningType::from_api_name,
+                )
+            }),
+        // Not readable. Left unset rather than defaulted, so the config does
+        // not claim a scale range or a slot override nobody chose.
+        min_scale: None,
+        max_scale: None,
+        asset_overrides: None,
+    };
+    let genre = universe_config
+        .genre
+        .as_ref()
+        .and_then(|v| v.resolve(Genre::from_legacy, Genre::from_api_name));
+    let paid_access = match universe_config.is_for_sale {
+        Some(true) => universe_config
+            .price
+            .map(|price| PaidAccess::Paid { price }),
+        Some(false) => Some(PaidAccess::Free),
+        None => None,
     };
 
     let beta_mode = if client.has_cookie() {
@@ -152,6 +196,17 @@ pub async fn run(
         visibility,
         studio_access_to_apis_allowed,
         beta_mode,
+        // Write-only on Roblox's side, so there is nothing to adopt: an
+        // `init` that invented a value here would be writing a claim about
+        // the experience that it never checked.
+        permissions: None,
+        avatar,
+        paid_access,
+        genre,
+        // Same reason, and one more: this one names a file, and inventing a
+        // path to a file that does not exist would make the very next command
+        // fail.
+        engine_avatar_settings: None,
     };
 
     // If standalone mode (no --env), embed [experience] in the toml.

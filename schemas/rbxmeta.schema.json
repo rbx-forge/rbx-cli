@@ -30,6 +30,208 @@
     }
   },
   "definitions": {
+    "AnimationType": {
+      "description": "Whether players keep their own animations.",
+      "type": "string",
+      "enum": [
+        "standard",
+        "player_choice"
+      ]
+    },
+    "AssetOverride": {
+      "description": "What one avatar slot is forced to, or `player_choice` to leave it alone.\n\nWritten in TOML as either an asset id or the literal string `\"player_choice\"`:\n\n```toml [game.avatar.asset_overrides] pants = 12345678 shirt = \"player_choice\" ```\n\nAn untagged enum rather than a bare `Option<u64>` where `None` means player choice: absent and \"explicitly the player's choice\" have to stay different, because the table requires every slot (see `AssetOverrides`) and there is no third state left to spell \"not managed\" with.",
+      "anyOf": [
+        {
+          "description": "A specific asset every player wears in this slot.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        {
+          "description": "The player keeps whatever they are wearing.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PlayerChoiceMarker"
+            }
+          ]
+        }
+      ]
+    },
+    "AssetOverrides": {
+      "description": "The ten avatar slots Roblox lets an experience override.\n\n**Every slot is required**, for the third time in this file and for the same reason: Roblox takes `universeAvatarAssetOverrides` as one array and replaces it wholesale, so a table naming three slots is a request to reset the other seven. Since there is no endpoint that returns the array either, nothing could fill in the missing seven — not Roblox, not the lockfile. Requiring all ten makes a partial table a load error rather than a silent reset.\n\nThe `assetTypeID` each slot maps to is Roblox's global asset-type numbering, which is neither contiguous nor ordered the way this list reads — `Head` is 17 and `Torso` is 27. Hence the explicit table in `AssetOverrides::to_legacy`.",
+      "type": "object",
+      "required": [
+        "face",
+        "head",
+        "left_arm",
+        "left_leg",
+        "pants",
+        "right_arm",
+        "right_leg",
+        "shirt",
+        "t_shirt",
+        "torso"
+      ],
+      "properties": {
+        "face": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "head": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "left_arm": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "left_leg": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "pants": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "right_arm": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "right_leg": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "shirt": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "t_shirt": {
+          "$ref": "#/definitions/AssetOverride"
+        },
+        "torso": {
+          "$ref": "#/definitions/AssetOverride"
+        }
+      }
+    },
+    "Avatar": {
+      "description": "Avatar rules, as a group.",
+      "type": "object",
+      "properties": {
+        "animation": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AnimationType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "asset_overrides": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AssetOverrides"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "collision": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/CollisionType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "joint_positioning": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/JointPositioningType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "max_scale": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AvatarScales"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "min_scale": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AvatarScales"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "type": {
+          "description": "`r6`, `r15`, or `player_choice`.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AvatarType"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "AvatarScales": {
+      "description": "One end of the avatar scale range.\n\nEvery field is required rather than optional, and that is the point: Roblox takes the scales as a single object, so a table with three of the five keys would send an object Roblox reads as \"the other two are zero\". Requiring all five makes a half-written table a load error instead of a silently squashed avatar.",
+      "type": "object",
+      "required": [
+        "body_type",
+        "head",
+        "height",
+        "proportion",
+        "width"
+      ],
+      "properties": {
+        "body_type": {
+          "type": "number",
+          "format": "double"
+        },
+        "head": {
+          "type": "number",
+          "format": "double"
+        },
+        "height": {
+          "type": "number",
+          "format": "double"
+        },
+        "proportion": {
+          "type": "number",
+          "format": "double"
+        },
+        "width": {
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "AvatarType": {
+      "description": "Which rig players get.\n\nThe API takes an integer, and the integers are not in the order the names suggest — `PlayerChoice` sits between the two rigs. Hence the explicit mapping rather than a `#[repr]` cast.",
+      "type": "string",
+      "enum": [
+        "r6",
+        "player_choice",
+        "r15"
+      ]
+    },
+    "CollisionType": {
+      "description": "The shape of an avatar's collision box.",
+      "type": "string",
+      "enum": [
+        "inner_box",
+        "outer_box"
+      ]
+    },
     "Devices": {
       "type": "object",
       "properties": {
@@ -75,6 +277,9 @@
             "null"
           ]
         },
+        "avatar": {
+          "$ref": "#/definitions/Avatar"
+        },
         "beta_mode": {
           "type": [
             "boolean",
@@ -90,6 +295,22 @@
         "devices": {
           "$ref": "#/definitions/Devices"
         },
+        "engine_avatar_settings": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "genre": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Genre"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "media": {
           "$ref": "#/definitions/MediaOverlay"
         },
@@ -97,6 +318,26 @@
           "type": [
             "string",
             "null"
+          ]
+        },
+        "paid_access": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PaidAccess"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissions": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Permissions"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "private_server": {
@@ -184,6 +425,14 @@
             "null"
           ]
         },
+        "avatar": {
+          "description": "Avatar rules: which rig, whose animations, how collisions are shaped, and the scale range players are held to.\n\nRequires cookie (universe configuration endpoint).",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Avatar"
+            }
+          ]
+        },
         "beta_mode": {
           "description": "Beta mode toggle: limits the experience's reach by hiding it from Home Recommendations. Requires cookie (experience-releases endpoint).",
           "type": [
@@ -200,10 +449,50 @@
         "devices": {
           "$ref": "#/definitions/Devices"
         },
+        "engine_avatar_settings": {
+          "description": "Path to a JSON file holding the modern avatar rules, relative to this config file.\n\nThe API field is `engineAvatarSettings`, and it is a JSON *string*: a whole nested document — animation rules, clothing rules, accessory rules, collision rules, body rules — handed over as an opaque blob with no published schema for what is inside it.\n\nSo this tool does not model it. It reads the file, checks it parses as JSON, and sends it. That is a deliberate limit rather than a shortcut: the spec marks the field \"experimental which may be changed or removed in future\", and modelling a hundred and fifty keys of something Roblox reserves the right to redefine would be inventing a contract nobody offered. A file you control, versioned next to the rest of the config, keeps working whatever Roblox does to the inside of it.\n\nRoblox's own semantics line up with this file's: an absent or empty value is not written, so omitting the key leaves the settings alone. A file containing `{}` is how you clear them.\n\nRequires cookie, and write-only like the rest of `[game.avatar]`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "genre": {
+          "description": "The legacy genre. Requires cookie (universe configuration endpoint).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Genre"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "name": {
           "type": [
             "string",
             "null"
+          ]
+        },
+        "paid_access": {
+          "description": "Whether the experience is sold, and for how much.\n\nOmit the table entirely to leave paid access unmanaged. Requires cookie (universe configuration endpoint).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/PaidAccess"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "permissions": {
+          "description": "What the experience lets other experiences and the client do to it.\n\nRequires cookie (universe configuration endpoint).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Permissions"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "private_server": {
@@ -265,6 +554,35 @@
           ]
         }
       }
+    },
+    "Genre": {
+      "description": "The legacy genre field.\n\nLegacy in Roblox's own sense: the discovery system has moved to experience types and tags, and this list has not changed in years. It is here because the field is still on the configuration endpoint and still round-trips, so a config that does not model it silently loses whatever it was set to on the next `pull`.",
+      "type": "string",
+      "enum": [
+        "all",
+        "tutorial",
+        "scary",
+        "town_and_city",
+        "war",
+        "funny",
+        "fantasy",
+        "adventure",
+        "sci_fi",
+        "pirate",
+        "fps",
+        "rpg",
+        "sports",
+        "ninja",
+        "wild_west"
+      ]
+    },
+    "JointPositioningType": {
+      "description": "How avatar joints are positioned.",
+      "type": "string",
+      "enum": [
+        "standard",
+        "artist_intent"
+      ]
     },
     "MediaConfig": {
       "type": "object",
@@ -340,6 +658,82 @@
           }
         }
       }
+    },
+    "PaidAccess": {
+      "description": "Whether players pay to enter.\n\nTagged like `ServerFill` rather than modelled as a bare `Option<u64>`, because \"not for sale\" and \"not managed by this file\" are different states and a price of zero means neither. Omitting the table leaves paid access alone; `mode = \"free\"` actively turns it off.",
+      "oneOf": [
+        {
+          "description": "Free to play.",
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "free"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Sold for `price` Robux.",
+          "type": "object",
+          "required": [
+            "mode",
+            "price"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "paid"
+              ]
+            },
+            "price": {
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      ]
+    },
+    "Permissions": {
+      "description": "The four flags under `permissions` on the legacy universe configuration.\n\nWorth managing in a versioned file more than most settings here: each one widens what code outside the experience is allowed to do to it, they are changed rarely and by hand, and nothing inside the experience shows that one flipped. A diff is the only way anybody finds out.\n\n**All four fields are required**, and that is a consequence of the API rather than a style choice. Roblox takes `permissions` as a single object on the PATCH body, so sending one flag means sending all four — and it exposes no GET that returns them: the v1 configuration response has no `permissions` field, and the v2 endpoint answers to PATCH only. There is therefore no way to fill in the flags a partial table left out, not from Roblox and not from a first-run lockfile. Requiring all four makes a half-written table a load error instead of a write whose result nobody can predict.\n\nThe same absence of a GET means `pull` cannot adopt these: see `commands::pull`. The lockfile records what this tool last wrote, which is what `check` and `sync` compare against.",
+      "type": "object",
+      "required": [
+        "client_teleport",
+        "third_party_asset",
+        "third_party_purchase",
+        "third_party_teleport"
+      ],
+      "properties": {
+        "client_teleport": {
+          "description": "Whether client-initiated teleports are allowed.",
+          "type": "boolean"
+        },
+        "third_party_asset": {
+          "description": "Whether this experience may load assets it does not own.",
+          "type": "boolean"
+        },
+        "third_party_purchase": {
+          "description": "Whether this experience may prompt purchases for another creator's products.",
+          "type": "boolean"
+        },
+        "third_party_teleport": {
+          "description": "Whether another experience may teleport players into this one.",
+          "type": "boolean"
+        }
+      }
+    },
+    "PlayerChoiceMarker": {
+      "description": "The one string `AssetOverride` accepts in place of an id.\n\nA single-variant enum rather than a `String`, so `\"playerchoice\"` is a load error naming the valid value instead of a silently ignored slot.",
+      "type": "string",
+      "enum": [
+        "player_choice"
+      ]
     },
     "PrivateServer": {
       "type": "object",

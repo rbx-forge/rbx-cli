@@ -25,6 +25,12 @@ colored.workspace = true
 toml_edit = "0.22"
 
 rbx-core = { path = "../rbx-core" }
+# Reports the key paths serde skipped while deserializing, which is how
+# `Config::load` can name a key it does not understand without keeping a
+# second, hand-written list of every key it does. That list is what drifts:
+# rbxmeta.toml grew twelve nested keys in one afternoon, and a released binary
+# reading a config newer than itself answered "everything is in sync".
+serde_ignored = "0.1"
 
 [dev-dependencies]
 tempfile.workspace = true

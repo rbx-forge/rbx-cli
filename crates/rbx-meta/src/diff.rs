@@ -325,6 +325,7 @@ fn build_universe_legacy_patch(
 
     if let Some(path) = &game.engine_avatar_settings {
         let (document, hash) = read_engine_avatar_settings(&config_dir.join(path))?;
+        refuse_overlapping_avatar_writes(&body, &document, path)?;
         if lock.engine_avatar_settings_hash.as_deref() != Some(hash.as_str()) {
             // A JSON *string*, not a JSON object: the field is typed that way,
             // so the document is serialised and handed over as text.
@@ -911,6 +912,106 @@ fn show_paid_access(p: Option<&PaidAccess>) -> String {
     }
 }
 
+/// Which legacy avatar field a section of `engineAvatarSettings` also describes.
+///
+/// Left column is the key this crate puts in the legacy body; middle is the
+/// section of the modern document that says the same thing; right is the TOML
+/// the reader actually wrote, because that is what they have to change.
+const AVATAR_OVERLAPS: &[(&str, &str, &str)] = &[
+    (
+        "universeAvatarMinScales",
+        "AvatarBodyRules",
+        "game.avatar.min_scale",
+    ),
+    (
+        "universeAvatarMaxScales",
+        "AvatarBodyRules",
+        "game.avatar.max_scale",
+    ),
+    (
+        "universeAvatarAssetOverrides",
+        "AvatarBodyRules",
+        "game.avatar.asset_overrides",
+    ),
+];
+
+/// Refuse to write the legacy avatar fields and `engineAvatarSettings` at once.
+///
+/// `engineAvatarSettings` is not an addition to the legacy avatar fields. It is
+/// a *second description of the same settings*: `AvatarBodyRules` carries
+/// `CustomHeightScale = { min, max }` where the legacy body carries
+/// `universeAvatarMinScales.height` and `universeAvatarMaxScales.height`, and it
+/// carries per-slot `Custom*Id` where the legacy body carries
+/// `universeAvatarAssetOverrides`. Sending both in one PATCH tells Roblox the
+/// same thing twice, in two shapes, with nothing making them agree.
+///
+/// Refusing rather than warning, for a reason specific to this field: **no GET
+/// returns either of them.** Neither the v1 nor the v2 read echoes the scales or
+/// the settings document back, which was verified against the vendored spec
+/// (zero GET operations expose `ScaleModel`). So a project that writes a
+/// contradiction has no way to discover it from this tool, from the API, or
+/// from the Creator Hub. It surfaces when somebody opens Studio and reads
+/// `AvatarSettings Error: Failed to deserialize properties`, which is exactly
+/// how this was found — on a test universe that had been sent both.
+///
+/// Free to impose, too, which is why it is imposed now: the avatar fields have
+/// never appeared in a release, so no existing project can be running a
+/// combination this rejects.
+fn refuse_overlapping_avatar_writes(
+    body: &serde_json::Map<String, Value>,
+    document: &str,
+    path: &Path,
+) -> Result<()> {
+    // The document is this crate's own compact re-serialisation, so a parse
+    // failure here would be a bug rather than bad input. Treating it as "no
+    // sections found" keeps a hypothetical one from turning into a refusal of
+    // a config that is fine.
+    let Ok(parsed) = serde_json::from_str::<Value>(document) else {
+        return Ok(());
+    };
+
+    let mut clashes: Vec<String> = Vec::new();
+    for (legacy_key, section, toml_key) in AVATAR_OVERLAPS {
+        if body.contains_key(*legacy_key) && find_section(&parsed, section) {
+            clashes.push(format!(
+                "  {toml_key}  ·  also set by {section} in the document"
+            ));
+        }
+    }
+    if clashes.is_empty() {
+        return Ok(());
+    }
+    clashes.sort();
+    clashes.dedup();
+
+    bail!(
+        "`engine_avatar_settings` describes the same settings as these fields, \
+         and this sync would send both:\n\n{}\n\n\
+         `{}` is not an extra layer on top of the avatar fields; it is another \
+         way of writing them. `AvatarBodyRules.CustomHeightScale = {{min, max}}` \
+         is `min_scale.height` and `max_scale.height` in one place.\n\n\
+         Keep whichever one you maintain and remove the other from rbxmeta.toml. \
+         Nothing here can reconcile them for you: Roblox returns neither on read, \
+         so a disagreement between the two is invisible until Studio refuses to \
+         load the settings.",
+        clashes.join("\n"),
+        path.display()
+    )
+}
+
+/// Whether `name` appears as an object key anywhere in `value`.
+///
+/// A search rather than a fixed path, because the known-good document nests its
+/// rule sections under wrappers this crate does not model and must not depend
+/// on the shape of.
+fn find_section(value: &Value, name: &str) -> bool {
+    match value {
+        Value::Object(map) => map.contains_key(name) || map.values().any(|v| find_section(v, name)),
+        Value::Array(items) => items.iter().any(|v| find_section(v, name)),
+        _ => false,
+    }
+}
+
 /// The scale object Roblox takes.
 ///
 /// **Five of the six fields.** `Roblox.Web.Responses.Avatar.ScaleModel` also
@@ -1418,6 +1519,144 @@ mod tests {
                 patch.body,
                 json!({ "socialSlotType": "Empty", "copyingAllowed": false })
             );
+        }
+
+        /// `engineAvatarSettings` restates the legacy avatar fields rather than
+        /// extending them, and neither side can be read back, so a sync that
+        /// sends both is a contradiction nothing downstream can detect. Found
+        /// the hard way: a test universe sent both came back as
+        /// `AvatarSettings Error: Failed to deserialize properties` the next
+        /// time Studio opened it.
+        mod engine_avatar_overlap {
+            use super::*;
+
+            /// Reduced to what the guard reads. The real document nests its rule
+            /// sections under wrappers this crate deliberately does not model,
+            /// so the nesting is kept to prove the search does not depend on a
+            /// fixed path.
+            const WITH_BODY_RULES: &str =
+                r#"{"Settings":{"AvatarBodyRules":{"CustomHeightScale":[1,1]}}}"#;
+            /// A document that says nothing about the body: no overlap to find.
+            const COLLISION_ONLY: &str =
+                r#"{"Settings":{"AvatarCollisionRules":{"CollisionMode":1}}}"#;
+
+            fn project(document: &str) -> tempfile::TempDir {
+                let dir = tempfile::tempdir().unwrap();
+                std::fs::write(dir.path().join("avatar.json"), document).unwrap();
+                dir
+            }
+
+            fn plan_in(dir: &Path, game: &Game, lock: &GameLock) -> Result<SyncPlan> {
+                build_plan(
+                    game,
+                    &MediaConfig::default(),
+                    lock,
+                    &MediaLockfile::default(),
+                    dir,
+                )
+            }
+
+            fn scales() -> AvatarScales {
+                AvatarScales {
+                    height: 1.0,
+                    width: 1.0,
+                    head: 1.0,
+                    body_type: 0.0,
+                    proportion: 0.0,
+                }
+            }
+
+            #[test]
+            fn scales_beside_a_body_rules_document_are_refused() {
+                let dir = project(WITH_BODY_RULES);
+                let mut g = game();
+                g.avatar.min_scale = Some(scales());
+                g.engine_avatar_settings = Some(PathBuf::from("avatar.json"));
+
+                let err = plan_in(dir.path(), &g, &lock()).unwrap_err().to_string();
+
+                // Names the TOML the reader wrote, not the wire field.
+                assert!(err.contains("game.avatar.min_scale"), "{err}");
+                assert!(err.contains("AvatarBodyRules"), "{err}");
+            }
+
+            /// A second entry of the table, so the guard is not pinned to one
+            /// row of it.
+            #[test]
+            fn the_max_scale_is_caught_as_well_as_the_min() {
+                let dir = project(WITH_BODY_RULES);
+                let mut g = game();
+                g.avatar.max_scale = Some(scales());
+                g.engine_avatar_settings = Some(PathBuf::from("avatar.json"));
+
+                let err = plan_in(dir.path(), &g, &lock()).unwrap_err().to_string();
+
+                assert!(err.contains("game.avatar.max_scale"), "{err}");
+            }
+
+            /// The control that keeps the guard from being "refuse whenever both
+            /// keys exist". A document that describes collisions and nothing
+            /// else does not overlap the scales.
+            #[test]
+            fn a_document_that_does_not_mention_the_body_is_allowed_beside_scales() {
+                let dir = project(COLLISION_ONLY);
+                let mut g = game();
+                g.avatar.min_scale = Some(scales());
+                g.engine_avatar_settings = Some(PathBuf::from("avatar.json"));
+
+                let plan = plan_in(dir.path(), &g, &lock()).expect("no overlap to refuse");
+                let body = &plan.universe_legacy_patch.expect("patch").body;
+
+                assert!(body.get("universeAvatarMinScales").is_some());
+                assert!(body.get("engineAvatarSettings").is_some());
+            }
+
+            /// Either channel alone is the ordinary case and must stay usable.
+            #[test]
+            fn the_document_alone_is_allowed() {
+                let dir = project(WITH_BODY_RULES);
+                let mut g = game();
+                g.engine_avatar_settings = Some(PathBuf::from("avatar.json"));
+
+                let plan = plan_in(dir.path(), &g, &lock()).expect("one channel is fine");
+
+                assert!(plan
+                    .universe_legacy_patch
+                    .expect("patch")
+                    .body
+                    .get("engineAvatarSettings")
+                    .is_some());
+            }
+
+            #[test]
+            fn the_scales_alone_are_allowed() {
+                let dir = project(WITH_BODY_RULES);
+                let mut g = game();
+                g.avatar.min_scale = Some(scales());
+
+                let plan = plan_in(dir.path(), &g, &lock()).expect("one channel is fine");
+
+                assert!(plan
+                    .universe_legacy_patch
+                    .expect("patch")
+                    .body
+                    .get("universeAvatarMinScales")
+                    .is_some());
+            }
+
+            /// A scale already recorded in the lock produces no body key, so
+            /// there is nothing to contradict and nothing to refuse.
+            #[test]
+            fn an_unchanged_scale_does_not_trip_the_guard() {
+                let dir = project(WITH_BODY_RULES);
+                let mut g = game();
+                g.avatar.min_scale = Some(scales());
+                g.engine_avatar_settings = Some(PathBuf::from("avatar.json"));
+                let mut l = lock();
+                l.avatar.min_scale = Some(scales());
+
+                plan_in(dir.path(), &g, &l).expect("nothing to send, nothing to clash");
+            }
         }
 
         #[test]

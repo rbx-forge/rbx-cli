@@ -298,3 +298,66 @@ async fn a_missing_map_flag_is_an_error_naming_the_flag() {
         "the error should name the flag to pass, got: {error}"
     );
 }
+
+/// Every page asks for the same size, and the result respects `--limit`.
+///
+/// The endpoint states the rule itself: "When paginating, all other parameters
+/// provided to the subsequent call must match the call that provided the page
+/// token." Recomputing `maxPageSize` from what is still wanted sends page two
+/// with a different value than the call that issued its token — a request
+/// Roblox may reject, and only on listings long enough to page, which are the
+/// ones nobody tries by hand.
+///
+/// The second assertion is the other half. A fixed page size without a truncate
+/// returns more rows than were asked for, which is how porting this rule to
+/// another crate went wrong once already.
+#[tokio::test]
+async fn every_page_asks_for_the_same_size_and_the_limit_is_respected() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+
+    let full_page: Vec<serde_json::Value> = (0..100)
+        .map(|i| serde_json::json!({ "id": format!("k{i}"), "value": i, "numericSortKey": i as f64 }))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(ITEMS_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "items": full_page,
+            "nextPageToken": "more"
+        })))
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["list", "--limit", "150"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests.len() >= 2,
+        "expected the walk to page, saw {} request(s)",
+        requests.len()
+    );
+
+    let sizes: Vec<String> = requests
+        .iter()
+        .map(|r| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k == "maxPageSize")
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default()
+        })
+        .collect();
+    assert!(
+        sizes.windows(2).all(|w| w[0] == w[1]),
+        "maxPageSize changed between pages: {sizes:?}"
+    );
+    assert_eq!(
+        sizes[0], "100",
+        "the first page asks for the cap: {sizes:?}"
+    );
+}

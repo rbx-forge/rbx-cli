@@ -132,6 +132,76 @@ enum Command {
     },
 }
 
+/// What one paginated walk of the server listing collected.
+#[derive(Debug, Default)]
+pub struct Walk {
+    pub rows: Vec<GameServer>,
+    /// Roblox reported a page as incomplete.
+    pub partial: bool,
+    /// The total the first page claimed, if it claimed one.
+    pub total: Option<i64>,
+}
+
+/// Follow the listing pages until `limit` rows are collected.
+///
+/// A function rather than a loop inside `run`, so the three properties that
+/// make it correct can be asserted — none of them were, and one was lost in a
+/// port before this existed.
+///
+/// **The page size is fixed for the whole walk.** The endpoint states the rule
+/// itself: "When paginating, all other parameters provided to the subsequent
+/// call must match the call that provided the page token." A second page asking
+/// for a different size than the call that issued its token is a request Roblox
+/// may reject, and only on listings long enough to page — the ones nobody tries
+/// by hand.
+///
+/// **So the result is truncated.** A fixed page size overshoots on the last page
+/// by construction. The two belong together and neither is right alone: carrying
+/// the rule to another crate without the truncate turned `--limit 150` into 200
+/// rows.
+///
+/// **An empty page carrying a token ends the walk.** Otherwise `rows` never
+/// grows, the loop condition never fails, and the command hangs issuing
+/// requests. Emptiness is measured on the page rather than on what survived the
+/// status filter: a page whose rows were all discarded is still progress, and
+/// stopping there would cut the search short without saying so.
+pub async fn walk_servers(
+    api: &ServersApi,
+    universe_id: u64,
+    place_id: u64,
+    version: &str,
+    limit: u32,
+    wanted: Option<&str>,
+) -> Result<Walk> {
+    let mut walk = Walk::default();
+    let mut token: Option<String> = None;
+    let page_size = 1u32.max(limit.min(MAX_PAGE_SIZE));
+
+    while (walk.rows.len() as u32) < limit {
+        let page = api
+            .list_page(universe_id, place_id, version, page_size, token.as_deref())
+            .await?;
+
+        walk.partial |= page.is_partial();
+        walk.total = walk.total.or(page.total_count);
+
+        for server in &page.game_servers {
+            if wanted.is_none_or(|want| server.status().as_str() == want) {
+                walk.rows.push(server.clone());
+            }
+        }
+
+        let page_was_empty = page.game_servers.is_empty();
+        match page.next_token() {
+            Some(next) if !page_was_empty => token = Some(next.to_string()),
+            _ => break,
+        }
+    }
+
+    walk.rows.truncate(limit as usize);
+    Ok(walk)
+}
+
 pub async fn run(cli: ServersCli, global: &GlobalFlags) -> Result<()> {
     let Some(env) = global.env.as_deref() else {
         bail!("`rbx-ops servers` needs an env. Pass --env <name>.");
@@ -222,40 +292,19 @@ pub async fn run(cli: ServersCli, global: &GlobalFlags) -> Result<()> {
             };
 
             let wanted = status.as_deref().map(str::to_ascii_lowercase);
-            let mut rows: Vec<GameServer> = Vec::new();
-            let mut token: Option<String> = None;
-            let mut partial = false;
-            let mut total: Option<i64> = None;
-
-            while (rows.len() as u32) < limit {
-                let remaining = limit - rows.len() as u32;
-                let page = api
-                    .list_page(
-                        universe_id,
-                        place_id,
-                        &version,
-                        remaining.min(MAX_PAGE_SIZE),
-                        token.as_deref(),
-                    )
-                    .await?;
-
-                partial |= page.is_partial();
-                total = total.or(page.total_count);
-
-                for server in &page.game_servers {
-                    let keep = wanted
-                        .as_deref()
-                        .is_none_or(|want| server.status().as_str() == want);
-                    if keep {
-                        rows.push(server.clone());
-                    }
-                }
-
-                match page.next_token() {
-                    Some(next) => token = Some(next.to_string()),
-                    None => break,
-                }
-            }
+            let Walk {
+                rows,
+                partial,
+                total,
+            } = walk_servers(
+                &api,
+                universe_id,
+                place_id,
+                &version,
+                limit,
+                wanted.as_deref(),
+            )
+            .await?;
 
             if format.is_json() {
                 // The warning is emitted here rather than inside `render`,
@@ -308,29 +357,37 @@ pub async fn run(cli: ServersCli, global: &GlobalFlags) -> Result<()> {
 
             let mut lines = Vec::new();
             let mut token: Option<String> = None;
+            // Same three rules as `walk_servers`, which the doc comment on
+            // that function states at length. Not shared with it: the two
+            // walks collect different types and filter on different fields,
+            // and a generic over both would be longer than the duplication.
+            let page_size = 1u32.max(limit.min(MAX_PAGE_SIZE));
+
             while (lines.len() as u32) < limit {
-                let remaining = limit - lines.len() as u32;
                 let page = api
                     .list_logs(
                         universe_id,
                         place_id,
                         &version,
                         &job_id,
-                        remaining.min(MAX_PAGE_SIZE),
+                        page_size,
                         token.as_deref(),
                     )
                     .await?;
                 let next = page.next_token().map(str::to_string);
+                let page_was_empty = page.game_server_logs.is_empty();
                 for line in page.game_server_logs {
                     if wanted.is_none_or(|want| line.severity == Some(want)) {
                         lines.push(line);
                     }
                 }
                 match next {
-                    Some(value) => token = Some(value),
-                    None => break,
+                    Some(value) if !page_was_empty => token = Some(value),
+                    _ => break,
                 }
             }
+
+            lines.truncate(limit as usize);
 
             if lines.is_empty() {
                 // The advice is worth keeping under `--json` too — a job id

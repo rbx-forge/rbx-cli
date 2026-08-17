@@ -423,13 +423,21 @@ impl Api {
         let mut collected = Vec::new();
         let mut page_token: Option<String> = None;
 
+        // Fixed for the whole walk, not recomputed per page. The endpoint says
+        // so itself: "When paginating, all other parameters provided to the
+        // subsequent call must match the call that provided the page token."
+        // Shrinking `maxPageSize` as the remaining count falls sends page two
+        // with a different value than the call that issued its token, which
+        // Roblox is entitled to reject — and only on listings long enough to
+        // page, which are the ones nobody tries by hand.
+        //
+        // Overshooting on the last page costs nothing: the truncate below
+        // discards the surplus. Keeping the two paired is the point — a fixed
+        // page size without it returns more rows than `--limit` asked for.
+        let page_size = 1u32.max(limit.min(MAX_PAGE_SIZE));
+
         while (collected.len() as u32) < limit {
-            let remaining = limit - collected.len() as u32;
-            let mut url = format!(
-                "{}?maxPageSize={}",
-                self.items_url(),
-                remaining.min(MAX_PAGE_SIZE)
-            );
+            let mut url = format!("{}?maxPageSize={}", self.items_url(), page_size);
             if let Some(token) = &page_token {
                 url.push_str("&pageToken=");
                 url.push_str(&encode_query_value(token));

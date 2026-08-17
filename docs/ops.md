@@ -10,7 +10,7 @@ These are subcommands of `rbx`, listed last in `rbx --help` and prefixed `Live:`
 | `analytics` | Your own metrics: players, retention, ARPPU. CSV for charting elsewhere. | [ops/analytics.md](./ops/analytics.md) |
 | `ban` | Inspect and change player restrictions. | [ops/ban.md](./ops/ban.md) |
 | `restart` | Forecast and launch a rolling server restart. | [ops/restart.md](./ops/restart.md) |
-| `data` | Read, overwrite, copy and recover a data store entry. | [ops/data.md](./ops/data.md) |
+| `data` | Read, overwrite, copy and recover a data store entry; `data ordered` for leaderboards. | [ops/data.md](./ops/data.md) |
 | `memorystore` | Write cache values servers read through `MemoryStoreService`. | [ops/memorystore.md](./ops/memorystore.md) |
 | `publish` | Push a MessagingService message to every running server. | [ops/message.md](./ops/message.md) |
 | `ads` | Launch and steer ad campaigns. Spends money, reads no results. | [ops/ads.md](./ops/ads.md) |
@@ -89,6 +89,8 @@ Scopes by subcommand:
 | `data` reads | `universe-datastores.objects:read,list` | read |
 | `data` writes | `universe-datastores.objects:create,update` + `universe-datastores.control:create` | **write** |
 | `data revisions` / `restore` | `universe-datastores.versions:list,read` | read |
+| `data ordered` reads | `universe.ordered-data-store.scope.entry:read` | read |
+| `data ordered` writes | `universe.ordered-data-store.scope.entry:write` | **write** |
 | `memorystore get` / `list` | `memory-store.sorted-map:read` | read |
 | `memorystore set` / `delete` | `memory-store.sorted-map:write` | **write** |
 | `publish` | `universe-messaging-service:publish` | **write** |

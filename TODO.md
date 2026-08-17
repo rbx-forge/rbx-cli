@@ -247,12 +247,18 @@ were about the shape of the API rather than about who would be calling it.
 | Surface | Why not |
 | --- | --- |
 | `users/{id}/notifications` | A whole domain: needs notification templates configured in the experience and opted-in players. The `rbx-ops` blurb used to promise it; the blurb was the bug, and it has been fixed. |
-| `ordered-data-stores` | Leaderboards. Would fit under `data` as a sibling mode (integer values, ordered listing), but only earns its place in a tool whose users keep leaderboards. Revisit on demand. |
 | `luau-execution-session-tasks` | Powerful (run Luau against a place or a version, with logs), but adequate tools already exist and duplicating one is not a reason to ship. The tool in use here is [jest-roblox-cli](https://github.com/christopher-buss/jest-roblox-cli), named so the claim is checkable rather than asserted. Reconfirmed 2026-08-15, when an MCP server covering the same endpoint prompted the question again. |
 | groups memberships/roles, `inventory-items`, subscriptions, `creator-store-products`, place `instances`, `:generateThumbnail`, `:translateText` | No demand, and each is a new domain rather than the completion of an existing command. |
 
 Taken instead: `data snapshot`, because it completes a command that already
 exists and makes a claim in its own documentation true.
+
+**`ordered-data-stores` has left this table.** It was declined as "only earns
+its place in a tool whose users keep leaderboards", with "revisit on demand"
+attached — and the demand turned up. It shipped as `rbx data ordered`, a
+sibling mode under `data` exactly as the row predicted, minus the four verbs
+Roblox does not offer on that resource (`snapshot`, `revisions`, `restore`,
+`diff`).
 
 ### Undecided — universe secrets, and the reason it is not a wrapper
 

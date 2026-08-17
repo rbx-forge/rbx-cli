@@ -38,6 +38,7 @@
 pub mod backup;
 pub mod json;
 pub mod model;
+pub mod ordered;
 
 use std::path::PathBuf;
 
@@ -458,6 +459,20 @@ enum Command {
         #[arg(long)]
         yes: bool,
     },
+
+    /// Ordered data stores: the leaderboard resource.
+    ///
+    /// A different Open Cloud resource from the verbs above, not a mode of
+    /// them: integer values, server-side ordering, and no revision history at
+    /// all. `--datastore` names it the same way, and `--scope` applies.
+    ///
+    /// Nothing here writes a backup file, because there is nothing to back
+    /// up: an ordered entry is one integer with no revision history behind it,
+    /// so there would be nothing to reconstruct.
+    Ordered {
+        #[command(subcommand)]
+        command: ordered::OrderedCommand,
+    },
 }
 
 struct Api {
@@ -638,6 +653,10 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
     // value the call does not use.
     let datastore = match (&cli.command, cli.datastore.clone()) {
         (Command::Snapshot { .. }, store) => store.unwrap_or_default(),
+        // `ordered` raises its own error, naming `GetOrderedDataStore` rather
+        // than `GetDataStore`. Sending somebody to the wrong Luau function is
+        // a small thing that costs a real detour.
+        (Command::Ordered { .. }, store) => store.unwrap_or_default(),
         (_, Some(store)) => store,
         (_, None) => bail!(
             "`rbx-ops data` needs --datastore <name>, the name the game passes to GetDataStore."
@@ -669,6 +688,18 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
     };
 
     match cli.command {
+        Command::Ordered { command } => {
+            ordered::run(
+                command,
+                base,
+                api_key,
+                universe_id,
+                datastore,
+                cli.scope.clone(),
+            )
+            .await
+        }
+
         Command::Snapshot { apply } => {
             if !apply {
                 println!(

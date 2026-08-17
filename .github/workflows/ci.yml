@@ -21,6 +21,14 @@ concurrency:
 # rented for real only where it is not, which is the one narrow exception the
 # `windows` job explains. Local lefthook and cfg-gate review catch most
 # OS-specific regressions before push.
+#
+# Every cargo invocation below passes `--locked`, and so does release.yml. The
+# flag makes cargo fail rather than quietly rewrite Cargo.lock when the manifest
+# and the lockfile disagree. Without it the graph CI tests and the graph
+# `cargo-deny` audits are only *probably* the graph the release binary is built
+# from, and "advisories ok" stops being a statement about what users download.
+# `cargo fmt` is the one command with no `--locked`: it never resolves
+# dependencies, and rejects the flag.
 jobs:
   test:
     # `cargo test --workspace` compiles and links every target in the workspace,
@@ -32,7 +40,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
-      - run: cargo test --workspace --verbose
+      - run: cargo test --workspace --locked --verbose
 
   fmt:
     name: Rustfmt
@@ -49,7 +57,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
-      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   windows:
     # The platform-dependent crates are the ones Linux CI can never exercise:
@@ -95,7 +103,7 @@ jobs:
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
         if: steps.changed.outputs.run == 'true'
       - if: steps.changed.outputs.run == 'true'
-        run: cargo test -p rbx-open -p rbx-core
+        run: cargo test -p rbx-open -p rbx-core --locked
 
   cross:
     # The release workflow ships binaries for targets no other job here builds,
@@ -146,7 +154,7 @@ jobs:
       # subcommand it only takes the build path, and subcommands other than
       # build are reached by invoking the binary directly.
       - name: macOS (cross-check)
-        run: cargo-zigbuild check --workspace --target aarch64-apple-darwin
+        run: cargo-zigbuild check --workspace --locked --target aarch64-apple-darwin
       # musl is *built*, not checked, and the difference is the whole point.
       # The macOS leg guards against code that stopped compiling, which `check`
       # sees. What breaks a musl artifact is linking: it is the target we ship
@@ -158,7 +166,7 @@ jobs:
       # rust-cache with the leg above, which is exactly why the macOS leg is
       # not built the same way.
       - name: musl (build)
-        run: cargo-zigbuild build --bin rbx --target x86_64-unknown-linux-musl
+        run: cargo-zigbuild build --bin rbx --locked --target x86_64-unknown-linux-musl
       # A static binary is the reason this target exists at all, so assert it
       # rather than assume it. A dependency quietly reintroducing a dynamic
       # libc would otherwise produce a musl artifact with the same portability
@@ -185,7 +193,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
-      - run: cargo run -p rbx-schema -- --check
+      - run: cargo run -p rbx-schema --locked -- --check
 
   doc:
     name: Doc
@@ -196,8 +204,39 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
-      - run: cargo doc --workspace --no-deps --document-private-items
+      - run: cargo doc --workspace --no-deps --locked --document-private-items
 
+  msrv:
+    # `rust-version = "1.88"` in the workspace manifest calls itself "verified,
+    # not aspirational", and until this job existed nothing verified it. Every
+    # other job here runs `stable`, which is many releases ahead, so the number
+    # could only ever be confirmed by a user hitting a compile error three
+    # crates deep — the exact outcome the manifest comment says it exists to
+    # prevent.
+    #
+    # It moves when a dependency moves it, which is why this has to be checked
+    # rather than reasoned about: `image` is what sets 1.88 today, and the next
+    # bump will arrive inside somebody else's release, not in a diff here.
+    #
+    # `check`, not `test`: what an old toolchain breaks is compilation, and
+    # `--all-targets` reaches the test and bench targets too, which is the scope
+    # the manifest claims ("the workspace and its test targets"). Running the
+    # suite again on 1.88 would buy a second full build to re-prove what the
+    # `test` job already proves.
+    #
+    # The toolchain is pinned to the exact patch version, and the action SHA
+    # stays the one the other jobs use: the SHA pins the action's code, the
+    # `toolchain` input picks the compiler. Verified locally against the tree
+    # this job was added to, in 1m28s.
+    name: MSRV (1.88)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+        with:
+          toolchain: "1.88.0"
+      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - run: cargo check --workspace --all-targets --locked
 
   completions:
     # The half of the completion feature no unit test can reach.
@@ -222,5 +261,5 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y zsh fish
-      - run: cargo build -p rbx
+      - run: cargo build -p rbx --locked
       - run: bash scripts/completion-smoke.sh target/debug/rbx

@@ -77,10 +77,17 @@ jobs:
       # One binary. `rbx-ops` used to ship alongside it and no longer does:
       # every command it carried is a subcommand of `rbx`, and the shim that
       # still answers to the old name is built from source only.
+      #
+      # `--locked` matters more here than anywhere in ci.yml. Without it cargo
+      # may rewrite Cargo.lock mid-build, and the artefact people download would
+      # then come from a dependency graph that no test run exercised and no
+      # `cargo-deny` run audited. The tag is the moment that distinction stops
+      # being theoretical: it fails the release instead of shipping a binary
+      # nobody checked.
       - if: ${{ !matrix.zig }}
-        run: cargo build --release --target ${{ matrix.target }} --bin rbx
+        run: cargo build --release --locked --target ${{ matrix.target }} --bin rbx
       - if: matrix.zig
-        run: cargo-zigbuild build --release --target ${{ matrix.target }} --bin rbx
+        run: cargo-zigbuild build --release --locked --target ${{ matrix.target }} --bin rbx
       # The musl artifact exists to run where the gnu one will not, so a musl
       # binary that came out dynamically linked is a broken release, not a
       # smaller problem. Fail the tag rather than publish it.

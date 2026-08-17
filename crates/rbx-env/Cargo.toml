@@ -13,6 +13,10 @@ clap.workspace = true
 colored.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# Same pin as rbx-meta and rbx-shop. `rm` is the first thing in this crate that
+# writes: it edits the existing documents rather than reserialising the models,
+# so a hand-written rbxplace.toml keeps its comments and its key order.
+toml_edit = "0.22"
 
 rbx-core = { path = "../rbx-core" }
 

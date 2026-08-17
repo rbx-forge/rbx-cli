@@ -299,6 +299,48 @@ Envs and places are emitted in name order, so regenerating from an unchanged `rb
 
 </details>
 
+
+<details>
+<summary><code>rbx env rm</code></summary>
+
+Remove an env from `rbxplace.toml` and from every file keyed by it.
+
+```sh
+rbx env rm staging --dry-run   # list what would go
+rbx env rm staging             # asks before writing
+rbx env rm staging --yes       # for scripts
+```
+
+| Flag | Description |
+| --- | --- |
+| `--dry-run` | List what would be removed without writing anything |
+| `-y`, `--yes` | Skip the confirmation prompt |
+| `--places <path>` | Path to `rbxplace.toml` (global flag, default `rbxplace.toml`) |
+
+The env is named as a positional argument, not read from the global `--env`. This is the one command where naming the wrong env deletes something, and `--env` is a flag people leave set in a shell for a whole session.
+
+**What it touches**, when the file exists:
+
+| File | What goes |
+| --- | --- |
+| `rbxplace.toml` | The `[<env>]` block |
+| `rbxmeta.toml` | The `[envs.<env>]` overlay |
+| `rbxmeta.lock.toml` | The `[envs.<env>]` section |
+| `rbxshop.toml` | The `[envs.<env>]` overlay |
+| `rbxshop.lock.toml` | The `[envs.<env>]` section |
+| `<codegen.output>/<env>.luau` | The per-env module `rbx shop codegen` wrote |
+
+Everything is planned before anything is written, so a file that fails to parse stops the run rather than leaving the project half-edited. Comments and key order survive: the files are edited as documents, not reserialised through the config model.
+
+The aggregate generated files — `init.luau`, the type module, whatever `rbx env gen-module` writes — are *regenerated*, not deleted, so the command names them at the end instead of touching them.
+
+**Nothing is deleted on Roblox, and nothing could be.** A game pass or a developer product cannot be deleted there at all, only taken off sale; a badge can only be disabled; a universe can be deactivated and is still there. A command called `destroy` would be describing something it does not do, on resources people paid money for. This removes the env, which is the part that really can be removed.
+
+An env that is not in `rbxplace.toml` is refused, and the error names the ones that are — a typo must not report success having done nothing. `[owner]` and `[codegen]` are top-level tables and not envs, so they are refused too.
+
+</details>
+
+
 ## Every field, and where it goes
 
 `rbxplace.toml` has exactly two reserved top-level tables. **Every other top-level table is an env**, named by its key.

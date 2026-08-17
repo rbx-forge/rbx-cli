@@ -52,7 +52,7 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | --- | --- | --- |
 | `rbx init` | Bootstrap Roblox resources from scratch: groups, universes, places. | [docs/init.md](./docs/init.md) |
 | `rbx import` | Adopt an existing universe: write every config and lockfile from it, in one command. | [docs/import.md](./docs/import.md) |
-| `rbx env` | Read `rbxplace.toml`: list envs, print a single id, generate a module for game code (and verify it). | [docs/env.md](./docs/env.md) |
+| `rbx env` | Read `rbxplace.toml`: list envs, print a single id, generate a module for game code (and verify it), remove an env from every file that mentions it. | [docs/env.md](./docs/env.md) |
 | `rbx apikey` | Declaratively manage Open Cloud API keys from `rbxapikey.toml`. | [docs/apikey.md](./docs/apikey.md) |
 | `rbx doctor` | Diagnose credentials, key validity and scope coverage, with one real read to prove it end to end. | [docs/doctor.md](./docs/doctor.md) |
 | `rbx check` | Run every configured tool's check in one pass, with one aggregated exit code. The CI contract. | [docs/check.md](./docs/check.md) |

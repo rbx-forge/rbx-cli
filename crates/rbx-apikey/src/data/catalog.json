@@ -1,6 +1,6 @@
 {
-  "version": "2026-08-16",
-  "source_url": "https://github.com/Roblox/creator-docs/blob/52e3ee9091cd0905b2d1d119654b5709868216da/content/en-us/reference/cloud/openapi.json",
+  "version": "2026-08-17",
+  "source_url": "https://github.com/Roblox/creator-docs/blob/e496b3febf9867d6e9676a9287ef4bbce4bd704a/content/en-us/reference/cloud/openapi.json",
   "scopes": {
     "ad.billing": {
       "operations": [

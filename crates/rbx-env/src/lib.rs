@@ -4,14 +4,22 @@
 //! `rbx env get place-id --env prod` always prints the id that
 //! `rbx place upload --env prod` would target.
 //!
-//! Three verbs — `list`/`get` mirror `rbx config`:
+//! Four verbs — `list`/`get` mirror `rbx config`:
 //! - `list`       — human-readable dump of the whole file (or one env via `--env`),
 //!   plus the two bare listings `--names` and `--place-names` that scripts and
 //!   the generated shell completions read.
 //! - `get`        — one bare value on stdout, for `$(...)` capture in scripts.
 //! - `gen-module` — the same data as a Luau/Lua/JSON/TS module for game code.
+//! - `rm`         — take an env out of every file that mentions it.
+//!
+//! `rm` is the only one that writes, and it writes only local files: this
+//! crate still never opens a connection. It lives here rather than in
+//! `rbx-shop` or `rbx-meta` because an env is not owned by either — it is
+//! declared in `rbxplace.toml` and referenced from both, so removing one is a
+//! question about this file's contents that happens to reach into its
+//! neighbours. See `commands::rm` for why it is not called `destroy`.
 
-mod commands;
+pub mod commands;
 pub mod json;
 
 use anyhow::Result;
@@ -111,6 +119,34 @@ pub enum EnvCommands {
         #[arg(long)]
         check: bool,
     },
+
+    /// Remove an env from rbxplace.toml and every file keyed by it.
+    ///
+    /// Local only. Nothing is deleted on Roblox — and nothing could be: a game
+    /// pass or a developer product cannot be deleted there at all, only taken
+    /// off sale, and a badge can only be disabled. This removes the env
+    /// itself: its block in rbxplace.toml, its overlay in rbxmeta.toml and
+    /// rbxshop.toml, its section in both lockfiles, and the per-env module
+    /// `rbx shop codegen` wrote for it.
+    ///
+    /// Prints what it will touch and asks before writing. Comments and key
+    /// order in the files it edits are preserved.
+    Rm {
+        /// Env to remove, as it is named in rbxplace.toml.
+        ///
+        /// Positional rather than read from the global `--env`: this is the
+        /// one command where naming the wrong env deletes something, and
+        /// `--env` is a flag people leave set in a shell for a whole session.
+        name: String,
+
+        /// List what would be removed without writing anything.
+        #[arg(long)]
+        dry_run: bool,
+
+        /// Skip the confirmation prompt.
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
 }
 
 /// A readable field of `rbxplace.toml`. Names are kebab-case to match CLI
@@ -170,6 +206,9 @@ pub async fn run(cli: EnvCli, global: &GlobalFlags) -> Result<()> {
         EnvCommands::Get { field, json } => commands::get::run(global, field, json),
         EnvCommands::GenModule { out, check } => {
             commands::gen_module::run(&global.places, out.as_deref(), check)
+        }
+        EnvCommands::Rm { name, dry_run, yes } => {
+            commands::rm::run(&global.places, &name, dry_run, yes)
         }
     }
 }

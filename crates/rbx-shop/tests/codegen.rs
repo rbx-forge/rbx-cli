@@ -604,3 +604,76 @@ fn a_leftover_module_is_reported_as_stale_by_the_plan() {
     assert_eq!(plan.stale.len(), 1);
     assert!(plan.stale[0].ends_with("qa.luau"));
 }
+
+/// A resource that is switched off still gets its id — game code needs it for
+/// ownership checks on the players who already bought it — but the module now
+/// says so. Before this, `VIP = 11` read identically whether the pass was on
+/// sale or retired, and a prompt that silently does nothing looks like a bug
+/// in the prompt.
+#[test]
+fn a_retired_resource_keeps_its_id_and_is_annotated() {
+    let dir = tempdir().unwrap();
+    let config = build_config("out/GameIds", CodegenStyle::Nested, false);
+
+    let mut retired_pass = pass(11, "VIP");
+    retired_pass.for_sale = false;
+    let mut retired_badge = badge(21, "Welcome");
+    retired_badge.enabled = false;
+    let mut retired_product = product(31, "Coins", 99);
+    retired_product.for_sale = false;
+
+    let lockfile = Lockfile {
+        version: LOCKFILE_VERSION,
+        envs: BTreeMap::from([(
+            "dev".to_string(),
+            EnvLock {
+                universe_id: 100,
+                passes: BTreeMap::from([("VIP".into(), retired_pass)]),
+                badges: BTreeMap::from([("Welcome".into(), retired_badge)]),
+                products: BTreeMap::from([("Coins".into(), retired_product)]),
+            },
+        )]),
+    };
+
+    codegen::generate(&config, &lockfile, dir.path()).unwrap();
+
+    let module = std::fs::read_to_string(dir.path().join("out/GameIds/dev.luau")).unwrap();
+    assert!(module.contains("VIP = 11, -- not for sale"), "{module}");
+    assert!(module.contains("Welcome = 21, -- disabled"), "{module}");
+    assert!(module.contains("Coins = 31, -- not for sale"), "{module}");
+}
+
+/// The control for the test above: a live resource carries no annotation, so
+/// the note means something when it appears.
+#[test]
+fn a_live_resource_is_not_annotated() {
+    let dir = tempdir().unwrap();
+    let config = build_config("out/GameIds", CodegenStyle::Nested, false);
+    let lockfile = Lockfile {
+        version: LOCKFILE_VERSION,
+        envs: BTreeMap::from([(
+            "dev".to_string(),
+            EnvLock {
+                universe_id: 100,
+                passes: BTreeMap::from([("VIP".into(), pass(11, "VIP"))]),
+                badges: BTreeMap::from([("Welcome".into(), badge(21, "Welcome"))]),
+                products: BTreeMap::new(),
+            },
+        )]),
+    };
+
+    codegen::generate(&config, &lockfile, dir.path()).unwrap();
+
+    let module = std::fs::read_to_string(dir.path().join("out/GameIds/dev.luau")).unwrap();
+    assert!(module.contains("VIP = 11,\n"), "{module}");
+    // The banner is itself a Luau comment, so the claim has to be about the
+    // value lines rather than about the file.
+    let annotated: Vec<&str> = module
+        .lines()
+        .filter(|l| l.contains(" = ") && l.contains("--"))
+        .collect();
+    assert!(
+        annotated.is_empty(),
+        "no annotations expected, found {annotated:?}"
+    );
+}

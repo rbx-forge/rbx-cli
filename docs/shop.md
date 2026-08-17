@@ -194,6 +194,37 @@ The tool never invents the key itself. A generated `VIP_2` is an identifier you 
 
 Only newly discovered resources can collide. Anything already tracked is keyed by its id, so `pull` never displaces a resource the config is already managing.
 
+### The other direction: a lockfile that went missing
+
+Everything above is about *reading* duplicates. The costlier mistake is creating one, and it has a single ordinary cause: `rbxshop.lock.toml` was never committed.
+
+`sync` decides to create a resource from one fact — the key is absent from the lockfile. On a clean checkout with no lockfile, that is every resource in the config, and they all already exist. The duplicates that run would mint cannot be undone: Roblox has no delete for a game pass or a developer product, and the best available repair is setting the accidental twin to `for_sale = false`, which leaves it in the experience forever, visible to everyone who already owns it.
+
+So before creating anything, `sync` lists the experience's existing passes, badges and products and stops if a name it is about to create is already taken:
+
+```
+Error: 2 resources would be created under a name that already exists on Roblox:
+
+  pass 'VIP' (key 'VIP') — already id 111
+  product '100 Coins' (key 'Coins') — already id 333
+
+The usual cause is a rbxshop.lock.toml that was never committed, which makes every
+resource look new.
+
+Adopt what already exists, then sync:
+    rbx shop pull --env prod
+
+If these really are meant to be new resources with the same names, re-run with
+--allow-duplicate-names. Passes and products cannot be deleted once created.
+```
+
+Details worth knowing:
+
+- **It only runs when the plan contains a create.** A sync that only updates resources asks Roblox nothing, so a write-only API key that worked yesterday still works.
+- **It stops the whole run**, not just the colliding resource. A partial sync would leave the lockfile describing an env that was half applied.
+- **Matching is case-insensitive**, on the resolved display name rather than the config key. A name differing only in case is far more likely to be the resource the lockfile lost track of than a deliberate second one, and the two mistakes do not cost the same: a false stop is a flag away, a false create is permanent.
+- **`--allow-duplicate-names`** is the escape hatch for a duplicate you mean. It does not skip the listing, so the run still prints what it matched.
+
 ## Commands
 
 <details>
@@ -223,6 +254,7 @@ Apply the resolved (base + overlay) config to Roblox.
 | `--only` | Only sync specific types: `passes`, `badges`, `products` (comma-separated) |
 | `--badge-cost` | Expected cost in Robux when creating a badge (default: `0`) |
 | `--yes` / `-y` | Skip the confirmation prompt. What CI passes |
+| `--allow-duplicate-names` | Create resources even when Roblox already has one by that name. See [Duplicate names](#duplicate-names) |
 
 `--yes` is worth thinking about once rather than reaching for. `sync` is the command that issues `Create`, Roblox has no delete verb for passes, badges or products, and badge creation spends Robux — so this flag is what turns a reviewed plan into an unattended one. Put `--dry-run` in the pull request and `--yes` in the job that was approved, not the other way round. See [Working in a team](teams.md#habits-that-keep-this-from-happening).
 
@@ -805,6 +837,28 @@ Autocomplete and strict typing work because the dispatcher returns `GameIds` for
 | --- | --- | --- |
 | `nested` | Nested tables, full per-field types | Best for Luau (direct access, full autocomplete) |
 | `flat` | Dot-separated string keys (`GameIds["passes.VIP"]`) | Good for roblox-ts (string-literal keys play nice with TS) |
+
+### Switched-off resources
+
+A pass taken off sale, or a badge that was disabled, still appears in the generated module with its real id — and carries a comment saying so:
+
+```lua
+return Types.gameIds({
+    passes = {
+        VIP = 67890,
+        LegacyFounder = 11111, -- not for sale
+    },
+    badges = {
+        Welcome = 98765, -- disabled
+    },
+})
+```
+
+**Keeping the id is deliberate.** A pass that is off sale still has owners, so game code needs the id to answer "does this player own it". Filtering those out would break ownership checks on exactly the passes somebody retired.
+
+What was missing was any way to tell. `VIP = 67890` reads identically whether the pass is on sale or was retired six months ago, so a prompt that silently never opens looks like a bug in the prompt. The annotation carries the answer as far as the module.
+
+The state comes from the lockfile — `for_sale` for passes and products, `enabled` for badges — so it describes what Roblox has as of the last sync, not what the config would like. Ids under `[codegen.extra]` are never annotated: they belong to resources this tool does not manage, so there is nothing to know about them.
 
 ### Stubbing semantics
 

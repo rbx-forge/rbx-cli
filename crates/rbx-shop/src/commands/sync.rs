@@ -37,6 +37,7 @@ pub async fn run(
     only: Option<Vec<ResourceKind>>,
     badge_cost: u64,
     yes: bool,
+    allow_duplicate_names: bool,
 ) -> Result<()> {
     let config = Config::load_merged(&ctx.config)?;
     let config_dir = ctx.config.parent().unwrap_or(Path::new("."));
@@ -85,6 +86,7 @@ pub async fn run(
             dry_run,
             only.as_ref(),
             badge_cost,
+            allow_duplicate_names,
         )
         .await?;
         any_synced |= synced;
@@ -113,6 +115,7 @@ async fn sync_one_env(
     dry_run: bool,
     only: Option<&Vec<ResourceKind>>,
     badge_cost: u64,
+    allow_duplicate_names: bool,
 ) -> Result<bool> {
     let resources = config.resolve_env(Some(&env_target.name))?;
     Config::validate_icon_paths(&resources, config_dir)?;
@@ -154,10 +157,52 @@ async fn sync_one_env(
 
     if dry_run {
         println!("\nDry run — no changes applied.");
+        // Said out loud, because the plan above is incomplete in one specific
+        // way and a reader has no way to tell from it. The duplicate-name guard
+        // asks Roblox what already exists, and a dry run deliberately never
+        // opens a connection — so a plan that says "create" here can still be
+        // refused by the real run.
+        //
+        // The alternative was to run the guard during the dry run, which would
+        // cost this command its offline property for the sake of a preview.
+        // `rbx shop check` is the online comparison.
+        let creating = ResourceKind::ALL
+            .into_iter()
+            .flat_map(|kind| plan.actions(kind))
+            .any(|a| matches!(a.action, Action::Create));
+        if creating {
+            println!(
+                "{}",
+                "  Roblox was not contacted, so nothing above was compared against \
+                 what already exists there. The real run does that, and refuses on \
+                 a name collision."
+                    .dimmed()
+            );
+        }
         return Ok(false);
     }
 
     let client = ctx.client(env_target.universe_id, config.icons.bleed);
+
+    // Before the first write, and before the badge-payment lookup below: this
+    // is the last point where the run can be abandoned having changed nothing.
+    // A collision found here costs a listing call; the same collision found
+    // one line later costs a duplicate paid product that Roblox will not
+    // delete. See `preflight`.
+    let syncing: Vec<ResourceKind> = ResourceKind::ALL
+        .into_iter()
+        .filter(|k| should_sync(*k))
+        .collect();
+    crate::preflight::guard(
+        &client,
+        env_target.universe_id,
+        &plan,
+        &resources,
+        &syncing,
+        &env_target.name,
+        allow_duplicate_names,
+    )
+    .await?;
 
     // Only creating a badge needs to know who pays for it, and resolving the
     // owner can fail, so a run that only updates badges must not ask.

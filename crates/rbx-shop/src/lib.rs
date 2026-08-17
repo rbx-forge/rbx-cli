@@ -10,6 +10,7 @@ pub mod diff;
 pub mod gifts;
 pub mod json;
 pub mod lockfile;
+mod preflight;
 mod toml_write;
 
 use std::path::PathBuf;
@@ -72,6 +73,20 @@ pub enum ShopCommands {
         /// Skip confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
+
+        /// Create resources even when Roblox already has one by that name.
+        ///
+        /// Before creating anything, `sync` lists the experience's existing
+        /// passes, badges and products and refuses if a name it is about to
+        /// create is already taken. That check exists because a
+        /// `rbxshop.lock.toml` that was never committed makes every resource
+        /// look new, and the duplicate it would create cannot be deleted —
+        /// Roblox has no delete for a pass or a developer product.
+        ///
+        /// Pass this when the duplicate name is deliberate. It does not skip
+        /// the listing, so the run still prints what it matched.
+        #[arg(long)]
+        allow_duplicate_names: bool,
     },
 
     /// List remote resources (passes, badges, products).
@@ -224,7 +239,8 @@ pub async fn run(cli: ShopCli, global: &GlobalFlags) -> Result<()> {
             only,
             badge_cost,
             yes,
-        } => commands::sync::run(&ctx, dry_run, only, badge_cost, yes).await,
+            allow_duplicate_names,
+        } => commands::sync::run(&ctx, dry_run, only, badge_cost, yes, allow_duplicate_names).await,
         ShopCommands::List { resource, json } => commands::list::run(&ctx, resource, json).await,
         ShopCommands::Check => commands::check::run(&ctx).await,
         ShopCommands::Codegen { check } => commands::codegen::run(&ctx, check),

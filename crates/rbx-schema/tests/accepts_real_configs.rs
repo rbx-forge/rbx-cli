@@ -286,3 +286,109 @@ fn a_wrong_type_on_a_known_key_is_rejected() {
          catching it in the editor is the point of the whole feature"
     );
 }
+
+// ── rbxavatar.toml ──
+
+/// The document `game.engine_avatar_settings` points at, in the TOML form.
+///
+/// This is the shape a developer actually writes: a few groups, a few keys
+/// each, nowhere near the full surface. A schema that only accepted the
+/// complete document would be useless for the file people have.
+#[test]
+fn a_partial_avatar_document_validates() {
+    assert_valid(
+        "rbxavatar.toml",
+        "a hand-written avatar settings file",
+        r#"
+version = 1
+
+[AvatarRules]
+AvatarType = 1
+
+[AvatarCollisionRules]
+CollisionMode = 1
+HitAndTouchDetectionMode = 0
+SingleColliderSize = [2, 3, 1]
+
+[AvatarBodyRules]
+ScaleMode = 1
+CustomHeight = [5.5, 5.5]
+KeepPlayerHead = true
+
+[AvatarAnimationRules]
+AnimationClipsMode = 0
+CustomWalkAnimationEnabled = true
+CustomWalkAnimationId = 123456789
+"#,
+    );
+}
+
+/// The rule that matters most for this file. `rbx meta` sends the document
+/// through without inspecting it, so a key Roblox adds tomorrow already works
+/// today — and a schema that painted it red would be lying about the tool.
+#[test]
+fn an_avatar_key_the_schema_does_not_know_is_still_accepted() {
+    assert_valid(
+        "rbxavatar.toml",
+        "an avatar file using a key this schema has never heard of",
+        r#"
+[AvatarRules]
+AvatarType = 1
+SomethingRobloxAddedLastTuesday = 7
+
+[RulesInventedAfterThisSchemaWasWritten]
+Whatever = true
+"#,
+    );
+}
+
+/// The other half: a schema that accepts everything is not validating. A wrong
+/// type on a key it does know has to be caught.
+#[test]
+fn a_wrong_type_in_the_avatar_document_is_rejected() {
+    let schema_json: serde_json::Value =
+        serde_json::from_str(&read("schemas/rbxavatar.schema.json")).expect("valid JSON");
+    let toml_value: toml::Value =
+        toml::from_str("[AvatarRules]\nAvatarType = \"R15\"\n").expect("valid TOML");
+    let instance: serde_json::Value = serde_json::to_value(&toml_value).expect("maps onto JSON");
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler
+        .add_resource("mem://rbxavatar.toml", schema_json)
+        .expect("usable resource");
+    let key = compiler
+        .compile("mem://rbxavatar.toml", &mut schemas)
+        .expect("compiles");
+
+    assert!(
+        schemas.validate(&instance, key).is_err(),
+        "AvatarType is an integer; a string should be flagged in the editor"
+    );
+}
+
+/// The three-number vectors are fixed length, and getting one wrong is the
+/// kind of mistake that reaches Roblox silently otherwise.
+#[test]
+fn a_collider_size_of_the_wrong_length_is_rejected() {
+    let schema_json: serde_json::Value =
+        serde_json::from_str(&read("schemas/rbxavatar.schema.json")).expect("valid JSON");
+    let toml_value: toml::Value =
+        toml::from_str("[AvatarCollisionRules]\nSingleColliderSize = [2, 3]\n")
+            .expect("valid TOML");
+    let instance: serde_json::Value = serde_json::to_value(&toml_value).expect("maps onto JSON");
+
+    let mut schemas = Schemas::new();
+    let mut compiler = Compiler::new();
+    compiler
+        .add_resource("mem://rbxavatar.toml", schema_json)
+        .expect("usable resource");
+    let key = compiler
+        .compile("mem://rbxavatar.toml", &mut schemas)
+        .expect("compiles");
+
+    assert!(
+        schemas.validate(&instance, key).is_err(),
+        "SingleColliderSize is three numbers; two should be flagged"
+    );
+}

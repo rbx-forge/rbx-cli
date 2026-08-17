@@ -30,6 +30,7 @@
 //! than no schema at all: it teaches people to ignore the squiggles, and then
 //! the real errors go unread too. `schemas.rs` has the test that holds this.
 
+mod engine_avatar;
 mod schemas;
 
 use anyhow::{Context, Result};

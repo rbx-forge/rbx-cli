@@ -1,10 +1,12 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 
 use crate::api::models::ApiSocialLink;
-use crate::config::{Game, MediaConfig, ServerFill, SocialLink, Visibility};
+use crate::config::{
+    AvatarScales, Game, MediaConfig, PaidAccess, Permissions, ServerFill, SocialLink, Visibility,
+};
 use crate::lockfile::{GameLock, MediaLockfile};
 use rbx_core::image::{hash_bytes, process_image};
 
@@ -77,6 +79,14 @@ pub struct PlaceLegacyPatch {
 pub struct UniverseLegacyPatch {
     pub body: Value,
     pub descriptions: Vec<String>,
+    /// Hash of the `engineAvatarSettings` document this patch carries, for the
+    /// lockfile to record once the call has landed.
+    ///
+    /// Carried on the patch rather than recomputed by the caller because the
+    /// hash has to be of the exact bytes that were sent. Recomputing it after
+    /// the fact would re-read a file that may have changed in between, and
+    /// write a hash for a document Roblox never saw.
+    pub engine_avatar_settings_hash: Option<String>,
 }
 
 #[derive(Debug, Default)]
@@ -135,13 +145,13 @@ pub fn build_plan(
     media: &MediaConfig,
     game_lock: &GameLock,
     media_lock: &MediaLockfile,
-    config_dir: &std::path::Path,
+    config_dir: &Path,
 ) -> Result<SyncPlan> {
     Ok(SyncPlan {
         universe_patch: build_universe_patch(game, game_lock),
         place_patch: build_place_patch(game, game_lock),
         place_legacy_patch: build_place_legacy_patch(game, game_lock),
-        universe_legacy_patch: build_universe_legacy_patch(game, game_lock),
+        universe_legacy_patch: build_universe_legacy_patch(game, game_lock, config_dir)?,
         visibility_change: build_visibility_change(game, game_lock),
         beta_mode_change: build_beta_mode_change(game, game_lock),
         icon: build_icon_plan(media, media_lock, config_dir)?,
@@ -157,9 +167,14 @@ fn build_beta_mode_change(game: &Game, lock: &GameLock) -> Option<bool> {
     Some(desired)
 }
 
-fn build_universe_legacy_patch(game: &Game, lock: &GameLock) -> Option<UniverseLegacyPatch> {
+fn build_universe_legacy_patch(
+    game: &Game,
+    lock: &GameLock,
+    config_dir: &Path,
+) -> Result<Option<UniverseLegacyPatch>> {
     let mut body = serde_json::Map::new();
     let mut descriptions: Vec<String> = Vec::new();
+    let mut engine_avatar_settings_hash = None;
 
     if let Some(desired) = game.studio_access_to_apis_allowed {
         if lock.studio_access_to_apis_allowed != Some(desired) {
@@ -172,13 +187,250 @@ fn build_universe_legacy_patch(game: &Game, lock: &GameLock) -> Option<UniverseL
         }
     }
 
-    if body.is_empty() {
+    if let Some(desired) = game.permissions {
+        if lock.permissions != Some(desired) {
+            // Sent whole, because Roblox reads it whole. `config::Permissions`
+            // requires all four fields for the same reason.
+            body.insert(
+                "permissions".to_string(),
+                json!({
+                    "IsThirdPartyTeleportAllowed": desired.third_party_teleport,
+                    "IsThirdPartyAssetAllowed": desired.third_party_asset,
+                    "IsThirdPartyPurchaseAllowed": desired.third_party_purchase,
+                    "IsClientTeleportAllowed": desired.client_teleport,
+                }),
+            );
+            descriptions.push(format!(
+                "permissions: {} → {}",
+                show_permissions(lock.permissions.as_ref()),
+                show_permissions(Some(&desired))
+            ));
+        }
+    }
+
+    if let Some(desired) = game.avatar.kind {
+        if lock.avatar.kind != Some(desired) {
+            body.insert("universeAvatarType".to_string(), json!(desired.to_legacy()));
+            descriptions.push(format!(
+                "avatar.type: {} → {:?}",
+                show_debug_opt(lock.avatar.kind),
+                desired
+            ));
+        }
+    }
+
+    if let Some(desired) = game.avatar.animation {
+        if lock.avatar.animation != Some(desired) {
+            body.insert(
+                "universeAnimationType".to_string(),
+                json!(desired.to_legacy()),
+            );
+            descriptions.push(format!(
+                "avatar.animation: {} → {:?}",
+                show_debug_opt(lock.avatar.animation),
+                desired
+            ));
+        }
+    }
+
+    if let Some(desired) = game.avatar.collision {
+        if lock.avatar.collision != Some(desired) {
+            body.insert(
+                "universeCollisionType".to_string(),
+                json!(desired.to_legacy()),
+            );
+            descriptions.push(format!(
+                "avatar.collision: {} → {:?}",
+                show_debug_opt(lock.avatar.collision),
+                desired
+            ));
+        }
+    }
+
+    if let Some(desired) = game.avatar.joint_positioning {
+        if lock.avatar.joint_positioning != Some(desired) {
+            body.insert(
+                "universeJointPositioningType".to_string(),
+                json!(desired.to_legacy()),
+            );
+            descriptions.push(format!(
+                "avatar.joint_positioning: {} → {:?}",
+                show_debug_opt(lock.avatar.joint_positioning),
+                desired
+            ));
+        }
+    }
+
+    if let Some(desired) = game.avatar.min_scale {
+        if lock.avatar.min_scale != Some(desired) {
+            body.insert("universeAvatarMinScales".to_string(), scales_json(&desired));
+            descriptions.push("avatar.min_scale changed".to_string());
+        }
+    }
+
+    if let Some(desired) = game.avatar.max_scale {
+        if lock.avatar.max_scale != Some(desired) {
+            body.insert("universeAvatarMaxScales".to_string(), scales_json(&desired));
+            descriptions.push("avatar.max_scale changed".to_string());
+        }
+    }
+
+    if let Some(desired) = &game.paid_access {
+        if lock.paid_access.as_ref() != Some(desired) {
+            // `isForSale` and `price` travel together: Roblox rejects a price
+            // on an experience that is not for sale, and an experience turned
+            // on for sale with no price is free by accident.
+            body.insert("isForSale".to_string(), json!(desired.is_for_sale()));
+            if let Some(price) = desired.price() {
+                body.insert("price".to_string(), json!(price));
+            }
+            descriptions.push(format!(
+                "paid_access: {} → {}",
+                show_paid_access(lock.paid_access.as_ref()),
+                show_paid_access(Some(desired))
+            ));
+        }
+    }
+
+    if let Some(desired) = game.genre {
+        if lock.genre != Some(desired) {
+            body.insert("genre".to_string(), json!(desired.to_legacy()));
+            descriptions.push(format!(
+                "genre: {} → {:?}",
+                show_debug_opt(lock.genre),
+                desired
+            ));
+        }
+    }
+
+    if let Some(desired) = &game.avatar.asset_overrides {
+        if lock.avatar.asset_overrides.as_ref() != Some(desired) {
+            // Sent whole, like the scales and the permissions: Roblox replaces
+            // the array rather than merging into it.
+            let slots: Vec<Value> = desired
+                .to_legacy()
+                .into_iter()
+                .map(|(type_id, is_player_choice, asset_id)| {
+                    json!({
+                        "assetTypeID": type_id,
+                        "isPlayerChoice": is_player_choice,
+                        "assetID": asset_id,
+                    })
+                })
+                .collect();
+            body.insert("universeAvatarAssetOverrides".to_string(), json!(slots));
+            descriptions.push("avatar.asset_overrides changed".to_string());
+        }
+    }
+
+    if let Some(path) = &game.engine_avatar_settings {
+        let (document, hash) = read_engine_avatar_settings(&config_dir.join(path))?;
+        if lock.engine_avatar_settings_hash.as_deref() != Some(hash.as_str()) {
+            // A JSON *string*, not a JSON object: the field is typed that way,
+            // so the document is serialised and handed over as text.
+            body.insert("engineAvatarSettings".to_string(), json!(document));
+            descriptions.push(format!(
+                "engine_avatar_settings: {} → {} ({})",
+                short_hash_opt(lock.engine_avatar_settings_hash.as_deref()),
+                short_hash(&hash),
+                path.display()
+            ));
+            engine_avatar_settings_hash = Some(hash);
+        }
+    }
+
+    Ok(if body.is_empty() {
         None
     } else {
         Some(UniverseLegacyPatch {
             body: Value::Object(body),
             descriptions,
+            engine_avatar_settings_hash,
         })
+    })
+}
+
+/// Read the engine avatar settings document, returning `(compact JSON, hash)`.
+///
+/// Parsed and re-serialised rather than passed through verbatim, for two
+/// reasons that both matter. A file that is not JSON is caught here, before a
+/// cookie-authenticated write, instead of coming back as an opaque 400. And
+/// the hash is then of the canonical form, so reindenting the file or moving a
+/// key does not read as a change to be re-sent.
+///
+/// The keys inside are not inspected. See `config::Game::engine_avatar_settings`
+/// for why modelling them would be inventing a contract Roblox has not offered.
+///
+/// ## Why the extension decides the format
+///
+/// TOML *and* JSON, because the two ways this document arrives are different.
+/// Roblox's field is a JSON string, and anything dumped out of Studio or copied
+/// from somebody's example is JSON, so refusing it would mean hand-converting a
+/// hundred and fifty keys. But a project whose every other config file is TOML
+/// should not be forced to grow one that is not — which is the objection this
+/// answers.
+///
+/// Both land on the same `serde_json::Value` before hashing, so the two formats
+/// are interchangeable: rewriting `avatar.json` as `avatar.toml` with the same
+/// content produces the same hash and sends nothing.
+///
+/// TOML has no `null`. Nothing in the documents Roblox accepts here uses one —
+/// they are numbers, booleans, arrays and tables all the way down — but a
+/// document that needed one would have to be the JSON form.
+fn read_engine_avatar_settings(path: &Path) -> Result<(String, String)> {
+    let text = std::fs::read_to_string(path)
+        .with_context(|| format!("reading engine_avatar_settings from {}", path.display()))?;
+
+    let extension = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+
+    let parsed: Value = match extension.as_str() {
+        "json" => serde_json::from_str(&text).with_context(|| {
+            format!(
+                "{} is set as engine_avatar_settings but is not valid JSON",
+                path.display()
+            )
+        })?,
+        "toml" => {
+            let table: toml::Value = toml::from_str(&text).with_context(|| {
+                format!(
+                    "{} is set as engine_avatar_settings but is not valid TOML",
+                    path.display()
+                )
+            })?;
+            serde_json::to_value(table).with_context(|| {
+                format!("converting {} to the JSON Roblox expects", path.display())
+            })?
+        }
+        // Named rather than guessed. Sniffing the content would let a `.txt`
+        // through and turn a typo in the path into a silent success.
+        other => bail!(
+            "engine_avatar_settings must be a .toml or .json file; {} has {}",
+            path.display(),
+            if other.is_empty() {
+                "no extension".to_string()
+            } else {
+                format!("a .{other} extension")
+            }
+        ),
+    };
+
+    let document = serde_json::to_string(&parsed)?;
+    let hash = hash_bytes(document.as_bytes());
+    Ok((document, hash))
+}
+
+fn short_hash(hash: &str) -> String {
+    hash.chars().take(8).collect::<String>() + "..."
+}
+
+fn short_hash_opt(hash: Option<&str>) -> String {
+    match hash {
+        Some(h) => short_hash(h),
+        None => "(unset)".to_string(),
     }
 }
 
@@ -507,7 +759,7 @@ fn build_place_patch(game: &Game, lock: &GameLock) -> Option<PlacePatch> {
 fn build_icon_plan(
     media: &MediaConfig,
     media_lock: &MediaLockfile,
-    config_dir: &std::path::Path,
+    config_dir: &Path,
 ) -> Result<IconPlan> {
     let Some(icon) = &media.icon else {
         return Ok(IconPlan::None);
@@ -532,7 +784,7 @@ fn build_icon_plan(
 fn build_thumbnail_plan(
     media: &MediaConfig,
     media_lock: &MediaLockfile,
-    config_dir: &std::path::Path,
+    config_dir: &Path,
 ) -> Result<ThumbnailPlan> {
     let mut plan = ThumbnailPlan::default();
 
@@ -631,6 +883,61 @@ fn show_opt<T: std::fmt::Display>(v: Option<T>) -> String {
     }
 }
 
+/// `{:?}` for a value that has one, `(unset)` for none. The enums here are
+/// small and their `Debug` spelling is the config spelling with different
+/// casing, which is close enough to read in a plan.
+fn show_debug_opt<T: std::fmt::Debug>(value: Option<T>) -> String {
+    match value {
+        Some(v) => format!("{v:?}"),
+        None => "(unset)".to_string(),
+    }
+}
+
+fn show_permissions(p: Option<&Permissions>) -> String {
+    match p {
+        Some(p) => format!(
+            "teleport={} asset={} purchase={} client={}",
+            p.third_party_teleport, p.third_party_asset, p.third_party_purchase, p.client_teleport
+        ),
+        None => "(unset)".to_string(),
+    }
+}
+
+fn show_paid_access(p: Option<&PaidAccess>) -> String {
+    match p {
+        Some(PaidAccess::Free) => "free".to_string(),
+        Some(PaidAccess::Paid { price }) => format!("{price} Robux"),
+        None => "(unset)".to_string(),
+    }
+}
+
+/// The scale object Roblox takes.
+///
+/// **Five of the six fields.** `Roblox.Web.Responses.Avatar.ScaleModel` also
+/// declares `depth`, and this omits it — which sits awkwardly beside the reason
+/// [`AvatarScales`] requires all of its own fields: that Roblox reads the
+/// object whole, so a key left out is a key it may read as zero.
+///
+/// It is omitted on precedent rather than on principle. Mantle's
+/// `ExperienceAvatarScales` carries the same five and not `depth`, and Mantle
+/// wrote avatar scales against real experiences for years. That is evidence,
+/// not proof, and it is the strongest available: nothing here has sent this
+/// object to Roblox, and `depth` appears in no avatar scaling UI to compare
+/// against.
+///
+/// **If a synced experience comes back with squashed avatars, this is the first
+/// place to look** — add `depth` to [`AvatarScales`] as a sixth required field
+/// and it will travel with the rest.
+fn scales_json(s: &AvatarScales) -> Value {
+    json!({
+        "height": s.height,
+        "width": s.width,
+        "head": s.head,
+        "bodyType": s.body_type,
+        "proportion": s.proportion,
+    })
+}
+
 fn preview(s: &str) -> String {
     const MAX: usize = 60;
     if s.chars().count() <= MAX {
@@ -656,6 +963,15 @@ pub fn config_to_lock(game: &Game) -> GameLock {
         devices: game.devices.clone(),
         social_links: game.social_links.clone(),
         server_fill: game.server_fill.clone(),
+        permissions: game.permissions,
+        avatar: game.avatar,
+        paid_access: game.paid_access.clone(),
+        genre: game.genre,
+        // Deliberately not derived here. This function takes only a `Game`, and
+        // the hash is of a file it has no path to resolve — `sync` writes it
+        // from the patch that carried it, which is also the only moment the
+        // hash is known to describe something Roblox actually received.
+        engine_avatar_settings_hash: None,
     }
 }
 
@@ -1736,6 +2052,517 @@ mod tests {
         #[test]
         fn an_empty_plan_has_no_order_to_send() {
             assert!(desired_order(&plan(vec![], vec![]), &[]).is_empty());
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // The universe configuration fields that only the cookie can write
+    // -----------------------------------------------------------------------
+
+    mod universe_legacy {
+        use super::*;
+        use crate::config::{
+            AnimationType, AssetOverride, AssetOverrides, Avatar, AvatarScales, AvatarType,
+            CollisionType, Genre, JointPositioningType, PaidAccess, Permissions,
+        };
+
+        fn body(g: &Game, l: &GameLock) -> Value {
+            plan_for(g, l)
+                .universe_legacy_patch
+                .expect("a legacy patch")
+                .body
+        }
+
+        fn perms() -> Permissions {
+            Permissions {
+                third_party_teleport: true,
+                third_party_asset: false,
+                third_party_purchase: true,
+                client_teleport: false,
+            }
+        }
+
+        /// The object goes out whole, with the PascalCase keys Roblox uses.
+        /// Sending a subset would leave the unstated flags at values nothing
+        /// here can read back.
+        #[test]
+        fn permissions_are_sent_as_one_object() {
+            let mut g = game();
+            g.permissions = Some(perms());
+
+            assert_eq!(
+                body(&g, &lock()),
+                json!({ "permissions": {
+                    "IsThirdPartyTeleportAllowed": true,
+                    "IsThirdPartyAssetAllowed": false,
+                    "IsThirdPartyPurchaseAllowed": true,
+                    "IsClientTeleportAllowed": false,
+                }})
+            );
+        }
+
+        #[test]
+        fn permissions_matching_the_lock_send_nothing() {
+            let mut g = game();
+            g.permissions = Some(perms());
+
+            assert!(plan_for(&g, &config_to_lock(&g))
+                .universe_legacy_patch
+                .is_none());
+        }
+
+        /// The three avatar modes map to integers Roblox chose, and the
+        /// mapping is not alphabetical: `player_choice` sits between the two
+        /// rigs. Asserting the numbers is the only way this stays right.
+        #[test]
+        fn avatar_modes_map_to_their_legacy_integers() {
+            let mut g = game();
+            g.avatar = Avatar {
+                kind: Some(AvatarType::R15),
+                animation: Some(AnimationType::PlayerChoice),
+                collision: Some(CollisionType::OuterBox),
+                joint_positioning: Some(JointPositioningType::ArtistIntent),
+                min_scale: None,
+                max_scale: None,
+                asset_overrides: None,
+            };
+
+            assert_eq!(
+                body(&g, &lock()),
+                json!({
+                    "universeAvatarType": 3,
+                    "universeAnimationType": 2,
+                    "universeCollisionType": 2,
+                    "universeJointPositioningType": 2,
+                })
+            );
+        }
+
+        #[test]
+        fn r6_is_one_and_player_choice_is_two() {
+            let mut g = game();
+            g.avatar.kind = Some(AvatarType::R6);
+            assert_eq!(body(&g, &lock()), json!({ "universeAvatarType": 1 }));
+
+            g.avatar.kind = Some(AvatarType::PlayerChoice);
+            assert_eq!(body(&g, &lock()), json!({ "universeAvatarType": 2 }));
+        }
+
+        #[test]
+        fn a_scale_table_is_sent_with_roblox_key_casing() {
+            let mut g = game();
+            g.avatar.min_scale = Some(AvatarScales {
+                height: 0.9,
+                width: 0.7,
+                head: 0.95,
+                body_type: 0.0,
+                proportion: 0.0,
+            });
+
+            assert_eq!(
+                body(&g, &lock()),
+                json!({ "universeAvatarMinScales": {
+                    "height": 0.9,
+                    "width": 0.7,
+                    "head": 0.95,
+                    "bodyType": 0.0,
+                    "proportion": 0.0,
+                }})
+            );
+        }
+
+        /// A price without `isForSale` is a price Roblox ignores, and
+        /// `isForSale` without a price is a paid experience that is free by
+        /// accident. They travel together.
+        #[test]
+        fn a_paid_experience_sends_both_the_flag_and_the_price() {
+            let mut g = game();
+            g.paid_access = Some(PaidAccess::Paid { price: 25 });
+
+            assert_eq!(body(&g, &lock()), json!({ "isForSale": true, "price": 25 }));
+        }
+
+        /// `free` is an instruction, not an absence: it turns paid access off.
+        /// No price goes with it, because there is nothing to charge.
+        #[test]
+        fn free_sends_the_flag_and_no_price() {
+            let mut g = game();
+            g.paid_access = Some(PaidAccess::Free);
+
+            assert_eq!(body(&g, &lock()), json!({ "isForSale": false }));
+        }
+
+        /// Omitting the table entirely means "not managed", which is a third
+        /// state and has to stay distinct from `free`.
+        #[test]
+        fn an_absent_paid_access_table_sends_nothing() {
+            let mut g = game();
+            g.paid_access = None;
+            g.genre = None;
+
+            assert!(plan_for(&g, &lock()).universe_legacy_patch.is_none());
+        }
+
+        #[test]
+        fn genres_map_to_their_legacy_integers() {
+            let mut g = game();
+            g.genre = Some(Genre::All);
+            assert_eq!(body(&g, &lock()), json!({ "genre": 0 }));
+
+            g.genre = Some(Genre::WildWest);
+            assert_eq!(body(&g, &lock()), json!({ "genre": 14 }));
+        }
+
+        /// Every legacy integer Roblox documents round-trips. A mapping that
+        /// was wrong in one direction only would otherwise survive a pull and
+        /// a sync, and change the setting on the third run.
+        #[test]
+        fn every_legacy_mapping_round_trips() {
+            for v in 1..=3 {
+                assert_eq!(
+                    AvatarType::from_legacy(v).map(AvatarType::to_legacy),
+                    Some(v)
+                );
+            }
+            for v in 1..=2 {
+                assert_eq!(
+                    AnimationType::from_legacy(v).map(AnimationType::to_legacy),
+                    Some(v)
+                );
+                assert_eq!(
+                    CollisionType::from_legacy(v).map(CollisionType::to_legacy),
+                    Some(v)
+                );
+                assert_eq!(
+                    JointPositioningType::from_legacy(v).map(JointPositioningType::to_legacy),
+                    Some(v)
+                );
+            }
+            for v in 0..=14 {
+                assert_eq!(Genre::from_legacy(v).map(Genre::to_legacy), Some(v));
+            }
+        }
+
+        /// An integer Roblox has not defined is not silently coerced to the
+        /// first variant: a pull that met one would otherwise write a wrong
+        /// value into the config, and a sync would then apply it.
+        #[test]
+        fn an_unknown_legacy_integer_is_rejected() {
+            assert!(AvatarType::from_legacy(0).is_none());
+            assert!(AvatarType::from_legacy(4).is_none());
+            assert!(AnimationType::from_legacy(3).is_none());
+            assert!(Genre::from_legacy(15).is_none());
+        }
+
+        /// These are cookie-only settings. A plan that carried them without
+        /// saying so would be refused at apply time with a confusing message.
+        #[test]
+        fn the_new_fields_make_the_plan_need_a_cookie() {
+            let mut g = game();
+            g.permissions = Some(perms());
+
+            assert!(plan_for(&g, &lock()).needs_cookie());
+        }
+
+        // -------------------------------------------------------------------
+        // Avatar slot overrides
+        // -------------------------------------------------------------------
+
+        fn choice() -> AssetOverride {
+            AssetOverride::PlayerChoice(crate::config::PlayerChoiceMarker::PlayerChoice)
+        }
+
+        fn slots() -> AssetOverrides {
+            let c = choice();
+            AssetOverrides {
+                face: c,
+                head: c,
+                torso: c,
+                left_arm: c,
+                right_arm: c,
+                left_leg: c,
+                right_leg: c,
+                t_shirt: c,
+                shirt: c,
+                pants: c,
+            }
+        }
+
+        /// The `assetTypeID` numbers are Roblox's global asset-type numbering
+        /// and are neither contiguous nor in the order the slots read — `Head`
+        /// is 17 while `Torso` is 27, and `TShirt` is 2 while `Shirt` is 11.
+        /// Nothing but an assertion keeps that table right.
+        #[test]
+        fn every_slot_maps_to_its_roblox_asset_type_id() {
+            let mut g = game();
+            g.avatar.asset_overrides = Some(slots());
+
+            let sent = body(&g, &lock());
+            let array = sent["universeAvatarAssetOverrides"].as_array().unwrap();
+
+            let ids: Vec<i64> = array
+                .iter()
+                .map(|slot| slot["assetTypeID"].as_i64().unwrap())
+                .collect();
+            assert_eq!(ids, vec![18, 17, 27, 29, 28, 30, 31, 2, 11, 12]);
+        }
+
+        /// `player_choice` is `isPlayerChoice: true` with a zero id, and an
+        /// override is the reverse. Sending an id alongside `isPlayerChoice:
+        /// true` would be asking for two different things at once.
+        #[test]
+        fn a_forced_asset_and_a_player_choice_slot_differ_on_both_fields() {
+            let mut g = game();
+            g.avatar.asset_overrides = Some(AssetOverrides {
+                pants: AssetOverride::Asset(12345),
+                ..slots()
+            });
+
+            let sent = body(&g, &lock());
+            let array = sent["universeAvatarAssetOverrides"].as_array().unwrap();
+
+            let pants = array
+                .iter()
+                .find(|slot| slot["assetTypeID"] == 12)
+                .expect("the pants slot");
+            assert_eq!(pants["isPlayerChoice"], json!(false));
+            assert_eq!(pants["assetID"], json!(12345));
+
+            let shirt = array
+                .iter()
+                .find(|slot| slot["assetTypeID"] == 11)
+                .expect("the shirt slot");
+            assert_eq!(shirt["isPlayerChoice"], json!(true));
+            assert_eq!(shirt["assetID"], json!(0));
+        }
+
+        /// All ten slots always travel, because Roblox replaces the array
+        /// rather than merging into it.
+        #[test]
+        fn all_ten_slots_are_always_sent() {
+            let mut g = game();
+            g.avatar.asset_overrides = Some(slots());
+
+            let sent = body(&g, &lock());
+            assert_eq!(
+                sent["universeAvatarAssetOverrides"]
+                    .as_array()
+                    .unwrap()
+                    .len(),
+                10
+            );
+        }
+
+        #[test]
+        fn slots_matching_the_lock_send_nothing() {
+            let mut g = game();
+            g.avatar.asset_overrides = Some(slots());
+
+            assert!(plan_for(&g, &config_to_lock(&g))
+                .universe_legacy_patch
+                .is_none());
+        }
+
+        // -------------------------------------------------------------------
+        // engineAvatarSettings
+        // -------------------------------------------------------------------
+
+        /// `build_plan` with an `engine_avatar_settings` file on disk.
+        ///
+        /// Needs a real directory, unlike every other test here, because the
+        /// whole point of the field is that the document comes from a file.
+        fn plan_with_engine_settings(
+            lock: &GameLock,
+            contents: &str,
+        ) -> (tempfile::TempDir, Result<SyncPlan>) {
+            plan_with_engine_file(lock, "avatar.json", contents)
+        }
+
+        fn plan_with_engine_file(
+            lock: &GameLock,
+            name: &str,
+            contents: &str,
+        ) -> (tempfile::TempDir, Result<SyncPlan>) {
+            let dir = tempfile::tempdir().expect("tempdir");
+            std::fs::write(dir.path().join(name), contents).expect("write");
+            let mut g = game();
+            g.engine_avatar_settings = Some(PathBuf::from(name));
+            let plan = build_plan(
+                &g,
+                &MediaConfig::default(),
+                lock,
+                &MediaLockfile::default(),
+                dir.path(),
+            );
+            (dir, plan)
+        }
+
+        /// The document this sends, whatever format it came from.
+        fn engine_document(plan: Result<SyncPlan>) -> String {
+            plan.unwrap().universe_legacy_patch.expect("a patch").body["engineAvatarSettings"]
+                .as_str()
+                .expect("a JSON string")
+                .to_string()
+        }
+
+        /// The field is typed as a JSON *string* on the API, so the document is
+        /// serialised and handed over as text rather than nested as an object.
+        #[test]
+        fn the_document_is_sent_as_a_json_string() {
+            let (_dir, plan) =
+                plan_with_engine_settings(&lock(), r#"{"AvatarRules":{"AvatarType":1}}"#);
+            let patch = plan.unwrap().universe_legacy_patch.expect("a patch");
+
+            let sent = patch.body["engineAvatarSettings"]
+                .as_str()
+                .expect("a string, not an object");
+            assert_eq!(sent, r#"{"AvatarRules":{"AvatarType":1}}"#);
+        }
+
+        /// Reindenting the file is not a change to re-send. The hash is of the
+        /// canonical serialisation, so whitespace never reaches the wire.
+        #[test]
+        fn reformatting_the_file_is_not_a_change() {
+            let (_dir, plan) = plan_with_engine_settings(&lock(), r#"{"a":1}"#);
+            let hash = plan
+                .unwrap()
+                .universe_legacy_patch
+                .expect("a patch")
+                .engine_avatar_settings_hash
+                .expect("a hash");
+
+            let mut locked = lock();
+            locked.engine_avatar_settings_hash = Some(hash);
+
+            let (_dir2, plan2) = plan_with_engine_settings(&locked, "{\n    \"a\" :   1\n}\n");
+            assert!(
+                plan2.unwrap().universe_legacy_patch.is_none(),
+                "the same document, formatted differently, must not re-send"
+            );
+        }
+
+        /// A real edit does re-send.
+        #[test]
+        fn a_changed_document_is_sent() {
+            let (_dir, plan) = plan_with_engine_settings(&lock(), r#"{"a":1}"#);
+            let hash = plan
+                .unwrap()
+                .universe_legacy_patch
+                .expect("a patch")
+                .engine_avatar_settings_hash
+                .expect("a hash");
+
+            let mut locked = lock();
+            locked.engine_avatar_settings_hash = Some(hash);
+
+            let (_dir2, plan2) = plan_with_engine_settings(&locked, r#"{"a":2}"#);
+            assert!(plan2.unwrap().universe_legacy_patch.is_some());
+        }
+
+        /// Caught locally, before a cookie-authenticated write that would come
+        /// back as an opaque 400.
+        #[test]
+        fn a_file_that_is_not_json_is_refused_by_name() {
+            let (_dir, plan) = plan_with_engine_settings(&lock(), "AvatarType = 1");
+            let error = format!("{:#}", plan.unwrap_err());
+
+            assert!(error.contains("avatar.json"), "{error}");
+            assert!(error.contains("not valid JSON"), "{error}");
+        }
+
+        #[test]
+        fn a_missing_file_is_refused_by_name() {
+            let dir = tempfile::tempdir().unwrap();
+            let mut g = game();
+            g.engine_avatar_settings = Some(PathBuf::from("nowhere.json"));
+
+            let error = build_plan(
+                &g,
+                &MediaConfig::default(),
+                &lock(),
+                &MediaLockfile::default(),
+                dir.path(),
+            )
+            .unwrap_err();
+
+            assert!(format!("{error:#}").contains("nowhere.json"));
+        }
+
+        /// `{}` is how Roblox documents clearing the settings, so it has to
+        /// reach the wire rather than being treated as "nothing to send".
+        #[test]
+        fn an_empty_object_is_a_real_instruction() {
+            let (_dir, plan) = plan_with_engine_settings(&lock(), "{}");
+            let patch = plan.unwrap().universe_legacy_patch.expect("a patch");
+
+            assert_eq!(patch.body["engineAvatarSettings"], json!("{}"));
+        }
+
+        /// A TOML document reaches Roblox as the JSON its field is typed as.
+        /// The point of accepting TOML is that the project keeps one config
+        /// language, not that Roblox learns a second one.
+        #[test]
+        fn a_toml_document_is_sent_as_json() {
+            let (_dir, plan) =
+                plan_with_engine_file(&lock(), "avatar.toml", "[AvatarRules]\nAvatarType = 1\n");
+
+            assert_eq!(engine_document(plan), r#"{"AvatarRules":{"AvatarType":1}}"#);
+        }
+
+        /// The two formats are interchangeable, which is the property that
+        /// makes converting a file a no-op rather than a spurious re-send.
+        #[test]
+        fn the_same_document_hashes_the_same_in_either_format() {
+            let (_dir, json_plan) = plan_with_engine_file(
+                &lock(),
+                "avatar.json",
+                r#"{"AvatarRules": {"AvatarType": 1}, "version": 1}"#,
+            );
+            let (_dir2, toml_plan) = plan_with_engine_file(
+                &lock(),
+                "avatar.toml",
+                "version = 1\n\n[AvatarRules]\nAvatarType = 1\n",
+            );
+
+            assert_eq!(engine_document(json_plan), engine_document(toml_plan));
+        }
+
+        /// Numbers have to survive the conversion with their type intact:
+        /// `AvatarType = 1` is an integer to Roblox, and a `1.0` would be a
+        /// different value.
+        #[test]
+        fn toml_integers_and_floats_keep_their_types() {
+            let (_dir, plan) = plan_with_engine_file(
+                &lock(),
+                "avatar.toml",
+                "mode = 1\nscale = 1.5\nenabled = true\nbounds = [0, 0, 0]\n",
+            );
+            let sent = engine_document(plan);
+
+            assert!(sent.contains(r#""mode":1"#), "{sent}");
+            assert!(sent.contains(r#""scale":1.5"#), "{sent}");
+            assert!(sent.contains(r#""enabled":true"#), "{sent}");
+            assert!(sent.contains(r#""bounds":[0,0,0]"#), "{sent}");
+        }
+
+        #[test]
+        fn a_file_that_is_not_toml_is_refused_by_name() {
+            let (_dir, plan) = plan_with_engine_file(&lock(), "avatar.toml", "{\"not\": \"toml\"}");
+            let error = format!("{:#}", plan.unwrap_err());
+
+            assert!(error.contains("avatar.toml"), "{error}");
+            assert!(error.contains("not valid TOML"), "{error}");
+        }
+
+        /// Sniffing the content instead would let a `.txt` through, and turn a
+        /// typo in the path into a silent success.
+        #[test]
+        fn an_unrecognised_extension_is_refused_rather_than_sniffed() {
+            let (_dir, plan) = plan_with_engine_file(&lock(), "avatar.yaml", "{}");
+            let error = format!("{:#}", plan.unwrap_err());
+
+            assert!(error.contains(".toml or .json"), "{error}");
+            assert!(error.contains("avatar.yaml"), "{error}");
         }
     }
 }

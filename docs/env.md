@@ -328,7 +328,14 @@ The env is named as a positional argument, not read from the global `--env`. Thi
 | `rbxmeta.lock.toml` | The `[envs.<env>]` section |
 | `rbxshop.toml` | The `[envs.<env>]` overlay |
 | `rbxshop.lock.toml` | The `[envs.<env>]` section |
+| `rbxconfig.lock.toml` | The `[envs.<env>]` section |
+| `rbxapikey.lock.toml` | The `[envs.<env>]` section |
+| `rbxapikey.toml` | The env's name, out of every list that holds it |
 | `<codegen.output>/<env>.luau` | The per-env module `rbx shop codegen` wrote |
+
+`rbxapikey.toml` is the odd one. Every other file gives an env a table of its own, removed whole; this one names envs *inside arrays* — `[settings] default_envs`, and each key's `envs`, itself either one list or one list per named group. All of them are walked. Leaving a name behind would not be untidiness: an env that `rbxplace.toml` no longer defines is an error to the api key commands, not something they skip, so the next `rbx apikey` run would fail on a file you never edited.
+
+Emptying one of those lists is reported rather than done quietly, because it changes what a key targets. A key whose own `envs` is empty falls back to `[settings] default_envs`, so a key that named only the removed env may now reach envs it never named — a removal *widening* something. An emptied group is the same problem from the other side: group names are key identity, so what is left is a key declaration targeting nothing. The command prints each list it emptied and leaves the decision to you.
 
 Everything is planned before anything is written, so a file that fails to parse stops the run rather than leaving the project half-edited. Comments and key order survive: the files are edited as documents, not reserialised through the config model.
 

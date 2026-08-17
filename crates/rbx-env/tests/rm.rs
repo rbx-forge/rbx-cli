@@ -102,6 +102,65 @@ place_id = 2000
     )
     .unwrap();
 
+    // `rbxapikey.toml` names envs inside arrays rather than in tables of their
+    // own, and in two shapes: one array per key, or one array per named group.
+    // Both are here because the command has to walk both, and neither was in
+    // this fixture while the command silently skipped the file.
+    //
+    // `keys.solo` names only `dev`, so removing it empties a list. That is the
+    // case worth having: an empty `envs` is not inert, it falls back to
+    // `[settings] default_envs`.
+    std::fs::write(
+        p.join("rbxapikey.toml"),
+        r#"# who may reach which universe
+[settings]
+default_envs = ["dev", "prod"]
+name_prefix = "test_"
+
+[keys.readonly]
+scopes = ["universe:read"]
+envs = ["dev", "prod"]
+
+[keys.solo]
+scopes = ["universe:read"]
+envs = ["dev"]
+
+[keys.deploy]
+scopes = ["universe:write"]
+
+[keys.deploy.envs]
+ci = ["dev", "prod"]
+release = ["prod"]
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        p.join("rbxapikey.lock.toml"),
+        r#"version = 1
+
+[envs.dev]
+universe_id = 100
+
+[envs.prod]
+universe_id = 200
+"#,
+    )
+    .unwrap();
+
+    std::fs::write(
+        p.join("rbxconfig.lock.toml"),
+        r#"version = 1
+
+[envs.dev]
+revision_id = "7"
+
+[envs.prod]
+revision_id = "9"
+"#,
+    )
+    .unwrap();
+
     std::fs::create_dir_all(p.join("src/GameIds")).unwrap();
     for env in ["dev", "prod"] {
         std::fs::write(
@@ -135,6 +194,9 @@ fn removing_an_env_clears_it_from_every_file() {
         "rbxshop.toml",
         "rbxshop.lock.toml",
         "rbxmeta.lock.toml",
+        "rbxconfig.lock.toml",
+        "rbxapikey.lock.toml",
+        "rbxapikey.toml",
     ] {
         let text = read(p, file);
         assert!(!text.contains("dev"), "{file} still mentions dev:\n{text}");
@@ -156,7 +218,126 @@ fn the_other_env_is_untouched() {
     assert!(read(p, "rbxshop.toml").contains("[envs.prod.passes.VIP]"));
     assert!(read(p, "rbxshop.lock.toml").contains("id = 12"));
     assert!(read(p, "rbxmeta.lock.toml").contains("place_id = 2000"));
+    assert!(read(p, "rbxconfig.lock.toml").contains("[envs.prod]"));
+    assert!(read(p, "rbxapikey.lock.toml").contains("[envs.prod]"));
+    assert!(read(p, "rbxapikey.toml").contains(r#"default_envs = ["prod"]"#));
     assert!(p.join("src/GameIds/prod.luau").exists());
+}
+
+/// The two lockfiles this command used to walk past.
+///
+/// `rbx-config`'s own loader treats a section for an unknown env as a problem
+/// and tells the reader to delete it, so skipping this file meant `env rm`
+/// manufactured exactly the state another command complains about.
+#[test]
+fn the_config_and_api_key_locks_are_cleared_too() {
+    let dir = project();
+    let p = dir.path();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    for file in ["rbxconfig.lock.toml", "rbxapikey.lock.toml"] {
+        let text = read(p, file);
+        assert!(!text.contains("dev"), "{file} still mentions dev:\n{text}");
+        assert!(text.contains("[envs.prod]"), "{file} lost prod:\n{text}");
+    }
+}
+
+/// `rbxapikey.toml` is the one file where an env is a string in a list rather
+/// than a table of its own, in either of two shapes.
+///
+/// Leaving one behind is not untidiness: `resolve_universe_ids` errors rather
+/// than silently dropping an env it cannot find, so the next `rbx apikey` run
+/// would fail on a file the user never edited.
+#[test]
+fn an_env_is_pulled_out_of_every_api_key_list() {
+    let dir = project();
+    let p = dir.path();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let text = read(p, "rbxapikey.toml");
+    assert!(!text.contains("dev"), "dev survived:\n{text}");
+    // `[settings]`, the shared form, and every group of the group form.
+    assert!(text.contains(r#"default_envs = ["prod"]"#), "{text}");
+    assert!(text.contains(r#"envs = ["prod"]"#), "shared form:\n{text}");
+    assert!(text.contains(r#"ci = ["prod"]"#), "group form:\n{text}");
+    assert!(text.contains(r#"release = ["prod"]"#), "{text}");
+    // The unrelated keys survive whole.
+    assert!(text.contains(r#"name_prefix = "test_""#), "{text}");
+    assert!(text.contains("# who may reach which universe"), "{text}");
+}
+
+/// A key that named only the removed env is left with an empty list, and that
+/// is a change of meaning rather than a tidy-up: `effective_envs` falls back to
+/// `[settings] default_envs` when a key's own list is empty, so the key may now
+/// target envs it never named.
+///
+/// It is still emptied — leaving the dangling name would break the next apikey
+/// run outright — but the command prints the list of what it emptied instead of
+/// letting the reader discover it.
+#[test]
+fn a_key_left_with_no_envs_keeps_an_empty_list() {
+    let dir = project();
+    let p = dir.path();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let text = read(p, "rbxapikey.toml");
+    assert!(
+        text.contains("[keys.solo]"),
+        "the key itself is not deleted:\n{text}"
+    );
+    assert!(text.contains("envs = []"), "{text}");
+}
+
+/// Taking the head out of a list must not leave the separator behind.
+///
+/// `retain` drops a value together with its own leading whitespace, so removing
+/// the first element of `["dev", "prod"]` promoted the space that followed the
+/// comma and wrote `[ "prod"]` — a space nobody typed, in a file somebody
+/// maintains by hand. The author's own style is what gets restored, which is
+/// why both spellings are here: a tight list must stay tight and a padded one
+/// must keep its padding.
+#[test]
+fn removing_the_head_of_a_list_leaves_no_stray_space() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    std::fs::write(
+        p.join("rbxplace.toml"),
+        "[dev]\nuniverse_id = 100\n\n[prod]\nuniverse_id = 200\n",
+    )
+    .unwrap();
+    std::fs::write(
+        p.join("rbxapikey.toml"),
+        concat!(
+            "[settings]\n",
+            "default_envs = [\"dev\", \"prod\"]\n\n",
+            "[keys.padded]\n",
+            "envs = [ \"dev\", \"prod\" ]\n\n",
+            // The tail case is the control: removing the last element must not
+            // start reformatting the head that stayed put.
+            "[keys.tail]\n",
+            "envs = [\"prod\", \"dev\"]\n",
+        ),
+    )
+    .unwrap();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let text = read(p, "rbxapikey.toml");
+    assert!(
+        text.contains("default_envs = [\"prod\"]"),
+        "tight list gained a space:\n{text}"
+    );
+    assert!(
+        text.contains("envs = [ \"prod\" ]"),
+        "padded list lost its padding:\n{text}"
+    );
+    assert!(
+        text.contains("envs = [\"prod\"]"),
+        "tail removal disturbed the head:\n{text}"
+    );
 }
 
 /// These are files people write by hand. Reserialising the model through serde
@@ -221,6 +402,9 @@ fn a_dry_run_changes_nothing() {
         "rbxshop.toml",
         "rbxshop.lock.toml",
         "rbxmeta.lock.toml",
+        "rbxconfig.lock.toml",
+        "rbxapikey.lock.toml",
+        "rbxapikey.toml",
     ]
     .iter()
     .map(|f| read(p, f))
@@ -234,6 +418,9 @@ fn a_dry_run_changes_nothing() {
         "rbxshop.toml",
         "rbxshop.lock.toml",
         "rbxmeta.lock.toml",
+        "rbxconfig.lock.toml",
+        "rbxapikey.lock.toml",
+        "rbxapikey.toml",
     ]
     .iter()
     .map(|f| read(p, f))

@@ -1,0 +1,68 @@
+name: Supply chain
+
+# Two triggers, because the two failure modes arrive differently.
+#
+# A dependency change arrives in a pull request, and that is what the `push` /
+# `pull_request` legs catch, gated on the files that can actually change the
+# resolved graph. An *advisory* arrives on its own schedule: RUSTSEC publishes
+# against a version already in `Cargo.lock`, nothing in this repository moves,
+# and a check that only runs on push would stay green for as long as nobody
+# happened to touch a manifest. Hence the weekly run.
+#
+# `workflow_dispatch` so the answer to "is this still clean?" does not require
+# pushing a commit.
+on:
+  push:
+    branches: [master, main]
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  pull_request:
+    branches: [master, main]
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/supply-chain.yml"
+  schedule:
+    # Mondays, 06:00 UTC. Early enough in the week that a finding has working
+    # days left in it.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: supply-chain-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deny:
+    name: cargo-deny (${{ matrix.check }})
+    runs-on: ubuntu-latest
+    strategy:
+      # One job per check, and `fail-fast: false`, so a license question and a
+      # security advisory are two separate red marks rather than one. They are
+      # answered by different people in different ways, and collapsing them
+      # into a single failing step hides the second behind the first.
+      fail-fast: false
+      matrix:
+        check: [advisories, bans, licenses, sources]
+    # The scheduled run has nothing to annotate, but the PR runs do: this lets
+    # the action attach findings to the diff instead of burying them in a log.
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: EmbarkStudios/cargo-deny-action@3c6349835b2b7b196a839186cb8b78e02f7b5f25 # v2.1.1
+        with:
+          command: check ${{ matrix.check }}
+          # No severity flags here on purpose. What fails and what merely warns
+          # is decided in `deny.toml`, which is also what a local `cargo deny
+          # check` reads — passing `--deny warnings` from CI would make the two
+          # disagree, and would in particular turn `[bans] multiple-versions =
+          # "warn"` into a blocking failure it was deliberately not made.
+          #
+          # `--all-features` is likewise in `deny.toml` under `[graph]`, so the
+          # graph CI walks is the graph a developer walks.

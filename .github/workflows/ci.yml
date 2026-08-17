@@ -97,9 +97,9 @@ jobs:
       - if: steps.changed.outputs.run == 'true'
         run: cargo test -p rbx-open -p rbx-core
 
-  macos:
-    # The release workflow ships an `aarch64-apple-darwin` binary, and until
-    # this job existed nothing compiled that target until tag time — the most
+  cross:
+    # The release workflow ships binaries for targets no other job here builds,
+    # and until this job existed nothing compiled them until tag time — the most
     # expensive moment to discover a break. The gap was never theoretical:
     # `rbx-switch` used to carry a whole `#[cfg(target_os = "macos")]` module
     # that no other job touched, and cfg-gated code stays invisible to every
@@ -117,19 +117,20 @@ jobs:
     # regression that compiles is a tier-2 bug on tier-2 commands; a macOS
     # regression that does not compile stops the release, which is what this
     # guards.
-    name: macOS (cross-check)
+    name: Cross targets (macOS check, musl build)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
-          targets: aarch64-apple-darwin
+          targets: aarch64-apple-darwin, x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
       # A plain `cargo check --target aarch64-apple-darwin` does not survive
       # this workspace: blake3 (via rbx-core) compiles a NEON C file on
       # aarch64, and an Ubuntu runner has no C compiler that can target Darwin.
       # zig is one, ships the macOS libc headers, and installs in seconds —
-      # which is the whole reason this stays off a 10x runner.
+      # which is the whole reason this stays off a 10x runner. It is also the
+      # C toolchain the musl leg below needs, so one install covers both.
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
       # From PyPI, not `taiki-e/install-action` or `cargo install`: the action
       # has no recipe for this tool and falls back to a cargo-binstall old
@@ -137,14 +138,38 @@ jobs:
       # and `cargo install` would compile it from source on every run. Pinned
       # exactly, like the action SHAs above.
       - run: pip install cargo-zigbuild==0.23.0
-      # Matches the one target the release ships. Keep the two in step: a
-      # target added to release.yml and not here is a target nobody compiles
-      # until tag time again.
+      # Matches the targets the release ships. Keep the two in step: a target
+      # added to release.yml and not here is a target nobody compiles until tag
+      # time again.
       #
       # `cargo-zigbuild check`, not `cargo zigbuild check`: as a cargo
       # subcommand it only takes the build path, and subcommands other than
       # build are reached by invoking the binary directly.
-      - run: cargo-zigbuild check --workspace --target aarch64-apple-darwin
+      - name: macOS (cross-check)
+        run: cargo-zigbuild check --workspace --target aarch64-apple-darwin
+      # musl is *built*, not checked, and the difference is the whole point.
+      # The macOS leg guards against code that stopped compiling, which `check`
+      # sees. What breaks a musl artifact is linking: it is the target we ship
+      # statically, so a dependency that needs a shared libc, or a C component
+      # that will not link into a static binary, fails at the link step `check`
+      # never reaches. Building `--bin rbx` links the real artifact.
+      #
+      # This is affordable because it is a 1x Linux runner sharing a warm
+      # rust-cache with the leg above, which is exactly why the macOS leg is
+      # not built the same way.
+      - name: musl (build)
+        run: cargo-zigbuild build --bin rbx --target x86_64-unknown-linux-musl
+      # A static binary is the reason this target exists at all, so assert it
+      # rather than assume it. A dependency quietly reintroducing a dynamic
+      # libc would otherwise produce a musl artifact with the same portability
+      # problem as the gnu one, and nothing would say so.
+      - name: The musl binary must be static
+        run: |
+          file target/x86_64-unknown-linux-musl/debug/rbx
+          if file target/x86_64-unknown-linux-musl/debug/rbx | grep -q "dynamically linked"; then
+            echo "::error::The musl binary is dynamically linked. That target exists to be static."
+            exit 1
+          fi
 
   schemas:
     # The schemas in schemas/ are derived from the serde config models, so a

@@ -22,6 +22,25 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: rbx
             asset_name: rbx-linux-x86_64
+          # The portable Linux artifact, and the one to reach for when the gnu
+          # build refuses to start. `x86_64-unknown-linux-gnu` is compiled
+          # against whatever glibc `ubuntu-latest` happens to ship, so it
+          # rejects any distribution older than the runner — a failure that
+          # surfaces as a linker-loader error at first launch, on a machine
+          # that never built the tool. musl links libc statically and does not
+          # care.
+          #
+          # This became worth shipping once TLS moved to rustls: while reqwest
+          # pulled `native-tls`, the Linux binary also wanted the runner's exact
+          # `libssl.so.3`, and no choice of libc would have fixed that.
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact_name: rbx
+            asset_name: rbx-linux-x86_64-musl
+            # Built through zig rather than `musl-tools`, because CI already
+            # cross-compiles Darwin that way and one cross-compilation story is
+            # easier to keep working than two.
+            zig: true
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: rbx.exe
@@ -50,10 +69,29 @@ jobs:
       # spends 126s of its 307s on the 416 crates in Cargo.lock, and those move
       # only when Cargo.lock does, which is what the key is built from.
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      # Same pinned pair as ci.yml's cross job. Only the musl leg needs them.
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
+        if: matrix.zig
+      - run: pip install cargo-zigbuild==0.23.0
+        if: matrix.zig
       # One binary. `rbx-ops` used to ship alongside it and no longer does:
       # every command it carried is a subcommand of `rbx`, and the shim that
       # still answers to the old name is built from source only.
-      - run: cargo build --release --target ${{ matrix.target }} --bin rbx
+      - if: ${{ !matrix.zig }}
+        run: cargo build --release --target ${{ matrix.target }} --bin rbx
+      - if: matrix.zig
+        run: cargo-zigbuild build --release --target ${{ matrix.target }} --bin rbx
+      # The musl artifact exists to run where the gnu one will not, so a musl
+      # binary that came out dynamically linked is a broken release, not a
+      # smaller problem. Fail the tag rather than publish it.
+      - if: matrix.zig
+        name: The musl binary must be static
+        run: |
+          file target/${{ matrix.target }}/release/rbx
+          if file target/${{ matrix.target }}/release/rbx | grep -q "dynamically linked"; then
+            echo "::error::The musl binary is dynamically linked; refusing to publish it."
+            exit 1
+          fi
       - name: Package (Unix)
         if: runner.os != 'Windows'
         run: |

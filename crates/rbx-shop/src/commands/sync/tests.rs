@@ -119,11 +119,26 @@ impl Shop {
         self.sync_only(server, dry_run, None).await
     }
 
+    /// A sync that has been told the duplicate names are deliberate.
+    async fn sync_allowing_duplicates(&self, server: &MockServer) -> Result<()> {
+        self.sync_with(server, false, None, true).await
+    }
+
     async fn sync_only(
         &self,
         server: &MockServer,
         dry_run: bool,
         only: Option<Vec<ResourceKind>>,
+    ) -> Result<()> {
+        self.sync_with(server, dry_run, only, false).await
+    }
+
+    async fn sync_with(
+        &self,
+        server: &MockServer,
+        dry_run: bool,
+        only: Option<Vec<ResourceKind>>,
+        allow_duplicate_names: bool,
     ) -> Result<()> {
         let global = GlobalFlags {
             api_key: Some("test-key".into()),
@@ -141,7 +156,7 @@ impl Shop {
             global: &global,
             base_url: Some(server.uri()),
         };
-        run(&ctx, dry_run, only, 0, true).await
+        run(&ctx, dry_run, only, 0, true, allow_duplicate_names).await
     }
 }
 
@@ -221,7 +236,65 @@ price = 499
 price = 99
 "#;
 
+/// The listings `preflight` reads before any create, answering "nothing here
+/// yet".
+///
+/// Every test that creates a resource needs these mounted: the guard lists the
+/// experience before the first write, and an unmocked listing would 404 into a
+/// failure that says nothing about what the test was checking. Mounted as
+/// *empty* because that is the honest remote state for a fixture whose
+/// resources do not exist yet — a test wanting the collision case mounts its
+/// own non-empty listing instead.
+async fn mount_no_existing(server: &MockServer) {
+    mount_existing(server, json!([]), json!([]), json!([])).await;
+}
+
+/// The same three listings, answering with whatever the experience already
+/// holds. The collision tests are the reason this takes arguments.
+///
+/// These are the read paths, which are not the write paths: a pass is created
+/// at `.../game-passes` and listed at `.../game-passes/creator`, and badges
+/// are created on the cloud host but listed on the badges host. Getting that
+/// wrong produces a 404 that looks like a broken guard.
+async fn mount_existing(
+    server: &MockServer,
+    passes: serde_json::Value,
+    badges: serde_json::Value,
+    products: serde_json::Value,
+) {
+    mock(
+        server,
+        "GET",
+        format!("{}/creator", pass_collection()),
+        json!({ "gamePasses": passes, "nextPageToken": "" }),
+    )
+    .await;
+    mock(
+        server,
+        "GET",
+        format!("/v1/universes/{UNIVERSE}/badges"),
+        json!({ "data": badges, "nextPageCursor": "" }),
+    )
+    .await;
+    mock(
+        server,
+        "GET",
+        format!("{}/creator", product_collection()),
+        json!({ "developerProducts": products, "nextPageToken": "" }),
+    )
+    .await;
+}
+
+/// Empty catalogues plus the three create endpoints: what a first sync of
+/// `ONE_OF_EACH` needs to succeed.
 async fn mount_creates(server: &MockServer) {
+    mount_no_existing(server).await;
+    mount_creates_only(server).await;
+}
+
+/// The create endpoints alone, for tests that mount their own non-empty
+/// catalogues.
+async fn mount_creates_only(server: &MockServer) {
     mock(
         server,
         "POST",
@@ -357,6 +430,7 @@ regional_pricing = true
     );
     let hash = shop.icon("vip.png", PNG);
     let server = MockServer::start().await;
+    mount_no_existing(&server).await;
     mock(
         &server,
         "POST",
@@ -514,6 +588,10 @@ price = 499
 "#,
     );
     let server = MockServer::start().await;
+    // Mounted so the run reaches the create and fails there. Without it the
+    // preflight listing would 404 first, and the test would pass on the wrong
+    // error.
+    mount_no_existing(&server).await;
     Mock::given(method("POST"))
         .and(path_matcher(pass_collection()))
         .respond_with(ResponseTemplate::new(403).set_body_string("no scope"))
@@ -546,6 +624,7 @@ icon = "welcome.png"
     );
     let hash = shop.icon("welcome.png", PNG);
     let server = MockServer::start().await;
+    mount_no_existing(&server).await;
     mock(
         &server,
         "POST",
@@ -644,6 +723,7 @@ description = "a pile"
 "#,
     );
     let server = MockServer::start().await;
+    mount_no_existing(&server).await;
     mock(
         &server,
         "POST",
@@ -770,4 +850,126 @@ async fn every_mutating_request_carries_the_api_key() {
             r.url.path()
         );
     }
+}
+
+// ── the duplicate guard ──
+
+/// The scenario the guard exists for. The lockfile was never committed, so the
+/// plan says "create"; Roblox says the pass is already there. Creating it
+/// again would mint a second paid product that cannot be deleted.
+#[tokio::test]
+async fn a_pass_that_already_exists_remotely_stops_the_sync() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        json!([{ "gamePassId": 111, "name": "VIP" }]),
+        json!([]),
+        json!([]),
+    )
+    .await;
+    mount_creates_only(&server).await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+    assert!(err.contains("VIP"), "{err}");
+    assert!(err.contains("111"), "{err}");
+
+    let reqs = requests(&server).await;
+    assert_eq!(
+        reqs.iter().filter(|r| is_mutating(r)).count(),
+        0,
+        "the guard must stop the run before anything is written"
+    );
+    assert!(
+        !shop.lock_path().exists(),
+        "a refused sync must not write a lockfile"
+    );
+}
+
+/// The guard stops the whole run, not just the colliding resource. A partial
+/// sync would leave the lockfile describing an env that was half applied,
+/// which is harder to reason about than one that was not touched.
+#[tokio::test]
+async fn one_collision_stops_the_other_kinds_too() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        json!([]),
+        json!([{ "id": 222, "name": "Welcome" }]),
+        json!([]),
+    )
+    .await;
+    mount_creates_only(&server).await;
+
+    assert!(shop.sync(&server, false).await.is_err());
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 0);
+    assert_eq!(count(&reqs, "POST", &product_collection()), 0);
+}
+
+/// The escape hatch, for the developer who really does want a second resource
+/// by the same name.
+#[tokio::test]
+async fn allow_duplicate_names_creates_anyway() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        json!([{ "gamePassId": 111, "name": "VIP" }]),
+        json!([]),
+        json!([]),
+    )
+    .await;
+    mount_creates_only(&server).await;
+
+    shop.sync_allowing_duplicates(&server).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 1);
+    assert_eq!(shop.env_lock().passes["VIP"].id, 111);
+}
+
+/// A sync with nothing to create asks Roblox nothing about what exists. The
+/// listing needs read scopes the write-only key of an update-only pipeline
+/// does not carry, so making it unconditional would break those keys for a
+/// check that could not have found anything.
+#[tokio::test]
+async fn a_sync_with_no_creates_does_not_list_anything() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    shop.write_lock(&format!(
+        r#"
+version = 2
+[envs.{ENV}]
+universe_id = {UNIVERSE}
+[envs.{ENV}.passes.VIP]
+id = 111
+name = "VIP"
+price = 499
+"#
+    ));
+    let server = MockServer::start().await;
+    mock(
+        &server,
+        "PATCH",
+        pass_item(111),
+        json!({ "gamePassId": 111 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(
+        reqs.iter().filter(|r| !is_mutating(r)).count(),
+        0,
+        "an update-only sync must not read the catalogues"
+    );
+    assert_eq!(count(&reqs, "PATCH", &pass_item(111)), 1);
 }

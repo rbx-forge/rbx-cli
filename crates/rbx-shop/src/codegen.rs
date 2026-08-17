@@ -155,8 +155,58 @@ pub type CodegenTree = BTreeMap<String, CodegenNode>;
 
 #[derive(Debug)]
 pub enum CodegenNode {
-    Leaf(u64),
+    Leaf { id: u64, state: LeafState },
     Branch(BTreeMap<String, CodegenNode>),
+}
+
+/// Whether the resource behind an id is currently doing anything.
+///
+/// The module emits every resource the lockfile knows about, including the
+/// ones that are switched off, and that is deliberate: a pass taken off sale
+/// keeps its id and keeps its existing owners, so game code still needs the id
+/// to answer "does this player own it". Filtering them out would break the
+/// ownership checks on exactly the passes somebody retired.
+///
+/// What was missing was any way to tell from the module. `VIP = 111` reads the
+/// same whether the pass is on sale or was retired six months ago, so a prompt
+/// that silently never opens looks like a bug in the prompt. This carries the
+/// answer as far as the generated comment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LeafState {
+    /// On sale, or enabled. Emitted with no annotation.
+    Live,
+    /// A pass or product with `for_sale = false`. It cannot be bought, and
+    /// prompting for it does nothing.
+    NotForSale,
+    /// A badge with `enabled = false`. It cannot be awarded.
+    Disabled,
+}
+
+impl LeafState {
+    /// The trailing comment, or `None` for a live resource.
+    fn note(self) -> Option<&'static str> {
+        match self {
+            LeafState::Live => None,
+            LeafState::NotForSale => Some("not for sale"),
+            LeafState::Disabled => Some("disabled"),
+        }
+    }
+
+    fn for_sale(for_sale: bool) -> Self {
+        if for_sale {
+            LeafState::Live
+        } else {
+            LeafState::NotForSale
+        }
+    }
+
+    fn enabled(enabled: bool) -> Self {
+        if enabled {
+            LeafState::Live
+        } else {
+            LeafState::Disabled
+        }
+    }
 }
 
 /// Same shape as `CodegenTree` but stripped of leaf values, used to describe
@@ -169,9 +219,15 @@ pub enum ShapeNode {
     Branch(BTreeMap<String, ShapeNode>),
 }
 
-fn insert_into_tree(tree: &mut CodegenTree, segments: &[&str], key: &str, id: u64) {
+fn insert_into_tree(
+    tree: &mut CodegenTree,
+    segments: &[&str],
+    key: &str,
+    id: u64,
+    state: LeafState,
+) {
     if segments.is_empty() {
-        tree.insert(key.to_string(), CodegenNode::Leaf(id));
+        tree.insert(key.to_string(), CodegenNode::Leaf { id, state });
         return;
     }
     let node = tree
@@ -179,23 +235,30 @@ fn insert_into_tree(tree: &mut CodegenTree, segments: &[&str], key: &str, id: u6
         .or_insert_with(|| CodegenNode::Branch(BTreeMap::new()));
     match node {
         CodegenNode::Branch(children) => {
-            insert_into_tree(children, &segments[1..], key, id);
+            insert_into_tree(children, &segments[1..], key, id, state);
         }
-        CodegenNode::Leaf(_) => {
+        CodegenNode::Leaf { .. } => {
             let mut children = BTreeMap::new();
-            insert_into_tree(&mut children, &segments[1..], key, id);
+            insert_into_tree(&mut children, &segments[1..], key, id, state);
             *node = CodegenNode::Branch(children);
         }
     }
 }
 
-fn insert_item(tree: &mut CodegenTree, path_str: &str, key: &str, id: u64, flat: bool) {
+fn insert_item(
+    tree: &mut CodegenTree,
+    path_str: &str,
+    key: &str,
+    id: u64,
+    state: LeafState,
+    flat: bool,
+) {
     if flat {
         let flat_key = format!("{path_str}.{key}");
-        tree.insert(flat_key, CodegenNode::Leaf(id));
+        tree.insert(flat_key, CodegenNode::Leaf { id, state });
     } else {
         let segments: Vec<&str> = path_str.split('.').collect();
-        insert_into_tree(tree, &segments, key, id);
+        insert_into_tree(tree, &segments, key, id, state);
     }
 }
 
@@ -223,7 +286,14 @@ pub fn build_env_tree(env_lock: &EnvLock, config: &Config) -> CodegenTree {
             config.passes.get(key).and_then(|c| c.path.as_deref()),
             default_pass_path,
         );
-        insert_item(&mut tree, path_str, key, lock.id, flat);
+        insert_item(
+            &mut tree,
+            path_str,
+            key,
+            lock.id,
+            LeafState::for_sale(lock.for_sale),
+            flat,
+        );
     }
 
     for (key, lock) in &env_lock.badges {
@@ -231,7 +301,14 @@ pub fn build_env_tree(env_lock: &EnvLock, config: &Config) -> CodegenTree {
             config.badges.get(key).and_then(|c| c.path.as_deref()),
             default_badge_path,
         );
-        insert_item(&mut tree, path_str, key, lock.id, flat);
+        insert_item(
+            &mut tree,
+            path_str,
+            key,
+            lock.id,
+            LeafState::enabled(lock.enabled),
+            flat,
+        );
     }
 
     for (key, lock) in &env_lock.products {
@@ -239,19 +316,32 @@ pub fn build_env_tree(env_lock: &EnvLock, config: &Config) -> CodegenTree {
             config.products.get(key).and_then(|c| c.path.as_deref()),
             default_product_path,
         );
-        insert_item(&mut tree, path_str, key, lock.id, flat);
+        insert_item(
+            &mut tree,
+            path_str,
+            key,
+            lock.id,
+            LeafState::for_sale(lock.for_sale),
+            flat,
+        );
     }
 
+    // `extra` ids are hand-written and belong to resources this tool does not
+    // manage, so there is nothing to know about their state. Emitted live.
     for (full_key, &id) in &config.codegen.extra {
+        let leaf = CodegenNode::Leaf {
+            id,
+            state: LeafState::Live,
+        };
         if flat {
-            tree.insert(full_key.clone(), CodegenNode::Leaf(id));
+            tree.insert(full_key.clone(), leaf);
         } else if let Some(dot_pos) = full_key.rfind('.') {
             let path_str = &full_key[..dot_pos];
             let leaf_key = &full_key[dot_pos + 1..];
             let segments: Vec<&str> = path_str.split('.').collect();
-            insert_into_tree(&mut tree, &segments, leaf_key, id);
+            insert_into_tree(&mut tree, &segments, leaf_key, id, LeafState::Live);
         } else {
-            tree.insert(full_key.clone(), CodegenNode::Leaf(id));
+            tree.insert(full_key.clone(), leaf);
         }
     }
 
@@ -266,7 +356,7 @@ fn extract_shape(tree: &CodegenTree) -> ShapeTree {
     let mut out = ShapeTree::new();
     for (k, v) in tree {
         match v {
-            CodegenNode::Leaf(_) => {
+            CodegenNode::Leaf { .. } => {
                 out.insert(k.clone(), ShapeNode::Leaf);
             }
             CodegenNode::Branch(children) => {
@@ -319,7 +409,16 @@ fn pad_with_zeros(tree: &mut CodegenTree, shape: &ShapeTree) {
         match sv {
             ShapeNode::Leaf => {
                 if !tree.contains_key(k) {
-                    tree.insert(k.clone(), CodegenNode::Leaf(0));
+                    // A stub is not a switched-off resource, it is a resource
+                    // this env does not have. The `0` says that already, and
+                    // the module header explains it.
+                    tree.insert(
+                        k.clone(),
+                        CodegenNode::Leaf {
+                            id: 0,
+                            state: LeafState::Live,
+                        },
+                    );
                 }
             }
             ShapeNode::Branch(shape_children) => {
@@ -351,9 +450,10 @@ fn build_union_shape(env_trees: &[(String, CodegenTree)]) -> ShapeTree {
 fn render_luau_value_node(out: &mut String, node: &CodegenNode, depth: usize) {
     let indent = "\t".repeat(depth);
     match node {
-        CodegenNode::Leaf(id) => {
-            out.push_str(&format!("{id},\n"));
-        }
+        CodegenNode::Leaf { id, state } => match state.note() {
+            Some(note) => out.push_str(&format!("{id}, -- {note}\n")),
+            None => out.push_str(&format!("{id},\n")),
+        },
         CodegenNode::Branch(children) => {
             out.push_str("{\n");
             for (key, child) in children {
@@ -441,7 +541,7 @@ fn render_type_module(
 fn tree_contains_zero(tree: &CodegenTree) -> bool {
     for v in tree.values() {
         match v {
-            CodegenNode::Leaf(0) => return true,
+            CodegenNode::Leaf { id: 0, .. } => return true,
             CodegenNode::Branch(children) if tree_contains_zero(children) => return true,
             _ => {}
         }

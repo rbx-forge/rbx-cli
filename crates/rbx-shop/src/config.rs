@@ -696,6 +696,19 @@ impl ResourceKind {
         }
     }
 
+    /// Plural, lowercase — for prose naming a whole collection.
+    ///
+    /// Spelled out rather than `format!("{}s", label())`, which produces
+    /// "passs" and shipped to users in the preflight scope error before anybody
+    /// read it aloud.
+    pub fn plural(self) -> &'static str {
+        // Delegates rather than repeating the three strings. `section()` is
+        // already the plural — it names the TOML table — and two independent
+        // matches over the same variants returning the same words drift the
+        // first time a kind is renamed in one and not the other.
+        self.section()
+    }
+
     /// Singular, capitalized — for a message that starts with the kind.
     pub fn title(self) -> &'static str {
         match self {

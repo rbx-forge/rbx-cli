@@ -29,6 +29,27 @@
 //!
 //! The lockfiles are machine-written and could safely be reserialised, but
 //! they are edited the same way here so there is one rule rather than two.
+//!
+//! ## Why `rbxapikey.toml` is handled apart
+//!
+//! Every other file keys an env by giving it a table: `[envs.dev]`, removed
+//! whole. `rbxapikey.toml` names envs *inside arrays* instead — `[settings]
+//! default_envs`, and each key's `envs`, itself either one array or a table of
+//! named group arrays. There is no table to drop, only a string to pull out of
+//! a list, which is why it cannot be another `Target`.
+//!
+//! Skipping it was not a tidiness question. `resolve_universe_ids` errors
+//! rather than silently dropping an env it cannot find, so a `rbxapikey.toml`
+//! still naming a removed env makes the *next* `rbx apikey` run fail outright,
+//! on a file the user never edited.
+//!
+//! Emptying one of those arrays is not neutral either, and the command says so
+//! rather than doing it quietly: `effective_envs` falls back to `[settings]
+//! default_envs` when a key's own list is empty, so a key that named only the
+//! removed env would silently start targeting whatever the defaults are. That
+//! is a removal *widening* a key's reach, which no one would predict. An
+//! emptied group is the other shape of the same problem: group names are key
+//! identity, so what is left is a key declaration targeting nothing.
 
 use std::path::{Path, PathBuf};
 
@@ -81,7 +102,118 @@ const TARGETS: &[Target] = &[
         at: Location::UnderEnvs,
         what: "shop lock",
     },
+    // The two lockfiles this command used to walk past. `rbx-config`'s own
+    // loader already treats a section for an unknown env as a problem — it
+    // tells the reader to "Delete the [envs.<name>] section ... if intentional"
+    // — so leaving one behind meant this command created the very state
+    // another command complains about.
+    Target {
+        file: "rbxconfig.lock.toml",
+        at: Location::UnderEnvs,
+        what: "universe config lock",
+    },
+    Target {
+        file: "rbxapikey.lock.toml",
+        at: Location::UnderEnvs,
+        what: "api key lock",
+    },
 ];
+
+/// Where the env name was found in `rbxapikey.toml`, and what emptying it
+/// costs the reader.
+#[derive(Default)]
+struct ApikeyEdit {
+    /// Arrays the env name was pulled out of, for the plan.
+    sites: Vec<String>,
+    /// Those the removal left empty, which changes what a key targets.
+    emptied: Vec<String>,
+}
+
+impl ApikeyEdit {
+    /// Record one array the env came out of, and whether that emptied it.
+    fn note(&mut self, site: String, empty: bool) {
+        if empty {
+            self.emptied.push(site.clone());
+        }
+        self.sites.push(site);
+    }
+}
+
+/// Drop every occurrence of `env` from a TOML array. Returns whether it was
+/// there.
+///
+/// The prefix dance keeps the file readable. `retain` removes a value together
+/// with its own leading whitespace, so taking the head out of
+/// `["dev", "prod"]` promotes the space that used to follow the comma and
+/// writes `[ "prod"]` — a space nobody typed, in a file somebody maintains by
+/// hand. Restoring whatever decor the original head carried reproduces the
+/// author's own style instead of imposing one: a list written `["a", "b"]`
+/// stays tight, and one written `[ "a", "b" ]` keeps its padding.
+fn drop_from_array(arr: &mut toml_edit::Array, env: &str) -> bool {
+    let before = arr.len();
+    let head_prefix = arr
+        .get(0)
+        .and_then(|v| v.decor().prefix())
+        .and_then(|p| p.as_str())
+        .map(str::to_owned);
+    arr.retain(|v| v.as_str() != Some(env));
+    if arr.len() == before {
+        return false;
+    }
+    if let (Some(prefix), Some(head)) = (head_prefix, arr.get_mut(0)) {
+        head.decor_mut().set_prefix(prefix);
+    }
+    true
+}
+
+/// Take `env` out of every array in `rbxapikey.toml` that names it.
+///
+/// Both shapes of `envs` are walked: the array form (`envs = ["dev", "prod"]`,
+/// one key spanning the list) and the group form (`[keys.deploy.envs]` with one
+/// array per named group, one key each). Missing either would leave the
+/// dangling reference this exists to prevent.
+fn strip_apikey_refs(doc: &mut DocumentMut, env: &str) -> ApikeyEdit {
+    let mut edit = ApikeyEdit::default();
+
+    if let Some(arr) = doc
+        .get_mut("settings")
+        .and_then(|s| s.get_mut("default_envs"))
+        .and_then(|d| d.as_array_mut())
+    {
+        if drop_from_array(arr, env) {
+            let empty = arr.is_empty();
+            edit.note("[settings] default_envs".to_string(), empty);
+        }
+    }
+
+    let Some(keys) = doc.get_mut("keys").and_then(|k| k.as_table_like_mut()) else {
+        return edit;
+    };
+    for (name, item) in keys.iter_mut() {
+        let name = name.get().to_string();
+        let Some(envs) = item.get_mut("envs") else {
+            continue;
+        };
+        if let Some(arr) = envs.as_array_mut() {
+            if drop_from_array(arr, env) {
+                let empty = arr.is_empty();
+                edit.note(format!("[keys.{name}] envs"), empty);
+            }
+        } else if let Some(groups) = envs.as_table_like_mut() {
+            for (group, item) in groups.iter_mut() {
+                let group = group.get().to_string();
+                let Some(arr) = item.as_array_mut() else {
+                    continue;
+                };
+                if drop_from_array(arr, env) {
+                    let empty = arr.is_empty();
+                    edit.note(format!("[keys.{name}.envs] {group}"), empty);
+                }
+            }
+        }
+    }
+    edit
+}
 
 /// One removal the run intends to make.
 struct Removal {
@@ -223,6 +355,22 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
         edits.push((path, doc));
     }
 
+    // Handled after TARGETS rather than inside it: the env lives in arrays
+    // here, not in a table of its own. See the module header.
+    let apikey_path = dir.join("rbxapikey.toml");
+    let mut emptied: Vec<String> = Vec::new();
+    if let Some(mut doc) = load(&apikey_path)? {
+        let edit = strip_apikey_refs(&mut doc, env);
+        if !edit.sites.is_empty() {
+            removals.push(Removal {
+                path: apikey_path.clone(),
+                what: format!("api key targeting: {}", edit.sites.join(", ")),
+            });
+            edits.push((apikey_path, doc));
+            emptied = edit.emptied;
+        }
+    }
+
     let module = shop_env_module(dir, env)?;
     if let Some(path) = &module {
         removals.push(Removal {
@@ -242,6 +390,33 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
     );
     for removal in &removals {
         println!("  {} — {}", removal.path.display(), removal.what.dimmed());
+    }
+
+    // Printed before the dry-run exit and before the prompt, because it is the
+    // one consequence of this command that outlives it: every other line above
+    // describes something being deleted, and this one describes a key whose
+    // meaning changes as a result.
+    if !emptied.is_empty() {
+        println!(
+            "\n{} this empties {} in {}:",
+            "!".yellow().bold(),
+            if emptied.len() == 1 {
+                "one list".to_string()
+            } else {
+                format!("{} lists", emptied.len())
+            },
+            "rbxapikey.toml".bold()
+        );
+        for site in &emptied {
+            println!("  {site}");
+        }
+        println!(
+            "{}",
+            "  A key with an empty `envs` falls back to [settings] default_envs, so it\n  \
+             may now target envs it never named; an empty group targets nothing at all.\n  \
+             Decide what each one should do before the next `rbx apikey sync`."
+                .dimmed()
+        );
     }
 
     if dry_run {

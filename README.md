@@ -82,7 +82,7 @@ The commands above reconcile state you declared in your repo, and are safe to ru
 | `rbx analytics` | Query your own metrics: players, retention, ARPPU. CSV for charting elsewhere. | [docs/ops/analytics.md](./docs/ops/analytics.md) |
 | `rbx ban` | Inspect and change player restrictions. Resolves usernames, dry-run and prompt before writing. | [docs/ops/ban.md](./docs/ops/ban.md) |
 | `rbx restart` | Roll servers onto a published version, with Roblox's own impact forecast as the dry run. | [docs/ops/restart.md](./docs/ops/restart.md) |
-| `rbx data` | Read, overwrite, copy and recover a data store entry. | [docs/ops/data.md](./docs/ops/data.md) |
+| `rbx data` | Read, overwrite, copy and recover a data store entry; and `data ordered` for leaderboards. | [docs/ops/data.md](./docs/ops/data.md) |
 | `rbx memorystore` | Write cache values from outside Roblox that servers read through `MemoryStoreService`, with a TTL. | [docs/ops/memorystore.md](./docs/ops/memorystore.md) |
 | `rbx message` | Push a MessagingService message to every running server: the nudge that makes them re-read a memory store value. | [docs/ops/message.md](./docs/ops/message.md) |
 | `rbx ads` | Launch and steer ad campaigns. Spends real money and reads no results back. | [docs/ops/ads.md](./docs/ops/ads.md) |

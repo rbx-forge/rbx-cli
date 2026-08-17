@@ -161,6 +161,46 @@ Both sides are written to files and handed to a diff tool: `$RBX_DIFF_TOOL` if s
 
 That is DataStoria's best screen, obtained without writing a diff viewer, and it works for people who do not use VS Code.
 
+
+## Ordered data stores
+
+`rbx data ordered` is the leaderboard resource — a different Open Cloud resource from everything above, not a mode of it. Values are integers, ordering happens on Roblox's side, and there is **no revision history at all**.
+
+That last point is why nothing here writes a backup file. The backups the rest of this page insists on exist because an overwrite to a standard store destroys a JSON document that only a local copy can bring back. An ordered entry is one integer, and there is nothing to reconstruct.
+
+`--datastore` names the store, the same flag as above, and `--scope` applies.
+
+```sh
+# The top ten
+rbx data ordered list --datastore Highscores --env prod
+
+# The top 100, ascending, only scores between 1000 and 5000
+rbx data ordered list --datastore Highscores --limit 100 --asc --min 1000 --max 5000
+
+rbx data ordered get Player_156 --datastore Highscores
+rbx data ordered set Player_156 4200 --datastore Highscores
+rbx data ordered increment Player_156 -50 --datastore Highscores
+rbx data ordered delete Player_156 --datastore Highscores
+```
+
+| Verb | What it does |
+| --- | --- |
+| `list` | The leaderboard. Descending by default — "the top players" is the reason the resource exists, so ascending is the case that takes a flag |
+| `get <entry>` | One value. A key nobody has written prints a note, not an error |
+| `set <entry> <value>` | Exact value, creating the entry when absent. `--no-create` refuses instead |
+| `increment <entry> <amount>` | Atomic add. Negative subtracts |
+| `delete <entry>` | Removes the entry. Deleting one that is not there is a no-op, not a failure |
+
+`--limit`, `--min` and `--max` are all applied by Roblox, not after the fact: a listing sorted or filtered locally would give the top of page one rather than the top of the store. `--min`/`--max` become one `filter` expression, which is the only comparison grammar the endpoint accepts.
+
+**Reach for `increment` over `set` whenever more than one writer touches a key.** A read-then-set from two places loses one of the two updates; the increment endpoint does not.
+
+`set`, `increment` and `delete` ask before writing, and `set` and `delete` name the current value in the prompt — there is no revision history to look it up in afterwards. `-y` / `--yes` skips the prompt.
+
+**What is deliberately missing**: `snapshot`, `revisions`, `restore`, `diff`. Roblox offers none of them on this resource, and a command answering "not supported" for four of its verbs would be worse than not having them.
+
+Scopes: `universe.ordered-data-store.scope.entry:read` for `list` and `get`, `:write` for the rest.
+
 ## Machine-readable output
 
 `--json` on the four reads — `get`, `list`, `revisions` and `diff` — writes one JSON document to stdout and nothing else. Everything that is not the result (the revision line, the key count, "No entry", the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.

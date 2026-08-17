@@ -42,7 +42,7 @@ Nothing separate to install. `rbx` carries these commands:
 ```toml
 # rokit.toml
 [tools]
-rbx = "rbx-forge/rbx-cli@0.1.0"
+rbx = "rbx-forge/rbx-cli@0.2.0"
 ```
 
 ```sh

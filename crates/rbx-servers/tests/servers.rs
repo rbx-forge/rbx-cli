@@ -244,3 +244,132 @@ async fn an_error_unrelated_to_scopes_is_not_dressed_up_as_one() {
         "the key hint belongs only on permission errors: {full}"
     );
 }
+
+// ── the paginated walk ──
+
+/// Both halves of the paging rule, in one test, because they are only correct
+/// together.
+///
+/// The endpoint states the first: "When paginating, all other parameters
+/// provided to the subsequent call must match the call that provided the page
+/// token." So the page size is decided once. That alone overshoots on the last
+/// page, which is why the walk truncates — a fix that carried the rule without
+/// the truncate made `--limit 150` return 200 rows.
+#[tokio::test]
+async fn the_walk_keeps_one_page_size_and_respects_the_limit() {
+    let server = MockServer::start().await;
+    let full_page: Vec<serde_json::Value> = (0..100)
+        .map(|i| {
+            serde_json::json!({
+                "id": format!("job-{i}"),
+                "playing": 1,
+                "maxPlayers": 10,
+                "fps": 60.0,
+                "ping": 50.0
+            })
+        })
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/places/{PLACE}/versions/1/game-servers"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "gameServers": full_page,
+            "nextPageToken": "more"
+        })))
+        .mount(&server)
+        .await;
+
+    let walk = rbx_servers::walk_servers(&api(&server), UNIVERSE, PLACE, "1", 150, None)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        walk.rows.len(),
+        150,
+        "the walk must not return more than --limit asked for"
+    );
+
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests.len() >= 2,
+        "expected paging, saw {}",
+        requests.len()
+    );
+    let sizes: Vec<String> = requests
+        .iter()
+        .map(|r| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k.eq_ignore_ascii_case("maxpagesize"))
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default()
+        })
+        .collect();
+    assert!(
+        sizes.windows(2).all(|w| w[0] == w[1]),
+        "MaxPageSize changed between pages: {sizes:?}"
+    );
+}
+
+/// An empty page carrying a token would otherwise spin for ever: the row count
+/// never grows, so the loop condition never fails.
+#[tokio::test]
+async fn an_empty_page_with_a_token_ends_the_walk() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/places/{PLACE}/versions/1/game-servers"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "gameServers": [],
+            "nextPageToken": "more-please"
+        })))
+        .mount(&server)
+        .await;
+
+    let walk = rbx_servers::walk_servers(&api(&server), UNIVERSE, PLACE, "1", 500, None)
+        .await
+        .unwrap();
+
+    assert!(walk.rows.is_empty());
+    assert_eq!(
+        server.received_requests().await.unwrap().len(),
+        1,
+        "the walk must stop rather than ask again"
+    );
+}
+
+/// A page whose rows the status filter discarded is still progress. Measuring
+/// emptiness on the filtered result instead would end the walk early and
+/// silently return less than the caller asked for.
+#[tokio::test]
+async fn a_page_the_filter_emptied_does_not_end_the_walk() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/places/{PLACE}/versions/1/game-servers"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "gameServers": [{ "id": "job-1", "playing": 1, "maxPlayers": 10 }],
+            "nextPageToken": ""
+        })))
+        .mount(&server)
+        .await;
+
+    // A status no row matches, so every row is dropped and `rows` stays empty.
+    let walk = rbx_servers::walk_servers(
+        &api(&server),
+        UNIVERSE,
+        PLACE,
+        "1",
+        10,
+        Some("nothing-matches-this"),
+    )
+    .await
+    .unwrap();
+
+    assert!(walk.rows.is_empty());
+    // Stopped on the empty *token*, not on the empty filtered result.
+    assert_eq!(server.received_requests().await.unwrap().len(), 1);
+}

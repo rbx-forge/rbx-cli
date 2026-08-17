@@ -6,6 +6,11 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "rbx-ops subcommand: read and write memory store sorted map items"
+# Never published to crates.io. This workspace ships one binary through GitHub
+# releases, and these crates exist to structure it — they carry path
+# dependencies with no version requirement, which crates.io rejects outright,
+# so the marker records a fact rather than making a decision.
+publish = false
 
 [dependencies]
 anyhow.workspace = true

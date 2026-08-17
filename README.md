@@ -15,6 +15,14 @@ carries the `-cli` suffix to distinguish it from the `rbx_*` libraries
 Prefer `rokit add`? Pass the alias explicitly, or you get an `rbx-cli`
 command instead: `rokit add rbx-forge/rbx-cli --alias rbx`.
 
+Not using Rokit? Every release publishes one archive per platform on the
+[releases page](https://github.com/rbx-forge/rbx-cli/releases), with a
+`SHA256SUMS` beside them. There are two Linux builds and the difference
+matters: `x86_64-unknown-linux-gnu` is compiled against the build runner's
+glibc and will not start on an older distribution, while
+`x86_64-unknown-linux-musl` is statically linked and does not care. Reach for
+musl when the gnu binary reports a missing `GLIBC_...` version.
+
 **Documentation site: <https://rbx-forge.github.io/rbx-cli/>** — the `docs/`
 pages linked below, rendered with search and cross-links. Built from the same
 files, so it is never a second copy to keep in sync.
@@ -425,14 +433,15 @@ Commit messages ideally follow [Conventional Commits](https://www.conventionalco
 
 ### What runs automatically
 
-Six things, and nothing else. There is no release-plz and no auto-merge —
+Seven things, and nothing else. There is no release-plz and no auto-merge —
 every version bump is a deliberate act.
 
 | What | Trigger | Does |
 | --- | --- | --- |
 | `lefthook` (local) | `git commit` | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo doc` with warnings denied |
-| `.github/workflows/ci.yml` | push / PR on `main` | eight jobs: Test, Rustfmt, Clippy, Doc, Schemas up to date, Shell completions, plus a Windows and a macOS cross-check |
-| `.github/workflows/release.yml` | pushing a `v*` tag | builds three targets (Linux x86-64, Windows x86-64, macOS aarch64), zips them, generates `SHA256SUMS`, creates the GitHub Release |
+| `.github/workflows/ci.yml` | push / PR on `main` | eight jobs: Test, Rustfmt, Clippy, Doc, Schemas up to date, Shell completions, plus a Windows leg and a cross-target job (macOS check + musl build) |
+| `.github/workflows/supply-chain.yml` | PR touching the dependency graph, **and weekly** | `cargo deny check` for advisories, licenses, bans and sources |
+| `.github/workflows/release.yml` | pushing a `v*` tag | builds four targets (Linux x86-64 gnu and musl, Windows x86-64, macOS aarch64), zips them, generates `SHA256SUMS`, creates the GitHub Release |
 | `.github/workflows/update-openapi.yml` | daily, 06:17 UTC | refreshes the vendored Roblox OpenAPI document and opens a PR if it changed |
 | `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` | builds the mdBook site from `docs/`; deploys to GitHub Pages on `main` only |
 | Dependabot | monthly, 06:00 Paris | one grouped PR bumping GitHub Actions versions |
@@ -441,13 +450,26 @@ The heavy jobs run on Linux, where runners bill at 1x; macOS is a
 `cargo-zigbuild check` of the target the release ships rather than a rented
 mac, and Windows runs only the crates whose code is platform-dependent.
 Everything else is checked once. Full cross-platform *compilation* is proven at
-tag time by `release.yml`, which builds all three targets before publishing
+tag time by `release.yml`, which builds all four targets before publishing
 anything.
 
+musl is the one cross target that is *built* rather than checked, and the
+difference is the point: what breaks a static artifact is linking, which
+`cargo check` never reaches. The job also asserts the result is actually static,
+so a dependency quietly reintroducing a shared libc fails rather than producing
+a musl binary with the same portability problem as the gnu one.
+
+The weekly `supply-chain.yml` run is not redundant with its PR trigger. An
+advisory is published against a version already in `Cargo.lock`: nothing in this
+repository moves, and a check that only ran on push would stay green until
+somebody happened to touch a manifest.
+
 Dependabot handles **GitHub Actions only**. Cargo version updates are off
-deliberately, and Dependabot Security Alerts open a PR when an advisory hits
-`Cargo.lock`, so the Security tab rather than the PR list is where dependency
-vulnerabilities show up.
+deliberately. Dependabot Security Alerts still open a PR when an advisory hits
+`Cargo.lock`; `cargo-deny` is the second half of that story, because it also
+answers the three questions an advisory feed does not — whether a license
+reached a statically linked artifact it should not have, whether a crate came
+from an unexpected registry, and how much duplication the graph has grown.
 
 **That is not the same as nothing being wrong.** Alerts cover what GitHub's
 database knows and rates as worth interrupting for; `cargo audit` reads the

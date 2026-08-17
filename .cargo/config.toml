@@ -1,0 +1,44 @@
+# Give the Windows main thread the stack every other platform already gives it.
+#
+# ## The failure this fixes
+#
+# On a debug build, `rbx --version` died with `thread 'main' has overflowed its
+# stack` — before printing anything, because the overflow happens while clap is
+# building the command tree, which runs before any subcommand is dispatched.
+# Every integration test that shells out to the binary failed with it, and
+# `cargo run` was unusable.
+#
+# ## Why it appeared when it did
+#
+# Nothing recursed. Windows reserves 1 MB of stack for the main thread by
+# default, where Linux and macOS give 8 MB. A `Command` tree built by clap's
+# derive is deeply nested, and an unoptimised build does not merge or elide the
+# frames — so the stack cost scales with the number of subcommands and
+# arguments, and this workspace has a lot of both. The tree crossed 1 MB when
+# `env rm` and `data ordered` were added. It had been approaching it for a
+# while; those were not the cause so much as the last two.
+#
+# Release builds were never affected, which is why no published binary ever
+# had this problem, and why it would have gone unnoticed indefinitely: CI runs
+# its tests on Linux, where 8 MB was never in question. The people it broke
+# were developers on Windows, and only them.
+#
+# ## Why a linker flag rather than a thread
+#
+# The alternative is to do the work on a spawned thread with an explicit stack
+# size, which is what a program does when it genuinely needs deep recursion.
+# This does not: it needs the same headroom the other two platforms hand out
+# for free. Asking the linker for 8 MB makes the three platforms agree, and
+# leaves `main` as the place the program starts.
+#
+# 8 MB is *reserved* address space, not committed memory. Windows commits pages
+# as the stack actually grows, so a binary that never uses more than a few
+# kilobytes costs the same as it did before.
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "link-arg=/STACK:8388608"]
+
+# The GNU toolchain takes the same request in ld's spelling. Present for the
+# developer who builds with `x86_64-pc-windows-gnu`; nothing here ships from it.
+[target.x86_64-pc-windows-gnu]
+rustflags = ["-C", "link-arg=-Wl,--stack,8388608"]

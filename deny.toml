@@ -1,0 +1,122 @@
+# cargo-deny — what we accept from the dependency tree.
+#
+# Why this exists rather than a bare `cargo audit`: audit answers one question
+# (is a dependency subject to a published advisory), and three others matter to
+# a tool distributed as a precompiled binary. A copyleft license reaching a
+# statically linked artifact is a distribution problem, not a build problem. A
+# crate pulled from an unexpected registry or a git URL is a supply-chain
+# problem nothing else here would notice. And duplicate major versions of the
+# same crate are the compile-time cost that creeps in one dependency at a time.
+#
+# `cargo deny check` covers all four. Run it locally with the same command CI
+# runs; there is no separate local recipe to drift.
+
+[graph]
+# Evaluate against the targets the release actually ships, plus the musl one.
+# Without this, cargo-deny walks dependencies for every platform Cargo knows
+# about, which is how `r-efi` — a UEFI crate no build of ours ever compiles —
+# ends up being asked to justify its license.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-pc-windows-msvc",
+    "aarch64-apple-darwin",
+]
+# Dev-dependencies are not distributed. `wiremock` and `tempfile` never reach a
+# user's machine, so their licenses are not our distribution problem — but
+# their advisories are still our CI's problem, which `[advisories]` handles
+# independently of this flag.
+all-features = true
+
+[advisories]
+version = 2
+# No blanket ignores. An advisory that genuinely does not apply gets its id
+# listed here *with the reason on the line above it*, so the next person can
+# re-judge it instead of inheriting a silent exception, and gets removed the
+# moment the dependency can move.
+ignore = [
+    # RUSTSEC-2026-0194 and RUSTSEC-2026-0195, both denial of service in
+    # `quick-xml`'s XML parser, both fixed in 0.41.
+    #
+    # Not upgradable from here: `quick-xml` arrives through
+    # `rbx_cookie -> plist 1.9`, which pins the 0.39 line. Nothing in this
+    # workspace depends on it directly.
+    #
+    # Not reachable in a way that matters either. `plist` is the macOS half of
+    # cookie auto-detection, and the only document it parses is the local
+    # Safari/Studio cookie store on the machine running the command. An
+    # attacker who can write that file has already won, and a parser that takes
+    # too long on it costs one slow `rbx doctor`.
+    #
+    # Revisit when `plist` releases against `quick-xml >= 0.41`.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]
+
+[licenses]
+version = 2
+# Everything the current tree resolves to, enumerated rather than pattern
+# matched: a new license showing up should fail CI and be a decision, not slip
+# through a wildcard.
+#
+# Deliberately absent: GPL and LGPL in any form. This binary is shipped
+# statically linked, so a copyleft dependency would attach its terms to the
+# artifact. `r-efi` offers LGPL-2.1-or-later as one arm of an OR expression and
+# is satisfied by its MIT arm; it is also filtered out by `targets` above.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+# 0.8 is the threshold cargo-deny itself suggests for accepting a license file
+# it had to match by text rather than by SPDX id.
+confidence-threshold = 0.8
+
+[bans]
+# Warn, not deny. Duplicate versions in a tree this size are usually somebody
+# else's transitive lag, and failing CI on a state we cannot fix without
+# forking a dependency would train everyone to ignore the job. Worth seeing in
+# the log, not worth blocking on.
+multiple-versions = "warn"
+# Allowed, and the reason is worth writing down because "allow" reads like
+# giving up.
+#
+# The only wildcards in this graph are the workspace's own crates depending on
+# each other by path with no version requirement — the normal shape of a
+# workspace that ships one binary. `allow-wildcard-paths = true` exists for
+# exactly that and does not help here: cargo-deny only applies it to crates
+# marked `publish = false`, and these are not, so it reports all 27 as real
+# findings and the check never gets as far as a dependency that matters.
+#
+# The internal crates are now marked `publish = false`, which is correct on its
+# own merits and was done for that reason. It is not enough to turn this back
+# on: `rbx` itself carries 22 of the path dependencies and is deliberately left
+# publishable, since it is the one crate somebody might one day want on
+# crates.io.
+#
+# Decided 2026-08-17 to leave it here rather than mark `rbx` too. Marking a
+# crate unpublishable to satisfy a lint would be letting the lint make a
+# product decision, and the lint buys nothing in this workspace anyway — the
+# thing `wildcards` exists to catch is a `foo = "*"` version requirement on a
+# third-party crate, and there is not one. Revisit if that ever changes.
+wildcards = "allow"
+# Nothing is banned outright yet. When something is, the reason goes here.
+deny = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# crates.io only. This workspace has no git dependencies and no vendored
+# registry, and the day it grows one should be the day this file changes.
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

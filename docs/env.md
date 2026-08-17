@@ -410,7 +410,7 @@ Marking every env `codegen = false` is refused rather than emitting a module who
 A key no table in the list above claims is **ignored, and named on stderr**:
 
 ```
-warning: rbxplace.toml: 1 unrecognised key, ignored by rbx 0.1.0:
+warning: rbxplace.toml: 1 unrecognised key, ignored by rbx 0.2.0:
 
   [assets] codgen
     known keys: universe_id, env, places, owner, confirm, codegen

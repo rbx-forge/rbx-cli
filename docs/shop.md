@@ -93,7 +93,7 @@ Only the fields rbx owns are touched. A default value is written out only where 
 A top-level key rbx does not read is kept, not deleted - but it is named on stderr at load, because from the outside an ignored key looks exactly like an honoured one:
 
 ```
-warning: rbxshop.toml: 1 unrecognised top-level key, ignored by rbx 0.1.0:
+warning: rbxshop.toml: 1 unrecognised top-level key, ignored by rbx 0.2.0:
 
   pases
     known keys: experience, owner, codegen, icons, gifts, include, passes, badges, products, envs

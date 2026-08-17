@@ -450,6 +450,23 @@ Path to a file holding the modern avatar rules — animation rules, clothing rul
 > exists: an editor catching a typo before the write is the only check
 > available anywhere in the loop.
 
+**It is not an extra layer on top of the avatar fields — it is the same settings written another way, and sending both is refused.**
+
+`AvatarBodyRules` in this document carries `CustomHeightScale = { min, max }`, which is `game.avatar.min_scale.height` and `game.avatar.max_scale.height` in one place. Its per-slot `Custom*Id` keys are `game.avatar.asset_overrides`. Sending both in one sync tells Roblox the same thing twice, in two shapes, with nothing making them agree:
+
+```
+Error: `engine_avatar_settings` describes the same settings as these fields,
+and this sync would send both:
+
+  game.avatar.min_scale  ·  also set by AvatarBodyRules in the document
+
+Keep whichever one you maintain and remove the other from rbxmeta.toml.
+```
+
+This refuses rather than warns for a reason specific to this field: **no read returns either side.** A project that writes a contradiction cannot discover it from this tool, from the API, or from the Creator Hub. It surfaces the next time somebody opens Studio, as `AvatarSettings Error: Failed to deserialize properties` — which is how the overlap was found, on a test universe that had been sent both.
+
+The check is per field, not blanket: a document that describes only collisions does not conflict with the scales, and either channel alone is the ordinary case.
+
 **A key Roblox did not understand is reported after the sync.** This is the one place Roblox says anything about the inside of the document: the `PATCH` responds with the configuration it ended up with, `engineAvatarSettings` included, so `sync` compares that echo against what it sent.
 
 ```

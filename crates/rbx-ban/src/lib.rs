@@ -26,7 +26,7 @@ use rbx_core::GlobalFlags;
 use crate::json::{ListDocument, StatusDocument};
 use crate::model::{
     parse_duration, GameJoinRestrictionUpdate, LogPage, RestrictionPage, RestrictionUpdate,
-    UserRestriction, MAX_DISPLAY_REASON, MAX_PRIVATE_REASON,
+    UserRestriction, MAX_DISPLAY_REASON, MAX_PAGE_SIZE, MAX_PRIVATE_REASON,
 };
 
 #[derive(Args, Debug)]
@@ -338,26 +338,43 @@ async fn status(ctx: &Context_, inputs: &[String], format: OutputFormat) -> Resu
     Ok(())
 }
 
-async fn list(
-    ctx: &Context_,
+/// Follow the restriction listing until `limit` rows are held or Roblox runs
+/// out of pages.
+///
+/// Public and named rather than inlined into `list`, because the three
+/// properties that make a paged walk correct cannot be asserted from outside
+/// `run`, and that is precisely how the missing truncate reached production in
+/// `servers` and `memorystore`: every test passed with the bug in place.
+pub async fn walk_restrictions(
+    client: &Client,
+    base: &ApiBase,
+    api_key: &str,
+    universe_id: u64,
     limit: u32,
     include_inactive: bool,
-    format: OutputFormat,
-) -> Result<()> {
+) -> Result<Vec<UserRestriction>> {
     let mut rows: Vec<UserRestriction> = Vec::new();
     let mut token: Option<String> = None;
 
+    // Decided once for the whole walk, not recomputed per page. `cloud/v2`
+    // requires every paged call to repeat the parameters of the call that
+    // issued its token, so shrinking this as the remaining count falls would
+    // send page two with a value Roblox is entitled to reject. Overshooting on
+    // the last page costs nothing, because the truncate below discards the
+    // surplus, and the two only work paired: a fixed page size without the
+    // truncate is what made `--limit 5` answer with 100 rows.
+    let page_size = 1u32.max(limit.min(MAX_PAGE_SIZE));
+
     while (rows.len() as u32) < limit {
-        let mut url = ctx.base.join(&format!(
-            "/cloud/v2/universes/{}/user-restrictions?maxPageSize=100",
-            ctx.universe_id
+        let mut url = base.join(&format!(
+            "/cloud/v2/universes/{universe_id}/user-restrictions?maxPageSize={page_size}"
         ));
         if let Some(page_token) = &token {
             url.push_str("&pageToken=");
             url.push_str(&encode_query_value(page_token));
         }
         let page: RestrictionPage = execute_json(|| {
-            let request = ctx.client.get(&url).header("x-api-key", &ctx.api_key);
+            let request = client.get(&url).header("x-api-key", api_key);
             async move { request.send().await.map_err(Into::into) }
         })
         .await
@@ -366,16 +383,46 @@ async fn list(
         // Read the token before consuming the rows: `next_token` borrows the
         // page, and the loop below moves part of it.
         let next = page.next_token().map(str::to_string);
+
+        // Emptiness is judged on what Roblox returned, never on what survived
+        // `include_inactive`. A page holding nothing but lifted restrictions is
+        // a page to step over, not a reason to stop: measuring it after the
+        // filter would end the walk early and answer with less than was asked.
+        let empty = page.user_restrictions.is_empty();
+
         for restriction in page.user_restrictions {
             if include_inactive || restriction.is_active() {
                 rows.push(restriction);
             }
         }
         match next {
+            // An empty page carrying a token would otherwise spin for ever:
+            // the row count never grows, so the loop condition never fails.
+            Some(_) if empty => break,
             Some(value) => token = Some(value),
             None => break,
         }
     }
+
+    rows.truncate(limit as usize);
+    Ok(rows)
+}
+
+async fn list(
+    ctx: &Context_,
+    limit: u32,
+    include_inactive: bool,
+    format: OutputFormat,
+) -> Result<()> {
+    let rows = walk_restrictions(
+        &ctx.client,
+        &ctx.base,
+        &ctx.api_key,
+        ctx.universe_id,
+        limit,
+        include_inactive,
+    )
+    .await?;
 
     if format.is_json() {
         return emit(&ListDocument::new(

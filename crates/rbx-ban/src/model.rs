@@ -201,6 +201,11 @@ pub struct GameJoinRestrictionUpdate {
 pub const MAX_PRIVATE_REASON: usize = 1000;
 pub const MAX_DISPLAY_REASON: usize = 400;
 
+/// The largest `maxPageSize` the restriction listing accepts. Asking for more
+/// is not an error, it is silently clamped, which makes an over-large value
+/// look like it worked while quietly costing a page.
+pub const MAX_PAGE_SIZE: u32 = 100;
+
 /// Parse `7d`, `12h`, `30m`, `2w`, `3600s` into the `"604800s"` Roblox wants.
 ///
 /// The API takes whole seconds with an `s` suffix and rejects sub-second

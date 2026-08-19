@@ -68,7 +68,7 @@ jobs:
     # never runs a test there.
     #
     # `rbx-switch` used to be the third. It left the workspace for
-    # rbx-forge/rbx-switch, whose own CI is Windows-only for exactly this
+    # rbx-dev-tools/rbx-switch, whose own CI is Windows-only for exactly this
     # reason.
     #
     # Windows runners bill at 2x, so this is deliberately narrow: it only fires

@@ -318,7 +318,7 @@ and generating references for images, sounds and models. `rbx download` fetches
 an asset by id, which is the opposite direction and a much smaller problem.
 
 **Switching signed-in Studio accounts.** That is
-[rbx-switch](https://github.com/rbx-forge/rbx-switch), a separate tool by the
+[rbx-switch](https://github.com/rbx-dev-tools/rbx-switch), a separate tool by the
 same author. It touches locally signed-in Studio accounts in the Windows
 registry and Credential Manager, which is a desktop utility rather than a step
 in reconciling a repository with Roblox. Nothing here depends on it.

@@ -35,6 +35,7 @@ jobs:
     # Single Linux job on purpose: this repo is on the GitHub Free plan and CI
     # is Linux-only to keep minutes affordable.
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Check out this repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

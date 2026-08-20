@@ -40,6 +40,7 @@ jobs:
   deny:
     name: cargo-deny (${{ matrix.check }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       # One job per check, and `fail-fast: false`, so a license question and a
       # security advisory are two separate red marks rather than one. They are

@@ -59,6 +59,72 @@ rbx open --place-id 123456789
 
 Worth having here more than anywhere: this command builds a `roblox-studio:` URI out of one number and makes no network call at all, so reading a config file to find that number was the only thing tying it to a project.
 
+### A file on disk
+
+```sh
+rbx open game.rbxl
+rbx open ./builds/staging.rbxlx
+rbx open --file weird-name        # for a path without the extension
+```
+
+Recognised by extension, not by looking on disk: `rbx open prod` has to stay an
+environment even in a folder that happens to contain a file called `prod`.
+
+The path is handed to the desktop's opener rather than wrapped in a
+`roblox-studio:` URI, because that URI is parsed by splitting on `+` and `:` —
+which both a Windows path and any filename containing a `+` would break. Studio
+ends up in the same place either way; its log says
+`createAndShowIDEDoc with task EditFile`.
+
+### A new place, with no project and no id
+
+```sh
+rbx open --new              # pick a template, then open it
+rbx open --new --baseplate  # the stock one, no picker and no network
+rbx open --new --template 6560363541
+```
+
+This is Studio's "New Experience" button, and it is that button rather than an
+imitation of it. Clicking it logs:
+
+```
+[FLog::PlaceManager] PlaceManager::createAndShowIDEDoc with task EditPlace
+[FLog::StudioKeyEvents] open place (identifier = 95206881)
+```
+
+— an ordinary `roblox-studio:` open of place `95206881`, Roblox's stock
+baseplate, which is exactly what `--new --baseplate` sends.
+
+**Nothing is created on Roblox.** Studio binds the session to the template long
+enough to fetch its content and then sets the place id back to `0`:
+
+```
+[FLog::CloseDataModel] Setting place ID 95206881
+[FLog::CloseDataModel] Setting place ID 0
+```
+
+The content arrives, the identity does not. That unbound state is what makes it
+a *new* place rather than someone else's: there is nothing for a save to
+overwrite, so the first save to Roblox has to create the experience. Either
+"Save to Roblox As" or "Publish to Roblox As" will do it; the difference is
+whether players get the new version, not whether the experience exists. It is
+also why DataStores do not work until then: there is no universe to address.
+
+To create the experience outright instead, `rbx init create-universe` asks
+Roblox to clone the same template server-side and hands back real ids.
+
+#### The template list
+
+`--new` on its own lists Roblox's templates and asks. There is no template API:
+the list is the public games of account `998796`, which is where Studio gets it
+too, and it needs no credential. The baseplate is lifted to the top because
+Roblox returns them newest-first, which otherwise buries it.
+
+`--baseplate` and `--template` both skip the picker, so they work without a
+terminal and without the network call. `--new` cannot be combined with
+`--place-id`, `--universe-id`, or an env/place argument: each of those names a
+place, which is the thing `--new` says there is not one of yet.
+
 ## Configuration
 
 `rbx open` reads from `rbxplace.toml` (override with the global `--places <path>`). Each top-level section is an environment:
@@ -92,6 +158,12 @@ roblox-studio:1+task:EditPlace+placeId:123456789+universeId:0
 ```
 
 This is handled by your system's Roblox Studio installation.
+
+On Linux the URI goes to `xdg-open`, and if that is not there — or if this is
+WSL, where Studio lives on the Windows side — it crosses to the Windows host
+instead, via `powershell.exe Start-Process`, then `rundll32`, then `cmd.exe
+start`, then `wslview`. Studio has no native Linux build, so a Linux `rbx` with
+nowhere to hand the URI says so rather than failing silently.
 
 ## Prior art
 

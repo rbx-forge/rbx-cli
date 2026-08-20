@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 
 use super::RbxClient;
 
-/// Roblox-provided empty baseplate template (used as the default for create_universe / create_place).
-pub const DEFAULT_TEMPLATE_PLACE_ID: u64 = 95206881;
+// The baseplate template is the default for create_universe / create_place
+// here and the whole of what `rbx open --new` opens, so it lives in rbx-core
+// and is re-exported rather than written down twice.
+pub use rbx_core::templates::DEFAULT_TEMPLATE_PLACE_ID;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0]
+
 ### Added
 
 - **`rbx open <file.rbxl>`** — open a place file from disk, by extension
@@ -24,6 +26,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   content and then unbinds the session from it, so the first save to Roblox is
   what creates the experience. `rbx init create-universe` remains the way to create one
   outright.
+
+### Fixed
+
+- **`rbx ban list` honours `--limit`.** It stopped fetching once it held
+  `--limit` rows but never trimmed to them, so with the page size nailed to
+  100, `--limit 5` answered with up to 100 rows under a JSON document claiming
+  `limit: 5, count: 100, limit_reached: true` — three fields contradicting each
+  other, and the ones a script reads. The walk also refused to end on an empty
+  page that still carried a token, which could spin.
+- **`h2` 0.4.16**, for RUSTSEC-2026-0258: unbounded queuing of empty DATA
+  frames. `rbx` is a client, so reaching it takes a hostile host, but a
+  permanently red advisory check is a check nobody reads.
+
+### Changed
+
+- **The vendored Roblox OpenAPI document and scope catalog** are refreshed to
+  the 2026-08-20 upstream commit.
+- **Every CI job declares `timeout-minutes`.** Without it GitHub allows 360
+  minutes, so one hung job cost six hours of runner time.
 
 ## [0.2.0]
 

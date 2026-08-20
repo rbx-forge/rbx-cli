@@ -9,9 +9,11 @@
 //! sends nothing, that a bad duration never reaches the network, that the write
 //! carries an idempotency key.
 
-use rbx_ban::{run, BanCli};
+use rbx_ban::model::UserRestriction;
+use rbx_ban::{run, walk_restrictions, BanCli};
+use rbx_core::api::ApiBase;
 use rbx_core::GlobalFlags;
-use wiremock::matchers::{body_json, header, method, path, query_param};
+use wiremock::matchers::{body_json, header, method, path, query_param, query_param_is_missing};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const UNIVERSE: u64 = 66778899001;
@@ -443,4 +445,158 @@ async fn allow_alts_sets_the_roblox_field_that_stops_propagation() {
     )
     .await
     .unwrap();
+}
+
+/// One restriction as `cloud/v2` returns it. `active` decides whether the
+/// default filter keeps it.
+fn restriction(id: u64, active: bool) -> serde_json::Value {
+    serde_json::json!({
+        "path": format!("universes/{UNIVERSE}/user-restrictions/{id}"),
+        "user": format!("users/{id}"),
+        "gameJoinRestriction": { "active": active, "duration": "604800s" }
+    })
+}
+
+/// Mount one endless page of `rows` and walk it.
+async fn walk(
+    server: &MockServer,
+    rows: Vec<serde_json::Value>,
+    next: &str,
+    limit: u32,
+    include_inactive: bool,
+) -> Vec<UserRestriction> {
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/cloud/v2/universes/{UNIVERSE}/user-restrictions"
+        )))
+        .and(header("x-api-key", "test-key"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "userRestrictions": rows,
+            "nextPageToken": next
+        })))
+        .mount(server)
+        .await;
+
+    walk_restrictions(
+        &reqwest::Client::new(),
+        &ApiBase::new(server.uri()),
+        "test-key",
+        UNIVERSE,
+        limit,
+        include_inactive,
+    )
+    .await
+    .unwrap()
+}
+
+/// Both halves of the paging rule, in one test, because they are only correct
+/// together.
+///
+/// The page size is decided once, since `cloud/v2` requires a paged call to
+/// repeat the parameters of the call that issued its token. That alone
+/// overshoots on the last page, which is why the walk truncates: the fixed
+/// size without the truncate is what made `--limit 5` answer with 100 rows,
+/// under a JSON document that then claimed `limit: 5, count: 100`.
+#[tokio::test]
+async fn the_walk_keeps_one_page_size_and_respects_the_limit() {
+    let server = MockServer::start().await;
+    let full_page: Vec<serde_json::Value> = (0..100).map(|i| restriction(i, true)).collect();
+
+    let rows = walk(&server, full_page, "more", 5, true).await;
+
+    assert_eq!(
+        rows.len(),
+        5,
+        "the walk must not return more than --limit asked for"
+    );
+
+    let sizes: Vec<String> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| {
+            r.url
+                .query_pairs()
+                .find(|(k, _)| k.eq_ignore_ascii_case("maxpagesize"))
+                .map(|(_, v)| v.into_owned())
+                .unwrap_or_default()
+        })
+        .collect();
+    assert_eq!(
+        sizes,
+        vec!["5".to_string()],
+        "one page sized to the limit, asked for once"
+    );
+}
+
+/// An empty page carrying a token would otherwise spin for ever: the row count
+/// never grows, so the loop condition never fails.
+#[tokio::test]
+async fn an_empty_page_with_a_token_ends_the_walk() {
+    let server = MockServer::start().await;
+
+    let rows = walk(&server, Vec::new(), "more-please", 500, true).await;
+
+    assert!(rows.is_empty());
+    assert_eq!(
+        server.received_requests().await.unwrap().len(),
+        1,
+        "the walk must stop rather than ask again"
+    );
+}
+
+/// A page whose rows the active filter discarded is still progress.
+///
+/// This is the trap in porting the `memorystore` guard here: that walk has no
+/// filter, so emptiness of the page and emptiness of the collected rows are
+/// the same question. Here they are not. Judging it after the filter would
+/// stop on page one and never see the restriction on page two, answering with
+/// nothing for a universe that has one.
+#[tokio::test]
+async fn a_page_the_filter_emptied_does_not_end_the_walk() {
+    let server = MockServer::start().await;
+    let restrictions = format!("/cloud/v2/universes/{UNIVERSE}/user-restrictions");
+
+    // Page one: nothing but lifted restrictions, so the default filter drops
+    // every row, and a token that says the listing continues.
+    Mock::given(method("GET"))
+        .and(path(restrictions.clone()))
+        .and(query_param_is_missing("pageToken"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "userRestrictions": [restriction(1, false), restriction(2, false)],
+            "nextPageToken": "page-2"
+        })))
+        .mount(&server)
+        .await;
+
+    // Page two: the row the caller actually asked for.
+    Mock::given(method("GET"))
+        .and(path(restrictions))
+        .and(query_param("pageToken", "page-2"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "userRestrictions": [restriction(3, true)],
+            "nextPageToken": ""
+        })))
+        .mount(&server)
+        .await;
+
+    let rows = walk_restrictions(
+        &reqwest::Client::new(),
+        &ApiBase::new(server.uri()),
+        "test-key",
+        UNIVERSE,
+        10,
+        false,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        rows.len(),
+        1,
+        "a page emptied by the filter must not end the walk"
+    );
+    assert_eq!(rows[0].user.as_deref(), Some("users/3"));
+    assert_eq!(server.received_requests().await.unwrap().len(), 2);
 }

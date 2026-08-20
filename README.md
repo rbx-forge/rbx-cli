@@ -584,7 +584,9 @@ is how the cancelled v0.5.3 run of 2026-06-15 happened.
 - **[ROpen](https://github.com/Barocena/ROpen)** by Barocena (MPL-2.0) — the
   Luau Studio launcher `rbx open` was written against, and where the
   `roblox-studio:` URI dispatch was learned from, having contributed to it. The
-  Rust command here is a reimplementation, not a port.
+  Rust command here is a reimplementation, not a port. Its 1.3.2 (August 2026)
+  is also what pointed out that `xdg-open` cannot reach a Studio living on the
+  Windows side of WSL — a gap this command had too.
 - **[edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place)** (MIT) —
   the same idea, six and a half years earlier: a Rust CLI sending
   `roblox-studio:1+task:EditPlace+placeId:<id>` to the desktop's URI handler,

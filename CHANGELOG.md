@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx open <file.rbxl>`** — open a place file from disk, by extension
+  (`.rbxl` / `.rbxlx`) or explicitly with `--file`. An env is still an env: a
+  folder holding a file named after one does not change what the name means.
+- **`rbx open` works under WSL.** It used to call `xdg-open`, which cannot
+  reach a Studio that lives on the Windows side, so the command did nothing at
+  all there. WSL is now detected and the target crosses to the Windows host.
+  The gap was pointed out by ROpen 1.3.2, which fixed the same one in Luau; the
+  implementation here is independent.
+- **`rbx open --new`** — open a new, empty place, the way Studio's own "New
+  Experience" button does. `--new` lists Roblox's templates and asks; `--baseplate`
+  takes the stock one without a picker or a network call; `--template <place-id>`
+  names one outright. Nothing is created on Roblox: Studio fetches the template's
+  content and then unbinds the session from it, so the first save to Roblox is
+  what creates the experience. `rbx init create-universe` remains the way to create one
+  outright.
+
 ## [0.2.0]
 
 ### Added

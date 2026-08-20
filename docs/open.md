@@ -59,7 +59,7 @@ rbx open --place-id 123456789
 
 Worth having here more than anywhere: this command builds a `roblox-studio:` URI out of one number and makes no network call at all, so reading a config file to find that number was the only thing tying it to a project.
 
-### A file on disk
+### A file on disk **(0.3.0+)**
 
 ```sh
 rbx open game.rbxl
@@ -76,7 +76,7 @@ which both a Windows path and any filename containing a `+` would break. Studio
 ends up in the same place either way; its log says
 `createAndShowIDEDoc with task EditFile`.
 
-### A new place, with no project and no id
+### A new place, with no project and no id **(0.3.0+)**
 
 ```sh
 rbx open --new              # pick a template, then open it

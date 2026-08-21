@@ -192,10 +192,34 @@ jobs:
             echo "</details>"
           } > pr-body.md
 
+      # A pull request opened with the default GITHUB_TOKEN does not start any
+      # workflow: GitHub refuses, so that a bot cannot set off an endless chain
+      # of runs. The consequence here is that the spec PR arrives with no CI at
+      # all and someone has to close and reopen it by hand to get checks.
+      #
+      # A GitHub App token is not the bot, so the PR it opens does start CI.
+      # The step is optional on purpose: with no app configured the workflow
+      # keeps working exactly as before, on the plain GITHUB_TOKEN.
+      #
+      # To turn it on, set the SPEC_BOT_APP_ID repository variable and the
+      # SPEC_BOT_PRIVATE_KEY secret from a GitHub App installed on this
+      # repository with Contents: read and write and Pull requests: read and
+      # write. App tokens are minted per run and last an hour, so unlike a
+      # personal access token there is nothing that quietly expires.
+      - name: Mint an app token, so the pull request can start CI
+        id: app-token
+        if: steps.refresh.outputs.changed == 'true' && vars.SPEC_BOT_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SPEC_BOT_APP_ID }}
+          private-key: ${{ secrets.SPEC_BOT_PRIVATE_KEY }}
+
       - name: Open a pull request
         if: steps.refresh.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
+          # Falls back to the plain GITHUB_TOKEN when no app is configured.
+          token: ${{ steps.app-token.outputs.token || github.token }}
           # The vendored document, its provenance, and the catalog parsed out
           # of it. `drift.log` and `pr-body.md` are scratch files and must not
           # be committed.

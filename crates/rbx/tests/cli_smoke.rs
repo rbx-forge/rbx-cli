@@ -7,7 +7,7 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 
 const SUBCOMMANDS: &[&str] = &[
-    "shop", "place", "meta", "config", "apikey", "init", "env", "open", "download",
+    "shop", "place", "meta", "config", "secret", "apikey", "init", "env", "open", "download",
 ];
 
 #[test]

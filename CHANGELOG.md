@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx secret`** — the universe secrets store `HttpService:GetSecret` reads
+  from: `list`, `set`, `delete`, and `public-key`. Until now the only way to
+  put a credential in front of a running experience was the Creator Dashboard,
+  by hand, one universe at a time, which is how staging ends up still holding
+  last quarter's key.
+
+  Writes are encrypted **before they are sent**, because Roblox does not accept
+  a secret in the clear even over TLS: the value is sealed with a LibSodium
+  sealed box against the universe's own public key, so the ciphertext cannot be
+  opened by anything — including the process that produced it. That is what
+  makes `printenv API_TOKEN | rbx secret set api_token --stdin --domain
+  api.example.com --apply` safe to run from CI.
+
+  There is deliberately no `rbx secret get`. Roblox never sends stored content
+  back, a listing carries metadata only, and no document this command emits has
+  a field a secret value could go in.
+
+  `set` requires `--domain <pattern>` or `--no-domain` on every write, with no
+  default for either. A secret with no domain cannot be attached to an outgoing
+  request at all — right for a signing key, silent breakage for an API token —
+  and since a `set` replaces the whole secret, an unstated domain would be a
+  cleared one.
+
 ## [0.3.0]
 
 ### Added

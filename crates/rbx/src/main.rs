@@ -71,6 +71,13 @@ enum Tool {
     Meta(rbx_meta::MetaCli),
     /// Game configuration flags
     Config(rbx_config::ConfigCli),
+    // Straight after `config`, and for the same reason `doctor` sits after
+    // `apikey`: these are the two halves of "what this universe is configured
+    // with". `config` carries the values a repository can hold, `secret` the
+    // ones it must never hold — and somebody looking for where to put an API
+    // token will scan past `config` first.
+    /// Secrets HttpService:GetSecret reads, written encrypted
+    Secret(rbx_secret::SecretCli),
     /// Game passes, badges, and developer products
     Shop(rbx_shop::ShopCli),
     /// Launch Roblox Studio at a specific place
@@ -180,6 +187,7 @@ async fn dispatch() -> Result<()> {
         Tool::Place(c) => rbx_place::run(c, &cli.global).await,
         Tool::Meta(c) => rbx_meta::run(c, &cli.global).await,
         Tool::Config(c) => rbx_config::run(c, &cli.global).await,
+        Tool::Secret(c) => rbx_secret::run(c, &cli.global).await,
         Tool::Shop(c) => rbx_shop::run(c, &cli.global).await,
         Tool::Open(c) => rbx_open::run(c, &cli.global).await,
         Tool::Download(c) => rbx_download::run(c, &cli.global).await,

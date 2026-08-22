@@ -44,6 +44,12 @@ game is running, and no TOML file can describe it. Banning a player is a
 consequence of what happened in your game last night, not a checked-in
 intention.
 
+One command sits between the two. `secret` writes the credentials the game
+reads at runtime, and they are the one part of a universe's configuration that
+a repository must never contain — so there is no file to reconcile from, and
+the value is sealed against the universe's public key before it leaves your
+machine.
+
 Comparable tools have the first pillar. Mantle never had the second, and
 nothing else does either — you are otherwise clicking through the Creator Hub
 or writing your own Open Cloud scripts. The second pillar is the difference
@@ -68,6 +74,7 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | `rbx place` | Place file upload, download, promote between envs, rollback to past versions. | [docs/place.md](./docs/place.md) |
 | `rbx meta` | Universe and place metadata (name, description, devices, social links, server fill, avatar rules, third-party permissions, paid access, ...). | [docs/meta.md](./docs/meta.md) |
 | `rbx config` | In-experience live configs via the Open Cloud Configs API. | [docs/config.md](./docs/config.md) |
+| `rbx secret` | Credentials the game reads through `HttpService:GetSecret`, sealed before they leave your machine. | [docs/secret.md](./docs/secret.md) |
 | `rbx shop` | Game passes, badges, developer products. Typed Luau codegen with runtime env dispatch, regenerable offline. | [docs/shop.md](./docs/shop.md) |
 | `rbx open` | Launch Roblox Studio at a specific place by env name. | [docs/open.md](./docs/open.md) |
 | `rbx download` | Download assets by id (public endpoint or Open Cloud). | [docs/download.md](./docs/download.md) |
@@ -415,6 +422,7 @@ crates/
 ├─ rbx-place/        # place file upload/download/promote
 ├─ rbx-meta/         # universe and place metadata
 ├─ rbx-config/       # game configuration flags
+├─ rbx-secret/       # universe secrets store, sealed client-side
 ├─ rbx-shop/         # game passes, badges, developer products
 ├─ rbx-open/         # Studio launcher
 ├─ rbx-download/     # asset downloader

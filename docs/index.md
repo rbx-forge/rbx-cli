@@ -26,6 +26,11 @@ game is running, and no TOML file can describe it. Banning a player is a
 consequence of what happened in your game last night, not a checked-in
 intention.
 
+One command sits between the two on purpose. `secret` writes the credentials
+the game reads at runtime, and they are the one part of a universe's
+configuration that a repository must never contain — so there is no file to
+reconcile from, and the value is sealed before it leaves your machine.
+
 Comparable tools have the first pillar. Mantle never had the second, and
 nothing else does either: you are otherwise clicking through the Creator Hub or
 writing your own Open Cloud scripts. The second pillar is the difference
@@ -45,6 +50,7 @@ on purpose rather than by accretion.
 | [`place`](place.md) | Place files: upload, download, promote between envs, roll back |
 | [`meta`](meta.md) | Universe and place metadata: name, icon, thumbnails, devices, visibility |
 | [`config`](config.md) | The live in-experience config, with revisions and rollback |
+| [`secret`](secret.md) | Credentials the game reads through `HttpService:GetSecret`, written encrypted |
 | [`shop`](shop.md) | Game passes, badges and developer products, with typed Luau codegen |
 | [`servers`](ops/servers.md) | **Live.** Servers up now, how the stopped ones ended, and what a crashed one logged |
 | [`analytics`](ops/analytics.md) | **Live.** Players, retention, revenue per payer. CSV for charting elsewhere |

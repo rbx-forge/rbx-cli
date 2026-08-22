@@ -52,6 +52,7 @@ body:
       options:
         - Declarative reconciliation (place, shop, meta, config, env, init, apikey, import, check)
         - Live operations (data, ban, restart, servers, analytics, memorystore, publish)
+        - Secrets (secret)
         - Local utilities (open, download, ads, doctor)
         - Something new, none of the above
         - Not sure

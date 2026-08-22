@@ -2,8 +2,8 @@
 //! The keys `rbxmeta.toml` reads nothing from must be named, not swallowed.
 //!
 //! Written after a released `rbx` read a config full of keys it had never
-//! heard of — `[game.permissions]`, `[game.avatar]`, two scale tables, `genre`,
-//! `engine_avatar_settings` — discarded every one of them, and reported
+//! heard of: `[game.permissions]`, `[game.avatar]`, two scale tables, `genre`,
+//! `engine_avatar_settings`: discarded every one of them, and reported
 //! "Nothing to do, everything is in sync."
 
 use rbx_meta::config::Config;
@@ -44,7 +44,7 @@ client_teleport = true
 ///
 /// `[game.server_fill]` and `[game.paid_access]` are internally-tagged enums,
 /// and serde buffers their content into an intermediate value before
-/// deserializing from it — which loses the ignored-key callback. So a key
+/// deserializing from it, which loses the ignored-key callback. So a key
 /// misfiled into one of those two tables is still swallowed.
 ///
 /// This is the case that started the whole investigation: `genre` appended to

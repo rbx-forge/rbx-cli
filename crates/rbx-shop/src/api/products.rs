@@ -247,7 +247,7 @@ mod tests {
     }
 
     /// The page token loop, which had never run. Most catalogues fit in one
-    /// page of fifty, so a broken second page only shows up on a large shop —
+    /// page of fifty, so a broken second page only shows up on a large shop,
     /// and shows up as products silently missing from a diff.
     #[tokio::test]
     async fn listing_follows_the_page_token_until_it_runs_out() {

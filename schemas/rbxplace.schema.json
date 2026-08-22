@@ -41,7 +41,7 @@
       ],
       "properties": {
         "codegen": {
-          "description": "Whether game code should see this env (default: `true`).\n\n`false` marks an env that exists for tooling only — a universe you upload to from CI and never ship. It stays a normal env everywhere else: `--env` resolves it, `--env all` includes it, `list` and `get` report it. It is only kept out of the generated modules, so adding one does not widen the `EnvironmentType` union and force game code to acknowledge an env it never runs in.\n\nThe trade, and it is real: nothing then maps that universe back to an env at runtime. Boot the game there and code that resolves its env from `game.GameId` will not find one. Correct for a universe that only ever receives uploads, wrong for one that runs gameplay.",
+          "description": "Whether game code should see this env (default: `true`).\n\n`false` marks an env that exists for tooling only: a universe you upload to from CI and never ship. It stays a normal env everywhere else: `--env` resolves it, `--env all` includes it, `list` and `get` report it. It is only kept out of the generated modules, so adding one does not widen the `EnvironmentType` union and force game code to acknowledge an env it never runs in.\n\nThe trade, and it is real: nothing then maps that universe back to an env at runtime. Boot the game there and code that resolves its env from `game.GameId` will not find one. Correct for a universe that only ever receives uploads, wrong for one that runs gameplay.",
           "default": true,
           "type": "boolean"
         },
@@ -122,7 +122,7 @@
       ]
     },
     "PlacesCodegen": {
-      "description": "Reserved `[codegen]` block: where `rbx env gen-module` writes its module.\n\nThe path lives here rather than only in `--out` so the hook, the CI job and the developer cannot disagree about it — a `--check` pointed at a path nobody generates passes green while verifying nothing.",
+      "description": "Reserved `[codegen]` block: where `rbx env gen-module` writes its module.\n\nThe path lives here rather than only in `--out` so the hook, the CI job and the developer cannot disagree about it: a `--check` pointed at a path nobody generates passes green while verifying nothing.",
       "type": "object",
       "properties": {
         "output": {

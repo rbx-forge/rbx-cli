@@ -3,7 +3,7 @@
 //!
 //! All three report the **published** side: what Roblox is serving to players
 //! right now, and how it got there. None of them reads `rbxconfig.toml`, and
-//! that shows in the documents — there is no `config_file` field anywhere in
+//! that shows in the documents: there is no `config_file` field anywhere in
 //! this module, because no local file was opened.
 //!
 //! Which matters because `rbx check --json` already has a row for this domain
@@ -11,7 +11,7 @@
 //! published config and answers with `outcome`, `summary` and `details`.
 //! Nothing here is named any of those three: a declared-versus-live verdict
 //! and a snapshot of live are different documents, and a `jq` filter must not
-//! be able to half-read one as the other. What is shared is deliberate —
+//! be able to half-read one as the other. What is shared is deliberate:
 //! `schema_version` comes from the same constant, `env` is the same env name
 //! omitted under the same rule, and `live` keeps meaning what `check` already
 //! made it mean.
@@ -36,7 +36,7 @@ use crate::value::type_label;
 pub struct LiveDocument {
     pub schema_version: u32,
     /// The env named on the command line. **Absent** when the universe was
-    /// given directly with `--universe-id` and no `--env` was needed — the
+    /// given directly with `--universe-id` and no `--env` was needed: the
     /// human form prints a `<universe-id>` placeholder there, which is a label
     /// and not an env name, so the document omits the key instead. Same
     /// omission rule `rbx check --json` uses for its own `env`.
@@ -72,12 +72,12 @@ pub struct LiveDocument {
 /// One published entry.
 ///
 /// Carries the type label the human listing prints, so a consumer does not
-/// have to re-derive "is this an object or a string" from the value — and so
+/// have to re-derive "is this an object or a string" from the value, and so
 /// `get` and `list` can share one shape rather than one of them being a bare
 /// value map.
 #[derive(Debug, Serialize)]
 pub struct Entry {
-    /// `bool`, `number`, `string`, `array`, `object`, or `null` — the same
+    /// `bool`, `number`, `string`, `array`, `object`, or `null`: the same
     /// words the human listing prints in its type column.
     #[serde(rename = "type")]
     pub kind: &'static str,
@@ -166,7 +166,7 @@ pub struct Revision {
     /// string back.
     pub time: String,
     /// The publish message. **Absent** when the publish carried none, which is
-    /// not the same fact as an empty one — the human listing renders both as
+    /// not the same fact as an empty one: the human listing renders both as
     /// `(no message)` and the document keeps them apart.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
@@ -175,7 +175,7 @@ pub struct Revision {
     /// `.changed_keys | length` is that count, and the names are what a
     /// changelog actually wants. Always an array, empty included.
     pub changed_keys: Vec<String>,
-    /// True for the revision currently serving players — the one the human
+    /// True for the revision currently serving players: the one the human
     /// listing tags `published`. Derived rather than left to be inferred from
     /// the position, so a consumer that sorted the array still knows.
     pub published: bool,
@@ -360,7 +360,7 @@ mod tests {
         assert_eq!(doc["revisions"][1]["version"], 13);
     }
 
-    /// Sorted, so the same history renders the same bytes twice running —
+    /// Sorted, so the same history renders the same bytes twice running:
     /// `changes` arrives as a hash map and would not.
     #[test]
     fn changed_keys_are_sorted_and_always_an_array() {

@@ -7,7 +7,7 @@
 //!
 //! - **A backup must never overwrite a backup.** The old default was
 //!   `<entry>.backup.json` in the working directory, so resetting the same
-//!   player twice replaced the copy of the value the first reset destroyed —
+//!   player twice replaced the copy of the value the first reset destroyed:
 //!   the one case where you want the older file. Names carry a UTC timestamp,
 //!   and a same-second collision gets a counter rather than clobbering.
 //! - **They have to be findable months later.** Scattered next to whatever
@@ -54,7 +54,7 @@ const MAX_SAME_SECOND: u32 = 100;
 #[derive(Debug)]
 pub enum BackupTarget {
     /// `--backup <path>`: exactly this file. No directory is created around
-    /// it, nothing near it is pruned — the operator named the path, so the
+    /// it, nothing near it is pruned: the operator named the path, so the
     /// path is the whole instruction.
     Path(PathBuf),
     /// The default: a timestamped file in `dir`, keeping the newest `keep`
@@ -218,7 +218,7 @@ fn prune(dir: &Path, entry: &str, keep: u32) -> Result<usize> {
         return Ok(0);
     }
     // The timestamp is the tail of the name, so sorting by name sorts by age
-    // without stat-ing anything — mtime would lie the moment a directory is
+    // without stat-ing anything: mtime would lie the moment a directory is
     // copied or restored from a backup of its own.
     ours.sort();
     let doomed = ours.len() - keep;

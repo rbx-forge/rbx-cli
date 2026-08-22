@@ -13,7 +13,7 @@
 //!    least privilege; it does not get to quietly tell a third party where you
 //!    are. The service is printed next to the answer, not only documented.
 //! 2. **A lookup that fails is a check that could not run.** Offline, service
-//!    down, timed out — none of those mean the IP is outside the allowlist, and
+//!    down, timed out: none of those mean the IP is outside the allowlist, and
 //!    reporting them as a mismatch would send somebody editing a key that is
 //!    fine.
 //! 3. **A short, explicit timeout.** `doctor` is the command people run when
@@ -115,7 +115,7 @@ impl IpEcho {
 
 /// The body is expected to be one bare address. Anything else is a lookup that
 /// did not produce an IP, which is not the same thing as an IP outside the
-/// allowlist — a captive portal answering every request with an HTML login page
+/// allowlist: a captive portal answering every request with an HTML login page
 /// is the case this catches.
 fn parse_echo_body(body: &str) -> IpLookup {
     match body.trim().parse::<IpAddr>() {
@@ -214,7 +214,7 @@ pub enum Verdict {
     Inside(String),
     /// Outside every entry, and the allowlist was well-formed enough to say so.
     Outside,
-    /// The comparison could not be made. Carries why, and is never a failure —
+    /// The comparison could not be made. Carries why, and is never a failure:
     /// the same rule as a lookup that did not answer.
     Inconclusive(String),
 }
@@ -223,7 +223,7 @@ pub enum Verdict {
 ///
 /// The `Inconclusive` cases exist because a wrong "you are locked out" is more
 /// expensive than no answer: it sends somebody to edit a working key. Two
-/// things produce it — an allowlist with no entry in the address's own family
+/// things produce it: an allowlist with no entry in the address's own family
 /// (nothing here can be compared), and an unparseable entry when nothing else
 /// matched (the one entry that would have covered this address might be the one
 /// that did not parse).

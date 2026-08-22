@@ -28,7 +28,7 @@ intention.
 
 One command sits between the two on purpose. `secret` writes the credentials
 the game reads at runtime, and they are the one part of a universe's
-configuration that a repository must never contain — so there is no file to
+configuration that a repository must never contain, so there is no file to
 reconcile from, and the value is sealed before it leaves your machine.
 
 Comparable tools have the first pillar. Mantle never had the second, and

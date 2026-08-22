@@ -14,14 +14,14 @@
 //!   between releases. That is right, and it means a wrong scope in a page
 //!   surfaces only when somebody creates a key with it.
 //! - **Nothing read the scope tables.** The workspace already scans `docs/` for
-//!   one class of factual claim — `rbx-core/tests/binary_names.rs` checks that
-//!   no page names a command this tool does not have — and the authoritative
+//!   one class of factual claim: `rbx-core/tests/binary_names.rs` checks that
+//!   no page names a command this tool does not have, and the authoritative
 //!   list of scopes sat in this very crate the whole time. The pattern existed;
 //!   nobody pointed it at scopes.
 //!
 //! What this refuses is narrow on purpose: a scope *type* the catalog does not
 //! know, or an *operation* the catalog does not list for a type it does know.
-//! It is not a claim that the catalog is complete — it is not, and
+//! It is not a claim that the catalog is complete: it is not, and
 //! `KNOWN_ABSENT` below is where that gets recorded rather than papered over.
 
 use std::path::{Path, PathBuf};
@@ -36,14 +36,14 @@ use rbx_apikey::scope_catalog;
 /// otherwise. Each entry needs the evidence, not just the name.
 const KNOWN_ABSENT: &[(&str, &str)] = &[
     // Nothing here yet. When a scope earns a line, the second field is where it
-    // was confirmed — a successful `apikey create`, or an introspect that read
-    // it back — so the next person does not have to re-establish it.
+    // was confirmed (a successful `apikey create`, or an introspect that read
+    // it back) so the next person does not have to re-establish it.
 ];
 
 /// Backticked `a:b` spans that are not scopes.
 ///
-/// A scope type and an ordinary lowercase word are structurally identical —
-/// `asset:read` and `file:line` have the same shape — so the matcher cannot
+/// A scope type and an ordinary lowercase word are structurally identical
+/// (`asset:read` and `file:line` have the same shape) so the matcher cannot
 /// tell them apart and this list does. Keep it short: every entry is a place
 /// the check is blind, so a real scope typo spelled like one of these would
 /// pass. Prefer rewording the prose over adding a line here.
@@ -149,7 +149,7 @@ fn every_documented_scope_exists() {
                 let rel = file.strip_prefix(&root).unwrap_or(file).display();
                 if !found.known {
                     wrong.push(format!(
-                        "{rel}:{}: `{ty}:{}` — no such scope type. If Roblox does take it, \
+                        "{rel}:{}: `{ty}:{}`: no such scope type. If Roblox does take it, \
                          add it to KNOWN_ABSENT with where that was confirmed.",
                         n + 1,
                         ops.join(",")
@@ -160,7 +160,7 @@ fn every_documented_scope_exists() {
                 for op in ops {
                     if !known_ops.contains(&op) {
                         wrong.push(format!(
-                            "{rel}:{}: `{ty}:{op}` — that type has only [{}].",
+                            "{rel}:{}: `{ty}:{op}`: that type has only [{}].",
                             n + 1,
                             known_ops.join(", ")
                         ));

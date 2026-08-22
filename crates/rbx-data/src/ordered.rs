@@ -1,4 +1,4 @@
-//! `rbx data ordered` — the leaderboard half of data stores.
+//! `rbx data ordered`: the leaderboard half of data stores.
 //!
 //! ## Why it is here and not its own command
 //!
@@ -6,7 +6,7 @@
 //! not a mode of them: the values are integers rather than JSON documents,
 //! there are no versions and no revisions, and the whole point of the resource
 //! is that a listing comes back sorted. `TODO.md` declined them once for that
-//! reason and left the door open — "would fit under `data` as a sibling mode
+//! reason and left the door open: "would fit under `data` as a sibling mode
 //! […] revisit on demand".
 //!
 //! Under `data` is where they landed, because the thing a reader needs to know
@@ -41,8 +41,8 @@ use rbx_core::output::{self, OutputFormat};
 use crate::json::Store;
 
 /// Roblox caps a page at 100 and defaults to 10. Asking for the cap keeps the
-/// number of round trips down for the listing everybody actually wants — the
-/// top N — without changing what comes back.
+/// number of round trips down for the listing everybody actually wants (the
+/// top N) without changing what comes back.
 const MAX_PAGE_SIZE: u32 = 100;
 
 #[derive(Subcommand, Debug)]

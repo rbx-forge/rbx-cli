@@ -4,7 +4,7 @@
 //! The unit tests in `rbx_env::json` and `rbx_servers::json` pin what the
 //! documents *say*. They cannot pin what else reaches stdout, because a stray
 //! `println!` three layers down is invisible to a test that renders a struct
-//! into a buffer — and a stray `println!` is exactly the failure that breaks
+//! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
 //! Each case is arranged to have something to say on stderr as well: an
@@ -273,7 +273,7 @@ async fn servers_list_keeps_stdout_parsable_when_the_page_is_partial() {
     assert_eq!(doc["servers"][0]["failure"], true);
     assert_eq!(doc["servers"][0]["uptime_seconds"], 302);
     assert_eq!(doc["servers"][0]["player_count"], 3);
-    // Reported, not silently dropped — and not on stdout.
+    // Reported, not silently dropped, and not on stdout.
     assert!(
         stderr.contains("this page is incomplete"),
         "stderr was:\n{stderr}"

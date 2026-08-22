@@ -304,7 +304,7 @@ async fn a_missing_map_flag_is_an_error_naming_the_flag() {
 /// The endpoint states the rule itself: "When paginating, all other parameters
 /// provided to the subsequent call must match the call that provided the page
 /// token." Recomputing `maxPageSize` from what is still wanted sends page two
-/// with a different value than the call that issued its token — a request
+/// with a different value than the call that issued its token: a request
 /// Roblox may reject, and only on listings long enough to page, which are the
 /// ones nobody tries by hand.
 ///

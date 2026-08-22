@@ -1,4 +1,4 @@
-/// Minimal rbxplace.toml reader — only needs universe_id per env.
+/// Minimal rbxplace.toml reader: only needs universe_id per env.
 /// Shares the same file format as rbxplace.
 use std::collections::HashMap;
 use std::path::Path;
@@ -12,7 +12,7 @@ use serde::Deserialize;
 pub struct PlacesConfig {
     /// Reserved top-level `[owner]` block (shared source of truth for the
     /// project owner; see `rbx_core::owner`). Consumed here as a reserved key
-    /// so it isn't mistaken for an env — rbx-config itself doesn't use it.
+    /// so it isn't mistaken for an env: rbx-config itself doesn't use it.
     #[serde(default)]
     #[allow(dead_code)]
     pub owner: Option<Owner>,

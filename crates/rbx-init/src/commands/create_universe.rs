@@ -15,7 +15,7 @@ use rbx_core::GlobalFlags;
 enum ResolvedOwner {
     /// Roblox `groupId=` query param.
     Group(u64),
-    /// Roblox-side default — the cookie's user.
+    /// Roblox-side default: the cookie's user.
     SelfUser,
     /// `[owner]` from rbxplace.toml told us "user X", so we explicitly target
     /// that user. Today Roblox only differentiates "no groupId" (== self) from
@@ -170,7 +170,7 @@ fn from_owner(owner: Owner) -> ResolvedOwner {
 }
 
 /// The confirmation is the last gate before the irreversible call, so it
-/// summarizes every decision made above — including the rbxplace.toml entry.
+/// summarizes every decision made above, including the rbxplace.toml entry.
 fn build_prompt(resolved: ResolvedOwner, name: Option<&str>, new_env: Option<&NewEnv>) -> String {
     let subject = match name {
         Some(n) => format!("Create universe '{n}'"),

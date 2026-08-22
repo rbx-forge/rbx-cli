@@ -1,11 +1,11 @@
-//! `rbx env rm <name>` — take an env out of every file that mentions it.
+//! `rbx env rm <name>`: take an env out of every file that mentions it.
 //!
 //! ## Why this is not `destroy`
 //!
 //! The obvious name for this, borrowed from the infrastructure tools this one
 //! resembles, would be `destroy`: tear down what was deployed. Roblox does not
 //! let a tool keep that promise. A game pass and a developer product cannot be
-//! deleted, ever — the most a creator can do is take them off sale, and every
+//! deleted, ever: the most a creator can do is take them off sale, and every
 //! player who already owns one still owns it. A badge can be disabled, not
 //! removed. A universe can be deactivated, and it is still there. A command
 //! called `destroy` would be describing something it did not do, on resources
@@ -15,7 +15,7 @@
 //! removes is the *env*: the block in `rbxplace.toml` and every overlay,
 //! lockfile section and generated module keyed by it. That is the part that
 //! really can be deleted, and doing it by hand means editing four or five
-//! files and forgetting one — usually a lockfile, which then keeps ids for an
+//! files and forgetting one: usually a lockfile, which then keeps ids for an
 //! env nothing targets any more.
 //!
 //! ## Why it edits documents rather than reserialising models
@@ -23,7 +23,7 @@
 //! `rbxplace.toml`, `rbxmeta.toml` and `rbxshop.toml` are files people write
 //! by hand, with comments in them. Loading each through serde and writing the
 //! model back would drop those comments, reorder keys, and silently delete any
-//! key this build does not model — the exact failure `rbx-shop`'s
+//! key this build does not model: the exact failure `rbx-shop`'s
 //! `toml_write` and `docs/env.md` both already record. `toml_edit` removes one
 //! table and leaves every byte around it alone.
 //!
@@ -33,7 +33,7 @@
 //! ## Why `rbxapikey.toml` is handled apart
 //!
 //! Every other file keys an env by giving it a table: `[envs.dev]`, removed
-//! whole. `rbxapikey.toml` names envs *inside arrays* instead — `[settings]
+//! whole. `rbxapikey.toml` names envs *inside arrays* instead: `[settings]
 //! default_envs`, and each key's `envs`, itself either one array or a table of
 //! named group arrays. There is no table to drop, only a string to pull out of
 //! a list, which is why it cannot be another `Target`.
@@ -103,9 +103,9 @@ const TARGETS: &[Target] = &[
         what: "shop lock",
     },
     // The two lockfiles this command used to walk past. `rbx-config`'s own
-    // loader already treats a section for an unknown env as a problem — it
-    // tells the reader to "Delete the [envs.<name>] section ... if intentional"
-    // — so leaving one behind meant this command created the very state
+    // loader already treats a section for an unknown env as a problem: it
+    // tells the reader to "Delete the [envs.<name>] section ... if intentional",
+    // so leaving one behind meant this command created the very state
     // another command complains about.
     Target {
         file: "rbxconfig.lock.toml",
@@ -145,7 +145,7 @@ impl ApikeyEdit {
 /// The prefix dance keeps the file readable. `retain` removes a value together
 /// with its own leading whitespace, so taking the head out of
 /// `["dev", "prod"]` promotes the space that used to follow the comma and
-/// writes `[ "prod"]` — a space nobody typed, in a file somebody maintains by
+/// writes `[ "prod"]`: a space nobody typed, in a file somebody maintains by
 /// hand. Restoring whatever decor the original head carried reproduces the
 /// author's own style instead of imposing one: a list written `["a", "b"]`
 /// stays tight, and one written `[ "a", "b" ]` keeps its padding.
@@ -224,7 +224,7 @@ struct Removal {
 /// Load a TOML document, or `None` when the file is simply not there.
 ///
 /// A project with no shop has no `rbxshop.toml`, and that is not an error to
-/// report — it is the ordinary case.
+/// report: it is the ordinary case.
 fn load(path: &Path) -> Result<Option<DocumentMut>> {
     if !path.exists() {
         return Ok(None);
@@ -244,7 +244,7 @@ fn holds(doc: &DocumentMut, at: &Location, env: &str) -> bool {
         // `as_table_like`, not `as_table`: `envs = { dev = { … } }` is an
         // inline table, which `as_table` reports as absent. A file written that
         // way would have been skipped in silence while the command printed a
-        // plan without it and reported success — the opposite of what a command
+        // plan without it and reported success: the opposite of what a command
         // promising "every file that mentions it" owes the reader.
         Location::UnderEnvs => doc
             .get("envs")
@@ -280,8 +280,8 @@ fn strip(doc: &mut DocumentMut, at: &Location, env: &str) -> bool {
 /// merely untidy: `<out>/dev.luau` keeps returning ids for an env that no
 /// longer exists, and `rbx shop codegen --check` would go on accepting it
 /// because the folder still matches a lockfile that no longer mentions the
-/// env. The aggregate modules — `init.luau`, the type module, and whatever
-/// `rbx env gen-module` writes — are *regenerated* rather than deleted, so
+/// env. The aggregate modules (`init.luau`, the type module, and whatever
+/// `rbx env gen-module` writes) are *regenerated* rather than deleted, so
 /// they are named in the closing hint instead of touched here.
 fn shop_env_module(dir: &Path, env: &str) -> Result<Option<PathBuf>> {
     let Some(doc) = load(&dir.join("rbxshop.toml"))? else {
@@ -389,7 +389,7 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
         if dry_run { "would be" } else { "will be" }
     );
     for removal in &removals {
-        println!("  {} — {}", removal.path.display(), removal.what.dimmed());
+        println!("  {}: {}", removal.path.display(), removal.what.dimmed());
     }
 
     // Printed before the dry-run exit and before the prompt, because it is the
@@ -420,7 +420,7 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
     }
 
     if dry_run {
-        println!("\nDry run — nothing was changed.");
+        println!("\nDry run: nothing was changed.");
         return Ok(());
     }
 

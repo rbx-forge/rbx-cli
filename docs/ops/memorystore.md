@@ -2,20 +2,20 @@
 
 Read and write memory store sorted map items.
 
-The one Open Cloud storage surface a game server can read without an HTTP call. Something outside Roblox — a VPS, a cron job, a dashboard — writes a value here, and every running server picks it up through `MemoryStoreService:GetSortedMap()` without paying a data store round trip for it.
+The one Open Cloud storage surface a game server can read without an HTTP call. Something outside Roblox (a VPS, a cron job, a dashboard) writes a value here, and every running server picks it up through `MemoryStoreService:GetSortedMap()` without paying a data store round trip for it.
 
 See [ops.md](../ops.md) for install, keys and the safety model.
 
 This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
 
 
-Needs `memory-store.sorted-map:read` to read and `:write` to write. Those scopes are **universe-targeted**, like the data store ones — a key restricted to one experience stays restricted to it.
+Needs `memory-store.sorted-map:read` to read and `:write` to write. Those scopes are **universe-targeted**, like the data store ones: a key restricted to one experience stays restricted to it.
 
 ## Sorted maps only
 
 Queues are the other half of the memory store and a different shape of problem: ordering, claiming, discarding, visibility timeouts. Nothing has needed them yet, and inventing a queue CLI before there is a queue to drive is how you ship the wrong verbs. When one is needed it belongs here as a second mode.
 
-`flush` — which empties an experience's entire memory store — is also absent. It is a single irreversible call affecting every map and queue at once, and it is not part of writing a cache value.
+`flush` (which empties an experience's entire memory store) is also absent. It is a single irreversible call affecting every map and queue at once, and it is not part of writing a cache value.
 
 ## Writing a value
 
@@ -39,7 +39,7 @@ rbx memorystore --map Cache set rotation \
 --ttl 300s    --ttl 10m    --ttl 2h
 ```
 
-Omit it and the item stays until something removes it. For a cache that is usually wrong — a TTL is what stops a stale value outliving whatever was producing it. The response reports the computed expiry:
+Omit it and the item stays until something removes it. For a cache that is usually wrong: a TTL is what stops a stale value outliving whatever was producing it. The response reports the computed expiry:
 
 ```
 ✓ wrote "rotation"
@@ -167,6 +167,6 @@ Publish a reference rather than the value itself. The message is capped at 1114 
 
 Both cost a request to discover, and both are handled for you:
 
-**The item id is a query parameter.** `POST .../items` with `{"id": ...}` in the body answers `400 INVALID_ARGUMENT "The id field is required."` — an error naming the field you just sent. The id belongs in the URL.
+**The item id is a query parameter.** `POST .../items` with `{"id": ...}` in the body answers `400 INVALID_ARGUMENT "The id field is required."`: an error naming the field you just sent. The id belongs in the URL.
 
 **Roblox signals "no more pages" with an empty string here**, where the data store endpoints use `null`. Treating `""` as a real page token fetches the same page forever.

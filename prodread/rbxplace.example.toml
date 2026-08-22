@@ -16,7 +16,7 @@
 # Reaching this universe takes two explicit choices: being in this directory,
 # and naming the env. Neither happens by accident.
 
-# PLACEHOLDER ids — see testenv/rbxplace.example.toml for the note. The real
+# PLACEHOLDER ids: see testenv/rbxplace.example.toml for the note. The real
 # ones are in .local/real-ids.toml, gitignored.
 [prod_readonly]
 universe_id = 5544332211

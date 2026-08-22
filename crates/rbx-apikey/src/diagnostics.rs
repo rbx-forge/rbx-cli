@@ -1,8 +1,8 @@
 //! The read-only view of this crate that `rbx doctor` runs on.
 //!
 //! A façade rather than a set of `pub mod` promotions. `doctor` needs four
-//! facts — what this project declares, which secret is readable, what Roblox
-//! holds for a key, and whether a key carries a scope — and each of them is
+//! facts: what this project declares, which secret is readable, what Roblox
+//! holds for a key, and whether a key carries a scope, and each of them is
 //! currently spread over `config`, `lock`, `secret_store`, `api` and
 //! `remote_view`. Publishing those five modules to reach four facts would make
 //! every internal detail of key management part of another crate's compile,
@@ -10,7 +10,7 @@
 //! four facts instead, and stays the only thing `rbx-doctor` links against.
 //!
 //! Everything here is read-only. Nothing in this module writes a file, creates
-//! a key, or changes anything on Roblox — `doctor` diagnoses, it does not
+//! a key, or changes anything on Roblox: `doctor` diagnoses, it does not
 //! repair, and the boundary is easier to keep if the API it is offered cannot
 //! do otherwise.
 
@@ -108,7 +108,7 @@ impl KeyFacts {
     ///
     /// The target is deliberately not checked. A scope's `targetParts` name
     /// universes, datastores or creators, and deciding whether a given target
-    /// covers a given call means resolving the caller's env — which `doctor`
+    /// covers a given call means resolving the caller's env, which `doctor`
     /// does not always have and would have to guess at. Answering the narrower
     /// question honestly beats answering the wider one approximately: a key
     /// that lacks the scope type outright is the failure people actually hit.
@@ -134,7 +134,7 @@ pub enum KeyMatch {
 
 /// Identify an API key secret against the keys the cookie's account holds.
 ///
-/// Roblox's listing returns `apikeySecretPreview` — the first characters of
+/// Roblox's listing returns `apikeySecretPreview`: the first characters of
 /// each secret, the same thing the Creator Hub shows in its "Key" column. That
 /// is the only link between a secret sitting in `RBX_API_KEY` and a key's
 /// stored configuration: `introspect` is authoritative but stops working about
@@ -217,8 +217,8 @@ fn facts_from_remote(key: &remote_view::RemoteKey) -> KeyFacts {
 
 /// The scopes `introspect` reports for a secret.
 ///
-/// Authoritative — it asks about the secret itself rather than about a key
-/// found by matching a prefix — but only usable while the JWT inside the secret
+/// Authoritative (it asks about the secret itself rather than about a key
+/// found by matching a prefix) but only usable while the JWT inside the secret
 /// is still valid, roughly an hour after create or regenerate. An `Err` here is
 /// the ordinary case for any older key and callers should treat it as
 /// "unavailable", not "broken".

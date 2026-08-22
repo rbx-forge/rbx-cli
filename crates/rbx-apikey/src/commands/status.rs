@@ -1,4 +1,4 @@
-//! `rbx apikey status [--remote]` — reconcile config + lockfile + (optionally) Roblox.
+//! `rbx apikey status [--remote]`: reconcile config + lockfile + (optionally) Roblox.
 
 use std::collections::BTreeSet;
 

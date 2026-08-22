@@ -1,4 +1,4 @@
-//! Regenerate — or verify — the codegen folder, offline.
+//! Regenerate (or verify) the codegen folder, offline.
 //!
 //! The generated modules are a pure function of `rbxshop.toml` and
 //! `rbxshop.lock`, both of which are committed. Nothing here contacts Roblox,
@@ -7,7 +7,7 @@
 //! match the inputs it was derived from?
 //!
 //! `sync` runs the same generation at the end of a successful run. This
-//! command exists so regenerating does not require credentials — otherwise a
+//! command exists so regenerating does not require credentials: otherwise a
 //! `--check` failure would be unfixable by anyone without an API key, which
 //! is the fastest way to get a hook disabled.
 

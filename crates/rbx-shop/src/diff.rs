@@ -1,8 +1,8 @@
 //! Config + lockfile → the plan `sync` applies and `check` reports.
 //!
 //! The three resource kinds used to be three ~90-line functions with the same
-//! structure — create-if-absent, field-by-field `FieldChange`, icon-hash
-//! compare, skip-or-update — and the orphan-warning loop was the same
+//! structure: create-if-absent, field-by-field `FieldChange`, icon-hash
+//! compare, skip-or-update, and the orphan-warning loop was the same
 //! paragraph three times. A fix applied to one was a bug waiting in the other
 //! two.
 //!
@@ -134,8 +134,8 @@ pub fn build_sync_plan(
 
 /// What a resource kind has to supply for the shared diff to run over it.
 ///
-/// Deliberately small: everything else — create-if-absent, the icon-hash
-/// compare, skip-versus-update — belongs to every kind equally and lives in
+/// Deliberately small: everything else (create-if-absent, the icon-hash
+/// compare, skip-versus-update) belongs to every kind equally and lives in
 /// `diff_kind`.
 trait Diffable {
     type Cfg;
@@ -155,7 +155,7 @@ trait Diffable {
     fn field_changes(cfg: &Self::Cfg, key: &str, lock: &Self::Lock, out: &mut Vec<FieldChange>);
 }
 
-/// A lock entry with no config entry is not deleted — it just falls out of
+/// A lock entry with no config entry is not deleted: it just falls out of
 /// management, and this warning is the only signal the user gets.
 fn orphan_warnings<K: Diffable>(
     resources: &ResolvedResources,
@@ -236,7 +236,7 @@ fn description_change(cfg: Option<&str>, lock: Option<&str>, out: &mut Vec<Field
     }
 }
 
-/// The display name is the explicit `name` when set, else the TOML key — read
+/// The display name is the explicit `name` when set, else the TOML key: read
 /// the key instead and every resource without an explicit name diffs forever.
 fn name_change(cfg: Option<&str>, key: &str, lock: &str, out: &mut Vec<FieldChange>) {
     let resolved = resolve_name(cfg, key);

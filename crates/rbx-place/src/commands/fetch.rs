@@ -128,7 +128,7 @@ pub async fn run(
     } else {
         println!();
         println!(
-            "Dry run — pass {} to write to {}",
+            "Dry run: pass {} to write to {}",
             "--write".bold(),
             global.places.display()
         );

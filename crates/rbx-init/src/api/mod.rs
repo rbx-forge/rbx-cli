@@ -27,7 +27,7 @@ pub struct RbxClient {
     ///
     /// Injectable so the request shaping can be exercised against a mock
     /// server. Until this existed the URLs were `const`s and nothing here
-    /// could run against a server of any kind — including the calls that
+    /// could run against a server of any kind, including the calls that
     /// create a real group, a real universe and a real place.
     ///
     /// Five rather than one because they are genuinely five services with
@@ -38,15 +38,15 @@ pub struct RbxClient {
 
 /// Every host `rbx-init` reaches, so a test can move them together.
 pub(crate) struct Hosts {
-    /// `apis.roblox.com` — universe and place creation.
+    /// `apis.roblox.com`: universe and place creation.
     pub(crate) apis: ApiBase,
-    /// `develop.roblox.com` — configuration reads and renames.
+    /// `develop.roblox.com`: configuration reads and renames.
     pub(crate) develop: ApiBase,
-    /// `groups.roblox.com` — group creation and membership.
+    /// `groups.roblox.com`: group creation and membership.
     pub(crate) groups: ApiBase,
-    /// `users.roblox.com` — who the cookie belongs to.
+    /// `users.roblox.com`, who the cookie belongs to.
     pub(crate) users: ApiBase,
-    /// `games.roblox.com` — listing a group's universes.
+    /// `games.roblox.com`: listing a group's universes.
     pub(crate) games: ApiBase,
 }
 
@@ -121,15 +121,15 @@ impl RbxClient {
 
     /// Refuse to go on when the cookie is no longer a session (#63).
     ///
-    /// Called by the five commands that create or rename something with it —
-    /// `create-group`, `create-universe`, `create-place`, `rename-place`,
-    /// `rename-universe` — before their first write. Not by the listings: they
+    /// Called by the five commands that create or rename something with it
+    /// (`create-group`, `create-universe`, `create-place`, `rename-place`,
+    /// `rename-universe`) before their first write. Not by the listings: they
     /// attach the cookie to a read that either answers or answers with less,
     /// and have nothing to leave behind.
     ///
     /// The check is one `users/authenticated` call cached per process by
     /// `rbx-core`, which is also where `list-groups` gets the account it lists
-    /// for — so a run that does both spends one round trip, not two.
+    /// for, so a run that does both spends one round trip, not two.
     ///
     /// A missing cookie is `cookie_header`'s error to raise, at the call that
     /// needs one.
@@ -294,8 +294,8 @@ mod tests {
         );
     }
 
-    /// A 403 that carries no token is a real refusal — a cookie that is not
-    /// allowed to do this — and must surface rather than spin.
+    /// A 403 that carries no token is a real refusal (a cookie that is not
+    /// allowed to do this) and must surface rather than spin.
     #[tokio::test]
     async fn a_403_without_a_token_is_an_error_and_not_a_retry_loop() {
         let server = MockServer::start().await;

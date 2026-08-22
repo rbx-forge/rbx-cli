@@ -1,4 +1,4 @@
-//! `rbx apikey introspect <key>` — print what Roblox has stored for a key.
+//! `rbx apikey introspect <key>`: print what Roblox has stored for a key.
 //! Requires the JWT inside the secret to still be valid (~1h after create/regenerate).
 
 use anyhow::{anyhow, bail, Result};

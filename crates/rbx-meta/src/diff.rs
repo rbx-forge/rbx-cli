@@ -41,8 +41,8 @@ impl SyncPlan {
     /// the API key.
     ///
     /// A method rather than the expression it replaced in `sync::run`, because
-    /// it is now asked twice — once to refuse early, once inside `apply_plan`
-    /// where the guarantee has to hold whatever the caller did — and two copies
+    /// it is now asked twice (once to refuse early, once inside `apply_plan`
+    /// where the guarantee has to hold whatever the caller did) and two copies
     /// of a list of four fields is one field away from disagreeing.
     pub fn needs_cookie(&self) -> bool {
         self.place_legacy_patch.is_some()
@@ -67,7 +67,7 @@ pub struct PlacePatch {
 }
 
 /// Patch for legacy `develop.roblox.com/v2/places/{id}` (cookie-only).
-/// No updateMask — the legacy API accepts any subset of fields.
+/// No updateMask: the legacy API accepts any subset of fields.
 #[derive(Debug)]
 pub struct PlaceLegacyPatch {
     pub body: Value,
@@ -368,15 +368,15 @@ fn build_universe_legacy_patch(
 /// Roblox's field is a JSON string, and anything dumped out of Studio or copied
 /// from somebody's example is JSON, so refusing it would mean hand-converting a
 /// hundred and fifty keys. But a project whose every other config file is TOML
-/// should not be forced to grow one that is not — which is the objection this
+/// should not be forced to grow one that is not, which is the objection this
 /// answers.
 ///
 /// Both land on the same `serde_json::Value` before hashing, so the two formats
 /// are interchangeable: rewriting `avatar.json` as `avatar.toml` with the same
 /// content produces the same hash and sends nothing.
 ///
-/// TOML has no `null`. Nothing in the documents Roblox accepts here uses one —
-/// they are numbers, booleans, arrays and tables all the way down — but a
+/// TOML has no `null`. Nothing in the documents Roblox accepts here uses one
+/// (they are numbers, booleans, arrays and tables all the way down) but a
 /// document that needed one would have to be the JSON form.
 fn read_engine_avatar_settings(path: &Path) -> Result<(String, String)> {
     let text = std::fs::read_to_string(path)
@@ -822,7 +822,7 @@ fn build_thumbnail_plan(
                 });
             }
             Some((lock_idx, None)) => {
-                // Lockfile entry without an image_id — treat as new upload.
+                // Lockfile entry without an image_id: treat as new upload.
                 used[lock_idx] = true;
                 plan.uploads.push(ThumbUpload {
                     bytes: bytes.clone(),
@@ -952,7 +952,7 @@ const AVATAR_OVERLAPS: &[(&str, &str, &str)] = &[
 /// contradiction has no way to discover it from this tool, from the API, or
 /// from the Creator Hub. It surfaces when somebody opens Studio and reads
 /// `AvatarSettings Error: Failed to deserialize properties`, which is exactly
-/// how this was found — on a test universe that had been sent both.
+/// how this was found, on a test universe that had been sent both.
 ///
 /// Free to impose, too, which is why it is imposed now: the avatar fields have
 /// never appeared in a release, so no existing project can be running a
@@ -1015,7 +1015,7 @@ fn find_section(value: &Value, name: &str) -> bool {
 /// The scale object Roblox takes.
 ///
 /// **Five of the six fields.** `Roblox.Web.Responses.Avatar.ScaleModel` also
-/// declares `depth`, and this omits it — which sits awkwardly beside the reason
+/// declares `depth`, and this omits it, which sits awkwardly beside the reason
 /// [`AvatarScales`] requires all of its own fields: that Roblox reads the
 /// object whole, so a key left out is a key it may read as zero.
 ///
@@ -1027,7 +1027,7 @@ fn find_section(value: &Value, name: &str) -> bool {
 /// against.
 ///
 /// **If a synced experience comes back with squashed avatars, this is the first
-/// place to look** — add `depth` to [`AvatarScales`] as a sixth required field
+/// place to look**: add `depth` to [`AvatarScales`] as a sixth required field
 /// and it will travel with the rest.
 fn scales_json(s: &AvatarScales) -> Value {
     json!({
@@ -1069,7 +1069,7 @@ pub fn config_to_lock(game: &Game) -> GameLock {
         paid_access: game.paid_access.clone(),
         genre: game.genre,
         // Deliberately not derived here. This function takes only a `Game`, and
-        // the hash is of a file it has no path to resolve — `sync` writes it
+        // the hash is of a file it has no path to resolve: `sync` writes it
         // from the patch that carried it, which is also the only moment the
         // hash is known to describe something Roblox actually received.
         engine_avatar_settings_hash: None,
@@ -1106,7 +1106,7 @@ pub fn desired_order(plan: &ThumbnailPlan, new_image_ids: &[Option<u64>]) -> Vec
 // Tests
 //
 // These functions decide what gets written to a live universe and a live
-// place. They are pure — config + lockfile in, patch out — so they are cheap
+// place. They are pure (config + lockfile in, patch out) so they are cheap
 // to pin exactly, and every assertion below is on the exact body and mask
 // rather than on the patch merely existing.
 // ---------------------------------------------------------------------------
@@ -2023,7 +2023,7 @@ mod tests {
         /// It used to be nowhere. `sync` only dropped lockfile entries inside
         /// its deletes loop, which is keyed on `image_id`, so an entry without
         /// one survived every run forever (#22). `sync` now prunes those as
-        /// bookkeeping, before its own "nothing to do" exit — which it has to
+        /// bookkeeping, before its own "nothing to do" exit, which it has to
         /// be, because this plan being empty is exactly what that exit tests.
         #[test]
         fn an_orphaned_lock_entry_without_an_image_id_is_no_remote_work() {
@@ -2232,7 +2232,7 @@ mod tests {
         }
 
         /// The case the reorder exists for. Uploads are appended to the end of
-        /// the remote list, but the config wants the new image first — so the
+        /// the remote list, but the config wants the new image first, so the
         /// desired order is not the post-upload order, and sending it is the
         /// only thing that puts the new thumbnail where the user asked.
         #[test]
@@ -2528,7 +2528,7 @@ mod tests {
         }
 
         /// The `assetTypeID` numbers are Roblox's global asset-type numbering
-        /// and are neither contiguous nor in the order the slots read — `Head`
+        /// and are neither contiguous nor in the order the slots read: `Head`
         /// is 17 while `Torso` is 27, and `TShirt` is 2 while `Shirt` is 11.
         /// Nothing but an assertion keeps that table right.
         #[test]

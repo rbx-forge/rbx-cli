@@ -25,7 +25,7 @@
 //! API: the local copy written before every write here is not a convenience.
 //!
 //! The exception is `data snapshot`. After one, the next write to every key
-//! keeps the value it replaced as a revision, readable for 30 days — so the
+//! keeps the value it replaced as a revision, readable for 30 days, so the
 //! state as of the snapshot survives one overwrite per key. It is capped at one
 //! per experience per UTC day, which makes it something you run deliberately
 //! before a migration rather than a standing safety net. Absent one, the backup
@@ -152,8 +152,8 @@ enum Command {
         ///
         /// The copy exists because an overwrite is otherwise unrecoverable
         /// through the API. Skip it when the previous value is already
-        /// recoverable — after `data snapshot`, Roblox keeps it as a revision
-        /// for 30 days — or when there is nowhere to write, which is the case
+        /// recoverable (after `data snapshot`, Roblox keeps it as a revision
+        /// for 30 days) or when there is nowhere to write, which is the case
         /// in a container with a read-only working directory. Without one of
         /// those, this throws away the only way back.
         #[arg(long, conflicts_with = "backup")]
@@ -274,8 +274,8 @@ enum Command {
         ///
         /// The copy exists because an overwrite is otherwise unrecoverable
         /// through the API. Skip it when the previous value is already
-        /// recoverable — after `data snapshot`, Roblox keeps it as a revision
-        /// for 30 days — or when there is nowhere to write, which is the case
+        /// recoverable (after `data snapshot`, Roblox keeps it as a revision
+        /// for 30 days) or when there is nowhere to write, which is the case
         /// in a container with a read-only working directory. Without one of
         /// those, this throws away the only way back.
         #[arg(long, conflicts_with = "backup")]
@@ -327,8 +327,8 @@ enum Command {
         ///
         /// The copy exists because an overwrite is otherwise unrecoverable
         /// through the API. Skip it when the previous value is already
-        /// recoverable — after `data snapshot`, Roblox keeps it as a revision
-        /// for 30 days — or when there is nowhere to write, which is the case
+        /// recoverable (after `data snapshot`, Roblox keeps it as a revision
+        /// for 30 days) or when there is nowhere to write, which is the case
         /// in a container with a read-only working directory. Without one of
         /// those, this throws away the only way back.
         #[arg(long, conflicts_with = "backup")]
@@ -436,8 +436,8 @@ enum Command {
         ///
         /// The copy exists because an overwrite is otherwise unrecoverable
         /// through the API. Skip it when the previous value is already
-        /// recoverable — after `data snapshot`, Roblox keeps it as a revision
-        /// for 30 days — or when there is nowhere to write, which is the case
+        /// recoverable (after `data snapshot`, Roblox keeps it as a revision
+        /// for 30 days) or when there is nowhere to write, which is the case
         /// in a container with a read-only working directory. Without one of
         /// those, this throws away the only way back.
         #[arg(long, conflicts_with = "backup")]
@@ -510,7 +510,7 @@ impl Api {
             //
             // Matched on the typed status, not on the rendered message. The
             // message embeds the response body, and a stored value is free to
-            // contain "404" — that read as a missing entry and made `get`
+            // contain "404": that read as a missing entry and made `get`
             // deny a key that was sitting right there.
             Err(error) if is_api_status(&error, StatusCode::NOT_FOUND) => Ok(None),
             Err(error) => Err(explain_missing_scope(error)),
@@ -1262,7 +1262,7 @@ struct BackupFlags {
 /// Which subdirectory of `.rbx/backups/` this write belongs to.
 ///
 /// `--env` is the operator's own name for the target and the one they will
-/// look under months later. Without it — `--universe-id` on its own — the
+/// look under months later. Without it (`--universe-id` on its own) the
 /// universe is the only name there is, and it is still better than one shared
 /// pile.
 fn env_label(env: Option<&str>, universe_id: u64) -> String {
@@ -1436,7 +1436,7 @@ mod json_flag_tests {
     /// A format that owns stdout may not stop to ask a question: that is
     /// `OutputFormat::may_prompt`, and it is false for `Json` whatever the
     /// terminal looks like. Every writing subcommand here asks one, through
-    /// `confirm_always`, so none of them carries the flag — the guarantee is
+    /// `confirm_always`, so none of them carries the flag: the guarantee is
     /// structural rather than a check somebody has to remember to write.
     ///
     /// This pins it. Adding `--json` to `set` would fail here, before it could

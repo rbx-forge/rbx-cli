@@ -1,4 +1,4 @@
-//! `rbx apikey create <key>|--all` — generate a new Open Cloud API key.
+//! `rbx apikey create <key>|--all`: generate a new Open Cloud API key.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -21,7 +21,7 @@ use super::{make_client, require_no_collision};
 /// Name the account and ask, before a credential is minted on it.
 ///
 /// `create` used to print `Creator: user_id=<n>` and go straight on, which is
-/// the one thing the other write verbs do not do — and the worst place for it.
+/// the one thing the other write verbs do not do, and the worst place for it.
 /// A key is minted on whichever account the cookie signs in as, Studio
 /// auto-detection follows whichever account Studio happens to be signed into,
 /// and the numeric id printed after the fact is not something a person can act
@@ -210,7 +210,7 @@ async fn create_one(
     let need_owners = scope_builder::needs_owner_resolution(key_cfg);
 
     // Sync this key's envs into the lockfile's shared `[envs.X]` table.
-    // We don't pre-resolve universe_ids ourselves — `sync_envs` does the
+    // We don't pre-resolve universe_ids ourselves: `sync_envs` does the
     // `rbxplace.toml` lookup and reuses cached owners when they're still valid.
     let synced =
         owner_resolver::sync_envs(client, &effective_envs, places, &lk.envs, need_owners).await?;
@@ -482,7 +482,7 @@ mod tests {
     }
 
     /// The whole point of #101: Roblox may store the same permissions in a
-    /// different arrangement — one entry per target, or two types merged —
+    /// different arrangement (one entry per target, or two types merged)
     /// and that is not drift. Counting entries called it drift on a key
     /// created exactly as asked.
     #[test]

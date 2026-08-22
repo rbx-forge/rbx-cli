@@ -2,7 +2,7 @@
 //! by this name already exist?
 //!
 //! Why it is worth a round trip. `diff` decides `Action::Create` from one
-//! fact — the key is absent from `rbxshop.lock.toml` — which is correct right
+//! fact (the key is absent from `rbxshop.lock.toml`) which is correct right
 //! up until the lockfile is not the record it is assumed to be. The lockfile
 //! not being committed is the ordinary way that happens: it lands in
 //! `.gitignore` by mistake, or a branch is cut before it was added, and the
@@ -79,7 +79,7 @@ fn pending_creates(
 
 /// Remote display names for one kind, as `(name, id)` pairs.
 ///
-/// Returns the pairs rather than a map because names are not unique remotely —
+/// Returns the pairs rather than a map because names are not unique remotely:
 /// building a map here would silently drop exactly the duplicates this module
 /// exists to report.
 ///
@@ -143,7 +143,7 @@ pub(crate) async fn find_collisions(
         }
 
         // The listing needs a read scope, and a create-only sync is exactly
-        // where it runs — so a key with write-but-not-read scope that worked
+        // where it runs, so a key with write-but-not-read scope that worked
         // yesterday fails here today. The failure is kept (a guard that gave up
         // quietly would not be a guard) but the message has to name the way
         // past it, or the reader is left with a scope error and no route.
@@ -168,8 +168,8 @@ pub(crate) async fn find_collisions(
 /// The matching itself, with no network in it.
 ///
 /// Separated from `find_collisions` because this is where the judgement calls
-/// live — what counts as the same name, and what gets reported when several
-/// remote resources answer to it — and those deserve tests that do not need a
+/// live (what counts as the same name, and what gets reported when several
+/// remote resources answer to it) and those deserve tests that do not need a
 /// mock server to state.
 fn collide(
     kind: ResourceKind,
@@ -182,7 +182,7 @@ fn collide(
             // Case-insensitive: a name differing only in case is far more
             // likely to be the resource the lockfile lost track of than a
             // deliberate second one, and the cost of the two answers is not
-            // symmetric — a false stop is a flag away, a false create is
+            // symmetric: a false stop is a flag away, a false create is
             // permanent.
             let remote_ids: Vec<u64> = remote
                 .iter()
@@ -225,7 +225,7 @@ pub(crate) fn refuse(collisions: &[Collision], env: &str) -> anyhow::Error {
             .collect::<Vec<_>>()
             .join(", ");
         out.push_str(&format!(
-            "  {} '{}' (key '{}') — already id {}\n",
+            "  {} '{}' (key '{}'): already id {}\n",
             c.kind, c.display_name, c.key, ids
         ));
     }

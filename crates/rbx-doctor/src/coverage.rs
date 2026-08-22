@@ -17,7 +17,7 @@
 //! The cost is over-reporting: a repo with an `rbxshop.toml` that only declares
 //! game passes is told it cannot manage badges. The line says which scope is
 //! missing for which operation, so a reader who does not use badges can see
-//! that it does not apply to them — which is a far better failure than silence
+//! that it does not apply to them, which is a far better failure than silence
 //! about a scope they do need.
 //!
 //! # Where the requirements come from
@@ -129,7 +129,7 @@ pub const REQUIREMENTS: &[ToolRequirements] = &[
                 // `legacy-universe.badge:read` with `400 InvalidScopes`,
                 // measured against the live API on 2026-08-16. Asking for it
                 // here sent a reader to add a scope that cannot be created,
-                // and the embedded catalog has said so all along — it lists
+                // and the embedded catalog has said so all along: it lists
                 // two operations for this type, not three.
                 scopes: &[
                     ("legacy-universe.badge", "write"),
@@ -241,7 +241,7 @@ mod tests {
     ///
     /// The catalog is generated from Roblox's own `openapi.json`; these tables
     /// are hand-written. Where the two disagree, one of them is wrong, and
-    /// which one is not this crate's call to make — `rbx apikey` accepts an
+    /// which one is not this crate's call to make: `rbx apikey` accepts an
     /// unknown scope with a warning rather than refusing it, precisely because
     /// Roblox's spec has been observed to lag what the API accepts.
     ///
@@ -251,11 +251,11 @@ mod tests {
     /// Roblox publishes one of these, that test fails and the entry gets
     /// deleted.
     ///
-    /// - `universe.image:read` / `:write` — `docs/meta.md` requires them for
+    /// - `universe.image:read` / `:write`: `docs/meta.md` requires them for
     ///   icons and thumbnails and notes the calls go to
     ///   `legacy-game-internationalization` endpoints. No `universe.image`
     ///   scope of any kind is in the catalog.
-    /// - `legacy-universe.badge:read` — the type is in the catalog, with
+    /// - `legacy-universe.badge:read`: the type is in the catalog, with
     ///   `write` and `manage-and-spend-robux` but no `read`.
     const UNCORROBORATED: &[(&str, &str)] = &[
         ("universe.image", "read"),
@@ -279,7 +279,7 @@ mod tests {
                         catalog_corroborates(scope_type, operation)
                             || UNCORROBORATED.contains(&(scope_type, operation)),
                         "{scope_type}:{operation} (required by {}) is neither in the scope \
-                         catalog nor a recorded divergence — typo, or a scope worth recording",
+                         catalog nor a recorded divergence: typo, or a scope worth recording",
                         op.what
                     );
                 }
@@ -295,7 +295,7 @@ mod tests {
         for (scope_type, operation) in UNCORROBORATED {
             assert!(
                 !catalog_corroborates(scope_type, operation),
-                "{scope_type}:{operation} is in the catalog now — drop it from UNCORROBORATED"
+                "{scope_type}:{operation} is in the catalog now: drop it from UNCORROBORATED"
             );
         }
     }

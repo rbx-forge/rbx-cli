@@ -1,4 +1,4 @@
-//! `rbx apikey regenerate <key>|--all` — rotate the API key secret.
+//! `rbx apikey regenerate <key>|--all`: rotate the API key secret.
 
 use anyhow::{bail, Result};
 use colored::Colorize;

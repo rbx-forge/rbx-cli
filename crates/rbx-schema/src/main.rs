@@ -12,7 +12,7 @@
 //! machinery would otherwise ride along in a binary that ships to users and
 //! never calls them, on a project whose release profile is tuned for size. So
 //! the models carry `JsonSchema` behind an off-by-default `schema` feature,
-//! and this crate — built from source, never released — is the only thing that
+//! and this crate (built from source, never released) is the only thing that
 //! turns it on.
 //!
 //! # Why derive rather than hand-write

@@ -102,7 +102,7 @@ async fn a_user_owned_universe_resolves_to_a_user_owner() {
     );
 }
 
-/// A universe that reports no owner still imports — `[owner]` is a
+/// A universe that reports no owner still imports: `[owner]` is a
 /// convenience, and only badge creation needs it later.
 #[tokio::test]
 async fn a_universe_without_an_owner_is_not_an_error() {
@@ -123,7 +123,7 @@ async fn a_universe_without_an_owner_is_not_an_error() {
 }
 
 /// A key without `universe.read` is the most likely first failure, and it has
-/// to fail here — before anything is written to disk.
+/// to fail here, before anything is written to disk.
 #[tokio::test]
 async fn a_refused_universe_read_is_an_error() {
     let server = MockServer::start().await;
@@ -176,7 +176,7 @@ async fn the_root_place_comes_first_and_is_keyed_main() {
     .await
     .unwrap();
 
-    // `main` regardless of what Roblox calls it — the rest of the toolkit
+    // `main` regardless of what Roblox calls it: the rest of the toolkit
     // resolves `main` as the default place.
     assert_eq!(places[0].key, "main");
     assert_eq!(places[0].id, ROOT_PLACE);

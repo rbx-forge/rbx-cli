@@ -2,7 +2,7 @@
 //!
 //! Roblox will not accept a secret in the clear. A write carries the content
 //! already encrypted, as a **LibSodium sealed box** under the universe's
-//! X25519 public key, base64-encoded — so this module is not a convenience,
+//! X25519 public key, base64-encoded, so this module is not a convenience,
 //! it is the difference between the command existing and not.
 //!
 //! ## What a sealed box is, and why it is the right shape here
@@ -10,7 +10,7 @@
 //! An ordinary NaCl `box` authenticates *both* ends: the sender needs a
 //! long-term keypair the receiver already knows. That is not this situation.
 //! Whoever runs `rbx secret set` has no identity registered with Roblox
-//! beyond the API key in the header, and Roblox has no interest in one — the
+//! beyond the API key in the header, and Roblox has no interest in one: the
 //! key already said who is calling.
 //!
 //! A sealed box drops the sender's half. It generates a throwaway keypair per
@@ -29,7 +29,7 @@
 //! [`Sealed`] carries the `key_id` from the same response the public key came
 //! from, rather than letting the caller pair them up. A value sealed under a
 //! rotated key and submitted with the current key's id is a secret Roblox
-//! stores and can never decrypt — a failure that surfaces months later, in
+//! stores and can never decrypt: a failure that surfaces months later, in
 //! production, as `GetSecret` returning something unusable. Keeping the two
 //! in one value means they cannot drift apart in a call site.
 
@@ -118,7 +118,7 @@ impl UniverseKey {
     /// and other binary material, and a signature that only accepted UTF-8
     /// would quietly rule that out.
     ///
-    /// `OsRng` and not a seeded generator anywhere in reach — the ephemeral
+    /// `OsRng` and not a seeded generator anywhere in reach: the ephemeral
     /// keypair is the whole confidentiality of the scheme, and a reproducible
     /// one would make two seals of the same value byte-identical, which is
     /// itself a leak.

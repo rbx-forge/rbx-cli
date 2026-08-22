@@ -111,8 +111,8 @@ fn memorystore_args<'a>(places: &'a str, uri: &'a str) -> Vec<&'a str> {
 }
 
 /// The arbitration the document is built on: the stored profile is nested as
-/// JSON under `value`, so `jq` reaches into it, and the entry's `users` — the
-/// association Roblox answers a player's data request from — is nowhere in the
+/// JSON under `value`, so `jq` reaches into it, and the entry's `users` (the
+/// association Roblox answers a player's data request from) is nowhere in the
 /// output, exactly as in the human form.
 #[tokio::test(flavor = "multi_thread")]
 async fn data_get_nests_the_value_and_leaves_the_user_association_out() {

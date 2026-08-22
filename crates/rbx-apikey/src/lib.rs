@@ -111,7 +111,7 @@ pub enum ApikeyCommands {
         ///
         /// Two shapes, and `--remote` is what picks between them: what this
         /// project declares, or what the account holds. Neither carries a
-        /// secret, a piece of one, or the path to the file holding one — not
+        /// secret, a piece of one, or the path to the file holding one, not
         /// even the Creator Hub's preview column. stdout carries the document
         /// and nothing else; notes and warnings stay on stderr. Field names are
         /// documented in docs/apikey.md.
@@ -125,7 +125,7 @@ pub enum ApikeyCommands {
     /// Select keys on the account and delete them.
     ///
     /// Works from the account listing rather than the lockfile, so it can
-    /// reach keys this project never created — which is what makes it useful
+    /// reach keys this project never created, which is what makes it useful
     /// and what makes it dangerous. Nothing is preselected and there is no
     /// `--all`: deleting an untracked key breaks whatever else depends on it,
     /// silently.
@@ -267,7 +267,7 @@ pub enum ScopesAction {
         /// Write the result to stdout as one JSON document.
         ///
         /// The catalog's answer for one scope type, including `known: false`
-        /// for a scope it does not list — the catalog is advisory and
+        /// for a scope it does not list: the catalog is advisory and
         /// rbxapikey.toml forwards any string. Field names are documented in
         /// docs/apikey.md.
         #[arg(long)]
@@ -408,9 +408,9 @@ mod json_flag_tests {
 
     /// A format that owns stdout may not stop to ask a question: that is
     /// `OutputFormat::may_prompt`, and it is false for `Json` whatever the
-    /// terminal looks like. Every subcommand here that writes asks one —
-    /// `create` and `update` confirm, `prune` draws a multi-select, `delete`
-    /// and `regenerate` confirm twice — so none of them carries the flag. The
+    /// terminal looks like. Every subcommand here that writes asks one
+    /// (`create` and `update` confirm, `prune` draws a multi-select, `delete`
+    /// and `regenerate` confirm twice) so none of them carries the flag. The
     /// guarantee is structural rather than a check somebody has to remember.
     ///
     /// `resolve` is on the list for a different reason and a harder one: it
@@ -456,7 +456,7 @@ mod json_flag_tests {
             vec!["introspect", "deploy"],
             // Bare: `--place-id` is a global flag now, declared on the
             // top-level parser rather than on this subcommand, so it is not
-            // part of what this parser sees. That is the point of the move —
+            // part of what this parser sees. That is the point of the move:
             // one spelling of a place id, in one place.
             vec!["can-manage"],
             vec!["scopes", "list"],
@@ -470,8 +470,8 @@ mod json_flag_tests {
     }
 
     /// `--expiry-only` is a narrower rendering of the same rows: name and
-    /// expiry, no id, no secret line. A document has no narrower rendering —
-    /// it has the fields it promises — so asking for both is a mistake worth
+    /// expiry, no id, no secret line. A document has no narrower rendering
+    /// (it has the fields it promises) so asking for both is a mistake worth
     /// reporting rather than a precedence question. `--sort` is not, because
     /// the order of an array is a real difference and the document says which
     /// order it is in.

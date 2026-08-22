@@ -1,4 +1,4 @@
-//! `rbx apikey can-manage` — can you create a key for this experience at all?
+//! `rbx apikey can-manage`: can you create a key for this experience at all?
 //!
 //! Asked often enough to deserve a command: before writing a `[keys.x]` block
 //! and running `create`, you want to know whether Roblox will let you. For a

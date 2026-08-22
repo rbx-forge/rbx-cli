@@ -20,7 +20,7 @@ prodread/*.lock.toml
 
 # The configs themselves, because to be useful they have to hold real values: a
 # real public IP in the key allowlists, real universe and place ids. Scrubbing
-# them and committing placeholders worked, but only by discipline — the moment
+# them and committing placeholders worked, but only by discipline: the moment
 # somebody pastes their own IP back in to actually run something, a tracked
 # file holds personal data and is one `git commit -a` from being published.
 #

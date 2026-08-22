@@ -1,6 +1,6 @@
 # rbx import
 
-Adopt an existing universe in one command. `rbx import` resolves a universe you already have on Roblox, writes the env into `rbxplace.toml`, and brings its passes, badges, products, metadata and live config into the TOML files each tool manages — with the lockfiles that make the immediately-following `check` green.
+Adopt an existing universe in one command. `rbx import` resolves a universe you already have on Roblox, writes the env into `rbxplace.toml`, and brings its passes, badges, products, metadata and live config into the TOML files each tool manages, with the lockfiles that make the immediately-following `check` green.
 
 It is the command for a game that predates this toolkit, which is nearly every game. Without it, adoption means copying ids out of the Creator Hub by hand: the class of transcription where one wrong digit points a `sync` at somebody else's universe.
 
@@ -32,7 +32,7 @@ rbx import --universe-id 123456789 --env prod --strict     # Fail instead of ski
 | `rbxmeta.toml` + `.lock` | `rbx meta init --from-remote` then `rbx meta pull --accept-remote` | Name, description, devices, social links, private servers, icon and thumbnails |
 | `rbxconfig.toml` + `.lock` | `rbx config pull` | The live in-experience config, live being authoritative |
 
-`import` computes none of those lockfile entries. It runs each tool's own import path, which is what makes the zero-drift guarantee reachable at all — the lockfile is written by the same code that later reads it.
+`import` computes none of those lockfile entries. It runs each tool's own import path, which is what makes the zero-drift guarantee reachable at all: the lockfile is written by the same code that later reads it.
 
 ## The acceptance criterion
 
@@ -61,12 +61,12 @@ The second run:
 - **appends** `[staging]` to `rbxplace.toml`; `[prod]`, `[owner]`, `[codegen]` and every comment are untouched, byte for byte;
 - **pulls** rather than re-initialises each domain, so `rbxshop.toml` gains an `[envs.staging.*]` overlay for the fields that differ from base rather than being overwritten.
 
-Which of `init --from-remote` and `pull` runs is decided by whether the config file exists, not by whether this is your first import — a directory can already be under management for reasons that have nothing to do with this command.
+Which of `init --from-remote` and `pull` runs is decided by whether the config file exists, not by whether this is your first import: a directory can already be under management for reasons that have nothing to do with this command.
 
 Those pulls run with `--accept-remote --yes`, because the live game is what an import is adopting. The consequence is worth knowing before you run it a second time: **a local edit you have not synced is resolved to the remote value without a prompt.** `import` names the files it is about to layer onto, on the real run and under `--dry-run` alike:
 
 ```
-! rbxshop.toml, rbxmeta.toml already exist — this env is layered onto them, and a
+! rbxshop.toml, rbxmeta.toml already exist: this env is layered onto them, and a
   local edit that disagrees with Roblox is resolved to the remote value without
   asking. Commit or sync local edits first if you have any.
 ```
@@ -76,7 +76,7 @@ Commit first, or run the domain's own `sync`, if you have edits you meant to kee
 An env that is already in `rbxplace.toml` is left exactly as it is. If its `universe_id` disagrees with the one you passed, `import` says so and keeps the file's:
 
 ```
-! [prod] already points at universe 999 — kept. Nothing was retargeted; use a
+! [prod] already points at universe 999: kept. Nothing was retargeted; use a
   different --env if you meant to add this universe.
 ```
 
@@ -93,8 +93,8 @@ Reported at the end of every run, because a directory that looks adopted but qui
 
 Two categories:
 
-- **Cookie-only metadata.** `server_fill`, `allow_copying` and `beta_mode` have no Open Cloud endpoint. `rbx meta` models them and `sync` can write them, but nothing can read them back without a session cookie — so an import that resolves no cookie at all leaves them unset and says so. The test is what the `meta` step resolves, not what you typed: it auto-detects like any other `rbx meta` run, so on a machine with Studio signed in these fields are read and this line does not appear. Without that line, the first `meta sync` after an import looks like it is inventing changes.
-- **A domain that failed.** By default a domain that errors — usually a key missing one scope — is skipped and reported rather than aborting the run, because a half-written directory with no explanation is the worse outcome. `--strict` inverts that, which is what you want in CI.
+- **Cookie-only metadata.** `server_fill`, `allow_copying` and `beta_mode` have no Open Cloud endpoint. `rbx meta` models them and `sync` can write them, but nothing can read them back without a session cookie, so an import that resolves no cookie at all leaves them unset and says so. The test is what the `meta` step resolves, not what you typed: it auto-detects like any other `rbx meta` run, so on a machine with Studio signed in these fields are read and this line does not appear. Without that line, the first `meta sync` after an import looks like it is inventing changes.
+- **A domain that failed.** By default a domain that errors (usually a key missing one scope) is skipped and reported rather than aborting the run, because a half-written directory with no explanation is the worse outcome. `--strict` inverts that, which is what you want in CI.
 
 ## Flags
 
@@ -116,7 +116,7 @@ The import calls each tool's own read paths, so it needs the read half of what t
 | Step | Scopes |
 | --- | --- |
 | Resolve the universe | `universe:read` |
-| List places | none — the legacy `develop` host answers without any credential |
+| List places | none: the legacy `develop` host answers without any credential |
 | Shop | `game-pass:read`, `developer-product:read`, `legacy-badge:manage` to list badges, `legacy-asset:manage` for icon downloads. Without that last one icons still arrive, from the public thumbnail service, but rescaled rather than as stored |
 | Meta | `universe:read`, `universe.place:read`. Icons and thumbnails need nothing: `pull` reads them from `thumbnails.roblox.com`, the public service, with no key attached |
 | Config | `universe:read` |
@@ -135,9 +135,9 @@ The root place is always written as `places.main`, whatever Roblox calls it, bec
 
 ## Related
 
-- [docs/place.md](./place.md) — the `rbxplace.toml` this writes, and what reads it
-- [docs/shop.md](./shop.md) — what lands in `rbxshop.toml`, and the overlay layout a second import produces
-- [docs/meta.md](./meta.md) — the metadata fields, including the cookie-only ones
+- [docs/place.md](./place.md): the `rbxplace.toml` this writes, and what reads it
+- [docs/shop.md](./shop.md): what lands in `rbxshop.toml`, and the overlay layout a second import produces
+- [docs/meta.md](./meta.md): the metadata fields, including the cookie-only ones
 - [docs/cookie.md](./cookie.md), the trust model: what the cookie is for, how it is resolved, and why it never reaches disk
-- [docs/config.md](./config.md) — live config, where live is authoritative
-- [docs/doctor.md](./doctor.md) — check the key before importing with it
+- [docs/config.md](./config.md): live config, where live is authoritative
+- [docs/doctor.md](./doctor.md): check the key before importing with it

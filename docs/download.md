@@ -42,7 +42,7 @@ rbx download [IDS]... [OPTIONS]
 
 | Situation | Backend |
 | --- | --- |
-| No API key | Public `assetdelivery.roblox.com` (optional Studio cookie, opt-in — see [cookie.md](./cookie.md#auto-detection-is-opt-in)) |
+| No API key | Public `assetdelivery.roblox.com` (optional Studio cookie, opt-in: see [cookie.md](./cookie.md#auto-detection-is-opt-in)) |
 | `--api-key` / `RBX_API_KEY` set | Open Cloud `asset-delivery-api` |
 | `--version <n>` given | Open Cloud (requires an API key) |
 | `--public` given | Public, always |

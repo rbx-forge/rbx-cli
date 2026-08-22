@@ -1,5 +1,5 @@
 #![allow(clippy::unwrap_used)]
-//! `rbx env rm` — what it removes, what it leaves alone, and what it refuses.
+//! `rbx env rm`: what it removes, what it leaves alone, and what it refuses.
 //!
 //! Driven through `commands::rm::run` against a temporary project, because the
 //! properties worth pinning are all about files on disk: which ones changed,
@@ -273,8 +273,8 @@ fn an_env_is_pulled_out_of_every_api_key_list() {
 /// `[settings] default_envs` when a key's own list is empty, so the key may now
 /// target envs it never named.
 ///
-/// It is still emptied — leaving the dangling name would break the next apikey
-/// run outright — but the command prints the list of what it emptied instead of
+/// It is still emptied (leaving the dangling name would break the next apikey
+/// run outright) but the command prints the list of what it emptied instead of
 /// letting the reader discover it.
 #[test]
 fn a_key_left_with_no_envs_keeps_an_empty_list() {
@@ -295,7 +295,7 @@ fn a_key_left_with_no_envs_keeps_an_empty_list() {
 ///
 /// `retain` drops a value together with its own leading whitespace, so removing
 /// the first element of `["dev", "prod"]` promoted the space that followed the
-/// comma and wrote `[ "prod"]` — a space nobody typed, in a file somebody
+/// comma and wrote `[ "prod"]`: a space nobody typed, in a file somebody
 /// maintains by hand. The author's own style is what gets restored, which is
 /// why both spellings are here: a tight list must stay tight and a padded one
 /// must keep its padding.
@@ -508,7 +508,7 @@ fn an_inline_envs_table_is_not_skipped() {
 }
 
 // Deleted rather than kept: the version here asserted only that a dry run
-// writes nothing, which is true whether or not `holds` sees an inline table —
+// writes nothing, which is true whether or not `holds` sees an inline table:
 // a dry run writes nothing either way. It stayed green against the bug it was
 // named for. `an_inline_envs_table_is_not_skipped` above is the one with
 // teeth, checked by restoring `as_table` and watching it go red.

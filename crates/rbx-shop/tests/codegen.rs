@@ -525,7 +525,7 @@ fn pruning_never_touches_a_file_we_did_not_generate() {
     let out = dir.path().join("out/GameIds");
 
     codegen::generate(&config, &lockfile_with(&[("dev", 100, 11)]), dir.path()).unwrap();
-    // Same extension, no generated header — someone's own module.
+    // Same extension, no generated header: someone's own module.
     let handwritten = out.join("Helpers.luau");
     std::fs::write(&handwritten, "return {}\n").unwrap();
 
@@ -605,8 +605,8 @@ fn a_leftover_module_is_reported_as_stale_by_the_plan() {
     assert!(plan.stale[0].ends_with("qa.luau"));
 }
 
-/// A resource that is switched off still gets its id — game code needs it for
-/// ownership checks on the players who already bought it — but the module now
+/// A resource that is switched off still gets its id (game code needs it for
+/// ownership checks on the players who already bought it) but the module now
 /// says so. Before this, `VIP = 11` read identically whether the pass was on
 /// sale or retired, and a prompt that silently does nothing looks like a bug
 /// in the prompt.

@@ -44,7 +44,7 @@ pub async fn run(
         return Ok(());
     }
 
-    // --from-remote — resolve target (env or standalone universe-id).
+    // --from-remote: resolve target (env or standalone universe-id).
     let (env_name, universe_id): (String, u64) = match (ctx.env(), universe_id_flag) {
         (Some(name), Some(_)) => bail!(
             "Cannot pass both --env {} and --universe-id. Pick one: --env for multi-env mode, --universe-id for standalone.",
@@ -107,7 +107,7 @@ pub async fn run(
             PassConfig {
                 // `None` means "the key is the display name", which is only
                 // true while they match. For a resource filed under another
-                // key — a duplicate name the developer disambiguated — the
+                // key (a duplicate name the developer disambiguated) the
                 // real name has to be written down, or the next `sync` reads
                 // the key as the intended name and renames a live pass.
                 name: display_name_override(&key, name),
@@ -278,7 +278,7 @@ pub async fn run(
         for mismatch in &report.mismatches {
             println!(
                 "{} Product '{}' looks like a gift twin of '{}' but its price differs \
-                 ({} vs {}) — left as a separate entry, review manually.",
+                 ({} vs {}): left as a separate entry, review manually.",
                 "!".yellow(),
                 mismatch.twin_key,
                 mismatch.source_key,
@@ -311,7 +311,7 @@ pub async fn run(
         // from Roblox before creating a badge, and this section is only the
         // fallback for when that call cannot answer. A fallback carrying `user`
         // for a group-owned game is a wrong answer waiting for the day the
-        // lookup fails — and it was wrong for the first universe it was tried
+        // lookup fails, and it was wrong for the first universe it was tried
         // against, which is owned by a group.
         //
         // Omitting it is also the honest shape: ownership is a fact about the
@@ -329,7 +329,7 @@ pub async fn run(
 
     if dry_run {
         println!(
-            "\nDry run — would create {} with {} passes, {} badges, {} products (env: {}). \
+            "\nDry run: would create {} with {} passes, {} badges, {} products (env: {}). \
              No files written.",
             config_path.display(),
             config.passes.len(),
@@ -414,7 +414,7 @@ async fn download_icon(
     // Roblox allows `?` in a pass name and Windows does not allow it in a
     // filename: `Auto collect?` failed here with os error 123, and the import
     // reported "shop skipped" rather than naming the character. When nothing
-    // of the name survives, the id alone is the filename — a stem is not
+    // of the name survives, the id alone is the filename: a stem is not
     // optional.
     let safe = rbx_core::fs_name::safe_component(name);
     let relative_str = if safe.is_empty() {
@@ -455,7 +455,7 @@ async fn download_icon(
 /// `None` is the common case and means "the config key is the display name",
 /// which keeps a generated `rbxshop.toml` free of a line repeating its own
 /// table header. It stops being true the moment a resource is filed under a
-/// key it did not pick — a duplicate name the developer disambiguated — and
+/// key it did not pick (a duplicate name the developer disambiguated) and
 /// then the real name has to be recorded, or the next `sync` treats the key as
 /// the intended name and renames the live resource.
 fn display_name_override(key: &str, name: &str) -> Option<String> {
@@ -486,7 +486,7 @@ mod tests {
 
     #[tokio::test]
     async fn download_icon_dry_run_never_touches_the_network() {
-        // dry_run must short-circuit before `client` is used at all — a
+        // dry_run must short-circuit before `client` is used at all: a
         // client with no api key would error on any real network call, so
         // this only passes if the short-circuit actually happens first.
         let client = RbxClient::new(None, 0, false);

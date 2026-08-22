@@ -236,9 +236,9 @@ up to date instead.
 
 ### `rbx apikey`
 
-`rbxapikey.lock.toml` holds key secrets and belongs in your `.gitignore` —
-`rbx apikey create` refuses to create a key whose secret would land in a file
-git is not ignoring — so it does not take part in merges at all. It is also the one lockfile
+`rbxapikey.lock.toml` holds key secrets and belongs in your `.gitignore`
+(`rbx apikey create` refuses to create a key whose secret would land in a file
+git is not ignoring) so it does not take part in merges at all. It is also the one lockfile
 outside the shared version-and-migrate machinery: a version mismatch is refused
 with "delete the file and re-run" rather than migrated.
 

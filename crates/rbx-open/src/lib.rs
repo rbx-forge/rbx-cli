@@ -159,7 +159,7 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
     }
 
     // `--universe-id` is a global flag, so it already parsed here before this
-    // branch existed — and was then silently dropped on the way to
+    // branch existed, and was then silently dropped on the way to
     // `rbxplace.toml`, whose absence produced an error advising per-subcommand
     // flags that `open` does not have. Accepting a flag and ignoring it is
     // worse than rejecting it.
@@ -324,7 +324,7 @@ fn resolve_place(
 ///
 /// Roblox returns them newest-first, so the list is shown as `list_templates`
 /// ordered it: baseplate first, then the rest as Roblox sees them. The id goes
-/// on every row for the same reason it does in the universe picker — it is the
+/// on every row for the same reason it does in the universe picker: it is the
 /// only thing guaranteed to tell two rows apart.
 fn pick_template(templates: &[StudioTemplate]) -> Result<&StudioTemplate> {
     if templates.is_empty() {
@@ -425,7 +425,7 @@ fn open_place(place_id: u64) -> Result<()> {
 /// The path is handed to the desktop's opener rather than wrapped in a
 /// `roblox-studio:` URI, and deliberately: that URI is parsed by splitting on
 /// `+` and `:`, which a Windows path (`C:\\...`) and any filename containing a
-/// `+` would both break. The file association reaches the same place — Studio
+/// `+` would both break. The file association reaches the same place: Studio
 /// logs `createAndShowIDEDoc with task EditFile` either way.
 ///
 /// Absolute, because the opener does not inherit our working directory.
@@ -447,7 +447,7 @@ fn open_file(path: &Path) -> Result<()> {
     launch(&target)
 }
 
-/// Hand one target — a `roblox-studio:` URI or a path — to the desktop.
+/// Hand one target (a `roblox-studio:` URI or a path) to the desktop.
 fn launch(target: &str) -> Result<()> {
     let uri = target;
 
@@ -459,8 +459,8 @@ fn launch(target: &str) -> Result<()> {
         // tears down its child process tree on exit (e.g. the rokit trampoline):
         // a fire-and-forget `.spawn()` lets the launcher kill the helper process
         // before the hand-off to the shell completes, so Studio never appears.
-        // Blocking on `.status()` until `explorer` has handed the URI off — then
-        // letting the desktop shell start Studio out-of-tree — is exactly what
+        // Blocking on `.status()` until `explorer` has handed the URI off (then
+        // letting the desktop shell start Studio out-of-tree) is exactly what
         // the proven-working ROpen does (a blocking `explorer "<uri>"` via a
         // shell). raw_arg keeps the URI's `+`/`:` intact inside quotes;
         // CREATE_NO_WINDOW suppresses the cmd console flash.
@@ -484,7 +484,7 @@ fn launch(target: &str) -> Result<()> {
     #[cfg(target_os = "linux")]
     {
         // Studio has no Linux build, so a Linux `rbx` is either running under
-        // WSL — where the target has to cross to the Windows host — or has
+        // WSL (where the target has to cross to the Windows host) or has
         // nothing to launch at all. `xdg-open` is tried first anyway: a desktop
         // Linux user with Studio under Wine or Proton has an association for
         // it, and that is theirs to keep.
@@ -703,7 +703,7 @@ mod tests {
     }
 
     /// `list_places` seeds the root, so an empty vec means the universe
-    /// answered with nothing — most often a place id passed as a universe id.
+    /// answered with nothing: most often a place id passed as a universe id.
     #[test]
     fn no_places_is_an_error_that_names_the_likely_mistake() {
         let error = pick_universe_place(7, &[]).expect_err("nothing to open");

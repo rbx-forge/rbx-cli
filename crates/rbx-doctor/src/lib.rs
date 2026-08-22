@@ -1,4 +1,4 @@
-//! `rbx doctor` — answer "why doesn't it work" before the user has to guess.
+//! `rbx doctor`: answer "why doesn't it work" before the user has to guess.
 //!
 //! Five checks, in the order a failure cascades: which credentials are active
 //! and whether the session cookie is still one, whether that key is still
@@ -18,7 +18,7 @@
 //! # Exit status
 //!
 //! `0` when nothing is broken, `1` when a check failed. A check that could not
-//! run is not a failure and does not change the status — but it is never
+//! run is not a failure and does not change the status, but it is never
 //! reported as a pass either, and the summary line says how many there were.
 
 mod coverage;
@@ -254,14 +254,14 @@ fn credentials_section(
 /// Whether the cookie is still a session, as the last line of step 1 (#63).
 ///
 /// It sits in Credentials rather than in a section of its own because it
-/// answers the same question the two lines above it do — what am I
-/// authenticated as — and reads next to them: where the cookie came from, then
+/// answers the same question the two lines above it do (what am I
+/// authenticated as) and reads next to them: where the cookie came from, then
 /// whether it still works.
 ///
 /// The three non-passing outcomes are deliberately three different statuses.
 /// A refusal is a failure with a remedy. No cookie is a check that could not
 /// run, not a problem: most `rbx` commands never need one. An unanswered check
-/// is also skipped, never a failure, for the same reason the IP lookup is —
+/// is also skipped, never a failure, for the same reason the IP lookup is:
 /// reporting "your session expired" because a service was unreachable sends
 /// somebody to re-authenticate a session nobody has shown to be dead.
 ///
@@ -273,18 +273,17 @@ async fn session_line(cookie: Option<&str>, check: &session::SessionCheck) -> Li
         return Line::skipped(
             "session",
             "there is no cookie to check. That is only a problem for the commands that need \
-             one — see docs/cookie.md for which.",
+             one: see docs/cookie.md for which.",
         );
     };
 
     match check.ask(cookie).await {
-        Session::Valid(account) => Line::ok(
-            "session",
-            format!("live — signed in as {}", account.label()),
-        ),
+        Session::Valid(account) => {
+            Line::ok("session", format!("live: signed in as {}", account.label()))
+        }
         Session::Refused => Line::fail(
             "session",
-            "expired or revoked — Roblox refused this cookie",
+            "expired or revoked: Roblox refused this cookie",
             "Every command that needs the cookie will be refused until it is renewed: sign in \
              to Roblox Studio again, or supply a fresh one with --cookie / RBX_COOKIE. \
              `rbx meta sync` refuses to apply anything at all on a refused session, so nothing \
@@ -303,7 +302,7 @@ async fn session_line(cookie: Option<&str>, check: &session::SessionCheck) -> Li
         Session::Unknown(why) => Line::skipped(
             "session",
             format!(
-                "{why}. That is this check not answering, not a refusal — it does not mean the \
+                "{why}. That is this check not answering, not a refusal: it does not mean the \
                  session is over."
             ),
         ),
@@ -394,11 +393,11 @@ fn validity_section(facts: &Facts) -> Section {
         "identified as",
         match &facts.tracked_as {
             Some(name) => format!(
-                "\"{}\" (this project) — {} on Roblox",
+                "\"{}\" (this project), {} on Roblox",
                 name, facts.remote_name
             ),
             None => format!(
-                "{} — not tracked by this project's lockfile",
+                "{}, not tracked by this project's lockfile",
                 facts.remote_name
             ),
         },
@@ -409,7 +408,7 @@ fn validity_section(facts: &Facts) -> Section {
     } else {
         s.push(Line::fail(
             "enabled",
-            "no — the key is disabled on Roblox",
+            "no: the key is disabled on Roblox",
             "Every call with this key fails until it is re-enabled. Turn it back on in the \
              Creator Hub, or set `enabled = true` on the key in rbxapikey.toml and run \
              `rbx apikey update <key>`.",
@@ -463,7 +462,7 @@ async fn allowlist_section(cli: &DoctorCli, facts: &Facts, echo: &ip::IpEcho) ->
         Facts::Unavailable(_) => {
             s.push(Line::skipped(
                 "allowed CIDRs",
-                "the key's stored configuration could not be read — see above",
+                "the key's stored configuration could not be read: see above",
             ));
             return s;
         }
@@ -478,7 +477,7 @@ async fn allowlist_section(cli: &DoctorCli, facts: &Facts, echo: &ip::IpEcho) ->
     if facts.allowed_cidrs.iter().any(|c| c == "0.0.0.0/0") {
         s.push(Line::info(
             "allowed CIDRs",
-            format!("{list} — every IP, so the allowlist cannot be the cause of a refusal"),
+            format!("{list}: every IP, so the allowlist cannot be the cause of a refusal"),
         ));
         return s;
     }
@@ -504,7 +503,7 @@ async fn allowlist_section(cli: &DoctorCli, facts: &Facts, echo: &ip::IpEcho) ->
             // where they are.
             s.push(Line::info(
                 "public IP",
-                format!("{addr} — asked {}, which therefore saw it", echo.host()),
+                format!("{addr}: asked {}, which therefore saw it", echo.host()),
             ));
             addr
         }
@@ -512,7 +511,7 @@ async fn allowlist_section(cli: &DoctorCli, facts: &Facts, echo: &ip::IpEcho) ->
             s.push(Line::skipped(
                 "public IP",
                 format!(
-                    "{} was asked and {why}. The allowlist above was not compared — that is \
+                    "{} was asked and {why}. The allowlist above was not compared: that is \
                      this check not answering, not a refusal, and it does not mean the key \
                      is locked out.",
                     echo.host()
@@ -569,7 +568,7 @@ fn coverage_section(facts: &Facts, dir: &std::path::Path) -> Section {
         Facts::Unavailable(_) => {
             s.push(Line::skipped(
                 "scopes",
-                "the key's stored configuration could not be read — see above",
+                "the key's stored configuration could not be read: see above",
             ));
             return s;
         }
@@ -614,8 +613,8 @@ fn coverage_section(facts: &Facts, dir: &std::path::Path) -> Section {
 
 // ---------------- Step 5: the read probe ----------------
 
-/// `probe` is a parameter rather than a value built here so the whole section —
-/// the target line, the outcome, and the explanation attached to a refusal —
+/// `probe` is a parameter rather than a value built here so the whole section
+/// (the target line, the outcome, and the explanation attached to a refusal)
 /// can run against a mock server. `run` passes a default one, which is the real
 /// Open Cloud host.
 async fn probe_section(
@@ -658,7 +657,7 @@ async fn probe_section(
         probe::ProbeOutcome::Ok { universe_name } => s.push(Line::ok(
             "authenticated read",
             match universe_name {
-                Some(name) => format!("200 — read \"{name}\""),
+                Some(name) => format!("200: read \"{name}\""),
                 None => "200".to_string(),
             },
         )),
@@ -666,7 +665,7 @@ async fn probe_section(
             let detail = if message.is_empty() {
                 status.to_string()
             } else {
-                format!("{} — {}", status.as_u16(), message)
+                format!("{}: {}", status.as_u16(), message)
             };
             s.push(Line::fail(
                 "authenticated read",
@@ -676,7 +675,7 @@ async fn probe_section(
         }
         probe::ProbeOutcome::Unreachable(e) => s.push(Line::fail(
             "authenticated read",
-            format!("no answer — {e}"),
+            format!("no answer: {e}"),
             "Roblox was not reached at all. This is the network between here and \
              apis.roblox.com, not the key.",
         )),
@@ -783,7 +782,7 @@ mod tests {
     }
 
     /// The failure is reported against the name that was asked for, listing
-    /// what is actually there — the whole point of asking.
+    /// what is actually there: the whole point of asking.
     #[test]
     fn naming_an_undeclared_key_fails_with_the_names_that_do_exist() {
         let declared = vec![declared("deploy", true, Some("s"))];
@@ -862,7 +861,7 @@ mod tests {
         assert!(!live.lines.iter().any(|l| l.status == report::Status::Fail));
     }
 
-    /// A key expiring next week is not broken, so it must not fail the run —
+    /// A key expiring next week is not broken, so it must not fail the run,
     /// but saying nothing is how a deploy breaks on a Monday.
     #[test]
     fn a_key_expiring_soon_warns_without_failing() {
@@ -876,7 +875,7 @@ mod tests {
     /// The rest of step 1 (#63): whether the cookie is still a session.
     ///
     /// The refusal is the line this exists for, and it is the one that cannot
-    /// be produced against the real host on purpose — hence the mock. The other
+    /// be produced against the real host on purpose: hence the mock. The other
     /// three assert the rule that runs through the whole command: only a real
     /// refusal fails, and nothing that was not checked is reported as a pass.
     mod session_check {
@@ -914,7 +913,7 @@ mod tests {
         }
 
         /// The question the command exists to answer, when the answer is no.
-        /// It fails — an expired cookie is broken, not merely notable — and the
+        /// It fails (an expired cookie is broken, not merely notable) and the
         /// remedy names both ways to renew rather than quoting a status.
         #[tokio::test]
         async fn a_refused_session_fails_with_the_way_to_renew_it() {
@@ -947,7 +946,7 @@ mod tests {
         }
 
         /// No cookie is not a problem: most commands never need one. It is
-        /// still not a pass — nothing was checked.
+        /// still not a pass: nothing was checked.
         #[tokio::test]
         async fn no_cookie_is_skipped_and_asks_nobody() {
             let server = users_answering(401, "{}").await;
@@ -975,7 +974,7 @@ mod tests {
     /// Step 3, both halves.
     ///
     /// The default path must reach no network at all, and the `--check-ip`
-    /// path must turn what is otherwise an opaque 401 into a named cause —
+    /// path must turn what is otherwise an opaque 401 into a named cause,
     /// without ever reporting an unanswered lookup as a mismatch.
     mod ip_allowlist {
         use super::*;
@@ -1282,7 +1281,7 @@ mod tests {
     ///
     /// The explanation attached to a refusal is what the command is for, and
     /// until the probe took an injectable host it could only be checked by
-    /// calling `probe::explain` directly — which proves the constants differ,
+    /// calling `probe::explain` directly, which proves the constants differ,
     /// not that the right one reaches the reader for the status Roblox actually
     /// sent. These assert the rendered line.
     mod read_probe {

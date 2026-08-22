@@ -1,16 +1,16 @@
-# TODO — deferred work
+# TODO: deferred work
 
 Items captured from design discussions but deferred to avoid scope creep
 on the current release. Each item lists the target release.
 
 ---
 
-## Done 2026-08-13 — a placeholder owner is no longer reused as a real one
+## Done 2026-08-13: a placeholder owner is no longer reused as a real one
 
 **Was.** `sync_envs` writes `(User, 0)` into `[envs.<name>]` when no scope on
 the key being built needs creator-targeting, because the schema has nowhere to
 say "not asked". The cache test was `universe_id` alone, so a later key that
-*did* need the owner found a matching entry and reused the placeholder —
+*did* need the owner found a matching entry and reused the placeholder:
 building a creator-targeted scope over `U0`, which is nobody.
 
 **Fix.** `reusable_cache_entry` now treats the placeholder as a miss when the
@@ -18,7 +18,7 @@ caller asked for owners, and is a pure function so all four combinations are
 tested without a Roblox call.
 
 Chosen over the two options this item used to list. Rejecting `owner_id = 0` at
-load would break every lockfile already carrying one — including `testenv`'s.
+load would break every lockfile already carrying one, including `testenv`'s.
 Always fetching costs a request per env per create even when nothing needs it.
 Treating it as a miss costs a request only when one is actually needed, needs no
 schema change, and repairs existing lockfiles on the first command that wants a
@@ -35,19 +35,19 @@ target fix moved `memory-store*`, `developer-product` and `game-pass` off
 
 ---
 
-## Done 2026-08-13 — a duplicate name is a question, not a silent drop
+## Done 2026-08-13: a duplicate name is a question, not a silent drop
 
 **Was.** `init --from-remote` and `pull` key a newly discovered resource by its
 display name. Roblox does not make those unique, so two passes named "VIP"
 collapsed to one key and the second was dropped. It warned, but the warning
 named the id being *skipped* rather than the one keeping the key, went to
-stdout, and left the exit status at zero — so a real resource stopped being
+stdout, and left the exit status at zero, so a real resource stopped being
 managed and the message did not carry enough to act on.
 
 **Fix.** `collision::resolve_duplicate` asks for a key where there is somebody
 to ask, using the same terminal test `rbx-ops ads` uses before offering a
-picker. Off a terminal nothing prompts — CI must not stop on a question nobody
-will answer — and the warning now names both ids and prints the TOML that binds
+picker. Off a terminal nothing prompts (CI must not stop on a question nobody
+will answer) and the warning now names both ids and prints the TOML that binds
 the resource permanently.
 
 Auto-suffixing, which this item used to propose, was rejected: `VIP_2` is an
@@ -62,24 +62,24 @@ made the next `sync` rename the live pass to `VIP_2`. `display_name_override`
 writes the name whenever key and name diverge.
 
 **Scope was smaller than it looked.** In `pull`, anything already tracked is
-keyed by id, so a collision can only involve newly discovered resources —
+keyed by id, so a collision can only involve newly discovered resources:
 nothing under management was ever displaced.
 
 ---
 
-## Done 2026-08-13 — `rbx-ops publish`
+## Done 2026-08-13: `rbx-ops publish`
 
 MessagingService, shipped as `rbx-ops publish --topic <t> --message|--json`,
 behind `--apply`. Documented in [docs/ops/message.md](docs/ops/message.md).
 
 Un-declined for the reason recorded above: the original objection assumed the
-publisher is a game server. Paired with `memorystore`, which is pull-only —
+publisher is a game server. Paired with `memorystore`, which is pull-only:
 the map holds the value, the message says to go and read it.
 
 **Worth knowing.** The message is a string, not JSON, so a payload is text the
 game decodes itself; `--json` does that serialisation so malformed input fails
 here rather than in `JSONDecode` on a live server. The cap is 1 KB, which makes
-publishing a *reference* — the memory store key — the shape that scales.
+publishing a *reference* (the memory store key) the shape that scales.
 
 **What it cannot report.** Whether anybody heard. Roblox answers 200 once it
 has accepted the message, with no count of servers reached, and an experience
@@ -88,21 +88,21 @@ success rather than letting a green tick imply delivery.
 
 **Verified against the live API, 2026-08-13.** A temporary `msgpublish` key was
 created in `testenv`, used, and deleted. Dry-run, `--message` and `--json` all
-answered 200. Reception is still not observable — the test universe has no
-servers running, and Roblox reports no delivery either way — but acceptance was
+answered 200. Reception is still not observable (the test universe has no
+servers running, and Roblox reports no delivery either way) but acceptance was
 the half that was untested.
 
 **It found the size limit is wrong.** The crate enforced 1024 bytes, from the
 documented "1 KB". Probing the endpoint directly: 1025 is accepted, 2000 is
 refused with `The length of published message must be between 1 and 1114.`,
 1114 answers 200 and 1115 does not. So the guard was refusing messages Roblox
-takes. Corrected to 1114, and the floor added — an empty message is a 400,
+takes. Corrected to 1114, and the floor added: an empty message is a 400,
 which a caller publishing `""` as a bare signal would have discovered in
 production.
 
 ---
 
-## Done 2026-08-13 — `rbx-ops memorystore`
+## Done 2026-08-13: `rbx-ops memorystore`
 
 Shipped as `memorystore sorted-map`-shaped subcommands: `get`, `set`, `delete`,
 `list`, writes behind `--apply`. Documented in
@@ -114,7 +114,7 @@ result:
 **Why it had been declined, and why that was wrong.** The stated ground was
 "its scopes are creator-target, so such a key spans every universe you own".
 That came from the catalog, where all three `memory-store*` scopes said
-`creator` — the fall-through default of `infer_target_type`, not a fact about
+`creator`: the fall-through default of `infer_target_type`, not a fact about
 the API. Fixed and confirmed by readback: Roblox stores these keys with a
 `universeIds` list, so they are universe-target exactly like the datastore
 scopes. The second ground stands and was never an objection: these are
@@ -127,7 +127,7 @@ wrong ones ship. And `flush`, a single irreversible call that empties every map
 and queue in an experience at once, which is not part of writing a cache value.
 
 **Two API details found by probing, now handled in the client and recorded in
-the docs.** The item id is a query parameter — `POST .../items` with `{"id":
+the docs.** The item id is a query parameter: `POST .../items` with `{"id":
 ...}` in the body answers `400 INVALID_ARGUMENT "The id field is required."`,
 naming the field you just sent. And the write is `PATCH ?allowMissing=true`
 rather than `POST`, so create and update are one request and two writers racing
@@ -147,7 +147,7 @@ after.
 
 ---
 
-## Done 2026-08-13 — `infer_target_type` now defers to the spec
+## Done 2026-08-13: `infer_target_type` now defers to the spec
 
 Was: the spec publishes `targetResourceSpecifier` next to each scope name, and
 it contradicted the heuristic for `developer-product` and `game-pass` (spec
@@ -155,8 +155,8 @@ it contradicted the heuristic for `developer-product` and `game-pass` (spec
 this was latent rather than broken.
 
 `resolve_target_type` now prefers the spec where it speaks and falls back to
-the name heuristic where it does not. `""` counts as silence — Roblox writes it
-for several scopes and it names no resource — and an unrecognised value falls
+the name heuristic where it does not. `""` counts as silence (Roblox writes it
+for several scopes and it names no resource) and an unrecognised value falls
 back rather than being written through, since a target type `scope_builder`
 does not know builds a malformed key request that fails at key creation.
 
@@ -186,7 +186,7 @@ back with `apikey introspect`. Roblox stored:
 ```
 
 `universeIds`, holding the one universe the key config names. Universe-target,
-settled — not by the spec, which is silent, but by what Roblox stored.
+settled, not by the spec, which is silent, but by what Roblox stored.
 
 And the key works, which is a separate claim from being stored correctly: a
 read and a write against the test universe's memory store both answered `200`
@@ -196,7 +196,7 @@ read and a write against the test universe's memory store both answered `200`
 were the riskier half of the change: unlike the memory-store scopes they sit on
 a path that already works, since `rbx shop` creates keys with them. A temporary
 `shopscopes` key was created in `testenv` with `developer-product:read` and
-`game-pass:read` — read operations only, because the target is a property of
+`game-pass:read`: read operations only, because the target is a property of
 the scope rather than of its operations, so `:read` answers the question
 without being able to change anything. Roblox stored both as:
 
@@ -218,13 +218,13 @@ confirmed by readback rather than by inference.
 
 **Use a binary built from this tree when testing a catalog change.** The
 catalog is embedded with `include_str!`, so an installed `rbx` carries whatever
-catalog it was built with — the one on PATH here was 0.4.0 against a 0.8.0
+catalog it was built with: the one on PATH here was 0.4.0 against a 0.8.0
 workspace, and would have introspected an old classification back as if it were
 a result.
 
 ---
 
-## Considered and declined — Open Cloud surface we are not going to cover
+## Considered and declined: Open Cloud surface we are not going to cover
 
 **Audited 2026-08-04.** Diffed the whole Open Cloud `openapi.json` (691 paths,
 813 operations) against every URL the workspace calls. The tool's own embedded
@@ -237,7 +237,7 @@ this table, and both left for the same kind of reason.
 
 `memory-store/*` rested on a scope classification that turned out to be a
 default rather than a finding. `universes/{id}:publishMessage` was declined as
-"server-to-server IPC belonging to game code" — true when the publisher is a
+"server-to-server IPC belonging to game code": true when the publisher is a
 game server, and the case that reopened it has the publisher outside Roblox
 entirely, where there is no in-experience way to originate the message.
 
@@ -255,12 +255,12 @@ exists and makes a claim in its own documentation true.
 
 **`ordered-data-stores` has left this table.** It was declined as "only earns
 its place in a tool whose users keep leaderboards", with "revisit on demand"
-attached — and the demand turned up. It shipped as `rbx data ordered`, a
+attached, and the demand turned up. It shipped as `rbx data ordered`, a
 sibling mode under `data` exactly as the row predicted, minus the four verbs
 Roblox does not offer on that resource (`snapshot`, `revisions`, `restore`,
 `diff`).
 
-### Undecided — universe secrets, and the reason it is not a wrapper
+### Undecided: universe secrets, and the reason it is not a wrapper
 
 `/cloud/v2/universes/{id}/secrets` (GET, POST, PATCH, DELETE) plus
 `/secrets/public-key`, scope `universe.secret:read,write`. The one item from
@@ -282,7 +282,7 @@ manages secrets, and these are the secrets an *experience* reads at runtime.
 
 So it needs a crypto dependency, and the tool's usual "write it down so you can
 read it back" model does not apply. A pure-Rust sealed box exists (`dryoc`, or
-the narrower `sodiumbox`), so this need not pull in C libsodium — worth
+the narrower `sodiumbox`), so this need not pull in C libsodium: worth
 confirming against the encryption Roblox actually accepts before committing.
 
 Not declined, not scheduled. Decide it deliberately when there is a reason to,
@@ -290,7 +290,7 @@ rather than letting it fall through the gap between the two lists again.
 
 ---
 
-## Backlog — publish the config schemas to SchemaStore
+## Backlog: publish the config schemas to SchemaStore
 
 **Added 2026-08-14** with the schemas themselves. `schemas/*.json` exists and
 is kept fresh by CI, but nothing picks it up automatically: a user has to
@@ -325,11 +325,11 @@ file a newcomer opens first, and it is the copy they learn the format from.
 
 ---
 
-## Backlog — the scope catalog comes from the docs, not from the service
+## Backlog: the scope catalog comes from the docs, not from the service
 
 **Found 2026-08-04** while measuring the API-key list endpoint. Loading the
 Creator Hub's credentials page shows it fetching
-`GET https://apis.roblox.com/cloud-authentication/v1/scopes` — the scope
+`GET https://apis.roblox.com/cloud-authentication/v1/scopes`: the scope
 catalog, served by *the service that validates the scopes*.
 
 `commands/catalog.rs` builds our catalog from
@@ -344,7 +344,7 @@ echoed the target it stored. So this no longer unblocks anything.
 What it still buys is the difference between a catalog built from
 documentation and one built from the service that enforces it. `create` builds
 its requests from this catalog, and a wrong target fails at key creation rather
-than at compile time — so the gap is worth closing before it is discovered by a
+than at compile time, so the gap is worth closing before it is discovered by a
 failed create rather than by a diff.
 
 **Fix.** Measure `/v1/scopes` (cookie auth, GET, no parameters observed), diff
@@ -356,7 +356,7 @@ from, and a wrong target fails at key creation, not at compile time.
 
 ---
 
-## Backlog — `canUseApiKeys` may answer what `can-manage` infers
+## Backlog: `canUseApiKeys` may answer what `can-manage` infers
 
 **Found 2026-08-04**, same page load:
 `POST https://apis.roblox.com/cloud-authentication/v1/canUseApiKeys`, called
@@ -378,7 +378,7 @@ then decide. Keep the measured caveats in the docs either way.
 
 ---
 
-## Backlog — group-owned keys are not listed
+## Backlog: group-owned keys are not listed
 
 `list --remote` and `prune` list the authenticated user's own keys. The listing
 route takes an optional `groupId`, exposed as `--group-id`, but the user must
@@ -389,13 +389,13 @@ The Creator Hub enumerates them with
 (observed on the credentials page; response shape not captured).
 
 **Fix.** Measure that response, then let `list --remote` sweep every group the
-account belongs to — one listing call per group — so "every key on the account"
+account belongs to (one listing call per group) so "every key on the account"
 is true without arguments. Until then the commands say so explicitly rather
 than implying completeness.
 
 ---
 
-## Done 2026-08-13 — every `api/` layer is now reachable by a mock server
+## Done 2026-08-13: every `api/` layer is now reachable by a mock server
 
 **Was.** `wiremock` was a dev-dependency and `rbx-core` used it for the retry
 tests, but the domain crates built their URLs inline, so none of them could be
@@ -410,15 +410,15 @@ it was next read.
 | Crate | What became testable |
 | --- | --- |
 | `rbx-meta` | The two PATCHes that write to a live universe and a live place. Roblox ignores any body field the `updateMask` does not name, so a wrong mask is a write that answers 200 and changes nothing. |
-| `rbx-init` | The CSRF retry, which every group, universe and place creation depends on and which had never run. Plus `groupId` travelling as a query parameter — dropped, it creates the universe under the signed-in user instead of the group. |
+| `rbx-init` | The CSRF retry, which every group, universe and place creation depends on and which had never run. Plus `groupId` travelling as a query parameter: dropped, it creates the universe under the signed-in user instead of the group. |
 | `rbx-core` | The asset download's two-step: the bytes come from the `location` the delivery API names, and the api key must not follow them to the CDN. |
-| `rbx-download` | Both sources, which differ on purpose — the cloud one puts the id in the path and a version in a further path segment, the public one asks by query parameter. |
+| `rbx-download` | Both sources, which differ on purpose: the cloud one puts the id in the path and a version in a further path segment, the public one asks by query parameter. |
 | `rbx-shop` | The page-token loop, and the create call that puts a developer product up for sale. |
 
 **A convention the whole thing turns on.** `rbx-spec-drift` works out which
 host a `.join(...)` reaches by taking the receiver's name off the same line and
 looking up `const <RECEIVER>_HOST`. So: name the const after the field, name a
-bound base after the field too, and keep the receiver on the `.join(` line — a
+bound base after the field too, and keep the receiver on the `.join(` line: a
 chain rustfmt splits resolves to `apis.roblox.com` and reports drift that is
 not there. The drift test caught exactly that twice during this work, which is
 what it is for. Const resolution is now per crate rather than per file, so the
@@ -436,7 +436,7 @@ needs is churn.
 
 ---
 
-## Done 2026-08-15 — two binaries were not the boundary they looked like
+## Done 2026-08-15: two binaries were not the boundary they looked like
 
 The post-mortem of `rbx-ops`, moved here when the shim was deleted in 0.12.0,
 because it is the kind of design a future maintainer re-proposes if nobody

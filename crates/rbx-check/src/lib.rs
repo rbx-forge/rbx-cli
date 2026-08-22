@@ -1,4 +1,4 @@
-//! `rbx check` and `rbx status` — every configured tool's check in one pass.
+//! `rbx check` and `rbx status`: every configured tool's check in one pass.
 //!
 //! A full CI integration used to mean knowing and chaining five commands
 //! (`env gen-module --check`, `shop check`, `shop codegen --check`,
@@ -75,7 +75,7 @@ pub struct CheckCli {
     pub json: bool,
 }
 
-/// `rbx status` — the same engine, the opposite contract.
+/// `rbx status`: the same engine, the opposite contract.
 ///
 /// The flags are `CheckCli`'s minus the ones that only make sense to a
 /// machine, which is none of them: what differs is the renderer and the exit
@@ -99,7 +99,7 @@ pub struct StatusCli {
     /// Write the report to stdout as one JSON document instead of the
     /// overview.
     ///
-    /// The same document `rbx check --json` emits, down to `exit_code` — which
+    /// The same document `rbx check --json` emits, down to `exit_code`, which
     /// is what `rbx check` *would* exit with, since `rbx status` always exits
     /// 0. Documented in docs/check.md.
     #[arg(long)]
@@ -327,7 +327,7 @@ mod tests {
     }
 
     /// A meta config declaring state against no lockfile is drift, and drift
-    /// must surface as exit code 2 — not as a failure and not as success.
+    /// must surface as exit code 2, not as a failure and not as success.
     #[tokio::test]
     async fn a_meta_config_with_no_lockfile_reports_drift_as_exit_code_2() {
         let dir = tempfile::tempdir().expect("tempdir");

@@ -41,7 +41,7 @@ pub struct ShowDocument {
     /// this module carries `config_file` unless a local file was actually
     /// read, so `shop list` does not have one.
     pub config_file: String,
-    /// The env whose overlay was applied. **Absent** for the base view — no
+    /// The env whose overlay was applied. **Absent** for the base view: no
     /// `--env`, or `--env all`, which has no single overlay to resolve. Same
     /// omission rule `rbx check --json` uses for its own `env`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -86,14 +86,14 @@ pub struct Experience {
 #[derive(Debug, Serialize)]
 pub struct Pass {
     /// The `name` override. **Absent** when the file sets none, in which case
-    /// the TOML key is the display name — `.passes | to_entries[] |
+    /// the TOML key is the display name: `.passes | to_entries[] |
     /// (.value.name // .key)` reproduces what the table prints. Reporting the
     /// resolved name would make the document unable to say "this one inherits
     /// its key".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     /// Robux. **Absent** when the file sets no price, which for a pass means
-    /// free — the word the human view prints in that cell.
+    /// free: the word the human view prints in that cell.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub price: Option<u64>,
     pub for_sale: bool,
@@ -240,7 +240,7 @@ impl ShowDocument {
 pub struct ListDocument {
     pub schema_version: u32,
     /// The env named on the command line. **Absent** when there was none and
-    /// the target came from `experience` in `rbxshop.toml` instead — the
+    /// the target came from `experience` in `rbxshop.toml` instead: the
     /// internal `default` placeholder is not an env name and is never emitted
     /// as one.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -469,7 +469,7 @@ price = 10
     }
 
     /// The base view has no single overlay, so it omits `env` rather than
-    /// inventing a name for "none" — the same rule `rbx check --json` uses.
+    /// inventing a name for "none": the same rule `rbx check --json` uses.
     #[test]
     fn the_base_view_omits_the_env_and_the_env_exclusive_resources() {
         let doc = document(None);

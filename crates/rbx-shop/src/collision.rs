@@ -7,12 +7,12 @@
 //!
 //! This used to warn and drop the second. The warning named the id of the one
 //! being *skipped* and not the one being kept, printed to stdout, and left the
-//! exit code at zero — so a resource silently stopped being managed, and the
+//! exit code at zero, so a resource silently stopped being managed, and the
 //! message did not carry enough to fix it.
 //!
 //! Now the key is a question, asked where there is somebody to ask. On a
-//! terminal you name the key and the resource is kept. Off one — CI, a pipe, a
-//! cron job — nothing prompts, because a command that hangs waiting for an
+//! terminal you name the key and the resource is kept. Off one: CI, a pipe, a
+//! cron job: nothing prompts, because a command that hangs waiting for an
 //! answer nobody will type is worse than one that skips loudly. There the
 //! warning names both ids and the exact TOML that binds the resource for good.
 //!
@@ -31,7 +31,7 @@ use crate::config::ResourceKind;
 ///
 /// This used to be a private copy of the stdin/stderr terminal test. It is now
 /// the shared one in `rbx_core::output`, which is also what
-/// `OutputFormat::may_prompt` is built on — so "is anybody there" has one
+/// `OutputFormat::may_prompt` is built on, so "is anybody there" has one
 /// answer in this tree rather than one per crate that asks. Without it, `pull`
 /// in CI would stop on a prompt nobody answers.
 fn interactive() -> bool {
@@ -41,8 +41,8 @@ fn interactive() -> bool {
 /// The key to file a colliding resource under, or `None` to skip it.
 ///
 /// `is_taken` is passed as a closure rather than the map itself because the two
-/// callers hold different maps — `init` builds the config, `pull` builds the
-/// lock — and both need the same answer.
+/// callers hold different maps (`init` builds the config, `pull` builds the
+/// lock) and both need the same answer.
 pub(crate) fn resolve_duplicate(
     kind: ResourceKind,
     name: &str,
@@ -87,7 +87,7 @@ pub(crate) fn resolve_duplicate(
         // Not a retry loop: one clear refusal beats a prompt that will not let
         // go, and re-running the command is cheap.
         println!(
-            "{} '{}' is taken too — skipping {} {}. Re-run and pick another.",
+            "{} '{}' is taken too: skipping {} {}. Re-run and pick another.",
             "!".yellow(),
             answer,
             kind,
@@ -105,7 +105,7 @@ pub(crate) fn resolve_duplicate(
 fn warn_and_skip(kind: ResourceKind, name: &str, id: u64, kept_id: Option<u64>) {
     let table = kind.section();
     println!(
-        "{} Duplicate {} name '{}' — skipping id {}{}.",
+        "{} Duplicate {} name '{}': skipping id {}{}.",
         "!".yellow(),
         kind,
         name,

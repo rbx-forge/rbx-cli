@@ -3,7 +3,7 @@
 //! The unit tests in `rbx_shop::json` and `rbx_config::json` pin what the
 //! documents *say*. They cannot pin what else reaches stdout, because a stray
 //! `println!` three layers down is invisible to a test that renders a struct
-//! into a buffer — and a stray `println!` is exactly the failure that breaks
+//! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
 //! The fixture is arranged to have two things to say on stderr: an unrecognised
@@ -100,7 +100,7 @@ fn shop_show_emits_a_document_on_stdout_and_its_warning_on_stderr() {
     assert_eq!(doc["schema_version"], 1);
     assert_eq!(doc["config_file"], shop.display().to_string());
     // A string: every id in every document this tool writes is one. `price`
-    // below stays a number, which is the line the convention draws — ids
+    // below stays a number, which is the line the convention draws: ids
     // identify, prices count.
     assert_eq!(doc["experience"]["universe_id"], "5544332211");
     assert_eq!(doc["passes"]["vip"]["name"], "VIP Pass");
@@ -121,7 +121,7 @@ fn shop_show_emits_a_document_on_stdout_and_its_warning_on_stderr() {
 }
 
 /// The base view has no overlay to apply, so it omits `env` rather than
-/// inventing a name for "none" — and the env-exclusive resource stays out.
+/// inventing a name for "none", and the env-exclusive resource stays out.
 #[test]
 fn shop_show_omits_the_env_for_the_base_view() {
     let dir = tempfile::tempdir().unwrap();

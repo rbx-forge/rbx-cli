@@ -57,7 +57,7 @@ fn unknown_subcommand_fails_with_useful_message() {
 #[test]
 fn global_flags_parse_before_subcommand() {
     // Parser check only. We pass --help to the subcommand so the binary
-    // exits cleanly after rendering help (no real API call attempted) — what
+    // exits cleanly after rendering help (no real API call attempted): what
     // matters is that the global flags placed before the subcommand are
     // accepted by the parser without error.
     Command::cargo_bin("rbx")
@@ -134,7 +134,7 @@ const HOOKED_SHELLS: &[&str] = &["bash", "zsh", "fish", "powershell"];
 
 #[test]
 fn completions_shell_out_for_env_and_place_values() {
-    // The shell side of the hook cannot run in CI — there is no bash, zsh,
+    // The shell side of the hook cannot run in CI: there is no bash, zsh,
     // fish and pwsh here, and driving a real completion needs an interactive
     // terminal. What is testable is the contract between the two halves: the
     // script asks for these exact commands, and the commands answer with these

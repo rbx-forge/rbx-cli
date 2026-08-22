@@ -27,22 +27,22 @@ const THUMBNAILS_HOST: &str = "https://thumbnails.roblox.com";
 /// the real 700x700 exactly for one of them and differed for the other, so the
 /// extra resolution is genuine only when the original upload exceeded 512.
 /// Asking for the maximum everywhere would bloat every icon whose master is
-/// smaller — and these files are committed, then re-uploaded on the next sync.
+/// smaller, and these files are committed, then re-uploaded on the next sync.
 const ICON_SIZE: &str = "512x512";
 
 /// The two hosts this crate reaches.
 ///
 /// Injectable so the request shaping can run against a mock server. Until this
 /// existed the URLs were built inline and nothing here had been tested over
-/// HTTP — including the calls that create developer products, which cost real
+/// HTTP, including the calls that create developer products, which cost real
 /// money to get wrong.
 #[derive(Debug)]
 pub(crate) struct Hosts {
-    /// `apis.roblox.com` — passes, products, badge configuration.
+    /// `apis.roblox.com`: passes, products, badge configuration.
     pub(crate) cloud: ApiBase,
-    /// `badges.roblox.com` — badge creation and its icon upload.
+    /// `badges.roblox.com`: badge creation and its icon upload.
     pub(crate) badges: ApiBase,
-    /// `thumbnails.roblox.com` — reading an icon back. Public, no key.
+    /// `thumbnails.roblox.com`: reading an icon back. Public, no key.
     pub(crate) thumbnails: ApiBase,
 }
 
@@ -107,7 +107,7 @@ impl RbxClient {
     /// for a group-owned game is a badge create Roblox refuses.
     ///
     /// `Ok(None)` rather than an error when Roblox answers without either
-    /// field, and the caller treats a failed call as "no answer" too — this is
+    /// field, and the caller treats a failed call as "no answer" too: this is
     /// a convenience over a declaration that still works, not a new hard
     /// requirement. `universe:read` is what it needs.
     pub async fn universe_owner(&self) -> Result<Option<OwnerType>> {
@@ -136,7 +136,7 @@ impl RbxClient {
 
     /// Download a resource's icon.
     ///
-    /// `asset-delivery` first, because it returns the asset **as stored** —
+    /// `asset-delivery` first, because it returns the asset **as stored**:
     /// its true resolution, whatever that is. The thumbnail service is a
     /// fallback rather than an upgrade, and the difference is worth recording
     /// because it is not what the byte counts suggest.
@@ -153,7 +153,7 @@ impl RbxClient {
     /// image: nineteen times the bytes for no extra pixel. PNG is lossless, so
     /// the file-size gap that first suggested "better quality" was only the
     /// cost of storing an enlargement. Preferring it would bloat every icon
-    /// whose master is small — and these files are committed, then re-uploaded
+    /// whose master is small, and these files are committed, then re-uploaded
     /// on the next sync, which would push an upscale back to Roblox.
     ///
     /// The thumbnail path stays as the fallback: it needs no API key, so it

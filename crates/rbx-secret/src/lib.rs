@@ -1,6 +1,6 @@
 //! `rbx secret`: the universe secrets store `HttpService:GetSecret` reads from.
 //!
-//! A secret is a value the game needs and the repository must never contain —
+//! A secret is a value the game needs and the repository must never contain:
 //! a Discord webhook, a payment provider's key, the token for whatever service
 //! a `DataStore` is being reconciled against. Roblox keeps it per universe,
 //! encrypted, and hands it to the running game as a `Secret` userdata that Luau
@@ -15,7 +15,7 @@
 //!
 //! Roblox does not accept a secret in the clear even over TLS. The content is
 //! sealed against the universe's own public key before it is sent, so what
-//! crosses the wire — and what lands in any proxy log along the way — is
+//! crosses the wire (and what lands in any proxy log along the way) is
 //! ciphertext only this universe can open. [`seal`] carries the details and
 //! the reasoning; the consequence for this module is that every write is two
 //! requests, because the public key has to be fetched first.
@@ -24,7 +24,7 @@
 //!
 //! Not an omission, and not a scope this key is missing: Roblox never sends
 //! stored content back. `list` returns names, domains, key ids and timestamps
-//! — everything except the one field you might want — and that is the design
+//! (everything except the one field you might want) and that is the design
 //! working. A secrets store you can read from is a secrets store one leaked
 //! API key drains.
 //!
@@ -35,15 +35,15 @@
 //! ## Why `set` restates the domain every time
 //!
 //! A secret's `domain` decides which hosts `HttpService` will attach it to,
-//! and a secret with no domain cannot leave the server at all — it can be used
+//! and a secret with no domain cannot leave the server at all: it can be used
 //! for signing in-process and nothing else. That is a useful state and a
 //! terrible accident: the failure shows up in the game, at runtime, as a
 //! request going out without its credential.
 //!
 //! `set` therefore demands `--domain <pattern>` or `--no-domain` on every
 //! write, rather than defaulting to either. The alternative would be to carry
-//! the stored domain forward on an update, which means reading it first — a
-//! second scope, on a command otherwise usable with a write-only key — and
+//! the stored domain forward on an update, which means reading it first: a
+//! second scope, on a command otherwise usable with a write-only key, and
 //! guessing at what Roblox does with an omitted field on a `PATCH`.
 //!
 //! ## Writes need `--apply`
@@ -138,7 +138,7 @@ enum Command {
         ///
         /// Convenient and the least private of the three: it travels as a
         /// command-line argument, so it is readable in the process list and
-        /// recorded by command-line auditing — Windows event 4688, Sysmon, an
+        /// recorded by command-line auditing: Windows event 4688, Sysmon, an
         /// EDR agent, auditd. Those logs persist and often leave the machine.
         /// Prefer --stdin outside a scratch terminal.
         #[arg(long, conflicts_with_all = ["file", "stdin"])]
@@ -207,7 +207,7 @@ enum Command {
     /// Print the universe's public key, for sealing a secret elsewhere
     ///
     /// `set` fetches this on its own; this subcommand is for the case where
-    /// the encryption has to happen somewhere else — a deployment system that
+    /// the encryption has to happen somewhere else: a deployment system that
     /// holds the plaintext and will not hand it to a CLI, or a language
     /// binding doing the sealed box itself.
     ///
@@ -448,8 +448,8 @@ impl ValueSource {
                 // command line rather than the shell history on purpose: the
                 // history claim is the one people check and find false.
                 // `--value $(pass show token)` stores the substitution in
-                // history, not its result — true of PSReadLine, bash and zsh
-                // alike — so leading with history invites the reader to
+                // history, not its result (true of PSReadLine, bash and zsh
+                // alike) so leading with history invites the reader to
                 // dismiss the whole warning. The command line is where the
                 // expanded value really does land, in every shell, and it is
                 // the worse exposure of the two anyway.
@@ -481,7 +481,7 @@ impl ValueSource {
 /// newline; storing it produces an `Authorization` header with a line break in
 /// it, which fails in a way that reads as a wrong key rather than a wrong
 /// byte. Exactly one is removed, so a value that genuinely ends in two
-/// newlines keeps one — and `--file` keeps every byte, for the case where that
+/// newlines keeps one, and `--file` keeps every byte, for the case where that
 /// is not good enough.
 fn strip_one_trailing_newline(mut bytes: Vec<u8>) -> Vec<u8> {
     if bytes.last() == Some(&b'\n') {
@@ -548,7 +548,7 @@ impl Domain {
     }
 }
 
-/// What a write turned out to be. Only known after the fact — see [`Api::upsert`].
+/// What a write turned out to be. Only known after the fact: see [`Api::upsert`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Written {
     Created,
@@ -678,7 +678,7 @@ impl Api {
         match result {
             Ok(_) => Ok(()),
             // `execute_with_retry` turns every non-success status into an
-            // error, so this is the branch a 404 arrives through — not a
+            // error, so this is the branch a 404 arrives through, not a
             // status check on a returned response. Matched on the typed status
             // rather than the rendered message, which embeds the body.
             Err(error) if is_api_status(&error, StatusCode::NOT_FOUND) => bail!(

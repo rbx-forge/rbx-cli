@@ -30,8 +30,8 @@ pub struct ConfigCtx {
     /// Redirects every client this context builds at one host.
     ///
     /// `cfg(test)` so it cannot become a production code path: without it, a
-    /// command that only talks to Roblox — `check` compares local entries
-    /// against the live config — could not be asserted on at all without
+    /// command that only talks to Roblox (`check` compares local entries
+    /// against the live config) could not be asserted on at all without
     /// reaching the real API.
     #[cfg(test)]
     pub base_url: Option<String>,

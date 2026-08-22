@@ -34,7 +34,7 @@ pub struct RbxClient {
     ///
     /// Injectable so the request shaping can be exercised against a mock
     /// server. Until this existed the URLs were built inline, and nothing in
-    /// this crate could be tested over HTTP — including the two PATCHes that
+    /// this crate could be tested over HTTP, including the two PATCHes that
     /// write to a live universe and a live place.
     ///
     /// `thumbnails.roblox.com` (public reads) is a different service and stays
@@ -46,9 +46,9 @@ pub struct RbxClient {
     ///
     /// These used to be literals, on the stated reasoning that they should stay
     /// that way "until a test needs them". A test needs them: the visibility
-    /// ordering in `sync` — activate before every other call when going public,
+    /// ordering in `sync` (activate before every other call when going public,
     /// deactivate after them all when going private, because Roblox rejects
-    /// `privateServerPriceRobux > 0` on a private universe — runs entirely
+    /// `privateServerPriceRobux > 0` on a private universe) runs entirely
     /// through `activate_universe` / `deactivate_universe` and was therefore
     /// unreachable from any test. The decision is covered in `diff`; the order
     /// was not covered anywhere.
@@ -58,7 +58,7 @@ pub struct RbxClient {
     ///
     /// A third base rather than a reuse of `legacy_base`: it is a third
     /// service, and a test that mocks the develop endpoints must not have its
-    /// session check silently answered by the same mock — the whole point of
+    /// session check silently answered by the same mock: the whole point of
     /// the check is that it is a separate question with a separate answer.
     users_base: ApiBase,
 }
@@ -126,7 +126,7 @@ impl RbxClient {
     /// attach the cookie to reads that either answer or report the fields they
     /// could not read, and have nothing to leave half-applied.
     ///
-    /// A missing cookie is not this function's error to raise — `sync` names
+    /// A missing cookie is not this function's error to raise: `sync` names
     /// the fields that need one before it gets here, which is a better message
     /// than anything available at this level.
     pub async fn require_valid_session(&self) -> Result<()> {
@@ -167,7 +167,7 @@ impl RbxClient {
     pub fn cookie_header(&self) -> Result<&str> {
         self.cookie.as_deref().ok_or_else(|| {
             anyhow::anyhow!(
-                "A .ROBLOSECURITY cookie is required for this field — pass --cookie, set \
+                "A .ROBLOSECURITY cookie is required for this field: pass --cookie, set \
                  RBX_COOKIE, or sign in to Roblox Studio locally"
             )
         })
@@ -177,7 +177,7 @@ impl RbxClient {
         self.cookie.is_some()
     }
 
-    /// Retry + JSON-parse wrapper — delegates to `rbx_core::api`.
+    /// Retry + JSON-parse wrapper: delegates to `rbx_core::api`.
     pub async fn execute_json<T: serde::de::DeserializeOwned, F, Fut>(
         &self,
         make_request: F,

@@ -47,7 +47,7 @@ html:not(.js) {
   --quote-bg: #f0f1ee;
   --quote-border: #a34e12; /* copper, use two of three */
 
-  --table-border-color: #d5d8d2; /* 1.41:1 — visible in a dense table, not noise */
+  --table-border-color: #d5d8d2; /* 1.41:1: visible in a dense table, not noise */
   --table-header-bg: #eceee8;
   --table-alternate-bg: #f7f8f5;
 

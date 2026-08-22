@@ -166,7 +166,7 @@ Without it, promote **maps by name**: the source place is resolved, and the same
 rbx place promote --from staging --to prod --all-places
 ```
 
-There is no name matching in that path. It is occasionally what you want — several places that really are the same file — and it is unrecoverable when it is not: each target gets a new version, those version numbers are real, and undoing it is one rollback per place.
+There is no name matching in that path. It is occasionally what you want (several places that really are the same file) and it is unrecoverable when it is not: each target gets a new version, those version numbers are real, and undoing it is one rollback per place.
 
 So the confirmation says it outright rather than only listing the targets:
 

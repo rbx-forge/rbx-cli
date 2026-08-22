@@ -24,7 +24,7 @@ pub struct RbxConfigClient {
 }
 
 /// Hand-written rather than derived, because the derive would print
-/// `api_key` — and a client is exactly the sort of value that ends up in a
+/// `api_key`, and a client is exactly the sort of value that ends up in a
 /// `{:?}` inside an error context or a debug log.
 impl std::fmt::Debug for RbxConfigClient {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -67,7 +67,7 @@ impl RbxConfigClient {
     }
 
     // -------------------------------------------------------------------------
-    // GET — live published config
+    // GET: live published config
     // -------------------------------------------------------------------------
 
     /// Fetch the live published config. Returns an empty snapshot on 404
@@ -89,7 +89,7 @@ impl RbxConfigClient {
         match result {
             Ok(snapshot) => Ok(snapshot),
             // A universe that has never published a config answers 404. That
-            // is the starting state, not a failure — `sync` creates the first
+            // is the starting state, not a failure: `sync` creates the first
             // draft from it.
             Err(error) if is_api_status(&error, StatusCode::NOT_FOUND) => {
                 Ok(ConfigSnapshot::default())
@@ -99,7 +99,7 @@ impl RbxConfigClient {
     }
 
     // -------------------------------------------------------------------------
-    // PUT /draft:overwrite — replace entire draft (handles deletions)
+    // PUT /draft:overwrite: replace entire draft (handles deletions)
     // -------------------------------------------------------------------------
 
     pub async fn overwrite_draft(
@@ -177,7 +177,7 @@ impl RbxConfigClient {
     }
 
     // -------------------------------------------------------------------------
-    // GET /revisions — list revision history
+    // GET /revisions: list revision history
     // -------------------------------------------------------------------------
 
     pub async fn list_revisions(&self, universe_id: u64, max: usize) -> Result<Vec<RevisionEntry>> {
@@ -202,7 +202,7 @@ impl RbxConfigClient {
     }
 
     // -------------------------------------------------------------------------
-    // POST /revisions/{id}/restore — stage a revert to a revision
+    // POST /revisions/{id}/restore: stage a revert to a revision
     // -------------------------------------------------------------------------
 
     pub async fn restore_revision(&self, universe_id: u64, revision_id: &str) -> Result<String> {

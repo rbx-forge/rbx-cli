@@ -144,7 +144,7 @@ Fewer than two picks is refused: one image compared against nothing is not a tes
 
 ### `--yes` on a command that spends money
 
-`--apply` is what makes a write real; `--yes` is what removes the question in front of it. Every write here takes both — `launch`, `pause`, `resume`, `cancel`, `budget` and `rename` — and only `launch` prints a cost first.
+`--apply` is what makes a write real; `--yes` is what removes the question in front of it. Every write here takes both (`launch`, `pause`, `resume`, `cancel`, `budget` and `rename`) and only `launch` prints a cost first.
 
 Together they are an unattended charge. That is a reasonable thing to want in a scheduled job whose budget was decided when the job was written, and it is not a reasonable default for a terminal: the prompt is the last place a mistyped `--budget` is catchable, and a campaign cannot be un-bought. `--apply` without `--yes` is the ordinary way to run these by hand.
 
@@ -158,7 +158,7 @@ An increase to a budget takes effect immediately. A decrease on a running campai
 
 ## `--json`
 
-`list`, `get` and `status` take `--json` and write **one JSON document to stdout and nothing else**. Notes — "No campaigns on this account." among them — go to stderr, so a pipeline's input parses on every run.
+`list`, `get` and `status` take `--json` and write **one JSON document to stdout and nothing else**. Notes ("No campaigns on this account." among them) go to stderr, so a pipeline's input parses on every run.
 
 The write commands have no `--json`. They spend money, they are dry-run by default, and several of them ask a question when you leave the id out; a command that prompts is not one to hand a pipeline.
 

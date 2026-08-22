@@ -6,7 +6,7 @@
 //!    [`Status::Fail`] by construction ([`Line::fail`] takes one), so a check
 //!    cannot report a problem and leave the reader to work out what to do.
 //! 2. Nothing is reported as passing that was not actually checked. A check
-//!    that could not run is [`Status::Skipped`] and says why — the difference
+//!    that could not run is [`Status::Skipped`] and says why: the difference
 //!    between "your scopes are fine" and "your scopes were never looked at" is
 //!    the whole value of the command.
 

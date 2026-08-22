@@ -11,7 +11,7 @@
 //! So this module edits the existing document instead, in the style
 //! `rbx-meta`'s pull already uses. Two consequences are load-bearing:
 //!
-//! - **Only the tables the shop owns are touched** — `passes`, `badges`,
+//! - **Only the tables the shop owns are touched**: `passes`, `badges`,
 //!   `products` and the `envs.<name>` overlays. Anything else in the file,
 //!   modeled or not, is left exactly as the user wrote it.
 //! - **Within those tables only the modeled keys are written**, so an
@@ -48,7 +48,7 @@ pub struct KeyRename {
 
 /// Write `config`'s resource tables back into the document at `path`.
 ///
-/// The file must already exist — this is a write-*back*. Creating a config
+/// The file must already exist: this is a write-*back*. Creating a config
 /// from nothing is `Config::save`, which serialises the whole model.
 pub fn save_in_place(config: &Config, path: &Path, renames: &[KeyRename]) -> Result<()> {
     let original = std::fs::read_to_string(path)
@@ -195,7 +195,7 @@ fn sync_entries<T>(
 }
 
 /// Move a table to a new key, item and all. The `Item` carries the table's own
-/// decor — the comment written above `[passes.VIP]` — and its parsed position,
+/// decor (the comment written above `[passes.VIP]`) and its parsed position,
 /// so a rename keeps both instead of appending a bare table at the end.
 fn move_entry(table: &mut Table, from: &str, to: &str) {
     if from == to || !table.contains_key(from) || table.contains_key(to) {
@@ -209,7 +209,7 @@ fn move_entry(table: &mut Table, from: &str, to: &str) {
 fn ensure_table<'a>(parent: &'a mut Table, key: &str) -> &'a mut Table {
     if !parent.contains_key(key) {
         let mut fresh = Table::new();
-        // `[passes]` is never written on its own — only `[passes.VIP]` — so a
+        // `[passes]` is never written on its own (only `[passes.VIP]`) so a
         // section this function had to create stays implicit.
         fresh.set_implicit(true);
         parent.insert(key, Item::Table(fresh));

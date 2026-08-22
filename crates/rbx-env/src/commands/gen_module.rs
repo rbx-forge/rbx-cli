@@ -34,21 +34,21 @@ pub fn run(places_path: &Path, out: Option<&str>, check: bool) -> Result<()> {
     }
 
     // Same bytes the write path would have produced, compared instead of
-    // written — the point is to prove the committed module still follows
+    // written: the point is to prove the committed module still follows
     // rbxplace.toml without needing credentials or a network.
     let mut report = CheckReport::new();
     report.check(&file)?;
     if !config.unknown.is_empty() {
         // The one cause where regenerating is the wrong move. An ignored key
         // is one this binary did not apply, so the render we just compared
-        // against is the misreading — if the key was meant to keep an env out
+        // against is the misreading, if the key was meant to keep an env out
         // of the module, the committed file is the correct side, and running
         // the fix widens `EnvironmentType` and breaks the exhaustive matches
         // the narrow type was protecting.
         report.note(format!(
             "{} key{} in {} {} ignored (listed above). If one of them was meant to change \
              what is generated, this check is reading the wrong inputs and the committed \
-             file may be the correct one — regenerating would bake the misreading in. \
+             file may be the correct one: regenerating would bake the misreading in. \
              Upgrade rbx, or fix the spelling, before running the fix.",
             config.unknown.len(),
             if config.unknown.len() == 1 { "" } else { "s" },
@@ -87,7 +87,7 @@ pub fn resolve_out(config: &PlacesFile, out: Option<&str>, places_path: &Path) -
 
     match configured {
         // Relative to the file that declares it, so the command works from
-        // anywhere in the repo — same rule as `rbx shop`'s codegen.output.
+        // anywhere in the repo: same rule as `rbx shop`'s codegen.output.
         Some(output) => Ok(places_path.parent().unwrap_or(Path::new(".")).join(output)),
         None => bail!(
             "No output path. Either pass --out <file>, or declare it once in {}:\n\n\
@@ -412,8 +412,8 @@ main = 1001
     //
     // Run `cargo insta review` to accept an intended change.
 
-    /// Two envs game code sees — one renamed with `env = "..."`, one with two
-    /// places — plus a third marked `codegen = false`, which must appear in
+    /// Two envs game code sees: one renamed with `env = "..."`, one with two
+    /// places, plus a third marked `codegen = false`, which must appear in
     /// none of the four outputs.
     const SNAPSHOT_FIXTURE: &str = r#"
 [prod]
@@ -631,7 +631,7 @@ codegen = false
     fn check_warns_that_regenerating_is_wrong_when_a_key_was_ignored() {
         // The reported failure, reproduced with a key no release will have:
         // a v0.7.0 binary swallowed `codegen = false`, generated the env
-        // anyway, and told the reader to commit that — which widens
+        // anyway, and told the reader to commit that, which widens
         // `EnvironmentType` and breaks the exhaustive matches downstream.
         let dir = tempfile::tempdir().unwrap();
         let places = dir.path().join("rbxplace.toml");

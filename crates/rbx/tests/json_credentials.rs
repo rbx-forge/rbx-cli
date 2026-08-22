@@ -6,12 +6,12 @@
 //! The unit tests in `rbx_ban::json` and `rbx_apikey::json` pin what the
 //! documents *say*. They cannot pin what else reaches stdout, because a stray
 //! `println!` three layers down is invisible to a test that renders a struct
-//! into a buffer — and a stray `println!` is exactly the failure that breaks
+//! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
 //! These two commands are the most sensitive in the tree: one holds live Open
 //! Cloud secrets, the other reports on real players who are locked out of a
-//! real game. So one test here does something the others do not — it puts a
+//! real game. So one test here does something the others do not: it puts a
 //! secret in the fixture and asserts that neither it nor any fragment of it
 //! reaches stdout *or* stderr. A run that leaks a credential leaks it into a CI
 //! log, where nobody notices until the key has to be rotated, and a CI log is
@@ -31,7 +31,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 const UNIVERSE: u64 = 5544332211;
 
 /// The secret the lockfile fixture holds. Never a real one, and never anything
-/// stdout is allowed to contain — in whole or in part.
+/// stdout is allowed to contain, in whole or in part.
 const SECRET: &str = "RBX-DO-NOT-LEAK-9f3c1a7b2d4e";
 
 /// The path the fixture stores a secret at. A pointer to a credential is not
@@ -117,7 +117,7 @@ fn run_json(args: &[&str]) -> (serde_json::Value, String) {
     run_json_in(None, args)
 }
 
-/// The same, from a working directory — `apikey` reads `rbxapikey.toml` and its
+/// The same, from a working directory: `apikey` reads `rbxapikey.toml` and its
 /// lockfile relative to the process's cwd and has no flag to point elsewhere.
 fn run_json_in(dir: Option<&std::path::Path>, args: &[&str]) -> (serde_json::Value, String) {
     let output = run_ok_in(dir, args);
@@ -426,8 +426,8 @@ fn apikey_list_emits_a_document_carrying_what_the_human_form_prints() {
 ///
 /// Both streams, because under `--json` the run is split across them: the
 /// document goes to stdout and the command's prose to stderr. That split is
-/// what makes stdout parseable, and it is not a boundary a credential stops at
-/// — a CI log captures `2>&1`, so the two streams are one file by the time
+/// what makes stdout parseable, and it is not a boundary a credential stops at:
+/// a CI log captures `2>&1`, so the two streams are one file by the time
 /// anyone greps it. The per-key detail `apikey status` builds names the secret
 /// file's path, and one refactor routing it through `OutputFormat::note` the
 /// way the summary already went would put that path on stderr.
@@ -471,8 +471,8 @@ fn no_secret_and_no_fragment_of_one_reaches_stdout_or_stderr() {
             }
         }
 
-        // These three are about the document's shape — a field that carries a
-        // secret, the Roblox wire name for one, a truncated one — so they are
+        // These three are about the document's shape (a field that carries a
+        // secret, the Roblox wire name for one, a truncated one) so they are
         // asked of the document's stream only.
         for word in ["secret\":", "apikeySecret", "preview"] {
             assert!(!stdout.contains(word), "{args:?} carries `{word}`");

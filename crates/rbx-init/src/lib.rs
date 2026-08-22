@@ -62,7 +62,7 @@ pub enum InitCommands {
     /// pass the global `--env <name>` to name it outright, or answer the
     /// prompt. `--place <name>` overrides the default place key (`main`).
     /// Recording is skipped by `--no-record`, by `--yes`, when stdin is not a
-    /// terminal, and when rbxplace.toml doesn't exist yet — this command
+    /// terminal, and when rbxplace.toml doesn't exist yet: this command
     /// extends an existing file, it does not create one.
     CreateUniverse {
         /// Group id to create the universe under. Mutually exclusive with --user.

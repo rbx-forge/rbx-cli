@@ -26,7 +26,7 @@ jobs:
           # The portable Linux artifact, and the one to reach for when the gnu
           # build refuses to start. `x86_64-unknown-linux-gnu` is compiled
           # against whatever glibc `ubuntu-latest` happens to ship, so it
-          # rejects any distribution older than the runner — a failure that
+          # rejects any distribution older than the runner: a failure that
           # surfaces as a linker-loader error at first launch, on a machine
           # that never built the tool. musl links libc statically and does not
           # care.
@@ -140,7 +140,7 @@ jobs:
 #
 # That is what makes this installable through Rokit at all. Rokit resolves one
 # artifact per repository, so two binaries published from one repo could never
-# both be installed — measured against v0.5.0 and again against v0.9.0 with
+# both be installed: measured against v0.5.0 and again against v0.9.0 with
 # Rokit 1.2.0. A binary dispatching on the name it was invoked by does not help
 # either: the shim passes the stored binary's own path as argv[0], identically
 # for every alias. See docs/ops.md.

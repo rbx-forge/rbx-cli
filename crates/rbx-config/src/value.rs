@@ -21,7 +21,7 @@ pub fn toml_to_json(v: Toml) -> Json {
 /// Convert a JSON value (from Roblox API) back to TOML for rbxconfig.toml.
 ///
 /// JSON numbers that came in as floats but have no fractional part (e.g. 12345.0)
-/// are demoted to integers — the Roblox API tends to round-trip ints through floats,
+/// are demoted to integers: the Roblox API tends to round-trip ints through floats,
 /// and writing `12345.0` for what the user typed as `12345` is surprising.
 pub fn json_to_toml(v: Json) -> Toml {
     match v {
@@ -91,8 +91,8 @@ pub fn type_label(v: &Json) -> &'static str {
 /// Canonical JSON string for value comparison.
 ///
 /// Whole-number floats are normalized to integers (recursively, including
-/// inside arrays/objects) so that `12345` and `12345.0` — which the Roblox
-/// API tends to return as floats even when the user stored an int — compare
+/// inside arrays/objects) so that `12345` and `12345.0` (which the Roblox
+/// API tends to return as floats even when the user stored an int) compare
 /// as equal. Without this, every sync would re-publish numeric fields as
 /// phantom updates.
 pub fn canonical(v: &Json) -> String {

@@ -1,7 +1,7 @@
 # Security policy
 
-`rbx` handles credentials: Open Cloud API keys, and — on the commands Open
-Cloud does not cover — the Roblox Studio session cookie. That makes the
+`rbx` handles credentials: Open Cloud API keys, and (on the commands Open
+Cloud does not cover) the Roblox Studio session cookie. That makes the
 threat model worth stating plainly rather than leaving to inference.
 
 ## Reporting a vulnerability
@@ -10,7 +10,7 @@ threat model worth stating plainly rather than leaving to inference.
 <https://github.com/rbx-forge/rbx-cli/security/advisories/new>
 
 Do not open a public issue for a vulnerability. Do not paste a real API key,
-cookie, or universe id you care about into a report — a redacted reproduction
+cookie, or universe id you care about into a report: a redacted reproduction
 is always enough.
 
 What helps: the `rbx --version`, the command you ran, what you expected, what
@@ -66,5 +66,5 @@ Out of scope, because it is documented behavior rather than a defect:
 
 Two habits cover most of the risk: keep keys in `RBX_API_KEY` or your CI's
 secret store rather than in a file, and scope each key to the environment it
-serves. `rbx apikey` and `rbx doctor` exist to make the second one checkable —
+serves. `rbx apikey` and `rbx doctor` exist to make the second one checkable:
 `docs/ops.md` covers the reasoning.

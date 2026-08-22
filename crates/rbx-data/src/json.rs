@@ -18,7 +18,7 @@
 //! collide with anything, because nothing of ours lives inside it: an entry
 //! holding `{"schema_version": 9}` reads back as `.value.schema_version` and
 //! touches nothing. Stringifying would buy back a namespace that was never at
-//! risk, and would cost the thing the flag exists for — `jq .value.coins`
+//! risk, and would cost the thing the flag exists for: `jq .value.coins`
 //! becomes `jq -r .value | jq .coins`, and a profile stored as `500` comes back
 //! as `"500"`, which is a different fact.
 //!
@@ -31,8 +31,8 @@
 //! These commands read real player data, so a document says no more than the
 //! human form already says out loud.
 //!
-//! `users` — the `users/156` association Roblox answers a player's data request
-//! from — and `attributes` are on every entry this crate fetches, and are in
+//! `users`: the `users/156` association Roblox answers a player's data request
+//! from, and `attributes` are on every entry this crate fetches, and are in
 //! none of these documents. `data get` has never printed them, and a second
 //! player id landing in whatever aggregator eats this output is not a field
 //! anybody asked for. `path`, `etag` and `create_time` are absent for the
@@ -50,7 +50,7 @@ use crate::model::DataStoreEntry;
 /// The store a document is about.
 ///
 /// Both come straight off the command line, and both decide which keys are
-/// even visible — a key written under one scope cannot be read from another.
+/// even visible: a key written under one scope cannot be read from another.
 /// Naming them back makes a saved document say what it is a document of,
 /// which a file called `dump.json` otherwise does not.
 #[derive(Debug, Clone)]

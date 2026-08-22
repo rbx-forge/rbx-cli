@@ -1,20 +1,20 @@
-//! Read `rbxplace.toml` — the shared env map every other subcommand resolves
+//! Read `rbxplace.toml`: the shared env map every other subcommand resolves
 //! `--env` against. This crate never talks to Roblox: it only reports what the
 //! file says, using the exact same resolution rules as `rbx_core::places`, so
 //! `rbx env get place-id --env prod` always prints the id that
 //! `rbx place upload --env prod` would target.
 //!
-//! Four verbs — `list`/`get` mirror `rbx config`:
-//! - `list`       — human-readable dump of the whole file (or one env via `--env`),
+//! Four verbs: `list`/`get` mirror `rbx config`:
+//! - `list`: human-readable dump of the whole file (or one env via `--env`),
 //!   plus the two bare listings `--names` and `--place-names` that scripts and
 //!   the generated shell completions read.
-//! - `get`        — one bare value on stdout, for `$(...)` capture in scripts.
-//! - `gen-module` — the same data as a Luau/Lua/JSON/TS module for game code.
-//! - `rm`         — take an env out of every file that mentions it.
+//! - `get`: one bare value on stdout, for `$(...)` capture in scripts.
+//! - `gen-module`: the same data as a Luau/Lua/JSON/TS module for game code.
+//! - `rm`: take an env out of every file that mentions it.
 //!
 //! `rm` is the only one that writes, and it writes only local files: this
 //! crate still never opens a connection. It lives here rather than in
-//! `rbx-shop` or `rbx-meta` because an env is not owned by either — it is
+//! `rbx-shop` or `rbx-meta` because an env is not owned by either: it is
 //! declared in `rbxplace.toml` and referenced from both, so removing one is a
 //! question about this file's contents that happens to reach into its
 //! neighbours. See `commands::rm` for why it is not called `destroy`.
@@ -28,7 +28,7 @@ use clap::{Args, Subcommand, ValueEnum};
 use rbx_core::GlobalFlags;
 
 /// Re-exported so `rbx check` can run the same comparison `gen-module --check`
-/// runs, without going through the command — which prints as it goes, and
+/// runs, without going through the command, which prints as it goes, and
 /// stdout belongs to the document under `--json`. Visibility only: neither
 /// function's body changed.
 pub use commands::gen_module::{
@@ -50,12 +50,12 @@ pub enum EnvCommands {
     /// just one. Output mirrors the file's own TOML shape so it maps back
     /// onto what you'd edit.
     List {
-        /// Print env names only, one per line — no colors, no decoration.
+        /// Print env names only, one per line: no colors, no decoration.
         /// Useful for scripts and shell-completion helpers.
         #[arg(long)]
         names: bool,
 
-        /// Print place names only, one per line — the `--place` counterpart
+        /// Print place names only, one per line: the `--place` counterpart
         /// of `--names`.
         ///
         /// Without `--env`, the sorted union of every env's place names, so
@@ -79,7 +79,7 @@ pub enum EnvCommands {
 
     /// Print a single resolved value from rbxplace.toml.
     ///
-    /// The value goes to stdout bare — no label, no color — so it can be
+    /// The value goes to stdout bare (no label, no color) so it can be
     /// captured directly:
     ///
     ///   UNIVERSE=$(rbx env get universe-id --env prod)
@@ -107,7 +107,7 @@ pub enum EnvCommands {
     GenModule {
         /// Output file path (`.lua`, `.luau`, `.json`, or `.ts`).
         ///
-        /// Optional when `[codegen].output` is set in rbxplace.toml — which is
+        /// Optional when `[codegen].output` is set in rbxplace.toml, which is
         /// the form to prefer in a hook or a CI job, so the generator and the
         /// checker cannot be pointed at different files.
         #[arg(long, short)]
@@ -122,7 +122,7 @@ pub enum EnvCommands {
 
     /// Remove an env from rbxplace.toml and every file keyed by it.
     ///
-    /// Local only. Nothing is deleted on Roblox — and nothing could be: a game
+    /// Local only. Nothing is deleted on Roblox, and nothing could be: a game
     /// pass or a developer product cannot be deleted there at all, only taken
     /// off sale, and a badge can only be disabled. This removes the env
     /// itself: its block in rbxplace.toml, its overlay in rbxmeta.toml and

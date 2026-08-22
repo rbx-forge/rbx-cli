@@ -2,7 +2,7 @@
 
 Store the credentials an experience needs and the repository must never hold.
 
-A secret is a value the running game uses — a Discord webhook, a payment provider's key, the token for whatever service a `DataStore` reconciles against — that has no business being in a `.lua` file, a `.toml` file, or anybody's clipboard. Roblox keeps it per universe and hands it to the server as a `Secret` userdata that Luau can *send* but cannot read, print, or concatenate.
+A secret is a value the running game uses (a Discord webhook, a payment provider's key, the token for whatever service a `DataStore` reconciles against) that has no business being in a `.lua` file, a `.toml` file, or anybody's clipboard. Roblox keeps it per universe and hands it to the server as a `Secret` userdata that Luau can *send* but cannot read, print, or concatenate.
 
 ```lua
 local HttpService = game:GetService("HttpService")
@@ -20,9 +20,9 @@ This page describes `main`. Check `rbx --version` against what your `rokit.toml`
 
 ## The value is encrypted before it is sent
 
-Roblox does not accept a secret in the clear, even over TLS. The content is sealed against the universe's own public key first, so what crosses the wire — and what lands in any corporate proxy's log along the way — is ciphertext that only this universe can open.
+Roblox does not accept a secret in the clear, even over TLS. The content is sealed against the universe's own public key first, so what crosses the wire (and what lands in any corporate proxy's log along the way) is ciphertext that only this universe can open.
 
-`rbx secret set` does that for you. It fetches the universe's public key, seals the value with a **LibSodium sealed box**, and sends the result base64-encoded. A sealed box generates a throwaway keypair for each call and discards the private half, which means the ciphertext cannot be opened by anything — *including the process that produced it*. That is what makes this safe to run in CI: a sealed value in a build log is not a leak.
+`rbx secret set` does that for you. It fetches the universe's public key, seals the value with a **LibSodium sealed box**, and sends the result base64-encoded. A sealed box generates a throwaway keypair for each call and discards the private half, which means the ciphertext cannot be opened by anything, *including the process that produced it*. That is what makes this safe to run in CI: a sealed value in a build log is not a leak.
 
 Two consequences worth knowing:
 
@@ -49,7 +49,7 @@ Three ways to give the value, in descending order of how much you should like th
 
 `--value` prints a note on stderr saying so.
 
-The exposure is the command line, not the shell history, and the difference matters because the history is what people check. `--value $(bw get password token)` stores *the substitution* in history rather than its result — that is true of PSReadLine, bash and zsh alike — so the history looks clean and the warning looks like a false alarm. Meanwhile the expanded value really did travel as an argument to the process: readable in the process list by anything running as you, and captured whole by command-line auditing (Windows event 4688, Sysmon, an EDR agent, `auditd`). Those logs persist, and on a managed machine they leave it.
+The exposure is the command line, not the shell history, and the difference matters because the history is what people check. `--value $(bw get password token)` stores *the substitution* in history rather than its result (that is true of PSReadLine, bash and zsh alike) so the history looks clean and the warning looks like a false alarm. Meanwhile the expanded value really did travel as an argument to the process: readable in the process list by anything running as you, and captured whole by command-line auditing (Windows event 4688, Sysmon, an EDR agent, `auditd`). Those logs persist, and on a managed machine they leave it.
 
 `--value` is there for a scratch terminal; `--stdin` is there for everything else.
 
@@ -62,7 +62,7 @@ p + é + é   →   powershell 5.1   →   70 3f 3f 3f 3f 0d 0a     ("p????" + C
 p + é + é   →   pwsh 7           →   70 c3 a9 c3 a9           (intact)
 ```
 
-The trailing CRLF is stripped for you; the `?` substitution is not, and cannot be — it happened before the value reached this process. Since Roblox never hands the value back, a credential mangled this way stores cleanly and only surfaces in the game as the far end answering `401`.
+The trailing CRLF is stripped for you; the `?` substitution is not, and cannot be: it happened before the value reached this process. Since Roblox never hands the value back, a credential mangled this way stores cleanly and only surfaces in the game as the far end answering `401`.
 
 Use `pwsh` 7, where the pipe is byte-exact, and check with `$PSVersionTable.PSVersion` if you are unsure. To see exactly what a pipe delivers before storing anything:
 
@@ -72,9 +72,9 @@ bw get password <item> | python -c "import sys;d=sys.stdin.buffer.read();print(l
 
 A leading `efbbbf` is a BOM, a trailing `0d0a` is a newline, and any `3f` where you expected an accent is this bug. Compare the length against the `N bytes` that `set` reports: it is the only end-to-end check available, because nothing can read the value back afterwards.
 
-Passing the value as an argument — `--value $(bw get password ...)` — sidesteps the encoding problem entirely, since arguments reach the process as UTF-16 and convert cleanly whatever the shell version. It buys that at the cost of the command-line exposure above. On `pwsh` 7 you need not choose: `--stdin` is exact *and* private.
+Passing the value as an argument (`--value $(bw get password ...)`) sidesteps the encoding problem entirely, since arguments reach the process as UTF-16 and convert cleanly whatever the shell version. It buys that at the cost of the command-line exposure above. On `pwsh` 7 you need not choose: `--stdin` is exact *and* private.
 
-**`set` is create-or-replace.** There is no separate create step and no error on a name that already exists. Underneath it is a `POST`, falling back to a `PATCH` when Roblox answers `409` — which means it needs no read scope and two pipelines racing on the same secret both land as writes rather than one of them failing.
+**`set` is create-or-replace.** There is no separate create step and no error on a name that already exists. Underneath it is a `POST`, falling back to a `PATCH` when Roblox answers `409`, which means it needs no read scope and two pipelines racing on the same secret both land as writes rather than one of them failing.
 
 The output says which it turned out to be:
 
@@ -105,7 +105,7 @@ A secret's domain decides which hosts `HttpService` will attach it to:
 
 `--no-domain` is correct for a private key you sign with in-process. It is a trap for an API token: the credential simply never goes out with the request, and you find out in the game, at runtime, from a service answering `401`.
 
-**A `set` replaces the whole secret, domain included.** So the domain has to be restated on every write, including a rotation that only means to change the value. The alternative — carrying the stored domain forward — would mean reading it first, which would make a read scope necessary on a command that a deployment key should be able to run with write access alone.
+**A `set` replaces the whole secret, domain included.** So the domain has to be restated on every write, including a rotation that only means to change the value. The alternative (carrying the stored domain forward) would mean reading it first, which would make a read scope necessary on a command that a deployment key should be able to run with write access alone.
 
 ## Reading
 
@@ -123,7 +123,7 @@ signing    (no domain: server-side use only)  updated 2026-07-11T14:22:03Z
 
 That is the design working rather than a gap to route around. A secrets store you can read from is a secrets store that one leaked API key drains.
 
-The practical consequence: there is no way to check whether a stored value is the right one. To find out, replace it. It is also why `set` cannot report "no change" the way [`rbx config sync`](./config.md) does — it has nothing to compare against.
+The practical consequence: there is no way to check whether a stored value is the right one. To find out, replace it. It is also why `set` cannot report "no change" the way [`rbx config sync`](./config.md) does: it has nothing to compare against.
 
 ## Rotating
 
@@ -133,7 +133,7 @@ printenv API_TOKEN_NEW | rbx secret set api_token --stdin --domain api.example.c
 
 Same command as the first write. Servers pick the new value up on their next `GetSecret` call; nothing is pushed to them.
 
-**The previous value is gone the moment this succeeds.** Not in a backup file, not in a version history, not behind a support ticket. If the old credential is not in your password manager, it is not anywhere — which is why writes need `--apply`.
+**The previous value is gone the moment this succeeds.** Not in a backup file, not in a version history, not behind a support ticket. If the old credential is not in your password manager, it is not anywhere, which is why writes need `--apply`.
 
 Across every environment:
 
@@ -152,7 +152,7 @@ Deliberately not `--env all`: one token per environment is the point of having e
 rbx secret delete api_token --apply --env prod
 ```
 
-Irreversible, and the game stops being able to read it immediately — `GetSecret` on a name that is not there errors, so a live server calling it starts failing rather than degrading. Without `--apply` it says what it would delete and sends nothing.
+Irreversible, and the game stops being able to read it immediately: `GetSecret` on a name that is not there errors, so a live server calling it starts failing rather than degrading. Without `--apply` it says what it would delete and sends nothing.
 
 ## Sealing somewhere else
 
@@ -160,7 +160,7 @@ Irreversible, and the game stops being able to read it immediately — `GetSecre
 rbx secret public-key --env prod
 ```
 
-Prints the base64 X25519 public key on stdout and its `key_id` on stderr. `set` fetches this itself; the subcommand is for the case where the encryption has to happen elsewhere — a deployment system that holds the plaintext and will not hand it to a CLI, or a language binding doing the sealed box itself.
+Prints the base64 X25519 public key on stdout and its `key_id` on stderr. `set` fetches this itself; the subcommand is for the case where the encryption has to happen elsewhere: a deployment system that holds the plaintext and will not hand it to a CLI, or a language binding doing the sealed box itself.
 
 The key is public. Publishing it is what it is for. What you cannot do is seal against a key and submit it with a different `key_id`: Roblox stores what you send and would never be able to decrypt it.
 
@@ -168,7 +168,7 @@ The key is public. Publishing it is what it is for. What you cannot do is seal a
 
 `--json` writes one JSON document to stdout and nothing else. Counts and notes go to stderr, where they cannot corrupt it.
 
-**No document this command emits has a field for secret content**, and that is a property of the types rather than a convention to be careful about — there is nowhere for one to go. `--json` output is the form most likely to be redirected into a file or pasted into an issue.
+**No document this command emits has a field for secret content**, and that is a property of the types rather than a convention to be careful about: there is nowhere for one to go. `--json` output is the form most likely to be redirected into a file or pasted into an issue.
 
 ```sh
 rbx secret list --env prod --json
@@ -220,7 +220,7 @@ rbx secret list --env prod --json
 }
 ```
 
-`action` is `created` or `updated`. Worth branching on: `updated` means a previous value is gone. `bytes` is the plaintext length — the nearest thing to a checksum that is safe to print, and enough to catch the classic failure of piping an empty file or a shell variable that never expanded.
+`action` is `created` or `updated`. Worth branching on: `updated` means a previous value is gone. `bytes` is the plaintext length: the nearest thing to a checksum that is safe to print, and enough to catch the classic failure of piping an empty file or a shell variable that never expanded.
 
 Secrets left behind by a key rotation:
 
@@ -262,7 +262,7 @@ scopes = [
 
 ## Secrets do not reach running servers until they look
 
-Nothing wakes a server when a secret changes. `GetSecret` is read when the experience's own code decides to read it, so a rotation lands on whatever cadence that already has — often "next request", sometimes "next server start" if the result was cached in a variable.
+Nothing wakes a server when a secret changes. `GetSecret` is read when the experience's own code decides to read it, so a rotation lands on whatever cadence that already has: often "next request", sometimes "next server start" if the result was cached in a variable.
 
 If a rotation has to take effect at a known moment, that is [`rbx message`](./ops/message.md)'s job, the same pairing as a memory store value:
 
@@ -277,6 +277,6 @@ Never publish the value itself. The message is not encrypted, it is capped at 11
 
 Both are handled for you, and both are surprising enough to write down:
 
-**The secrets resource is `snake_case`.** `key_id`, `create_time`, `update_time`, where every other `cloud/v2` surface sends `keyId` and `createTime`. The list envelope around it is not — `secrets` and `nextPageCursor` — and it pages with a `cursor` rather than the `pageToken`/`nextPageToken` pair used everywhere else in `cloud/v2`.
+**The secrets resource is `snake_case`.** `key_id`, `create_time`, `update_time`, where every other `cloud/v2` surface sends `keyId` and `createTime`. The list envelope around it is not (`secrets` and `nextPageCursor`) and it pages with a `cursor` rather than the `pageToken`/`nextPageToken` pair used everywhere else in `cloud/v2`.
 
 **A create is a `POST` to the collection and an update is a `PATCH` to the item**, and the id lives in the body of one and the path of the other. Sending `id` in a `PATCH` body does nothing: the specification is explicit that a secret's id cannot be changed.

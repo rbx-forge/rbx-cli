@@ -84,8 +84,8 @@ pub fn summary(report: &Report) {
 /// One block per environment, then a verdict that never becomes an exit code.
 ///
 /// The rows are the same rows `rbx check` prints; what status adds is the
-/// grouping. A repository's state is per-env — `prod` is in sync and `staging`
-/// is three badges behind — and a flat list of `tool/check [env]` labels makes
+/// grouping. A repository's state is per-env (`prod` is in sync and `staging`
+/// is three badges behind) and a flat list of `tool/check [env]` labels makes
 /// the reader do that grouping in their head every time.
 pub fn status(report: &Report) {
     if report.tools.is_empty() {
@@ -215,8 +215,8 @@ fn row_label(row: &ToolReport) -> String {
 /// in, and it cannot be the latter from here: `--env all` expands through
 /// `PlacesFile::env_names`, which collects the sections of a map and sorts
 /// them, so declaration order is gone long before a row exists. Grouping by
-/// first appearance is still what happens here — the renderer does not
-/// re-sort what the engine handed it — but it promises no more than the
+/// first appearance is still what happens here (the renderer does not
+/// re-sort what the engine handed it) but it promises no more than the
 /// engine can produce.
 fn group_by_env(report: &Report) -> Vec<(Option<&str>, Vec<&ToolReport>)> {
     let mut groups: Vec<(Option<&str>, Vec<&ToolReport>)> = Vec::new();
@@ -245,7 +245,7 @@ mod tests {
     use crate::report::ToolReport;
 
     /// The renderer has no return value to assert on; what these pin is that
-    /// it stays total — every outcome combination has a verdict line and none
+    /// it stays total: every outcome combination has a verdict line and none
     /// of the arithmetic panics on an empty or single-row report.
     #[test]
     fn every_shape_of_report_renders_without_panicking() {
@@ -304,7 +304,7 @@ mod tests {
     ///
     /// The rows are the ones the pipeline can actually emit: it walks the
     /// tools in `Tool::ALL` order and, inside each, the envs `--env all`
-    /// expanded — which `PlacesFile::env_names` sorts. A report built in an
+    /// expanded, which `PlacesFile::env_names` sorts. A report built in an
     /// order the engine cannot produce would let this test pass on a claim the
     /// command never honours, which is how the declaration-order claim
     /// survived.

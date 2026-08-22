@@ -61,7 +61,7 @@ jobs:
           command: check ${{ matrix.check }}
           # No severity flags here on purpose. What fails and what merely warns
           # is decided in `deny.toml`, which is also what a local `cargo deny
-          # check` reads — passing `--deny warnings` from CI would make the two
+          # check` reads: passing `--deny warnings` from CI would make the two
           # disagree, and would in particular turn `[bans] multiple-versions =
           # "warn"` into a blocking failure it was deliberately not made.
           #

@@ -118,7 +118,7 @@ impl<'a> ShopCtx<'a> {
     ///
     /// Those are one question, not two. Roblox pays a group-owned game's badge
     /// out of group funds and a user-owned game's out of the user's, and there
-    /// is no way to cross them — asking for personal funds on a group game has
+    /// is no way to cross them: asking for personal funds on a group game has
     /// been a standing feature request since 2018 and is still not possible.
     /// So there is no payer to name separately from the owner, which is why
     /// `rbxshop.toml` has an `[owner]` override rather than a second concept.

@@ -1,7 +1,7 @@
 version: 2
 updates:
   # Cargo version updates intentionally NOT enabled: routine minor/patch bumps
-  # aren't worth a PR + CI run each on a solo repo. CVEs are still covered —
+  # aren't worth a PR + CI run each on a solo repo. CVEs are still covered:
   # Dependabot Security Alerts are enabled on the repo and open a PR only when
   # an advisory actually affects Cargo.lock (see Security tab). Bump cargo deps
   # manually (`cargo update -p <crate>`) when you have a reason.
@@ -11,7 +11,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      # `day` is only honoured for interval: weekly — under monthly, Dependabot
+      # `day` is only honoured for interval: weekly: under monthly, Dependabot
       # runs on the day-of-month it first activated. Don't add it back.
       interval: monthly
       time: "06:00"

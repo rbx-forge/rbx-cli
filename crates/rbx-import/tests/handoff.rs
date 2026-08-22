@@ -1,6 +1,6 @@
 //! The handoff: what `import` writes, the other tools have to be able to read.
 //!
-//! `import` does not compute a single lockfile entry — each domain writes its
+//! `import` does not compute a single lockfile entry: each domain writes its
 //! own, through the command that already knows how. What `import` owns is the
 //! `rbxplace.toml` every one of those commands resolves `--env` against, so
 //! this asserts that file against the *real* resolver in `rbx_core::places`,
@@ -8,7 +8,7 @@
 //!
 //! A note on what is not here: the end-to-end `import` then `check` assertion
 //! the issue asks for needs the three domain crates pointed at a mock server,
-//! and each of them injects its API host per-client behind `cfg(test)` — a
+//! and each of them injects its API host per-client behind `cfg(test)`: a
 //! deliberate choice, documented in `rbx_core::api::base`, that leaves no way
 //! to redirect `rbx_shop::run` from outside its own crate. See the PR for the
 //! one-line seam each crate would need.
@@ -101,7 +101,7 @@ fn two_imported_envs_both_resolve() {
 }
 
 /// The file must not pick up keys `rbx env` would then report as
-/// unrecognised — an import that makes every later command print a warning is
+/// unrecognised: an import that makes every later command print a warning is
 /// an import nobody trusts.
 #[test]
 fn the_written_file_has_no_unrecognised_keys() {
@@ -131,7 +131,7 @@ fn the_written_file_has_no_unrecognised_keys() {
 }
 
 /// An import into a file somebody else wrote leaves their `[codegen]` block
-/// alone — `rbx env gen-module --check` compares against a path declared
+/// alone: `rbx env gen-module --check` compares against a path declared
 /// there, and losing it silently turns that check into a no-op.
 #[test]
 fn an_existing_codegen_block_survives_an_import() {

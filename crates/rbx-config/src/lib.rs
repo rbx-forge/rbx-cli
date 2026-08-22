@@ -44,7 +44,7 @@ pub enum ConfigCommands {
         ///
         /// `.value` holds the answer when a key was named; without one,
         /// `.entries` carries the whole published config. This says what
-        /// Roblox is serving, not whether rbxconfig.toml agrees with it —
+        /// Roblox is serving, not whether rbxconfig.toml agrees with it:
         /// that is `rbx config check`. Field names are documented in
         /// docs/config.md.
         #[arg(long)]
@@ -160,7 +160,7 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
         env: global.env.clone(),
         // The global `--universe-id`, not a local copy. This crate used to
         // declare its own on `ConfigCli`, which shadowed the global one at the
-        // parent and stopped it propagating into the subcommands — so the flag
+        // parent and stopped it propagating into the subcommands, so the flag
         // worked before the subcommand name and was rejected after it.
         universe_id: global.universe_id,
         #[cfg(test)]

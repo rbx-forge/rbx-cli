@@ -95,7 +95,7 @@ pub async fn run(
 
     // One fetch, several fields. What comes back is what `GET /v1/.../
     // configuration` carries; `permissions` and the avatar scales are not in
-    // it and cannot be adopted here — see `api::legacy::UniverseConfigLegacy`.
+    // it and cannot be adopted here: see `api::legacy::UniverseConfigLegacy`.
     let universe_config = match client.get_universe_config_legacy().await {
         Ok(cfg) => cfg,
         Err(e) => {

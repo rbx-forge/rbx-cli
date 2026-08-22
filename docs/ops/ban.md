@@ -108,13 +108,13 @@ rbx ban remove builderman --env prod --apply
 
 ## Machine-readable output
 
-`--json` on the two reads — `status` and `list` — writes one JSON document to stdout and nothing else. Everything that is not the result (the count, the "names are not returned" note, the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
+`--json` on the two reads (`status` and `list`) writes one JSON document to stdout and nothing else. Everything that is not the result (the count, the "names are not returned" note, the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
 
 `add` and `remove` do not take it. Both stop and ask before they act, and a format that owns stdout cannot stop and ask: the prompt would land in the document, or in a pipeline where nobody can answer it. So the flag is not there to be refused at runtime, it does not exist on those subcommands at all. `logs` has no document yet either; the audit trail is worth one and nobody has asked.
 
 ### Permanent is stated, never implied
 
-Roblox expresses a permanent restriction by sending no duration at all. That is the one place where a missing field means the *worst* outcome rather than "nothing to report", and a consumer reading `.duration // "none"` would report a permanent ban as no ban. So every restriction carries `permanent`, and `duration` — Roblox's own `604800s`, not the `7d` the table renders — is absent exactly when `permanent` is true.
+Roblox expresses a permanent restriction by sending no duration at all. That is the one place where a missing field means the *worst* outcome rather than "nothing to report", and a consumer reading `.duration // "none"` would report a permanent ban as no ban. So every restriction carries `permanent`, and `duration` (Roblox's own `604800s`, not the `7d` the table renders) is absent exactly when `permanent` is true.
 
 ### `rbx ban list --json`
 

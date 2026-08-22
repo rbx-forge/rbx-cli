@@ -53,14 +53,14 @@ is why it reads as a user journey and ends with the live-operations commands.
 commands so that the tool CI installs could not run them. That drew the boundary
 in the command name, but not where it holds: Roblox binds an API key to its
 scopes at creation, so a deploy key cannot ban anybody whichever binary calls
-it. What it cost was installability — Rokit resolves one artifact per
+it. What it cost was installability: Rokit resolves one artifact per
 repository, so only one of two published binaries could ever be installed
 through it. The commands merged into `rbx` in 0.10.0, a forwarding shim carried
 the old name for two minor releases, and 0.12.0 deleted it. The signal now lives
 in the `Live:` prefix and in the ordering; the post-mortem of the split is in
 [TODO.md](./TODO.md). See [docs/ops.md](./docs/ops.md).
 
-## rbx-core — the shared layer
+## rbx-core: the shared layer
 
 Everything reused across crates lives here, so domain crates never duplicate
 infrastructure:
@@ -69,12 +69,12 @@ infrastructure:
   `--env`, `--place`, `--places`) plus `resolve_cookie()` (explicit flag →
   `RBX_COOKIE` → Studio auto-detection).
 - **`api`**: the shared HTTP layer.
-  - `build_client()` / `build_client_with_user_agent()` — the one place a
+  - `build_client()` / `build_client_with_user_agent()`: the one place a
     `reqwest::Client` is constructed (gzip + request timeout).
-  - `execute_with_retry` / `execute_json` / `RetryPolicy` — retry on 429/5xx
+  - `execute_with_retry` / `execute_json` / `RetryPolicy`: retry on 429/5xx
     and transient network errors, with `retry-after` support, then JSON-parse
     with the raw body kept in the error message.
-  - `download_asset` — Open Cloud asset download.
+  - `download_asset`: Open Cloud asset download.
 - **`places`** / **`owner`** / **`env`**: `rbxplace.toml` parsing, the shared
   `[owner]` block, and env-target resolution.
 
@@ -95,8 +95,8 @@ Two reasons, and they are worth more than the seconds parallelism would save:
   makes a failed run resumable by reading the output, and makes two runs of the
   same config produce the same sequence of API calls.
 
-`tokio` is therefore declared with the features that are actually used —
-`rt-multi-thread`, `macros`, `time`, `sync` — rather than `full`. It is here as
+`tokio` is therefore declared with the features that are actually used
+(`rt-multi-thread`, `macros`, `time`, `sync`) rather than `full`. It is here as
 `reqwest`'s runtime first and the CLI's own runtime second.
 
 Bounded concurrency for the *read-heavy* fan-outs (icon and media downloads)
@@ -114,12 +114,12 @@ moving those too.
 
 Each domain crate is shaped the same way:
 
-- `lib.rs` — the clap `Args`/`Subcommand` for that tool + `run(...)` dispatch.
-- `api/` — a thin `RbxClient` newtype wrapping `reqwest`, with one method per
+- `lib.rs`: the clap `Args`/`Subcommand` for that tool + `run(...)` dispatch.
+- `api/`: a thin `RbxClient` newtype wrapping `reqwest`, with one method per
   endpoint. The client is built via `rbx_core::api::build_client*` and most
   calls go through `rbx_core::api::execute_json`.
-- `commands/` — one module per subcommand; this is where the logic lives.
-- `config.rs` / `lockfile.rs` — the declarative `*.toml` model (serde) and, for
+- `commands/`: one module per subcommand; this is where the logic lives.
+- `config.rs` / `lockfile.rs`: the declarative `*.toml` model (serde) and, for
   stateful tools, the lockfile that records what was last synced to Roblox.
 
 ### One retry loop, per-crate terminal statuses
@@ -133,12 +133,12 @@ What is *not* shared is the meaning of a terminal status. Two crates overload
 one to mean something specific, and both map it after the shared helper has
 given up rather than during the retrying:
 
-- **`rbx-place`** — `409 Conflict` on the version endpoints means one thing:
+- **`rbx-place`**: `409 Conflict` on the version endpoints means one thing:
   somebody has the place open in Team Create. Left as a bare status it reads
   like a merge conflict and sends people to look at their file instead of at
   Studio. `place_write_error` turns it into that sentence
   (`crates/rbx-place/src/api/mod.rs`).
-- **`rbx-config`** — `404` on the config repository means the universe has
+- **`rbx-config`**: `404` on the config repository means the universe has
   never published a config. That is the starting state, not a failure, so it
   becomes an empty snapshot (`crates/rbx-config/src/api/mod.rs`).
 
@@ -176,7 +176,7 @@ Stateful tools (shop, meta, apikey, config) follow a declarative model:
 ### Dispatching over resource kinds
 
 `rbx-shop` manages three kinds of resource (pass, badge, developer product) and
-handles them through **one** enum, `config::ResourceKind` — never by matching on
+handles them through **one** enum, `config::ResourceKind`: never by matching on
 `"pass"` / `"badge"` / `"product"`. A stringly-typed match needs a `_` arm, and
 a `_` arm is where a typo goes to be swallowed; every match on `ResourceKind` is
 exhaustive, so a fourth kind would be a compile error rather than a silent
@@ -205,8 +205,8 @@ allowed crate-wide; intentionally-unused items carry a narrow, documented
 
 ### Snapshot tests
 
-The two crates that emit generated modules for user game code — `rbx-shop`
-(`codegen.rs`) and `rbx-env` (`gen-module`) — assert their output with `insta`
+The two crates that emit generated modules for user game code (`rbx-shop`
+(`codegen.rs`) and `rbx-env` (`gen-module`)) assert their output with `insta`
 snapshots of the **whole** file, not `contains()` on fragments: the emitted
 Luau and TypeScript is a contract with code that runs in a live experience, and
 a fragment assertion passes while everything around it degrades.

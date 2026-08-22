@@ -125,7 +125,7 @@ fn resolve_path(path: &str, global: &GlobalFlags) -> Result<String> {
     }
 
     // `--universe-id` first, so probing works in a directory with no
-    // `rbxplace.toml` — which is most of what `probe` is for, since the
+    // `rbxplace.toml`, which is most of what `probe` is for, since the
     // endpoints it exists to explore are usually ones no config knows about.
     if let Some(universe_id) = global.universe_id {
         return Ok(path.replace("{universe}", &universe_id.to_string()));

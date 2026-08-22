@@ -1,4 +1,4 @@
-//! `rbx apikey delete <key>|--all` — remove a key from Roblox and the local lock.
+//! `rbx apikey delete <key>|--all`: remove a key from Roblox and the local lock.
 
 use anyhow::{bail, Result};
 use colored::Colorize;
@@ -31,7 +31,7 @@ pub async fn run(
 
     // Asked here so the confirmations below can name the account. It is the
     // same call the pre-delete gate makes, cached for the process, so this
-    // costs one round trip rather than two — and a dead session now refuses
+    // costs one round trip rather than two, and a dead session now refuses
     // before a person is asked to approve anything.
     client.require_valid_session().await?;
 

@@ -3,7 +3,7 @@
 //!
 //! The unit tests in `rbx_place::json` pin what the documents *say*. They
 //! cannot pin what else reaches stdout, because a stray `println!` three layers
-//! down is invisible to a test that renders a struct into a buffer — and a
+//! down is invisible to a test that renders a struct into a buffer, and a
 //! stray `println!` is exactly the failure that breaks `jq` in somebody's
 //! pipeline. So these run the binary and parse its stdout.
 //!
@@ -166,7 +166,7 @@ async fn versions_emits_a_document_on_stdout_and_its_warning_on_stderr() {
     assert!(stderr.contains("notakey"), "stderr was:\n{stderr}");
 }
 
-/// The human form is the default and is untouched by any of this — the header
+/// The human form is the default and is untouched by any of this: the header
 /// line is byte for byte what it printed before `--json` existed.
 #[tokio::test(flavor = "multi_thread")]
 async fn without_the_flag_versions_still_prints_the_same_listing() {

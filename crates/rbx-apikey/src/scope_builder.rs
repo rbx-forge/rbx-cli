@@ -147,7 +147,7 @@ pub fn build(
         if !lookup.known {
             // Nothing for the reader to run: the catalog is embedded with
             // `include_str!`, so an installed binary cannot refresh it, and
-            // `catalog regenerate` — where this used to point — only does
+            // `catalog regenerate` (where this used to point) only does
             // anything from a checkout. What is actionable is the guess itself,
             // and where a wrong one surfaces.
             warnings.push(format!(

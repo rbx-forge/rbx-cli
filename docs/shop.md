@@ -19,7 +19,7 @@ Declaratively manage Roblox game passes, badges, and developer products from a s
 - **Alpha bleed**: applied to icons before upload (enabled by default)
 - **Duplicate detection**: when two remote resources share a name, asks which key the second should take (see [Duplicate names](#duplicate-names))
 - **Gift products**: `create_gift = true` on a pass or product derives a matching "GiftX" developer product automatically (see [Gift products](#gift-products))
-- **JSON**: `--json` on `show` and `list` writes one document to stdout and nothing else, with documented field names, for `jq` and CI. `show` is the declared side, `list` the remote one, and neither claims they agree — that is `rbx check --json`
+- **JSON**: `--json` on `show` and `list` writes one document to stdout and nothing else, with documented field names, for `jq` and CI. `show` is the declared side, `list` the remote one, and neither claims they agree: that is `rbx check --json`
 
 ## Quick start
 
@@ -86,7 +86,7 @@ Pull never auto-promotes overlays back into base. If you notice a field is the s
 
 Only the fields rbx owns are touched. A default value is written out only where you already wrote it, or where the value diverges from the default - a pull does not sprinkle `for_sale = true` through a file that never mentioned it.
 
-> Both commands only insert and update lines, never reserialize the document. Round-tripping it through serde would drop comments, reorder keys, and silently delete any field it does not model — the same rule `rbxplace.toml` follows, see [`rbx env`](./env.md).
+> Both commands only insert and update lines, never reserialize the document. Round-tripping it through serde would drop comments, reorder keys, and silently delete any field it does not model: the same rule `rbxplace.toml` follows, see [`rbx env`](./env.md).
 
 ### Unrecognised keys
 
@@ -149,7 +149,7 @@ For every pass/product, it looks for a developer product named exactly `label + 
 
 ```
 ✓ Detected gift twin: pass 'VIP' <- product '[GIFT] VIP Pass' (now `create_gift = true`, tracked as 'GiftVIP')
-! Product '[GIFT] Coins100' looks like a gift twin of 'Coins100' but its price differs (149 vs 99) — left as a separate entry, review manually.
+! Product '[GIFT] Coins100' looks like a gift twin of 'Coins100' but its price differs (149 vs 99): left as a separate entry, review manually.
 ```
 
 On a merge, `create_gift = true` is set on the source, the twin's literal config entry is dropped, and its lockfile entry is rekeyed to the derived `Gift<key>` - so the very first `sync` afterward recognizes the existing remote product and updates it instead of creating a duplicate. `--gift-label` requires `--from-remote`; without it, nothing about existing gift products is touched.
@@ -166,7 +166,7 @@ The next `sync` will then update the existing remote product rather than create 
 
 ## Duplicate names
 
-Roblox does not require game pass, badge or developer product names to be unique. `init --from-remote` and `pull` key a newly discovered resource by its display name, because that is the only human-meaningful handle the API offers — so two passes both called "VIP" want the same key.
+Roblox does not require game pass, badge or developer product names to be unique. `init --from-remote` and `pull` key a newly discovered resource by its display name, because that is the only human-meaningful handle the API offers, so two passes both called "VIP" want the same key.
 
 **On a terminal, you are asked which key the second should take:**
 
@@ -176,19 +176,19 @@ Roblox does not require game pass, badge or developer product names to be unique
   Key for pass 222: VIP_2
 ```
 
-The default is a suggestion, not a decision — type `vip_premium` if that is what it is. Leaving it empty skips the resource, which is the old behaviour kept as a deliberate choice rather than a default.
+The default is a suggestion, not a decision: type `vip_premium` if that is what it is. Leaving it empty skips the resource, which is the old behaviour kept as a deliberate choice rather than a default.
 
-**Off a terminal — CI, a pipe, a cron job — nothing prompts.** A command that stops on a question nobody will answer is worse than one that skips loudly. Instead you get the ids and the entry that fixes it permanently:
+**Off a terminal (CI, a pipe, a cron job) nothing prompts.** A command that stops on a question nobody will answer is worse than one that skips loudly. Instead you get the ids and the entry that fixes it permanently:
 
 ```
-! Duplicate pass name 'VIP' — skipping id 222 (id 111 keeps the key).
+! Duplicate pass name 'VIP': skipping id 222 (id 111 keeps the key).
   To manage it, add an entry naming its id, then re-run:
 
       [passes.<your_key>]
       id = 222
 ```
 
-**A resource filed under a key that is not its name keeps its real name in the config.** `name` is normally omitted, meaning "the key is the display name". When you file id 222 under `vip_premium`, `name = "VIP"` is written alongside it — without that, the next `sync` would read the key as the name you wanted and rename the live pass.
+**A resource filed under a key that is not its name keeps its real name in the config.** `name` is normally omitted, meaning "the key is the display name". When you file id 222 under `vip_premium`, `name = "VIP"` is written alongside it, without that, the next `sync` would read the key as the name you wanted and rename the live pass.
 
 The tool never invents the key itself. A generated `VIP_2` is an identifier you would live with for as long as the resource exists, chosen by something that has no idea which "VIP" is the premium one.
 
@@ -198,15 +198,15 @@ Only newly discovered resources can collide. Anything already tracked is keyed b
 
 Everything above is about *reading* duplicates. The costlier mistake is creating one, and it has a single ordinary cause: `rbxshop.lock.toml` was never committed.
 
-`sync` decides to create a resource from one fact — the key is absent from the lockfile. On a clean checkout with no lockfile, that is every resource in the config, and they all already exist. The duplicates that run would mint cannot be undone: Roblox has no delete for a game pass or a developer product, and the best available repair is setting the accidental twin to `for_sale = false`, which leaves it in the experience forever, visible to everyone who already owns it.
+`sync` decides to create a resource from one fact: the key is absent from the lockfile. On a clean checkout with no lockfile, that is every resource in the config, and they all already exist. The duplicates that run would mint cannot be undone: Roblox has no delete for a game pass or a developer product, and the best available repair is setting the accidental twin to `for_sale = false`, which leaves it in the experience forever, visible to everyone who already owns it.
 
 So before creating anything, `sync` lists the experience's existing passes, badges and products and stops if a name it is about to create is already taken:
 
 ```
 Error: 2 resources would be created under a name that already exists on Roblox:
 
-  pass 'VIP' (key 'VIP') — already id 111
-  product '100 Coins' (key 'Coins') — already id 333
+  pass 'VIP' (key 'VIP') (already id 111
+  product '100 Coins' (key 'Coins')) already id 333
 
 The usual cause is a rbxshop.lock.toml that was never committed, which makes every
 resource look new.
@@ -236,7 +236,7 @@ Initialize a new config file.
 | --- | --- |
 | `--from-remote` | Populate config and lockfile from existing remote resources |
 | `--universe-id` | Universe ID (standalone mode; cannot be combined with `--env`) |
-| `--gift-label <label>` | Requires `--from-remote`. Detect pre-existing gift-twin products (name == `label` + source name, same price) and mark `create_gift = true` automatically — see [Adopting `create_gift` on an existing game](#adopting-create_gift-on-an-existing-game) |
+| `--gift-label <label>` | Requires `--from-remote`. Detect pre-existing gift-twin products (name == `label` + source name, same price) and mark `create_gift = true` automatically: see [Adopting `create_gift` on an existing game](#adopting-create_gift-on-an-existing-game) |
 | `--dry-run` | Requires `--from-remote`. Preview passes/badges/products (and gift merges) without downloading icons or writing any files |
 
 With `--from-remote --env <name>`, init resolves universe_id from `rbxplace.toml`, fetches remote, writes the lockfile under `[envs.<name>]`, and skips the `[experience]` section in the config. With `--from-remote --universe-id <id>`, the standalone path is taken and `[experience]` is written.
@@ -256,7 +256,7 @@ Apply the resolved (base + overlay) config to Roblox.
 | `--yes` / `-y` | Skip the confirmation prompt. What CI passes |
 | `--allow-duplicate-names` | Create resources even when Roblox already has one by that name. See [Duplicate names](#duplicate-names) |
 
-`--yes` is worth thinking about once rather than reaching for. `sync` is the command that issues `Create`, Roblox has no delete verb for passes, badges or products, and badge creation spends Robux — so this flag is what turns a reviewed plan into an unattended one. Put `--dry-run` in the pull request and `--yes` in the job that was approved, not the other way round. See [Working in a team](teams.md#habits-that-keep-this-from-happening).
+`--yes` is worth thinking about once rather than reaching for. `sync` is the command that issues `Create`, Roblox has no delete verb for passes, badges or products, and badge creation spends Robux, so this flag is what turns a reviewed plan into an unattended one. Put `--dry-run` in the pull request and `--yes` in the job that was approved, not the other way round. See [Working in a team](teams.md#habits-that-keep-this-from-happening).
 
 Use `--env <name>` for a specific env, `--env all` for every env in `rbxplace.toml`, or no flag to fall back to `[experience]`.
 
@@ -287,7 +287,7 @@ Exit codes: `0` every env is in sync, `2` at least one env has resources to crea
 <details>
 <summary><code>rbx shop codegen</code></summary>
 
-Regenerate the codegen folder from `rbxshop.toml` + `rbxshop.lock.toml`. Offline — no API key, no network.
+Regenerate the codegen folder from `rbxshop.toml` + `rbxshop.lock.toml`. Offline: no API key, no network.
 
 `sync` already does this at the end of a successful run. This command exists so that regenerating does not require credentials: rebuild after a `git pull`, or after changing `style` / `paths` / `extra`, without touching Roblox.
 
@@ -300,7 +300,7 @@ rbx shop codegen --check   # compare instead; exits 2 on a difference
 | --- | --- |
 | `--check` | Compare the folder against what would be generated instead of writing it. Exits `2` on a difference |
 
-Writing also **prunes** modules the current lockfile no longer produces — delete an env and its `<env>.luau` goes with it. Only files carrying the `@generated` header are ever removed, so anything you wrote yourself in that folder is left alone. `--check` reports those leftovers as drift rather than ignoring them: a dead module still looks generated and can still be `require`d.
+Writing also **prunes** modules the current lockfile no longer produces: delete an env and its `<env>.luau` goes with it. Only files carrying the `@generated` header are ever removed, so anything you wrote yourself in that folder is left alone. `--check` reports those leftovers as drift rather than ignoring them: a dead module still looks generated and can still be `require`d.
 
 See [Guarding generated files](#guarding-generated-files).
 
@@ -324,7 +324,7 @@ List remote resources for a single env (does not support `--env all`).
 
 ### `--json`
 
-One JSON document on stdout, nothing else. Diagnostics — the unrecognised-key warning in particular — stay on stderr, so the document parses even when `rbxshop.toml` has something wrong with it.
+One JSON document on stdout, nothing else. Diagnostics (the unrecognised-key warning in particular) stay on stderr, so the document parses even when `rbxshop.toml` has something wrong with it.
 
 This is the **remote** side: what Roblox has right now. `rbx shop show --json` is the **declared** side. Neither says whether the two agree; that is `rbx check --json`, which reports this domain as `shop/lockfile` and `shop/codegen` and is the only one of the three that carries an `outcome`.
 
@@ -361,7 +361,7 @@ rbx shop list passes --env prod --json
 | `resources` | array of objects | One per remote resource, in the order Roblox returned them |
 | `resources[].id` | string | The Roblox id. The handle for a remote resource, the way the TOML key is the handle for a declared one |
 | `resources[].name` / `.description` | string | As Roblox holds them |
-| `resources[].price` | integer | Robux. **Absent** when Roblox reported no price — `Free` for a pass, `-` for a product in the table |
+| `resources[].price` | integer | Robux. **Absent** when Roblox reported no price: `Free` for a pass, `-` for a product in the table |
 | `resources[].for_sale` | boolean | Passes and products |
 | `resources[].enabled` | boolean | Badges only |
 | `resources[].store_page` | boolean | Developer products only |
@@ -387,13 +387,13 @@ rbx shop show --sort price     # name (default), price, or key
 rbx shop show --flat           # one global list with a type column
 ```
 
-`--sort price` puts entries without a price last. `--flat` merges passes, badges and products into a single sorted list instead of grouping by section — the view for "what is the cheapest thing in this game", which the grouped one cannot answer at a glance.
+`--sort price` puts entries without a price last. `--flat` merges passes, badges and products into a single sorted list instead of grouping by section: the view for "what is the cheapest thing in this game", which the grouped one cannot answer at a glance.
 
 ### `--json`
 
 The same resolved state as one JSON document on stdout, nothing else. Warnings and the per-env overlay hint move to stderr, so the document parses even when there is something to say about the file.
 
-This is the **declared** side: `rbxshop.toml` with defaults filled in and the `--env` overlay applied, which is what `sync` would resolve. `rbx shop list --json` is the **remote** side. Whether the two agree is a third question, and `rbx check --json` is the command that answers it — its rows for this domain are `shop/lockfile` and `shop/codegen`, and they carry `outcome`, `summary` and `details`. None of those three words appears here, so a filter written for one document cannot half-read the other.
+This is the **declared** side: `rbxshop.toml` with defaults filled in and the `--env` overlay applied, which is what `sync` would resolve. `rbx shop list --json` is the **remote** side. Whether the two agree is a third question, and `rbx check --json` is the command that answers it: its rows for this domain are `shop/lockfile` and `shop/codegen`, and they carry `outcome`, `summary` and `details`. None of those three words appears here, so a filter written for one document cannot half-read the other.
 
 ```sh
 rbx shop show --json
@@ -439,7 +439,7 @@ rbx shop show --env prod --json
 
 **Every id here is a string, and every price is a number.** Ids identify rather than count, a place id already exceeds 2^53, and a consumer parsing JSON with doubles would round one. Robux is a quantity, so it stays a number and arithmetic on it keeps working. Same rule in every document this tool writes.
 | `config_file` | string | The `rbxshop.toml` this was read from, as given or defaulted. `rbx shop list --json` has no such field, because it reads no local file |
-| `env` | string | The env whose overlay was applied. **Absent** for the base view — no `--env`, or `--env all`, which has no single overlay to resolve. Same omission rule `rbx check --json` uses for its own `env` |
+| `env` | string | The env whose overlay was applied. **Absent** for the base view: no `--env`, or `--env all`, which has no single overlay to resolve. Same omission rule `rbx check --json` uses for its own `env` |
 | `experience` | object | The `[experience]` section as the file spells it. **Absent** when there is none. Nested rather than a bare `universe_id`, because it is a declared fallback target and not necessarily the universe `--env` resolves to |
 | `passes` / `badges` / `products` | object | Keyed by TOML key: the handle `--env` overlays, `rename` moves and codegen emits. Empty objects when nothing is declared |
 | `*.name` | string | The `name` override. **Absent** when unset, in which case the key is the display name |
@@ -542,11 +542,11 @@ The whole section is optional in multi-env mode: with `--env <name>`, `universe_
 
 **The one thing it decides is the payment source for badge creation.** It is sent as `paymentSourceType` on the badge-create call, beside `expectedCost`; the scope Roblox wants there is named `legacy-universe.badge:manage-and-spend-robux`. Nothing else in `rbx shop` reads it.
 
-**It is called `owner` because the payer is the owner, necessarily.** Roblox charges a group-owned game's badge to group funds and a user-owned game's to the user's, with no way to cross them — paying for a group game's badge with personal Robux has been an open feature request [since 2018](https://devforum.roblox.com/t/we-should-be-able-to-purchase-a-badge-for-a-group-game-with-personal-funds/131369) and is still not possible. So there is no second party to name, and a field called `payer`, or the `creator` this used to be, would both imply a choice that does not exist.
+**It is called `owner` because the payer is the owner, necessarily.** Roblox charges a group-owned game's badge to group funds and a user-owned game's to the user's, with no way to cross them: paying for a group game's badge with personal Robux has been an open feature request [since 2018](https://devforum.roblox.com/t/we-should-be-able-to-purchase-a-badge-for-a-group-game-with-personal-funds/131369) and is still not possible. So there is no second party to name, and a field called `payer`, or the `creator` this used to be, would both imply a choice that does not exist.
 
-**You probably do not need to write it at all.** Roblox already knows who owns the universe, and `sync` asks — one `GET /cloud/v2/universes/{id}` before creating a badge, which `universe:read` covers. Ownership is not something a config should have to restate, and a config that restates it can be wrong: `type = "user"` on a group-owned game is a create Roblox refuses, and nothing local would have caught it.
+**You probably do not need to write it at all.** Roblox already knows who owns the universe, and `sync` asks: one `GET /cloud/v2/universes/{id}` before creating a badge, which `universe:read` covers. Ownership is not something a config should have to restate, and a config that restates it can be wrong: `type = "user"` on a group-owned game is a create Roblox refuses, and nothing local would have caught it.
 
-The declaration is the fallback, not the source. When the call cannot answer — a key without `universe:read`, or Roblox reporting neither field — `sync` falls back to `[owner]` here, then to `rbxplace.toml`: the env's own `[<env>.owner]` first, then the top-level one. That is what keeps `universe:read` off the required list for every key that syncs a shop.
+The declaration is the fallback, not the source. When the call cannot answer (a key without `universe:read`, or Roblox reporting neither field) `sync` falls back to `[owner]` here, then to `rbxplace.toml`: the env's own `[<env>.owner]` first, then the top-level one. That is what keeps `universe:read` off the required list for every key that syncs a shop.
 
 Same shape as `[owner]` in `rbxplace.toml`, because it is the same fact.
 
@@ -681,7 +681,7 @@ files = ["rbxshop.badges.toml", "rbxshop.subscriptions.toml"]
 Rules:
 
 - Only meaningful in the main file (the one passed via `--config`); an included file's own `[include]` is rejected.
-- Included files may only contain `[passes.*]`, `[badges.*]`, `[products.*]`, and their `[envs.<name>.*]` overlays — nothing else. Any `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` section in an included file is rejected with a clear error. So `[envs.prod.passes.VIP]` can live in `rbxshop.passes.toml` right alongside `[passes.VIP]` — but a `(env, key)` pair still can't be declared in more than one file.
+- Included files may only contain `[passes.*]`, `[badges.*]`, `[products.*]`, and their `[envs.<name>.*]` overlays: nothing else. Any `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` section in an included file is rejected with a clear error. So `[envs.prod.passes.VIP]` can live in `rbxshop.passes.toml` right alongside `[passes.VIP]`, but a `(env, key)` pair still can't be declared in more than one file.
 - The same resource key can't appear in more than one file (main or included) - `sync`/`check`/`show` fail with a clear error naming the file and the key.
 - **`pull` and `rename` write back to whichever file currently owns the entry.** Updating an existing pass/badge/product (or its `[envs.<name>.*]` overlay) rewrites it in place, wherever it happens to live - never duplicated into the main file. A brand-new entry `pull` discovers, or a new overlay for a resource that doesn't have one yet, is written to the main file by default (a new overlay is instead co-located next to its base resource's file, if that base lives in an included file). If you want something to live in a particular file going forward, move it there yourself - `pull`/`rename` never relocate an existing entry across files, only update it in place.
 
@@ -704,7 +704,7 @@ A resource defined only in an overlay (not in base) is treated as env-exclusive:
 | Developer Products | `developer-product:read`, `developer-product:write` |
 | Badges | `legacy-badge:manage` to list and read, `legacy-universe.badge:write` and `legacy-universe.badge:manage-and-spend-robux` to create |
 | Assets (icons) | `legacy-asset:manage` to read the asset as stored. Without it the public thumbnail service answers instead, at a rescaled size. Uploading a badge icon goes to `legacy-publish`, covered by the badge scopes above |
-| Badge payment source | `universe:read` — optional. `sync` uses it to read who owns the universe before creating a badge, and falls back to `[owner]` in the config when the key lacks it |
+| Badge payment source | `universe:read`: optional. `sync` uses it to read who owns the universe before creating a badge, and falls back to `[owner]` in the config when the key lacks it |
 
 ## Code generation
 
@@ -840,7 +840,7 @@ Autocomplete and strict typing work because the dispatcher returns `GameIds` for
 
 ### Switched-off resources
 
-A pass taken off sale, or a badge that was disabled, still appears in the generated module with its real id — and carries a comment saying so:
+A pass taken off sale, or a badge that was disabled, still appears in the generated module with its real id, and carries a comment saying so:
 
 ```lua
 return Types.gameIds({
@@ -858,7 +858,7 @@ return Types.gameIds({
 
 What was missing was any way to tell. `VIP = 67890` reads identically whether the pass is on sale or was retired six months ago, so a prompt that silently never opens looks like a bug in the prompt. The annotation carries the answer as far as the module.
 
-The state comes from the lockfile — `for_sale` for passes and products, `enabled` for badges — so it describes what Roblox has as of the last sync, not what the config would like. Ids under `[codegen.extra]` are never annotated: they belong to resources this tool does not manage, so there is nothing to know about them.
+The state comes from the lockfile (`for_sale` for passes and products, `enabled` for badges) so it describes what Roblox has as of the last sync, not what the config would like. Ids under `[codegen.extra]` are never annotated: they belong to resources this tool does not manage, so there is nothing to know about them.
 
 ### Stubbing semantics
 
@@ -890,7 +890,7 @@ rbx shop codegen --check                        # rbxshop.toml + rbxshop.lock.to
 rbx env gen-module --out src/Envs.luau --check  # rbxplace.toml
 ```
 
-Both are **offline** — no API key, no network — which is what makes them usable from a git hook and from CD.
+Both are **offline** (no API key, no network) which is what makes them usable from a git hook and from CD.
 
 Exit codes: `0` clean, `2` drift, `1` the command itself failed. Drift sits on its own code so a pipeline can tell "regenerate and commit" from "something broke".
 
@@ -923,7 +923,7 @@ It also only helps if the generated files are committed. If yours are gitignored
 
 ### Keep formatters off the generated path
 
-The comparison is byte for byte (modulo CRLF, which is normalized — a Windows checkout and a Linux CI runner agree). That only holds while the generator is the **single producer** of those files. Point stylua or prettier at them and every check fails forever, because two tools are writing the same bytes differently and regenerating cannot settle it.
+The comparison is byte for byte (modulo CRLF, which is normalized: a Windows checkout and a Linux CI runner agree). That only holds while the generator is the **single producer** of those files. Point stylua or prettier at them and every check fails forever, because two tools are writing the same bytes differently and regenerating cannot settle it.
 
 So exclude the generated folder from your formatters:
 
@@ -942,7 +942,7 @@ The generated files carry an `@generated` header, which several review tools rec
 src/shared/GameIds/** linguist-generated=true
 ```
 
-That folds the folder in pull request diffs and excludes it from language stats. `rbx shop` does not write this for you — how your repo is configured is your call.
+That folds the folder in pull request diffs and excludes it from language stats. `rbx shop` does not write this for you: how your repo is configured is your call.
 
 ## Lockfile
 

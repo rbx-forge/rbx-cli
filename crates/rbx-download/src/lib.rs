@@ -154,11 +154,11 @@ pub async fn run(cli: DownloadCli, global: &GlobalFlags) -> Result<()> {
 /// resolves which host a `.join(...)` reaches by looking the const up from the
 /// receiver's name.
 struct Hosts {
-    /// `apis.roblox.com` — Open Cloud asset delivery, needs an api key.
+    /// `apis.roblox.com`: Open Cloud asset delivery, needs an api key.
     cloud: ApiBase,
-    /// `assetdelivery.roblox.com` — the public endpoint, cookie-optional.
+    /// `assetdelivery.roblox.com`: the public endpoint, cookie-optional.
     delivery: ApiBase,
-    /// `economy.roblox.com` — asset name and type.
+    /// `economy.roblox.com`: asset name and type.
     economy: ApiBase,
 }
 

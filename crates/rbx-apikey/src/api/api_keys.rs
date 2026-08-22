@@ -281,7 +281,7 @@ impl RbxApiKeyClient {
     /// lands in the by-id route.
     ///
     /// `group_id` selects whose keys come back. Omitted, the answer is the
-    /// authenticated user's own keys — a group's keys are simply absent rather
+    /// authenticated user's own keys: a group's keys are simply absent rather
     /// than refused, so an empty result is not evidence the account has none.
     pub async fn list_api_keys(
         &self,

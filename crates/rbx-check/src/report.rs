@@ -3,7 +3,7 @@
 //! The split matters more than it looks: `rbx status` (the human view in #9)
 //! is the same gathering pass with a different renderer, and a check that
 //! prints as it goes cannot be reused that way. So nothing in this module
-//! writes to stdout — `render` does that, and only that.
+//! writes to stdout: `render` does that, and only that.
 
 use rbx_core::generated::Drift;
 use rbx_core::output::SCHEMA_VERSION;
@@ -19,7 +19,7 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
     /// The tool did not run: no config file, or `--offline` and it needs the
-    /// network. Never a failure — a repo without `rbxshop.toml` is not a repo
+    /// network. Never a failure: a repo without `rbxshop.toml` is not a repo
     /// with a broken shop.
     Skipped,
     /// Declared state matches recorded state.
@@ -105,7 +105,7 @@ impl ToolReport {
         self
     }
 
-    /// `shop/lockfile [prod]` — how a row is named in output and in an error.
+    /// `shop/lockfile [prod]`: how a row is named in output and in an error.
     pub fn label(&self) -> String {
         let base = format!("{}/{}", self.tool, self.check);
         match &self.env {
@@ -137,7 +137,7 @@ impl Report {
 
     /// The aggregate outcome: error beats drift beats clean.
     ///
-    /// An empty report is [`Outcome::Skipped`] — nothing was found to check,
+    /// An empty report is [`Outcome::Skipped`]: nothing was found to check,
     /// which exits 0 but says so rather than claiming everything is clean.
     pub fn worst(&self) -> Outcome {
         self.tools
@@ -161,7 +161,7 @@ impl Report {
     /// Turn the aggregate into the process result.
     ///
     /// Drift becomes `Err(Drift)` because that is what the binary maps to exit
-    /// code 2 — the same channel `rbx env gen-module --check` already uses, so
+    /// code 2: the same channel `rbx env gen-module --check` already uses, so
     /// there is one definition of "exit 2" in the tree rather than two.
     pub fn into_result(&self) -> anyhow::Result<()> {
         match self.worst() {
@@ -174,7 +174,7 @@ impl Report {
     fn failure_message(&self, verb: &str) -> String {
         let names: Vec<String> = self.problems().map(|t| t.label()).collect();
         format!(
-            "rbx check: {} of {} check{} {} — {}",
+            "rbx check: {} of {} check{} {}, {}",
             names.len(),
             self.tools.len(),
             if self.tools.len() == 1 { "" } else { "s" },
@@ -205,7 +205,7 @@ impl Report {
 ///
 /// A named object rather than a positional array, all the way down: a consumer
 /// survives a field being added and does not survive a column shifting. Field
-/// names are documented in `docs/check.md` and are the compatibility surface —
+/// names are documented in `docs/check.md` and are the compatibility surface:
 /// `schema_version` is bumped if one changes meaning or goes away.
 #[derive(Debug, Serialize)]
 pub struct CheckDocument<'a> {

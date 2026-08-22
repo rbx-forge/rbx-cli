@@ -52,10 +52,10 @@
       }
     },
     "RawEnvs": {
-      "description": "What a key's `envs` field may hold: one list, or one list per named group.\n\nTOML tells the two apart on its own — an array is not a table — so fan-out needs no flag of its own to switch on. The array form keeps the meaning it has always had, which matters: a read-only observability key that legitimately spans dev, staging and prod is still one key, and turning every declaration into per-env keys would have broken it.\n\nRejected alternatives, both recorded in issue 8. A `per_env = true` flag cannot express the split people actually run — dev and staging sharing one key while prod stays alone — since it only produces singletons. A positional list of lists gives the groups no stable identity, so the generated key names, secret files and lockfile entries would be keyed by position and would all move the day somebody reorders the list or adds an env.",
+      "description": "What a key's `envs` field may hold: one list, or one list per named group.\n\nTOML tells the two apart on its own (an array is not a table) so fan-out needs no flag of its own to switch on. The array form keeps the meaning it has always had, which matters: a read-only observability key that legitimately spans dev, staging and prod is still one key, and turning every declaration into per-env keys would have broken it.\n\nRejected alternatives, both recorded in issue 8. A `per_env = true` flag cannot express the split people actually run (dev and staging sharing one key while prod stays alone) since it only produces singletons. A positional list of lists gives the groups no stable identity, so the generated key names, secret files and lockfile entries would be keyed by position and would all move the day somebody reorders the list or adds an env.",
       "anyOf": [
         {
-          "description": "`envs = [\"dev\", \"prod\"]` — one key, targeting every env listed.",
+          "description": "`envs = [\"dev\", \"prod\"]`: one key, targeting every env listed.",
           "type": "array",
           "items": {
             "type": "string"
@@ -115,7 +115,7 @@
           ]
         },
         "envs": {
-          "description": "Env names this key targets, overriding `default_envs`. Written as an array for one key spanning them all, or as a table of named groups for one key per group — see the two forms above.",
+          "description": "Env names this key targets, overriding `default_envs`. Written as an array for one key spanning them all, or as a table of named groups for one key per group: see the two forms above.",
           "anyOf": [
             {
               "$ref": "#/definitions/RawEnvs"

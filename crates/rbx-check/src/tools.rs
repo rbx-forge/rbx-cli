@@ -1,18 +1,18 @@
 //! One state-gathering pass per tool.
 //!
-//! Every probe here answers the same question — does what this repo declares
-//! still match what it recorded — and returns [`ToolReport`]s rather than
+//! Every probe here answers the same question: does what this repo declares
+//! still match what it recorded, and returns [`ToolReport`]s rather than
 //! printing. Nothing here calls another command.
 //!
 //! The reason not to compose is stdout, not exit codes: every per-tool check
 //! now returns `Err(Drift)` on drift, but they all print as they decide, and
-//! under `--json` stdout belongs to the document — a probe that shelled into
+//! under `--json` stdout belongs to the document: a probe that shelled into
 //! them would emit something `jq` cannot read. A row also carries more than a
 //! status: an env label, a summary and per-change details, none of which
 //! survive a process exit code.
 //!
 //! So each probe rebuilds the comparison from the same public pieces the
-//! command uses — the renderers and plan builders themselves, not a
+//! command uses: the renderers and plan builders themselves, not a
 //! re-description of them. No check body is called from here; see
 //! `docs/check.md`.
 
@@ -29,7 +29,7 @@ use crate::report::{Outcome, ToolReport};
 /// Compare rendered files against disk and describe the result.
 ///
 /// The generated-file checks are a byte comparison, so the verdict is the same
-/// one `CheckReport` reaches — computed here only because `CheckReport::finish`
+/// one `CheckReport` reaches: computed here only because `CheckReport::finish`
 /// prints as it decides, and stdout is not always ours to write to.
 fn compare_generated(
     files: &[GeneratedFile],
@@ -42,7 +42,7 @@ fn compare_generated(
             Ok(verdict) if !verdict.is_drift() => {}
             Ok(Verdict::Missing) => details.push(format!("{}: missing", file.path.display())),
             Ok(Verdict::Formatting) => details.push(format!(
-                "{}: whitespace only — something else is rewriting this file \
+                "{}: whitespace only: something else is rewriting this file \
                  (a formatter, or an editor trimming on save). Regenerating will not stop it.",
                 file.path.display()
             )),
@@ -52,7 +52,7 @@ fn compare_generated(
                 diff.line
             )),
             Ok(Verdict::Match) => {}
-            // `compare` cannot return this today — `Stale` is recorded by the
+            // `compare` cannot return this today: `Stale` is recorded by the
             // caller that knows a file is left over, never by a byte
             // comparison. It is mapped rather than ignored because
             // `Stale::is_drift()` is true, so a future `compare` that started
@@ -180,7 +180,7 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
     // itself the misreading. `gen-module --check` carries the same caveat.
     if outcome == Outcome::Drift && !places.unknown.is_empty() {
         details.push(format!(
-            "{} key{} in {} ignored — if one of them was meant to change what is generated, \
+            "{} key{} in {} ignored, if one of them was meant to change what is generated, \
              the committed file may be the correct side and regenerating would bake the \
              misreading in. Upgrade rbx, or fix the spelling, first.",
             places.unknown.len(),
@@ -286,7 +286,7 @@ pub fn shop(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
                 "shop",
                 "lockfile",
                 Outcome::Drift,
-                format!("{creates} to create, {updates} to update — run `rbx shop sync`"),
+                format!("{creates} to create, {updates} to update: run `rbx shop sync`"),
             )
         };
         reports.push(report.env(&label).details(plan.warnings.clone()));
@@ -312,13 +312,13 @@ fn shop_codegen(
         );
     }
     // Codegen reads asset ids out of the lockfile, so without one there is
-    // nothing it could have generated — and nothing to have drifted.
+    // nothing it could have generated, and nothing to have drifted.
     if !lockfile_path.exists() {
         return ToolReport::new(
             "shop",
             "codegen",
             Outcome::Skipped,
-            "no lockfile yet — run `rbx shop sync` once",
+            "no lockfile yet: run `rbx shop sync` once",
         );
     }
 
@@ -328,7 +328,7 @@ fn shop_codegen(
             "shop",
             "codegen",
             Outcome::Skipped,
-            "no envs in the lockfile yet — run `rbx shop sync` once",
+            "no envs in the lockfile yet: run `rbx shop sync` once",
         ),
         Ok(Some(plan)) => {
             let (outcome, summary, details) = compare_generated(&plan.files, &plan.stale);
@@ -409,7 +409,7 @@ pub fn meta(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
                 "lockfile",
                 Outcome::Drift,
                 format!(
-                    "{} pending change{} — run `rbx meta sync`",
+                    "{} pending change{}: run `rbx meta sync`",
                     meta_change_count(&plan),
                     if meta_change_count(&plan) == 1 {
                         ""
@@ -505,7 +505,7 @@ pub async fn config(
     };
 
     // Built up front so the key is read once, but not *demanded* until an env
-    // has something to compare — see the gates below.
+    // has something to compare: see the gates below.
     let client = global.api_key.clone().map(RbxConfigClient::new);
 
     let mut reports = Vec::new();
@@ -590,7 +590,7 @@ pub async fn config(
                 "live",
                 Outcome::Drift,
                 format!(
-                    "{} entr{} differ{} — run `rbx config sync --env {name}`",
+                    "{} entr{} differ{}: run `rbx config sync --env {name}`",
                     diff.changes.len(),
                     if diff.changes.len() == 1 { "y" } else { "ies" },
                     if diff.changes.len() == 1 { "s" } else { "" },
@@ -625,14 +625,14 @@ fn resolve_universe(global: &GlobalFlags, env: &str) -> Result<u64> {
 /// missing secrets) inside a private module and returns `Ok(())` whatever it
 /// finds, which the other per-tool checks no longer do. Wiring it in would mean
 /// either widening `rbx-apikey` internals or re-implementing that classifier
-/// here — a second copy of the rules, which is exactly the failure mode this
+/// here: a second copy of the rules, which is exactly the failure mode this
 /// tool exists to catch. Left as a named gap instead. See `docs/check.md`.
 pub fn apikey() -> Vec<ToolReport> {
     vec![ToolReport::new(
         "apikey",
         "status",
         Outcome::Skipped,
-        "not yet wired — run `rbx apikey status` (see docs/check.md)",
+        "not yet wired: run `rbx apikey status` (see docs/check.md)",
     )]
 }
 
@@ -732,7 +732,7 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // config/live — when the key is demanded
+    // config/live, when the key is demanded
     // -----------------------------------------------------------------------
 
     /// A repo with an env-keyed config and no credential anywhere.
@@ -752,7 +752,7 @@ mod tests {
     }
 
     /// The check would have skipped whether or not a key was present, so
-    /// asking for one turns a no-op into exit 1 — and pushes a keyless
+    /// asking for one turns a no-op into exit 1, and pushes a keyless
     /// pre-commit hook onto `--offline` for a check that never runs.
     #[tokio::test]
     async fn no_env_is_skipped_rather_than_failing_for_a_key_it_would_not_have_used() {

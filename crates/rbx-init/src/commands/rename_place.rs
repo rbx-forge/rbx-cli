@@ -8,7 +8,7 @@ use rbx_core::GlobalFlags;
 pub async fn run(global: &GlobalFlags, place: u64, name: &str, yes: bool) -> Result<()> {
     let client = RbxClient::new(global.resolve_cookie());
 
-    // #63: a write with the cookie, so the session is checked first — and
+    // #63: a write with the cookie, so the session is checked first, and
     // before the prompt, so the question names the account. A place id says
     // nothing about which account is about to rename it.
     client.require_valid_session().await?;

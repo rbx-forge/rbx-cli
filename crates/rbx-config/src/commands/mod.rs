@@ -33,7 +33,7 @@ pub fn make_client(ctx: &ConfigCtx) -> Result<RbxConfigClient> {
 /// `--yes` answers this one too. It reads as "do not ask me anything", and a
 /// flag that skipped the confirmation and then stopped on a second question
 /// was the difference between a pipeline that runs and one that fails on
-/// `not a terminal` — a message naming the wrong thing entirely, since the
+/// `not a terminal`: a message naming the wrong thing entirely, since the
 /// terminal was never the problem.
 ///
 /// Off a terminal without any of the three, the refusal names the flags rather
@@ -64,8 +64,8 @@ mod tests {
     use super::*;
 
     /// The bug this exists for: `config sync --yes` skipped the confirmation
-    /// and then stopped on a second question, failing CI with "not a terminal"
-    /// — a message about the stream, when the stream was never the problem.
+    /// and then stopped on a second question, failing CI with "not a terminal":
+    /// a message about the stream, when the stream was never the problem.
     #[test]
     fn yes_answers_the_message_prompt_too() {
         assert_eq!(resolve_message(None, false, true).unwrap(), "");

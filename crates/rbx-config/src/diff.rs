@@ -79,7 +79,7 @@ impl Diff {
 
     pub fn print(&self) {
         if self.changes.is_empty() {
-            println!("  (no changes — local matches live)");
+            println!("  (no changes: local matches live)");
             return;
         }
         for c in &self.changes {

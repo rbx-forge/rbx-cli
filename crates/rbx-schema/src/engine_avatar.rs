@@ -9,7 +9,7 @@
 //!
 //! That argument does not apply here, and it is worth saying why rather than
 //! quietly making an exception. There is no model to derive from: `rbx meta`
-//! reads the avatar settings file, checks it parses, and sends it — it does not
+//! reads the avatar settings file, checks it parses, and sends it: it does not
 //! model the contents, deliberately, because Roblox types the field as an
 //! opaque JSON string and annotates it *"experimental which may be changed or
 //! removed in future"*. So this is not a second description competing with a
@@ -23,7 +23,7 @@
 //!
 //! A schema that drifts from Roblox costs an autocomplete suggestion that did
 //! not appear. It cannot cost a rejected valid file, because
-//! `additionalProperties` stays open everywhere — the rule this crate already
+//! `additionalProperties` stays open everywhere: the rule this crate already
 //! holds itself to, and the one that matters most here: a key Roblox adds
 //! tomorrow is a key `rbx meta` already passes through today, so the schema
 //! must not paint it red.
@@ -48,8 +48,8 @@
 //!
 //! That absence cuts both ways, and it is why the integers stay: there is no
 //! evidence a string form works, and no example of one existing. The only known
-//! good document — Phoenix-CLI's, itself derived from what the Roblox dashboard
-//! produces — is integers throughout. Widening to accept strings would trade a
+//! good document: Phoenix-CLI's, itself derived from what the Roblox dashboard
+//! produces: is integers throughout. Widening to accept strings would trade a
 //! real check (somebody writing `AvatarType = "R15"`, the name instead of the
 //! number) for coverage of a form nothing attests to.
 //!
@@ -57,7 +57,7 @@
 //! and modelling one as a Rust enum would emit a closed `enum` in the schema.
 //! That would be stricter than the tool, which sends whatever the file holds.
 //! The meanings live in the doc comments instead, where an editor shows them on
-//! hover — guidance without a gate.
+//! hover: guidance without a gate.
 
 // Nothing reads these fields, and nothing should: they exist so the derive can
 // see their names, types and doc comments. That is the whole contribution of
@@ -218,7 +218,7 @@ pub struct AvatarCollisionRules {
     /// box).
     ///
     /// A third numbering for collisions, and again not the one
-    /// `[game.avatar] collision` uses — that field is the older
+    /// `[game.avatar] collision` uses: that field is the older
     /// `universeCollisionType`, where `1` = inner box and `2` = outer box.
     pub collision_mode: Option<i64>,
     /// What touch events fire against: `0` = avatar geometry, `1` = colliders.

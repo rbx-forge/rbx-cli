@@ -2,8 +2,8 @@
 //!
 //! The one Open Cloud surface a game server can read without an HTTP call.
 //! A value written here is visible to `MemoryStoreService:GetSortedMap()`
-//! in-experience, which is the point: something outside Roblox — a VPS, a cron
-//! job, a dashboard — can publish a value that every server picks up without
+//! in-experience, which is the point: something outside Roblox: a VPS, a cron
+//! job, a dashboard: can publish a value that every server picks up without
 //! paying a data store round trip for it.
 //!
 //! Sorted maps only, for now. Queues are the other half of the memory store
@@ -14,7 +14,7 @@
 //! ## Two things the specification does not make obvious
 //!
 //! **The item id is a query parameter.** `POST .../items` with `{"id": ...}`
-//! in the body answers `400 INVALID_ARGUMENT "The id field is required."` —
+//! in the body answers `400 INVALID_ARGUMENT "The id field is required."`:
 //! an error naming the field you just sent. It belongs in `?id=`, and the body
 //! carries only the value, the TTL and the sort keys.
 //!
@@ -428,11 +428,11 @@ impl Api {
         // subsequent call must match the call that provided the page token."
         // Shrinking `maxPageSize` as the remaining count falls sends page two
         // with a different value than the call that issued its token, which
-        // Roblox is entitled to reject — and only on listings long enough to
+        // Roblox is entitled to reject, and only on listings long enough to
         // page, which are the ones nobody tries by hand.
         //
         // Overshooting on the last page costs nothing: the truncate below
-        // discards the surplus. Keeping the two paired is the point — a fixed
+        // discards the surplus. Keeping the two paired is the point: a fixed
         // page size without it returns more rows than `--limit` asked for.
         let page_size = 1u32.max(limit.min(MAX_PAGE_SIZE));
 

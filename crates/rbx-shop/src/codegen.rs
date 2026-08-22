@@ -17,8 +17,8 @@ use crate::lockfile::{EnvLock, Lockfile};
 /// Header on every file this module emits.
 ///
 /// Kept as constants rather than spelled out at each site: the banner is on its
-/// way to being load-bearing — stale-file pruning refuses to delete anything
-/// that does not carry `@generated` — and a copy that drifts would break that
+/// way to being load-bearing (stale-file pruning refuses to delete anything
+/// that does not carry `@generated`) and a copy that drifts would break that
 /// recognition without failing anything.
 ///
 /// Names the tool, not the subcommand, because `sync` and `codegen` both emit
@@ -148,7 +148,7 @@ fn format_luau_type_key(key: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Tree types — per-env IDs and the shape union
+// Tree types: per-env IDs and the shape union
 // ---------------------------------------------------------------------------
 
 pub type CodegenTree = BTreeMap<String, CodegenNode>;
@@ -375,7 +375,7 @@ fn merge_shape(into: &mut ShapeTree, other: &ShapeTree) {
             }
             (Some(ShapeNode::Leaf), ShapeNode::Leaf) => {}
             (Some(_), _) => {
-                // Conflicting kinds (leaf vs branch) — keep `into`'s kind.
+                // Conflicting kinds (leaf vs branch): keep `into`'s kind.
                 // Should not happen with well-formed configs.
             }
             (None, ShapeNode::Leaf) => {
@@ -444,7 +444,7 @@ fn build_union_shape(env_trees: &[(String, CodegenTree)]) -> ShapeTree {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering — per-env Luau module (value tables)
+// Rendering: per-env Luau module (value tables)
 // ---------------------------------------------------------------------------
 
 fn render_luau_value_node(out: &mut String, node: &CodegenNode, depth: usize) {
@@ -523,7 +523,7 @@ fn render_type_module(
         out.push_str("}\n\n");
     }
 
-    // Wrapper identity function — Luau-strict mode validates the literal at
+    // Wrapper identity function: Luau-strict mode validates the literal at
     // every call site against the type.
     out.push_str(&format!(
         "local function {wrapper}(x: {ty}): {ty}\n\treturn x\nend\n\n",
@@ -550,7 +550,7 @@ fn tree_contains_zero(tree: &CodegenTree) -> bool {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering — init.luau (type alias + dispatcher)
+// Rendering: init.luau (type alias + dispatcher)
 // ---------------------------------------------------------------------------
 
 fn render_luau_type_node(out: &mut String, node: &ShapeNode, depth: usize) {
@@ -590,7 +590,7 @@ fn render_init_luau(
         name = var_name
     ));
 
-    // String-literal union of env names — required for `never`-exhaustiveness
+    // String-literal union of env names: required for `never`-exhaustiveness
     // narrowing in the if/elseif dispatcher below.
     out.push_str("export type EnvName = ");
     let env_literals: Vec<String> = env_universes
@@ -654,7 +654,7 @@ fn render_init_luau(
 }
 
 // ---------------------------------------------------------------------------
-// Rendering — TypeScript (.d.ts)
+// Rendering: TypeScript (.d.ts)
 // ---------------------------------------------------------------------------
 
 fn render_ts_type_node(out: &mut String, node: &ShapeNode, depth: usize) {
@@ -736,7 +736,7 @@ pub struct CodegenPlan {
     pub dir: PathBuf,
     /// Files this run produces, in write order.
     pub files: Vec<GeneratedFile>,
-    /// Files we generated previously that this run no longer produces — a
+    /// Files we generated previously that this run no longer produces: a
     /// renamed or deleted env, or `typescript` turned off. Left behind, they
     /// are dead modules that still look generated.
     pub stale: Vec<PathBuf>,
@@ -767,7 +767,7 @@ pub fn plan(
         };
         if let Some(len) = stripped_len {
             bail!(
-                "[codegen].output = \"{}\" looks like a file path, not a folder — it names a \
+                "[codegen].output = \"{}\" looks like a file path, not a folder: it names a \
                  FOLDER that will contain init.luau and per-env modules, so it shouldn't end in \
                  a Luau extension. Remove the extension, e.g. \"{}\".",
                 output.display(),
@@ -789,7 +789,7 @@ pub fn plan(
     let type_module_name = format!("{}Type", var_name);
 
     // Per-env modules are written as `<env>.luau` next to init.luau and the
-    // type module — an env named after either would silently clobber it.
+    // type module: an env named after either would silently clobber it.
     for env_name in lockfile.envs.keys() {
         if env_name == "init" || *env_name == type_module_name {
             bail!(
@@ -864,7 +864,7 @@ pub fn plan(
 /// longer produces.
 ///
 /// Only files that could plausibly be ours are considered, and each one must
-/// still carry [`GENERATED_MARKER`] in its header — pruning deletes files, so
+/// still carry [`GENERATED_MARKER`] in its header: pruning deletes files, so
 /// it errs entirely on the side of leaving things alone.
 fn find_stale(dir: &Path, files: &[GeneratedFile]) -> Result<Vec<PathBuf>> {
     if !dir.is_dir() {

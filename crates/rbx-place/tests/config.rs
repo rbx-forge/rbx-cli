@@ -224,7 +224,7 @@ fn all_places_sorted_empty_when_no_places() {
 #[test]
 fn a_codegen_section_survives_a_save_round_trip() {
     // `rbx place fetch --write` rewrites rbxplace.toml wholesale. A reserved
-    // key it doesn't model would be silently dropped — deleting the setting
+    // key it doesn't model would be silently dropped: deleting the setting
     // that `rbx env gen-module --check` depends on.
     let dir = tempdir().unwrap();
     let path = dir.path().join("rbxplace.toml");

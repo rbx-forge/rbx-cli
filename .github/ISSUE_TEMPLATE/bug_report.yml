@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Found a security problem instead? Don't file it here — use a
+        Found a security problem instead? Don't file it here: use a
         [private advisory](https://github.com/rbx-forge/rbx-cli/security/advisories/new).
         See [SECURITY.md](https://github.com/rbx-forge/rbx-cli/blob/main/SECURITY.md).
 
@@ -73,7 +73,7 @@ body:
     attributes:
       label: Anything else
       description: >
-        Does it reproduce every time? Did it work in an earlier version — which
+        Does it reproduce every time? Did it work in an earlier version, which
         one? Does `rbx doctor` say anything?
     validations:
       required: false

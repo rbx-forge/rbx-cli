@@ -1,4 +1,4 @@
-# cargo-deny — what we accept from the dependency tree.
+# cargo-deny: what we accept from the dependency tree.
 #
 # Why this exists rather than a bare `cargo audit`: audit answers one question
 # (is a dependency subject to a published advisory), and three others matter to
@@ -14,7 +14,7 @@
 [graph]
 # Evaluate against the targets the release actually ships, plus the musl one.
 # Without this, cargo-deny walks dependencies for every platform Cargo knows
-# about, which is how `r-efi` — a UEFI crate no build of ours ever compiles —
+# about, which is how `r-efi` (a UEFI crate no build of ours ever compiles)
 # ends up being asked to justify its license.
 targets = [
     "x86_64-unknown-linux-gnu",
@@ -23,7 +23,7 @@ targets = [
     "aarch64-apple-darwin",
 ]
 # Dev-dependencies are not distributed. `wiremock` and `tempfile` never reach a
-# user's machine, so their licenses are not our distribution problem — but
+# user's machine, so their licenses are not our distribution problem, but
 # their advisories are still our CI's problem, which `[advisories]` handles
 # independently of this flag.
 all-features = true
@@ -93,7 +93,7 @@ multiple-versions = "warn"
 # giving up.
 #
 # The only wildcards in this graph are the workspace's own crates depending on
-# each other by path with no version requirement — the normal shape of a
+# each other by path with no version requirement: the normal shape of a
 # workspace that ships one binary. `allow-wildcard-paths = true` exists for
 # exactly that and does not help here: cargo-deny only applies it to crates
 # marked `publish = false`, and these are not, so it reports all 27 as real
@@ -107,7 +107,7 @@ multiple-versions = "warn"
 #
 # Decided 2026-08-17 to leave it here rather than mark `rbx` too. Marking a
 # crate unpublishable to satisfy a lint would be letting the lint make a
-# product decision, and the lint buys nothing in this workspace anyway — the
+# product decision, and the lint buys nothing in this workspace anyway: the
 # thing `wildcards` exists to catch is a `foo = "*"` version requirement on a
 # third-party crate, and there is not one. Revisit if that ever changes.
 wildcards = "allow"

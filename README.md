@@ -9,7 +9,7 @@ Add it to your project's `rokit.toml`, then run `rokit install`:
 rbx = "rbx-forge/rbx-cli@0.2.0"
 ```
 
-The command is `rbx` — short, because you type it all day. The repository
+The command is `rbx`: short, because you type it all day. The repository
 carries the `-cli` suffix to distinguish it from the `rbx_*` libraries
 (`rbx_dom`, `rbx_binary`, …), the same way `aws-cli` installs as `aws`.
 Prefer `rokit add`? Pass the alias explicitly, or you get an `rbx-cli`
@@ -23,7 +23,7 @@ glibc and will not start on an older distribution, while
 `x86_64-unknown-linux-musl` is statically linked and does not care. Reach for
 musl when the gnu binary reports a missing `GLIBC_...` version.
 
-**Documentation site: <https://rbx-forge.github.io/rbx-cli/>** — the `docs/`
+**Documentation site: <https://rbx-forge.github.io/rbx-cli/>**: the `docs/`
 pages linked below, rendered with search and cross-links. Built from the same
 files, so it is never a second copy to keep in sync.
 
@@ -33,12 +33,12 @@ The command surface looks broad because it is two products that happen to share
 a spine. The spine is the environment model: one `rbxplace.toml` maps env names
 to universes and places, and every command below resolves `--env` through it.
 
-**Declarative — Terraform for Roblox.** `init`, `env`, `apikey`, `place`,
+**Declarative: Terraform for Roblox.** `init`, `env`, `apikey`, `place`,
 `meta`, `config`, `shop`. You write the desired state into a TOML file you
 commit, and the tool reconciles Roblox to match it. Diffable, reviewable, safe
 to run on every push, idempotent by construction.
 
-**Operational — kubectl for Roblox.** `servers`, `analytics`, `ban`, `restart`,
+**Operational: kubectl for Roblox.** `servers`, `analytics`, `ban`, `restart`,
 `data`, `memorystore`, `publish`. These act on state that only exists while the
 game is running, and no TOML file can describe it. Banning a player is a
 consequence of what happened in your game last night, not a checked-in
@@ -46,12 +46,12 @@ intention.
 
 One command sits between the two. `secret` writes the credentials the game
 reads at runtime, and they are the one part of a universe's configuration that
-a repository must never contain — so there is no file to reconcile from, and
+a repository must never contain, so there is no file to reconcile from, and
 the value is sealed against the universe's public key before it leaves your
 machine.
 
 Comparable tools have the first pillar. Mantle never had the second, and
-nothing else does either — you are otherwise clicking through the Creator Hub
+nothing else does either: you are otherwise clicking through the Creator Hub
 or writing your own Open Cloud scripts. The second pillar is the difference
 between deploying a game and *running* one, and it is why the surface is wide
 on purpose rather than by accretion.
@@ -97,9 +97,9 @@ The commands above reconcile state you declared in your repo, and are safe to ru
 
 Their writes are dry-run by default and need `--apply`. `--env all` is refused: each env is a different experience, and no command touching live players should fan out because it matched a glob.
 
-**A second binary would make the boundary visible in the command name, and it is not on offer.** Rokit resolves one artifact per repository, so of two published binaries only one could ever be installed through it. It would not be the boundary that matters in any case — Roblox binds an API key to its scopes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
+**A second binary would make the boundary visible in the command name, and it is not on offer.** Rokit resolves one artifact per repository, so of two published binaries only one could ever be installed through it. It would not be the boundary that matters in any case: Roblox binds an API key to its scopes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
 
-**Keep read and write in separate keys** — that is the boundary. The key that ends up in a shell history during a debugging session should be the one that cannot ban anybody.
+**Keep read and write in separate keys**: that is the boundary. The key that ends up in a shell history during a debugging session should be the one that cannot ban anybody.
 
 Start with [docs/ops.md](./docs/ops.md) for API keys and the safety model.
 
@@ -126,7 +126,7 @@ Each subcommand owns its TOML config; the cross-tool file is `rbxplace.toml`. No
 
 Each subcommand also writes a lockfile (`<config>.lock.toml`) tracking remote IDs and content hashes for diff/sync.
 
-Those lockfiles are committed (all but `rbxapikey.lock.toml`, which holds secrets and **you** must gitignore — `rbx apikey create` refuses to create a key whose secret would land in a file git is not ignoring), so more than one person syncing means git will eventually hand you a conflict in one. [docs/teams.md](./docs/teams.md) is the procedure: which side to keep per file, why a dropped `rbxshop.lock.toml` entry becomes a duplicate paid resource on the next sync, and what concurrent syncs do per tool.
+Those lockfiles are committed (all but `rbxapikey.lock.toml`, which holds secrets and **you** must gitignore: `rbx apikey create` refuses to create a key whose secret would land in a file git is not ignoring), so more than one person syncing means git will eventually hand you a conflict in one. [docs/teams.md](./docs/teams.md) is the procedure: which side to keep per file, why a dropped `rbxshop.lock.toml` entry becomes a duplicate paid resource on the next sync, and what concurrent syncs do per tool.
 
 ### Editor support
 
@@ -147,7 +147,7 @@ they have a URL and you do not need this repository checked out to use one:
 https://rbx-forge.github.io/rbx-cli/schemas/rbxplace.schema.json
 ```
 
-They are not wired up automatically yet — that needs the schemas published to
+They are not wired up automatically yet: that needs the schemas published to
 [SchemaStore](https://www.schemastore.org/), which is a pull request to their
 catalog rather than something this repository can do on its own. Until then,
 point your editor at them directly.
@@ -253,7 +253,7 @@ rbx shop codegen --check     # against rbxshop.toml + rbxshop.lock.toml
 rbx env gen-module --check   # against rbxplace.toml
 ```
 
-No API key, no network — the inputs are local, so this runs in a pre-commit
+No API key, no network: the inputs are local, so this runs in a pre-commit
 hook and in CD. Exit code `2` means drift, kept separate from `1` so a pipeline
 can tell "regenerate and commit" from "the command failed". Details and the
 hook snippets: [Guarding generated files](./docs/shop.md#guarding-generated-files).
@@ -277,7 +277,7 @@ These are accepted by every subcommand and work both before and after the subcom
 ### Without a config file
 
 `--universe-id` exists so a command works in a directory that has no
-`rbxplace.toml` at all — a one-off against a universe you never configured,
+`rbxplace.toml` at all: a one-off against a universe you never configured,
 somebody else's game you are helping with, or a script on a server that has no
 checkout:
 
@@ -287,7 +287,7 @@ rbx memorystore --map Cache set rotation --value '{"map":"desert"}' --ttl 300s -
 ```
 
 Every live-operations command takes it except `servers`, which needs a place id as
-well and has no flag to give one directly — that one still requires an env.
+well and has no flag to give one directly: that one still requires an env.
 Checked command by command rather than assumed.
 
 The `rbx` half is different by design: it reconciles state you committed, so
@@ -320,7 +320,7 @@ place file, `rbx place upload` ships it. A tool that did both would be worse at
 each, and would have to keep pace with rojo's project format forever.
 
 **An asset upload pipeline.** That is
-[asphalt](https://github.com/jackTabsCode/asphalt)'s job — hashing, uploading
+[asphalt](https://github.com/jackTabsCode/asphalt)'s job: hashing, uploading
 and generating references for images, sounds and models. `rbx download` fetches
 an asset by id, which is the opposite direction and a much smaller problem.
 
@@ -336,8 +336,8 @@ silently means "archive" is a command whose name lies at the worst possible
 moment, and the risk of getting that wrong is not worth what it buys today. Ask
 again if Roblox ships real deletion.
 
-**Running Luau in the cloud.** Plausible future — post-deploy smoke tests
-against a live server are the obvious use — but out of scope now. It needs an
+**Running Luau in the cloud.** Plausible future (post-deploy smoke tests
+against a live server are the obvious use) but out of scope now. It needs an
 execution model and a security story that nothing here currently has.
 
 ## Stability and support
@@ -355,7 +355,7 @@ putting `rbx` in CI is betting on:
 - **Exit codes are stable.** 0 is success, non-zero is failure, and a command
   changes which is which only in a release whose changelog says so. Scripts
   branching on `$?` keep working. The one exception so far: the `check`
-  commands, which reported drift on the screen and exited 0, now exit `2` — a
+  commands, which reported drift on the screen and exited 0, now exit `2`: a
   pipeline that passed on a drifting repository starts failing.
 - **Lockfile formats may migrate.** `rbxshop.lock.toml`, `rbxmeta.lock.toml`
   and `rbxconfig.lock.toml` are tool-owned state, not user-authored input, and
@@ -368,7 +368,7 @@ putting `rbx` in CI is betting on:
 
 **MSRV: Rust 1.88.** Declared in the workspace manifest, so `cargo` refuses
 with a clear message rather than failing three dependencies deep. It is
-dependency-driven — our own sources need 1.82 — and moves when a dependency
+dependency-driven (our own sources need 1.82) and moves when a dependency
 moves it. Most users never build from source; the precompiled binaries in each
 [release](https://github.com/rbx-forge/rbx-cli/releases) have no toolchain
 requirement at all.
@@ -376,7 +376,7 @@ requirement at all.
 ### Support tiers
 
 Both tiers ship in the same binary. This is a statement about what blocks a
-release, not about where code lives — the two-binary split was tried and
+release, not about where code lives: the two-binary split was tried and
 reversed (see the live-operations section above).
 
 **Core.** A bug here blocks a release: `place`, `shop`, `meta`, `config`,
@@ -387,13 +387,13 @@ people put in CI and point at production.
 **Tier 2.** A bug here never blocks a release: `open`, `download`, `ads`. Local
 conveniences and one-off utilities. It gets fixed, just not on the critical
 path, and this is also what makes a platform gap acceptable rather than
-embarrassing — `open` dispatches a `roblox-studio:` URI and so is only as
+embarrassing: `open` dispatches a `roblox-studio:` URI and so is only as
 portable as Studio itself, and that is a known state rather than an open wound.
 
 ### Maintenance expectations
 
 One maintainer, maintained on my schedule. **Issues are triaged, not
-promised** — a bug in a Core command gets attention first, everything else gets
+promised**: a bug in a Core command gets attention first, everything else gets
 looked at when it gets looked at. Reproducible bug reports and PRs with tests
 are the fastest path to a fix. Nothing here is a support contract, and it is
 better to say so before anyone finds out the hard way.
@@ -440,7 +440,7 @@ crates/
 ├─ rbx-spec-drift/   # test-only: asserts our endpoints still exist in spec/openapi.json
 └─ rbx-schema/       # dev-only: writes schemas/*.json from the serde config models
 docs/                # per-subcommand detailed docs (one file per tool); also the mdBook
-                     # source — SUMMARY.md is the reading order, index.md the landing page
+                     # source: SUMMARY.md is the reading order, index.md the landing page
 schemas/             # generated JSON Schemas for the config files (see "Editor support")
 spec/                # vendored Roblox OpenAPI document + provenance (see "API drift check")
 ```
@@ -460,11 +460,11 @@ tracker. What follows here is the automation around all of that.
 lefthook install
 ```
 
-Commit messages ideally follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `feat!:` for breaking) — it keeps the CHANGELOG readable — but this isn't enforced.
+Commit messages ideally follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `feat!:` for breaking) (it keeps the CHANGELOG readable) but this isn't enforced.
 
 ### What runs automatically
 
-Seven things, and nothing else. There is no release-plz and no auto-merge —
+Seven things, and nothing else. There is no release-plz and no auto-merge:
 every version bump is a deliberate act.
 
 | What | Trigger | Does |
@@ -498,7 +498,7 @@ somebody happened to touch a manifest.
 Dependabot handles **GitHub Actions only**. Cargo version updates are off
 deliberately. Dependabot Security Alerts still open a PR when an advisory hits
 `Cargo.lock`; `cargo-deny` is the second half of that story, because it also
-answers the three questions an advisory feed does not — whether a license
+answers the three questions an advisory feed does not, whether a license
 reached a statically linked artifact it should not have, whether a crate came
 from an unexpected registry, and how much duplication the graph has grown.
 
@@ -518,7 +518,7 @@ user hitting `Failed to parse response` at runtime. CI now tells us first.
 `spec/openapi.json` is a byte-for-byte snapshot of the OpenAPI document Roblox
 publishes in [`Roblox/creator-docs`][creator-docs] (`content/en-us/reference/cloud/openapi.json`).
 `spec/source.json` records the exact upstream commit it came from, and
-`spec/NOTICE.md` carries the attribution — the document is CC BY 4.0, unlike
+`spec/NOTICE.md` carries the attribution: the document is CC BY 4.0, unlike
 the rest of this repository.
 
 The test in `crates/rbx-spec-drift/tests/openapi_drift.rs` reads every Roblox
@@ -534,7 +534,7 @@ cargo test -p rbx-spec-drift --test openapi_drift
 ```
 
 When it fails it names the missing path, every `file:line` that calls it, and
-the closest paths Roblox still documents — which usually identifies the rename
+the closest paths Roblox still documents, which usually identifies the rename
 outright.
 
 **Its limits are documented in that file's module comment, and worth reading
@@ -542,7 +542,7 @@ before trusting it.** In short: it checks that endpoint *paths* exist. It
 cannot see a renamed response field, so it narrows the blast radius rather than
 eliminating it. Endpoints Roblox has never documented (the `experience-releases`
 v1beta1 API, legacy `universes/v1` creation calls, API-key introspection) are
-listed in `KNOWN_UNDOCUMENTED` with a reason each — that list is where we admit
+listed in `KNOWN_UNDOCUMENTED` with a reason each: that list is where we admit
 we have no early warning for something.
 
 **Refreshing the snapshot** is the `update-openapi` workflow's job. It runs
@@ -552,7 +552,7 @@ with the result quoted in the body. It never pushes to `main`: whether a Roblox
 change breaks us is a judgement call, so a human always reviews it. A refresh
 that changes nothing opens no PR.
 
-Do not hand-edit `spec/openapi.json` or reformat it — diffs between refreshes
+Do not hand-edit `spec/openapi.json` or reformat it: diffs between refreshes
 have to show real Roblox changes and nothing else.
 
 [creator-docs]: https://github.com/Roblox/creator-docs
@@ -565,7 +565,7 @@ have to show real Roblox changes and nothing else.
    Then check that every `docs/` page describing something in that section tags
    it `**(X.Y.Z+)**` with the version you just cut. `docs/` describes `main`,
    and `/blob/main/docs/<page>.md` is the URL links and search results hand
-   people — so an untagged feature reads as available to everyone landing there
+   people, so an untagged feature reads as available to everyone landing there
    from outside, while `CHANGELOG.md` says `[Unreleased]`. The two sources then
    contradict each other depending on which one is read first. That cost a
    consuming repo a wrong diagnosis and a wrong design in 2026-08.
@@ -573,29 +573,29 @@ have to show real Roblox changes and nothing else.
 
    The `-a` is not optional. `--follow-tags` pushes **annotated** tags only, so a
    plain `git tag vX.Y.Z` is created locally, silently skipped by the push, and
-   `release.yml` never fires — the commit lands on `main` and nothing else
+   `release.yml` never fires: the commit lands on `main` and nothing else
    happens. Every release from v0.2.0 on is annotated.
 4. `release.yml` picks up the tag and publishes the binaries
 
 If you delete a release, delete its tag too (`git push origin :vX.Y.Z`).
-Re-pushing an existing tag re-triggers `release.yml` against stale code — that
+Re-pushing an existing tag re-triggers `release.yml` against stale code: that
 is how the cancelled v0.5.3 run of 2026-06-15 happened.
 
 ## Prior art and thanks
 
-- **[Asphalt](https://github.com/jackTabsCode/asphalt)** (MIT) — the
+- **[Asphalt](https://github.com/jackTabsCode/asphalt)** (MIT): the
   lockfile-and-codegen pattern `rbx shop` uses for assets, and the alpha-bleed
   implementation, which is **adapted code**, not just inspiration. Notice in
   [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
-- **[Tarmac](https://github.com/Roblox/tarmac)** (MIT) — where that alpha bleed
+- **[Tarmac](https://github.com/Roblox/tarmac)** (MIT), where that alpha bleed
   originates; Asphalt adapted it first. Same notice file.
-- **[ROpen](https://github.com/Barocena/ROpen)** by Barocena (MPL-2.0) — the
+- **[ROpen](https://github.com/Barocena/ROpen)** by Barocena (MPL-2.0): the
   Luau Studio launcher `rbx open` was written against, and where the
   `roblox-studio:` URI dispatch was learned from, having contributed to it. The
   Rust command here is a reimplementation, not a port. Its 1.3.2 (August 2026)
   is also what pointed out that `xdg-open` cannot reach a Studio living on the
-  Windows side of WSL — a gap this command had too.
-- **[edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place)** (MIT) —
+  Windows side of WSL: a gap this command had too.
+- **[edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place)** (MIT):
   the same idea, six and a half years earlier: a Rust CLI sending
   `roblox-studio:1+task:EditPlace+placeId:<id>` to the desktop's URI handler,
   from rojo-rbx in August 2019. Found long after `rbx open` was written, and
@@ -604,17 +604,17 @@ is how the cancelled v0.5.3 run of 2026-06-15 happened.
   the place is named rather than numbered, resolved through `rbxplace.toml`.
 
   No source code from either is reused.
-- **[Mantle](https://github.com/blake-mealey/mantle)** — the declarative-IaC
+- **[Mantle](https://github.com/blake-mealey/mantle)**: the declarative-IaC
   precedent for Roblox, and the origin of the `rbx_cookie` crate this tool
   depends on.
-- **[rbxcloud](https://github.com/Sleitnick/rbxcloud)** — the "a CLI for Open
+- **[rbxcloud](https://github.com/Sleitnick/rbxcloud)**: the "a CLI for Open
   Cloud" precedent.
 
 ## License
 
 [MPL-2.0](./LICENSE). Source files modified from this project must be kept under MPL-2.0; new files added by downstream users may be licensed independently.
 
-Some files are adapted from MIT-licensed projects and carry their own notices —
+Some files are adapted from MIT-licensed projects and carry their own notices:
 see [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
 `rbx-cli` is a community tool. It is not affiliated with, endorsed by, or

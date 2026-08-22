@@ -197,7 +197,7 @@ price = 499
     assert!(read(&path).contains("for_sale = false"));
 }
 
-/// A default the user wrote out explicitly is theirs to keep — updating it in
+/// A default the user wrote out explicitly is theirs to keep: updating it in
 /// place is an edit, deleting it is a rewrite.
 #[test]
 fn an_explicitly_written_default_is_updated_rather_than_dropped() {
@@ -225,7 +225,7 @@ for_sale = true
     );
 }
 
-/// A field the model cleared is genuinely gone — this is the one case where
+/// A field the model cleared is genuinely gone: this is the one case where
 /// removing a line is correct.
 #[test]
 fn a_field_cleared_on_the_model_is_removed_from_the_file() {

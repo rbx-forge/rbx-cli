@@ -1,7 +1,7 @@
 //! Step 5: one cheap authenticated read, to confirm the whole chain works.
 //!
 //! Every other check reads something local or asks Roblox about the key's
-//! *configuration*. None of them proves a call actually succeeds — a key can be
+//! *configuration*. None of them proves a call actually succeeds: a key can be
 //! enabled, unexpired and correctly scoped and still be refused, most often by
 //! an IP allowlist that no longer contains the caller. #52 quotes
 //! `testenv/rbxapikey.toml` on exactly this, about a stale allowed-CIDR entry:
@@ -19,7 +19,7 @@ use reqwest::StatusCode;
 #[derive(Debug)]
 pub enum ProbeOutcome {
     /// The call succeeded. Carries the universe's display name when the
-    /// response had one — proof the bytes came back, not just the status.
+    /// response had one: proof the bytes came back, not just the status.
     Ok { universe_name: Option<String> },
     /// Roblox refused. Carries the status and its own message, because the two
     /// answer different questions: 401 is about the caller, 403 about the key.
@@ -34,7 +34,7 @@ pub enum ProbeOutcome {
 /// meant the refusals this whole command exists to explain could only be
 /// asserted as string constants: nothing here had ever run over HTTP. The
 /// seam is the same `#[cfg(test)] with_base_url` every other crate in the
-/// workspace carries, and the production path is unchanged — `run` builds a
+/// workspace carries, and the production path is unchanged: `run` builds a
 /// [`Probe::default`], which is [`ApiBase::default`].
 #[derive(Debug, Default)]
 pub struct Probe {
@@ -119,15 +119,15 @@ pub fn explain(status: StatusCode) -> &'static str {
     match status {
         StatusCode::UNAUTHORIZED => {
             "401 means the key was rejected before any permission was considered, and Roblox \
-             says \"Invalid API Key\" for two different causes. Either the secret is wrong — \
-             rotated, truncated, or a leftover in RBX_API_KEY from another project — or the \
+             says \"Invalid API Key\" for two different causes. Either the secret is wrong (\
+             rotated, truncated, or a leftover in RBX_API_KEY from another project) or the \
              IP allowlist no longer contains this machine, which fails identically and is \
              the one nobody guesses. Check the allowed IPs listed above against this \
              machine's public address, and reload the key with \
              `export RBX_API_KEY=\"$(rbx apikey resolve <name>)\"`."
         }
         StatusCode::FORBIDDEN => {
-            "403 means the key is valid but not allowed to make this call — a missing scope, \
+            "403 means the key is valid but not allowed to make this call: a missing scope, \
              or a scope whose target does not cover this universe. Compare the scope coverage \
              above, then widen the key in rbxapikey.toml and `rbx apikey update <key>`."
         }
@@ -300,7 +300,7 @@ mod tests {
             // Port 1, rather than a mock server started and dropped: the tests
             // in this binary run in parallel and each starts its own listener
             // on an ephemeral port, so a just-freed port is one another test
-            // can be handed — which made this assert against a live server.
+            // can be handed, which made this assert against a live server.
             let outcome = Probe::default()
                 .with_base_url("http://127.0.0.1:1")
                 .read_universe("test-key", UNIVERSE)

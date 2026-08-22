@@ -1,7 +1,7 @@
 //! Which tools this repo actually uses.
 //!
 //! Nothing to configure: a tool is checked when its config file is there. The
-//! alternative — a `[check]` block listing what to run — is one more thing to
+//! alternative (a `[check]` block listing what to run) is one more thing to
 //! keep in sync with reality, and the reality is already on disk.
 
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ use rbx_core::places::PlacesFile;
 /// A config file the CLI knows how to check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Tool {
-    /// `rbxplace.toml` — env definitions, and the generated env module.
+    /// `rbxplace.toml`: env definitions, and the generated env module.
     Env,
     Shop,
     Meta,

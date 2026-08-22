@@ -19,8 +19,8 @@ use serde::{Deserialize, Serialize};
 
 /// One secret, in both directions.
 ///
-/// Roblox uses this same shape for four different things — a listing row, a
-/// create body, an update body, and the public key — which is why nearly every
+/// Roblox uses this same shape for four different things (a listing row, a
+/// create body, an update body, and the public key) which is why nearly every
 /// field is optional. What each call actually fills in:
 ///
 /// | call | `id` | `secret` | `key_id` | `domain` | timestamps |
@@ -61,8 +61,8 @@ pub struct Secret {
 impl Secret {
     /// The domain as the human and JSON forms report it.
     ///
-    /// Roblox returns absent and empty for the same state — a secret no
-    /// request may carry — so both normalise to `None` here rather than
+    /// Roblox returns absent and empty for the same state (a secret no
+    /// request may carry) so both normalise to `None` here rather than
     /// leaving each call site to remember that `Some("")` is not a domain.
     pub fn effective_domain(&self) -> Option<&str> {
         self.domain.as_deref().filter(|d| !d.is_empty())
@@ -95,8 +95,8 @@ impl SecretList {
 
 /// Reject a name Roblox would reject, before spending a request on it.
 ///
-/// The rule is in the specification — "alphanumeric or underscore, 1-64
-/// characters, not starting with a number" — and the failure without this
+/// The rule is in the specification: "alphanumeric or underscore, 1-64
+/// characters, not starting with a number", and the failure without this
 /// check is a `400` whose body does not say which of the four constraints was
 /// broken. It is also the shape `HttpService:GetSecret("name")` takes in Luau,
 /// so a name that fails here would never have been readable from the game.

@@ -8,7 +8,7 @@
 //! **No document in this module can carry a secret value.** That is not a
 //! convention to be careful about, it is a property of the types: there is no
 //! field for one anywhere below. A listing does not have the content to begin
-//! with — Roblox never sends it — and `set` reports what it wrote by name and
+//! with (Roblox never sends it) and `set` reports what it wrote by name and
 //! length, never by value. `--json` output is the form most likely to be
 //! logged, redirected into a file, or pasted into an issue, so the safe shape
 //! is the one that cannot be made unsafe by a future edit to a call site.
@@ -47,7 +47,7 @@ pub struct Row {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     /// The domain the value may be sent to. **Absent** for a secret with no
-    /// domain, which cannot leave the server at all — a meaningful state, and
+    /// domain, which cannot leave the server at all: a meaningful state, and
     /// the reason an empty string is normalised away rather than reported.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub domain: Option<String>,
@@ -102,7 +102,7 @@ pub struct SetDocument {
     /// value is gone and unrecoverable.
     pub action: &'static str,
     /// Bytes of plaintext, before sealing. The nearest thing to a checksum
-    /// that is safe to print — enough to catch the classic mistake of sending
+    /// that is safe to print: enough to catch the classic mistake of sending
     /// an empty file or a shell variable that never expanded, and not enough
     /// to be worth anything to somebody reading a build log.
     pub bytes: usize,
@@ -169,7 +169,7 @@ mod tests {
         assert_eq!(doc["secrets"][0]["id"], "discord");
         assert_eq!(doc["secrets"][0]["domain"], "discord.com");
         assert_eq!(doc["secrets"][0]["update_time"], "2026-08-02T10:00:00Z");
-        // An empty domain is a real state — "never leaves the server" — and it
+        // An empty domain is a real state ("never leaves the server") and it
         // reads as an absent key, not as `""`.
         assert!(doc["secrets"][1].get("domain").is_none(), "{doc}");
     }

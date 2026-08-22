@@ -1,6 +1,6 @@
 //! Laying the resolved universe down in `rbxplace.toml`.
 //!
-//! The hard case is not the empty directory — it is the file that already has
+//! The hard case is not the empty directory: it is the file that already has
 //! two envs, an `[owner]` block, a `[codegen]` block and the comments that
 //! explain them. Importing a third env must leave all of that byte-for-byte
 //! intact, or `import` becomes a command nobody dares run twice.
@@ -12,7 +12,7 @@
 //! create-universe` has been appending envs that way since before this
 //! command existed.
 //!
-//! The one thing `record` has no writer for is `[owner]`, so that is here —
+//! The one thing `record` has no writer for is `[owner]`, so that is here:
 //! same rule: append only, and never over an owner the user already declared.
 
 use std::path::Path;
@@ -35,7 +35,7 @@ pub struct PlacesWrite {
     pub owner_written: bool,
     /// The env already existed, so its `universe_id` was left as the user
     /// wrote it. Carries the id on file when it disagrees with the one being
-    /// imported — a mismatch worth naming rather than silently honouring.
+    /// imported: a mismatch worth naming rather than silently honouring.
     pub existing_universe_id: Option<u64>,
 }
 

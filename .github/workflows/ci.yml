@@ -17,7 +17,7 @@ concurrency:
 
 # Everything here runs on Linux. The private repo bills macOS at 10x and Windows
 # at 2x, so other platforms are covered from a Linux runner where that is
-# possible — the `macos` job cross-*checks* the target the release ships — and
+# possible (the `macos` job cross-*checks* the target the release ships) and
 # rented for real only where it is not, which is the one narrow exception the
 # `windows` job explains. Local lefthook and cfg-gate review catch most
 # OS-specific regressions before push.
@@ -51,6 +51,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
       - run: cargo fmt --all -- --check
+
+  punctuation:
+    name: Punctuation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # No em dash, per CONTRIBUTING. Enforced here rather than left to review
+      # because a single one slipping into a doc page or a `--help` string is
+      # invisible on a diff and permanent once released. The exclusions are
+      # vendored or generated files, which are not ours to reword.
+      - name: No em dash outside vendored and generated files
+        run: |
+          if git grep -n -P '\x{2014}' -- . \
+              ':(exclude)spec/*' ':(exclude)schemas/*' \
+              ':(exclude)THIRD-PARTY-NOTICES.md' ':(exclude)LICENSE'; then
+            echo
+            echo "Found an em dash. Use a colon, a comma, a full stop, or parentheses."
+            echo "See the Punctuation section in CONTRIBUTING.md."
+            exit 1
+          fi
 
   clippy:
     name: Clippy
@@ -111,7 +132,7 @@ jobs:
 
   cross:
     # The release workflow ships binaries for targets no other job here builds,
-    # and until this job existed nothing compiled them until tag time — the most
+    # and until this job existed nothing compiled them until tag time: the most
     # expensive moment to discover a break. The gap was never theoretical:
     # `rbx-switch` used to carry a whole `#[cfg(target_os = "macos")]` module
     # that no other job touched, and cfg-gated code stays invisible to every
@@ -119,9 +140,9 @@ jobs:
     #
     # Cross-*checking* from Linux rather than running on a macOS runner, which
     # bills at 10x: `cargo check` does not link, so the target's std is all it
-    # needs. This catches what actually breaks a release build — cfg-gated code
+    # needs. This catches what actually breaks a release build: cfg-gated code
     # that stopped compiling, a platform-conditional dependency that no longer
-    # resolves — at Linux prices, on every push.
+    # resolves, at Linux prices, on every push.
     #
     # What it deliberately does not do is run tests. Executing macOS tests
     # needs a macOS runner, and the same Linux-first reasoning that keeps the
@@ -141,7 +162,7 @@ jobs:
       # A plain `cargo check --target aarch64-apple-darwin` does not survive
       # this workspace: blake3 (via rbx-core) compiles a NEON C file on
       # aarch64, and an Ubuntu runner has no C compiler that can target Darwin.
-      # zig is one, ships the macOS libc headers, and installs in seconds —
+      # zig is one, ships the macOS libc headers, and installs in seconds,
       # which is the whole reason this stays off a 10x runner. It is also the
       # C toolchain the musl leg below needs, so one install covers both.
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
@@ -187,7 +208,7 @@ jobs:
   schemas:
     # The schemas in schemas/ are derived from the serde config models, so a
     # field added without regenerating leaves editors validating a file format
-    # that no longer exists — and silently, since a stale schema still loads.
+    # that no longer exists, and silently, since a stale schema still loads.
     #
     # Same contract as `rbx env gen-module --check`: exit 2 means "the
     # committed file is stale, regenerate and commit", distinct from 1 meaning
@@ -218,7 +239,7 @@ jobs:
     # not aspirational", and until this job existed nothing verified it. Every
     # other job here runs `stable`, which is many releases ahead, so the number
     # could only ever be confirmed by a user hitting a compile error three
-    # crates deep — the exact outcome the manifest comment says it exists to
+    # crates deep: the exact outcome the manifest comment says it exists to
     # prevent.
     #
     # It moves when a dependency moves it, which is why this has to be checked
@@ -253,7 +274,7 @@ jobs:
     # two halves: each generated script carries its hook and asks for the right
     # lister, and the listers print the right lines. Whether the graft survives
     # the shell's own completion system is a question only a shell can answer,
-    # and the runner is the only place all four are installed at once — zsh and
+    # and the runner is the only place all four are installed at once: zsh and
     # fish had never been driven at all before this job existed (#102).
     #
     # ubuntu-latest ships bash; the other three are apt/one-liners away, which

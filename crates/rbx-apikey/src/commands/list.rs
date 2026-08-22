@@ -1,4 +1,4 @@
-//! `rbx apikey list` — quick overview of every key in config + lockfile.
+//! `rbx apikey list`: quick overview of every key in config + lockfile.
 //! For deeper reconciliation, use `status`.
 
 use std::collections::BTreeSet;
@@ -13,7 +13,7 @@ use crate::{config, lock, secret_store, time_iso};
 
 /// Look up universe_ids for a key by walking its effective envs through the
 /// lockfile's `[envs.X]` table. Envs not yet synced (referenced by the key
-/// but missing from `lk.envs`) are silently skipped — the user will see
+/// but missing from `lk.envs`) are silently skipped: the user will see
 /// PENDING / SECRET_MISSING in `status` when that happens.
 fn universe_ids_for_key(
     cfg: &config::Config,

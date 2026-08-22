@@ -20,7 +20,7 @@ pub struct Schema {
 
 /// Draft 7, not the 2020-12 default.
 ///
-/// taplo and VS Code's Even Better TOML — the two consumers this exists for —
+/// taplo and VS Code's Even Better TOML (the two consumers this exists for)
 /// are built on draft 7 validators. Emitting 2020-12 makes them fall back to a
 /// best-effort reading of a document they do not fully understand, which is a
 /// silent partial validation rather than an error, and the worst of both.
@@ -37,7 +37,7 @@ fn build<T: JsonSchema>(
 }
 
 /// Like [`build`], but for a file whose top level is `#[serde(flatten)]`ed map
-/// of `V` — every table the named fields do not claim is a `V`.
+/// of `V`: every table the named fields do not claim is a `V`.
 ///
 /// This needs saying explicitly because **schemars emits nothing at all for a
 /// flattened map**. `rbxplace.toml` and `rbxconfig.toml` are almost entirely
@@ -105,8 +105,8 @@ fn finish<T: JsonSchema>(
 /// name the reader of a TOML file has no way to look up. Stripping the
 /// brackets keeps the sentence and drops the false affordance.
 ///
-/// Deliberately only cosmetic. Anything more — trimming to the first
-/// paragraph, say — would throw away the parts worth hovering for, like what
+/// Deliberately only cosmetic. Anything more (trimming to the first
+/// paragraph, say) would throw away the parts worth hovering for, like what
 /// `codegen = false` trades away.
 fn strip_rust_doc_links(root: &mut RootSchema) {
     fn clean(text: &str) -> String {
@@ -246,7 +246,7 @@ mod tests {
     /// to badges but only applies to passes and products, and swallowing it
     /// there would read as a no-op bug rather than an unsupported field. The
     /// rule below is "never stricter than the tool", not "never strict", so
-    /// these are named here rather than dissolved by loosening the check —
+    /// these are named here rather than dissolved by loosening the check,
     /// and `the_badge_tables_really_do_reject_an_unknown_key` holds the
     /// justification in place.
     const CLOSED_ON_PURPOSE: &[&str] = &["BadgeConfig", "BadgeOverlay"];
@@ -257,7 +257,7 @@ mod tests {
     /// newer release has to stay loadable, or adopting a field would mean
     /// upgrading every machine in the same instant (`docs/env.md`). A schema
     /// that set `additionalProperties: false` anywhere would paint those keys
-    /// red in the editor while the tool accepted them — stricter than the
+    /// red in the editor while the tool accepted them: stricter than the
     /// tool, which is worse than no schema, because it trains people to stop
     /// reading the squiggles.
     #[test]
@@ -353,7 +353,7 @@ mod tests {
     ///
     /// schemars emits nothing for a `#[serde(flatten)]`ed map, so the first
     /// version of these two schemas validated `[owner]` and `[codegen]` and
-    /// silently accepted anything else — every `[dev]`, `[prod]` and their
+    /// silently accepted anything else: every `[dev]`, `[prod]` and their
     /// contents. It looked like a working schema and gave no completion and no
     /// type errors where users spend all their time. `build_map` is the fix
     /// and this is what keeps it.

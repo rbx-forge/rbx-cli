@@ -2,7 +2,7 @@
 
 Send one MessagingService message to every running server.
 
-**Not `rbx publish`.** "Publish" already means a deploy everywhere else here — `place upload --published` publishes a place, `config sync` publishes a config document, `place rollback` republishes live. A command called `publish` that sends an IPC message is the one somebody finds when they search for how to publish their place, and `rbx publish --topic cache --message reload` is plausible enough that they might not notice.
+**Not `rbx publish`.** "Publish" already means a deploy everywhere else here: `place upload --published` publishes a place, `config sync` publishes a config document, `place rollback` republishes live. A command called `publish` that sends an IPC message is the one somebody finds when they search for how to publish their place, and `rbx publish --topic cache --message reload` is plausible enough that they might not notice.
 
 The push half of the pair [`memorystore`](./memorystore.md) is the pull half of. A memory store item is read when a server's own code decides to look, so a value written from outside appears on whatever polling interval the experience already has. This is what tells the servers to look now.
 
@@ -11,7 +11,7 @@ See [ops.md](../ops.md) for install, keys and the safety model.
 This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
 
 
-Needs `universe-messaging-service:publish`, which is universe-targeted and not on most existing keys — a 403 here usually means the scope, not the key.
+Needs `universe-messaging-service:publish`, which is universe-targeted and not on most existing keys: a 403 here usually means the scope, not the key.
 
 ## Why an ops CLI sends these at all
 
@@ -39,7 +39,7 @@ rbx message --topic cache --payload '{"key":"rotation"}' --apply --env prod
 
 `--payload` parses the value here and sends its serialisation, so a malformed payload fails before the publish rather than inside `HttpService:JSONDecode` on a live server, where it is a runtime error in game code with no obvious origin. `--message` sends whatever you give it, untouched.
 
-`--json` is not this flag. On this command as on every other, `--json` writes the result as a document, and a payload flag that also took a value would have kept that name occupied — leaving `publish` the one command that cannot report what it did.
+`--json` is not this flag. On this command as on every other, `--json` writes the result as a document, and a payload flag that also took a value would have kept that name occupied: leaving `publish` the one command that cannot report what it did.
 
 ## The size limit is 1114 bytes, not 1 KB
 
@@ -49,7 +49,7 @@ Measured against the live API rather than read off the documentation, which says
 400 The length of published message must be between 1 and 1114.
 ```
 
-Both bounds are checked here, before the request, so the failure names the size instead of arriving as a 400 from inside a deploy. The floor matters too: an **empty** message is refused, so publishing `""` as a bare "something changed" signal fails — send a single character instead.
+Both bounds are checked here, before the request, so the failure names the size instead of arriving as a 400 from inside a deploy. The floor matters too: an **empty** message is refused, so publishing `""` as a bare "something changed" signal fails: send a single character instead.
 
 **Publish a reference, not a payload.** The pattern this is built for is: write the value into a memory store sorted map, then publish the key. The message stays small, the value can be any size, and a server that missed the message still finds the value on its next read.
 
@@ -97,4 +97,4 @@ Whether anybody heard.
 
 The call answers `200` once Roblox has accepted the message for delivery. There is no count of servers reached and no delivery receipt, and an experience with no running servers accepts a publish exactly like a busy one. The command says so on every success rather than letting a green tick imply more than it means.
 
-Anything needing confirmation needs the servers to write back somewhere — which is what a memory store map is for.
+Anything needing confirmation needs the servers to write back somewhere, which is what a memory store map is for.

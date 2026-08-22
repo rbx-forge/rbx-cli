@@ -38,7 +38,7 @@ pub struct PlaceLegacy {
 /// this tool manages.
 ///
 /// The read is v1 while the write is v2, and the two do not carry the same
-/// fields — which is the reason several settings here are write-only. v1 has
+/// fields, which is the reason several settings here are write-only. v1 has
 /// no `permissions` object and no avatar scales; v2 has both but answers to
 /// PATCH only, so there is no request that returns them. Anything absent here
 /// is a field `pull` cannot adopt, and the lockfile is the only record of what
@@ -49,8 +49,8 @@ pub struct PlaceLegacy {
 /// **The read and the write do not agree, and this is not a guess.** Measured
 /// against a live universe on 2026-08-17, `GET /v1/universes/{id}/configuration`
 /// answered `"universeAvatarType":"MorphToR15"` for a value the v2 `PATCH` had
-/// been given as `3`. Both spellings are in the vendored spec — the integers as
-/// the request type, the names inside the response field's own description —
+/// been given as `3`. Both spellings are in the vendored spec (the integers as
+/// the request type, the names inside the response field's own description)
 /// and nothing says which one a future response will use.
 ///
 /// Modelling it as `u8` alone was a real regression, not a theoretical one: the
@@ -99,7 +99,7 @@ impl LegacyEnum {
 /// fields".
 ///
 /// The enum fields arrive as [`LegacyEnum`] because the two endpoints disagree
-/// about how to spell them — see that type.
+/// about how to spell them: see that type.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UniverseConfigLegacy {
@@ -129,7 +129,7 @@ pub struct UniverseConfigLegacy {
 /// specification instead of from a reply, and got the spelling of five fields
 /// wrong. A test that deserialized `UniverseConfigLegacy` directly would have
 /// passed the whole time, because nothing ever deserializes *that* from the
-/// wire — the shim below is the only path.
+/// wire: the shim below is the only path.
 ///
 /// The shim exists for one field. The GET spells it
 /// `isStudioAccessToApisAllowed` and the PATCH spells it without the prefix;
@@ -240,7 +240,7 @@ impl RbxClient {
     /// CSRF, and returns the response body.
     ///
     /// The body is returned rather than dropped because this endpoint answers
-    /// with the configuration it ended up with — `UniverseSettingsResponseV2`,
+    /// with the configuration it ended up with: `UniverseSettingsResponseV2`,
     /// `engineAvatarSettings` included. That echo is the only place Roblox
     /// ever says anything about the *inside* of that document, which is
     /// otherwise an opaque string everywhere else in its API. `sync` uses it
@@ -337,7 +337,7 @@ impl RbxClient {
         F: Fn() -> RequestBuilder,
     {
         let response = self.send_response_with_csrf(build).await?;
-        // A body we cannot read is not a failed write — the write already
+        // A body we cannot read is not a failed write: the write already
         // succeeded. The caller treats an empty string as "no echo to check".
         Ok(response.text().await.unwrap_or_default())
     }

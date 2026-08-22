@@ -69,7 +69,7 @@ jobs:
       # It is worth as much as the LTO change: a cold build of this workspace
       # spends 126s of its 307s on the 416 crates in Cargo.lock, and those move
       # only when Cargo.lock does, which is what the key is built from.
-      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
       # Same pinned pair as ci.yml's cross job. Only the musl leg needs them.
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         if: matrix.zig

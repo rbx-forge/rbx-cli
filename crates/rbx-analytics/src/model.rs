@@ -96,9 +96,9 @@ pub struct MetricQuery {
 ///
 /// Not interchangeable with `breakdown`, and the difference is not cosmetic:
 /// some dimensions are filter-only. Asking Roblox to break down by `FunnelName`
-/// is refused outright —
+/// is refused outright:
 /// "Dimension FunnelName is filter-only … Please use dimension-values to obtain
-/// available values" — so a single funnel can only be isolated here.
+/// available values", so a single funnel can only be isolated here.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QueryFilter {

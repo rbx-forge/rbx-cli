@@ -67,12 +67,12 @@ files the import just wrote:
 
 | Config file | Check | Network |
 |---|---|---|
-| `rbxplace.toml` | `env/gen-module` — the committed env module still matches | no |
-| `rbxshop.toml` | `shop/lockfile` — declared passes/badges/products against the lockfile | no |
-| `rbxshop.toml` | `shop/codegen` — the committed shop modules still match | no |
-| `rbxmeta.toml` | `meta/lockfile` — declared universe/place metadata against the lockfile | no |
-| `rbxconfig.toml` | `config/live` — local entries against the live config on Roblox | **yes** |
-| `rbxapikey.toml` | `apikey/status` — not yet wired, see below | — |
+| `rbxplace.toml` | `env/gen-module`: the committed env module still matches | no |
+| `rbxshop.toml` | `shop/lockfile`: declared passes/badges/products against the lockfile | no |
+| `rbxshop.toml` | `shop/codegen`: the committed shop modules still match | no |
+| `rbxmeta.toml` | `meta/lockfile`: declared universe/place metadata against the lockfile | no |
+| `rbxconfig.toml` | `config/live`: local entries against the live config on Roblox | **yes** |
+| `rbxapikey.toml` | `apikey/status`, not yet wired, see below | - |
 
 Only `config/live` needs credentials, so `--offline` is a small cut: everything
 else compares committed files against committed files. That makes the offline
@@ -88,22 +88,22 @@ no `--env`, each tool falls back to its standalone block and the row is labelled
 
 ## Why this is not a wrapper around the per-tool checks
 
-All five per-tool checks now agree on the contract — `0` clean, `2` drift, `1`
-error — so **`rbx check` and `rbx shop check` no longer disagree on exit code
+All five per-tool checks now agree on the contract (`0` clean, `2` drift, `1`
+error) so **`rbx check` and `rbx shop check` no longer disagree on exit code
 for the same repo**. Either can be trusted in CI; `rbx check` runs all of them
 at once, which is the only difference.
 
 It still does not call the per-tool commands, for a reason that is about
 stdout rather than exit codes: those commands print as they decide, and under
-`--json` stdout belongs to the document — a probe that shelled into them would
+`--json` stdout belongs to the document: a probe that shelled into them would
 emit something `jq` cannot read. So each check rebuilds the comparison from the
-same public pieces the command itself uses — the renderers and plan builders,
-not a re-description of them — without touching any check body.
+same public pieces the command itself uses (the renderers and plan builders,
+not a re-description of them) without touching any check body.
 
 ## `apikey` is discovered but not checked
 
-`rbx apikey status` classifies key health — expiry, orphan lockfile entries,
-missing secrets — and returns success whatever it finds, which the other
+`rbx apikey status` classifies key health (expiry, orphan lockfile entries,
+missing secrets) and returns success whatever it finds, which the other
 per-tool checks no longer do. Reaching that classification from here would mean
 either widening
 `rbx-apikey` internals or writing a second copy of the rules, and a second copy
@@ -113,7 +113,7 @@ exists to catch.
 So the row is reported as skipped, by name, with the command to run by hand:
 
 ```
-- apikey/status    not yet wired — run `rbx apikey status`
+- apikey/status    not yet wired: run `rbx apikey status`
 ```
 
 Wiring it up properly means giving `apikey status` a structured result to
@@ -140,7 +140,7 @@ rbx check --env all --json
 
 One JSON document on stdout, nothing else. Diagnostics stay on stderr and the
 exit code is unchanged, so a consumer can read the document, the stream, or the
-status — whichever suits — and get the same answer.
+status (whichever suits) and get the same answer.
 
 ```json
 {
@@ -160,7 +160,7 @@ status — whichever suits — and get the same answer.
       "check": "lockfile",
       "env": "prod",
       "outcome": "drift",
-      "summary": "2 pending changes — run `rbx meta sync`",
+      "summary": "2 pending changes: run `rbx meta sync`",
       "details": ["name: (unset) → My Game (Live)", "server size: (unset) → 50"]
     }
   ]
@@ -169,8 +169,8 @@ status — whichever suits — and get the same answer.
 
 ### Fields
 
-These names are the contract. Adding a field is not a breaking change —
-consumers are expected to ignore what they do not recognise — but a field
+These names are the contract. Adding a field is not a breaking change
+(consumers are expected to ignore what they do not recognise) but a field
 changing meaning or disappearing bumps `schema_version`.
 
 | Field | Type | Meaning |
@@ -197,7 +197,7 @@ consumer survives a field being added, and does not survive a column shifting.
 ```sh
 rbx check --env all --json > check.json || true
 jq -r '.checks[] | select(.outcome == "drift")
-       | "::warning title=rbx drift::\(.tool)/\(.check) \(.env // "") — \(.summary)"' check.json
+       | "::warning title=rbx drift::\(.tool)/\(.check) \(.env // "") - \(.summary)"' check.json
 exit "$(jq -r '.exit_code' check.json)"
 ```
 
@@ -212,7 +212,7 @@ the receipts from `place upload/promote/rollback`, `data get/list/revisions/diff
 receipt from `publish`. Per-command field names are documented alongside each
 command.
 
-What every one of them shares is the helper — `rbx_core::output` is the only
+What every one of them shares is the helper: `rbx_core::output` is the only
 place in the tree that serializes to stdout, which is what keeps `--json`
 meaning the same thing everywhere: one document, notes and warnings on stderr,
 optional fields omitted rather than `null`, and no prompt, ever. Commands that
@@ -225,13 +225,13 @@ $ rbx check --env all --offline
 rbx check
   - env/gen-module        no [codegen].output in rbxplace.toml
   ✓ shop/lockfile [dev]   everything in sync
-  ! shop/lockfile [prod]  1 to create, 0 to update — run `rbx shop sync`
+  ! shop/lockfile [prod]  1 to create, 0 to update: run `rbx shop sync`
   ✓ shop/codegen          generated modules match rbxshop.toml
-  ! meta/lockfile [prod]  2 pending changes — run `rbx meta sync`
+  ! meta/lockfile [prod]  2 pending changes: run `rbx meta sync`
       name: (unset) → My Game (Live)
       server size: (unset) → 50
   - config/live           --offline: comparing against Roblox needs an API key
-  - apikey/status         not yet wired — run `rbx apikey status`
+  - apikey/status         not yet wired: run `rbx apikey status`
 
 ! 2 checks found drift (2 clean, 3 skipped). Exit code 2.
 ```
@@ -242,7 +242,7 @@ tells you which generated file went stale.
 
 ## `rbx status`
 
-The human half. Same discovery, same checks, same rows —
+The human half. Same discovery, same checks, same rows:
 regrouped by environment and stripped of the exit-code contract.
 
 ```sh
@@ -260,7 +260,7 @@ rbx status
       - env/gen-module  no [codegen].output in rbxplace.toml
 
   ! dev
-      ! meta/lockfile   1 pending change — run `rbx meta sync`
+      ! meta/lockfile   1 pending change: run `rbx meta sync`
           name: (unset) → My Game (dev)
 
   ✓ prod
@@ -271,7 +271,7 @@ rbx status always exits 0; rbx check here would exit 2.
 ```
 
 **Always exit 0 is the point.** A status command that fails a script is a check
-command with worse output — so `rbx status` is safe under `set -e`, in a shell
+command with worse output, so `rbx status` is safe under `set -e`, in a shell
 prompt, in a `watch`, and in the first line of a `Makefile` target that then
 does something else. When you want the verdict, that is what `rbx check` is
 for, and the last line says which one it would be. A repository it cannot read
@@ -284,7 +284,7 @@ Environments follow it in alphabetical order, which is the order `--env all`
 expands them in.
 
 It reads nothing it does not read for `check`, writes nothing, and is useful
-with no API key — `--offline` renders the local half and marks the live rows
+with no API key: `--offline` renders the local half and marks the live rows
 skipped rather than refusing to run.
 
 ### `rbx status --json`
@@ -302,5 +302,5 @@ jq -r '.checks[] | select(.outcome != "clean") | "\(.env // "repo") \(.tool)/\(.
 
 ## Related
 
-- `docs/env.md` — `rbx env gen-module --check` and the ignored-key policy
-- `docs/ops.md` — which commands touch live state
+- `docs/env.md`: `rbx env gen-module --check` and the ignored-key policy
+- `docs/ops.md`, which commands touch live state

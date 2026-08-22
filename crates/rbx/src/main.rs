@@ -36,7 +36,7 @@ struct Cli {
 // used to be a second binary, `rbx-ops`, which made the boundary visible in the
 // command name itself. That stopped being tenable: Rokit resolves one artifact
 // per repository, so only one of the two could ever be installed through it.
-// The boundary was never enforced by the split anyway — a key is bound to its
+// The boundary was never enforced by the split anyway: a key is bound to its
 // scopes at creation, and a deploy key cannot ban somebody no matter which
 // binary calls it. What the split bought was a signal, and the signal now lives
 // in the `Live:` prefix and in the ordering here.
@@ -74,7 +74,7 @@ enum Tool {
     // Straight after `config`, and for the same reason `doctor` sits after
     // `apikey`: these are the two halves of "what this universe is configured
     // with". `config` carries the values a repository can hold, `secret` the
-    // ones it must never hold — and somebody looking for where to put an API
+    // ones it must never hold, and somebody looking for where to put an API
     // token will scan past `config` first.
     /// Secrets HttpService:GetSecret reads, written encrypted
     Secret(rbx_secret::SecretCli),
@@ -100,9 +100,9 @@ enum Tool {
     /// Live: push a MessagingService message to every running server
     ///
     /// Named `message`, not `publish`. "Publish" already means a deploy
-    /// everywhere else in this tool — `place upload --published` publishes a
+    /// everywhere else in this tool (`place upload --published` publishes a
     /// place, `config sync` publishes a config, `place rollback` republishes
-    /// live — and somebody reaching for "how do I publish my place from the
+    /// live) and somebody reaching for "how do I publish my place from the
     /// CLI" would find this first and get far enough in to be confused.
     Message(rbx_message::MessageCli),
     /// Live: launch and steer ad campaigns
@@ -146,8 +146,8 @@ enum Tool {
         output: Option<PathBuf>,
         /// Emit the static script only, with no callback into the binary.
         ///
-        /// The values from `rbxplace.toml` are lost — `--env` and `--place`
-        /// fall back to completing file names — in exchange for a completion
+        /// The values from `rbxplace.toml` are lost (`--env` and `--place`
+        /// fall back to completing file names) in exchange for a completion
         /// that starts no subprocess.
         #[arg(long)]
         no_dynamic: bool,

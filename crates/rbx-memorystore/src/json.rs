@@ -26,7 +26,7 @@ use crate::model::SortedMapItem;
 /// A missing item is an error here rather than a document saying so, exactly
 /// as in the human form: a script reading a key that was supposed to be there
 /// should stop, not carry on with `null`. So `found` has no counterpart to
-/// `rbx data get`'s — a document at all means the item was there.
+/// `rbx data get`'s: a document at all means the item was there.
 #[derive(Debug, Serialize)]
 pub struct GetDocument {
     pub schema_version: u32,

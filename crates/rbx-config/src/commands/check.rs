@@ -1,6 +1,6 @@
 //! Compare the local `rbxconfig.toml` entries against the live config.
 //!
-//! Drift leaves through `Err(Drift)` — exit code 2 — rather than through the
+//! Drift leaves through `Err(Drift)` (exit code 2) rather than through the
 //! screen alone: a CI step reads the status, not the log, and a check that
 //! printed its findings and exited 0 reported a drifting repository as clean.
 

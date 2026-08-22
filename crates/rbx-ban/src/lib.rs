@@ -70,7 +70,7 @@ enum Command {
         /// Write the result to stdout as one JSON document.
         ///
         /// One object per player asked about, with the account, whether they
-        /// are restricted, and — when they are — the length and both reasons,
+        /// are restricted, and (when they are) the length and both reasons,
         /// the same facts the human form prints. stdout carries the document
         /// and nothing else; notes and warnings stay on stderr. Field names are
         /// documented in docs/ops/ban.md.
@@ -91,7 +91,7 @@ enum Command {
         /// Write the result to stdout as one JSON document.
         ///
         /// One object per restricted player: the id, whether the entry is
-        /// active, whether it is permanent, and the private note. No names —
+        /// active, whether it is permanent, and the private note. No names:
         /// this endpoint does not send them. stdout carries the document and
         /// nothing else; notes and warnings stay on stderr. Field names are
         /// documented in docs/ops/ban.md.
@@ -653,7 +653,7 @@ mod json_flag_tests {
     /// A format that owns stdout may not stop to ask a question: that is
     /// `OutputFormat::may_prompt`, and it is false for `Json` whatever the
     /// terminal looks like. Both writing subcommands here ask one, through
-    /// `confirm_always`, so neither carries the flag — the guarantee is
+    /// `confirm_always`, so neither carries the flag: the guarantee is
     /// structural rather than a check somebody has to remember to write.
     ///
     /// This pins it. Adding `--json` to `add` would fail here, before it could

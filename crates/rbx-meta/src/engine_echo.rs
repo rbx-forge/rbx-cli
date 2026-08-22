@@ -4,7 +4,7 @@
 //! # Why this exists
 //!
 //! `rbx meta` sends that document through without modelling it, and
-//! `schemas/rbxavatar.schema.json` is guidance rather than validation — both
+//! `schemas/rbxavatar.schema.json` is guidance rather than validation: both
 //! deliberate, both documented where they are decided. The consequence is a
 //! real blind spot: a key misspelled in the file is a key Roblox ignores, and
 //! nothing anywhere reports it. The avatar setting simply does not take, and
@@ -12,7 +12,7 @@
 //!
 //! Except that Roblox does answer. `PATCH /v2/universes/{id}/configuration`
 //! responds with `UniverseSettingsResponseV2`, and that carries
-//! `engineAvatarSettings` — the document as Roblox understood it. Every other
+//! `engineAvatarSettings`: the document as Roblox understood it. Every other
 //! endpoint treats the field as an opaque string; this response is the only
 //! request in the whole API whose answer looks inside.
 //!
@@ -26,7 +26,7 @@
 //! a typo, a key from a Roblox version that no longer exists, or a key this
 //! project invented. The setting did not apply.
 //!
-//! **A key echoed and not sent was filled in by Roblox.** Normal — a partial
+//! **A key echoed and not sent was filled in by Roblox.** Normal: a partial
 //! document is a normal thing to write, and Roblox completes it. Reported at a
 //! lower volume because it is how somebody discovers what the full document
 //! looks like without guessing.
@@ -37,7 +37,7 @@
 //! afterwards would report an error for something that succeeded, and would
 //! leave the lockfile disagreeing with Roblox over a spelling. Roblox is also
 //! entitled to normalise a document it accepted, and treating every
-//! normalisation as an error would train everyone to ignore the output — the
+//! normalisation as an error would train everyone to ignore the output: the
 //! same reasoning that keeps the schema's `additionalProperties` open.
 
 use std::collections::BTreeSet;
@@ -62,8 +62,8 @@ impl Echo {
 /// Every leaf path in a JSON document, dotted.
 ///
 /// Arrays are leaves rather than being walked into. The documents here use
-/// them for fixed-length vectors — `SingleColliderSize`, `LimitBounds`,
-/// `CustomHeight` — where an index is a coordinate and not a key anybody
+/// them for fixed-length vectors (`SingleColliderSize`, `LimitBounds`,
+/// `CustomHeight`) where an index is a coordinate and not a key anybody
 /// misspells. Walking them would turn one changed number into three reported
 /// paths.
 fn leaf_paths(value: &Value, prefix: &str, out: &mut BTreeSet<String>) {
@@ -93,8 +93,8 @@ fn leaf_paths(value: &Value, prefix: &str, out: &mut BTreeSet<String>) {
 ///
 /// `None` when there is nothing to compare: an empty body, a response that is
 /// not JSON, or one carrying no `engineAvatarSettings`. All three are ordinary
-/// — a mock server in a test, an endpoint that changed its response shape, a
-/// patch that touched something else — and none of them are failures of the
+/// (a mock server in a test, an endpoint that changed its response shape, a
+/// patch that touched something else) and none of them are failures of the
 /// write that already happened.
 pub fn compare(sent: &str, response_body: &str) -> Option<Echo> {
     let response: Value = serde_json::from_str(response_body).ok()?;

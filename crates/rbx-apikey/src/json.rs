@@ -9,7 +9,7 @@
 //! ## No secret, and no piece of one
 //!
 //! This crate holds live Open Cloud credentials. A document it writes goes into
-//! a pipe, a CI log, an artifact upload, a monitoring agent — places a secret
+//! a pipe, a CI log, an artifact upload, a monitoring agent: places a secret
 //! must never reach, and where nobody will notice it did until the key has to
 //! be rotated. So the rule here is absolute and structural rather than
 //! careful: **no field in this module ever carries a secret or any part of
@@ -36,7 +36,7 @@
 //! commands talk about credentials, so the line is drawn tightly.
 //!
 //! `status` carries no free-text detail. The human form's trailing sentence is
-//! advice for a person — "run `rbx apikey regenerate <name>`" — and one of its
+//! advice for a person ("run `rbx apikey regenerate <name>`") and one of its
 //! branches names the secret file. `status` is derivable from the same
 //! verdicts, so the document carries the verdict and drops the sentence.
 //!
@@ -65,7 +65,7 @@ fn days_until(iso: Option<&str>) -> Option<i64> {
     time_iso::days_until(expiry(iso)?)
 }
 
-/// The expiry timestamp, treating an empty string as no timestamp — the same
+/// The expiry timestamp, treating an empty string as no timestamp: the same
 /// reading `expiry_line` applies.
 fn expiry(iso: Option<&str>) -> Option<&str> {
     iso.filter(|value| !value.is_empty())
@@ -124,7 +124,7 @@ pub struct KeyEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
     /// Negative once it has passed. **Absent** when there is no expiry, and
-    /// when the timestamp could not be parsed — the case the human listing
+    /// when the timestamp could not be parsed: the case the human listing
     /// marks `(unparseable)`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub days_until_expiry: Option<i64>,
@@ -207,7 +207,7 @@ impl KeyEntry {
 /// What the *account* holds, which is mostly not this project's doing: most of
 /// what comes back was made by other checkouts, other tools, or by hand in the
 /// Creator Hub. So every entry carries its verdict, and the document names the
-/// account it is a listing of — switching the signed-in Studio account changes that silently and the same key names recur
+/// account it is a listing of: switching the signed-in Studio account changes that silently and the same key names recur
 /// across accounts.
 #[derive(Debug, Serialize)]
 pub struct RemoteListDocument {
@@ -215,7 +215,7 @@ pub struct RemoteListDocument {
     /// Whose keys these are.
     pub owner: Owner,
     pub totals: Totals,
-    /// One object per key on the account, newest first — the order Roblox
+    /// One object per key on the account, newest first: the order Roblox
     /// returns them and the order the human listing prints.
     pub keys: Vec<RemoteKeyEntry>,
     /// Lockfile names with no counterpart on the account: keys this project
@@ -328,8 +328,8 @@ impl RemoteKeyEntry {
 
 /// One `rbx apikey status` invocation.
 ///
-/// The reconciliation between `rbxapikey.toml`, the lockfile and — under
-/// `--remote` — Roblox. One verdict per key, and the counts the human form
+/// The reconciliation between `rbxapikey.toml`, the lockfile and (under
+/// `--remote`) Roblox. One verdict per key, and the counts the human form
 /// prints as its summary.
 #[derive(Debug, Serialize)]
 pub struct StatusDocument {
@@ -352,7 +352,7 @@ pub struct StatusDocument {
 pub struct StatusEntry {
     pub name: String,
     /// `HEALTHY`, `PENDING`, `EXPIRED`, `EXPIRING_SOON`, `ORPHAN_LOCK`,
-    /// `ORPHAN_REMOTE`, `SECRET_MISSING`, `DISABLED` or `CHECK_FAILED` — the
+    /// `ORPHAN_REMOTE`, `SECRET_MISSING`, `DISABLED` or `CHECK_FAILED`: the
     /// same word the human form prints beside the glyph.
     pub status: String,
     /// True only for `HEALTHY`, so a consumer can gate on one field without
@@ -779,8 +779,8 @@ mod tests {
 
     /// `--json` owns stdout, so nothing on any of these paths may stop and ask
     /// a question. The reading subcommands have nothing to ask; every
-    /// subcommand that does — `create`, `prune`, `update`, `regenerate`,
-    /// `delete` — does not carry the flag at all, which `json_flag_tests` in
+    /// subcommand that does (`create`, `prune`, `update`, `regenerate`,
+    /// `delete`) does not carry the flag at all, which `json_flag_tests` in
     /// `lib.rs` pins.
     #[test]
     fn the_json_format_refuses_to_prompt() {

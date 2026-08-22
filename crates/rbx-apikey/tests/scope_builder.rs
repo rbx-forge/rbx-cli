@@ -72,8 +72,8 @@ fn universe_scope_without_universe_ids_uses_wildcard() {
 }
 
 /// End-to-end over the embedded catalog: these three scopes were classified
-/// `creator` by a fall-through, which builds a key over `G<id>`/`U<id>` — every
-/// universe the owner has — for an API whose every path is rooted at a single
+/// `creator` by a fall-through, which builds a key over `G<id>`/`U<id>` (every
+/// universe the owner has) for an API whose every path is rooted at a single
 /// universe. Guards the catalog entry and the builder together, since a
 /// regenerate that reverted the entry would not fail any test in `catalog.rs`.
 #[test]

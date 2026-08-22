@@ -1,18 +1,18 @@
 //! Derived "gift" developer products.
 //!
 //! Any pass/product with `create_gift = true` gets an extra developer
-//! product derived automatically — same price/description/icon, display name
+//! product derived automatically: same price/description/icon, display name
 //! prefixed with `[gifts].label`. The derived resource is never written into
 //! `rbxshop.toml`: it only exists inside the in-memory `ResolvedResources`
 //! produced by `Config::resolve_env`, so it flows through diff/sync/lockfile/
 //! codegen exactly like any other product with zero changes to those
 //! modules. This also means editing the source (price, icon, description, or
-//! `[gifts].label`) is the only thing you ever need to touch — the twin
+//! `[gifts].label`) is the only thing you ever need to touch: the twin
 //! follows automatically on the next `sync`.
 //!
 //! Two call sites outside `resolve_env` need to know about this convention:
 //! - `commands::rename` must rename the derived lockfile entry alongside its
-//!   source (the config has no entry to rename — see `gift_key`).
+//!   source (the config has no entry to rename: see `gift_key`).
 //! - `commands::pull` must not materialize the remote gift twin as a real
 //!   `[products.GiftX]` entry when it lists remote developer products (see
 //!   `is_gift_key`).
@@ -26,17 +26,17 @@ use crate::config::{
 };
 use crate::lockfile::ProductLock;
 
-/// Default value of `[gifts].key_prefix` — used by `init --from-remote`
+/// Default value of `[gifts].key_prefix`: used by `init --from-remote`
 /// (which has no existing config to read a custom prefix from yet).
 pub const DEFAULT_GIFT_KEY_PREFIX: &str = "Gift";
 
 /// Derive the resolved-map key for a source resource's gift twin. `prefix` is
 /// `[gifts].key_prefix`. The *TOML* key (`[passes.<key>]`) is never
-/// transformed anywhere else in this tool — but a raw concatenation like
+/// transformed anywhere else in this tool, but a raw concatenation like
 /// `"gift" + "vipPass"` reads as `giftvipPass`, which looks broken rather
 /// than like a compound identifier. When `capitalize` (`[gifts].
 /// capitalize_key`) is set, only the copy of the key used in *this derived
-/// string* gets its first letter uppercased, giving `giftVipPass` — the
+/// string* gets its first letter uppercased, giving `giftVipPass`: the
 /// pass/product's own key, as written in the config, is untouched either
 /// way.
 pub fn gift_key(prefix: &str, capitalize: bool, source_key: &str) -> String {
@@ -112,7 +112,7 @@ pub fn apply_gifts(
         if resources.products.contains_key(&key) {
             bail!(
                 "Gift product key '{key}' collides with an existing product (or another \
-                 gift-enabled resource sharing the same key) — rename one of them or disable \
+                 gift-enabled resource sharing the same key): rename one of them or disable \
                  `create_gift` to resolve the conflict."
             );
         }
@@ -131,7 +131,7 @@ pub fn apply_gifts(
 /// looking the remainder up directly: with `capitalize_key` set, deriving
 /// `key` from its source uppercased the source's first letter, and that
 /// isn't reversible in general (a source that already started uppercase is
-/// indistinguishable from one that got capitalized) — recomputing the
+/// indistinguishable from one that got capitalized): recomputing the
 /// derived key for each candidate and comparing is unambiguous instead.
 pub fn is_gift_key(config: &Config, overlay: Option<&EnvOverlay>, key: &str) -> bool {
     if config.gifts.key_prefix.is_empty() || !key.starts_with(config.gifts.key_prefix.as_str()) {
@@ -175,7 +175,7 @@ pub struct GiftMerge {
 }
 
 /// A developer product whose name matches the expected gift-twin pattern for
-/// some source, but whose price diverges — too risky to merge automatically.
+/// some source, but whose price diverges: too risky to merge automatically.
 #[derive(Debug, PartialEq)]
 pub struct GiftPriceMismatch {
     pub source_key: String,
@@ -198,7 +198,7 @@ pub struct GiftDetectionReport {
 /// `gift_key(key_prefix, capitalize_key, source_key)` so the next `sync`
 /// recognizes the existing remote product instead of creating a duplicate.
 ///
-/// A name match with a diverging price is reported but left untouched —
+/// A name match with a diverging price is reported but left untouched:
 /// matching by name alone risks merging two unrelated products that happen
 /// to share the naming convention by coincidence.
 pub fn detect_and_merge_gift_twins(
@@ -212,7 +212,7 @@ pub fn detect_and_merge_gift_twins(
     let mut report = GiftDetectionReport::default();
 
     // Snapshot candidate sources before mutating anything: (key, kind, price).
-    // `name` is always the key itself here — this only runs right after
+    // `name` is always the key itself here: this only runs right after
     // `init --from-remote` builds these maps, before any `name` override
     // could diverge from the key.
     let sources: Vec<(String, ResourceKind, u64)> = passes
@@ -228,7 +228,7 @@ pub fn detect_and_merge_gift_twins(
     for (source_key, kind, source_price) in sources {
         let twin_key = format!("{label}{source_key}");
         if twin_key == source_key {
-            continue; // empty label — nothing distinguishes a twin
+            continue; // empty label: nothing distinguishes a twin
         }
         let Some(twin) = products.get(&twin_key) else {
             continue;
@@ -244,7 +244,7 @@ pub fn detect_and_merge_gift_twins(
             continue;
         }
 
-        // `create_gift` lives on the source, which is a pass or a product —
+        // `create_gift` lives on the source, which is a pass or a product:
         // never a badge, which has no price to twin.
         let flagged = match kind {
             ResourceKind::Pass => passes.get_mut(&source_key).map(|p| &mut p.create_gift),
@@ -545,7 +545,7 @@ mod tests {
         let mut products = BTreeMap::from([("VIP".to_string(), product(499, false))]);
         let mut product_locks = BTreeMap::new();
 
-        // With an empty label, "VIP" would trivially "match itself" — must be a no-op.
+        // With an empty label, "VIP" would trivially "match itself": must be a no-op.
         let report = detect_and_merge_gift_twins(
             &mut passes,
             &mut products,
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn gift_key_capitalize_uppercases_only_the_derived_copy() {
         assert_eq!(gift_key("gift", true, "vipPass"), "giftVipPass");
-        // Source already starts uppercase — no visible change either way.
+        // Source already starts uppercase: no visible change either way.
         assert_eq!(gift_key("gift", true, "VIP"), "giftVIP");
         assert_eq!(gift_key("Gift", false, "vip_pass"), "Giftvip_pass");
     }

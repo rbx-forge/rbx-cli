@@ -146,7 +146,7 @@ impl RbxClient {
     /// Download raw bytes from a CDN URL (no auth required).
     ///
     /// Handing back the `Bytes` `reqwest` already produced saves a copy of the
-    /// whole file, and it is what `upload_place` wants anyway — `promote`
+    /// whole file, and it is what `upload_place` wants anyway: `promote`
     /// pipes one straight into the other.
     pub async fn download_from_url(&self, url: &str) -> Result<Bytes> {
         let response = self
@@ -171,8 +171,8 @@ impl RbxClient {
     /// `published` is the filter: `Some(true)` keeps live versions, `Some(false)`
     /// keeps drafts, `None` keeps everything. The three public listers below
     /// used to carry their own copy of this loop and differed only in those two
-    /// arguments, so the paging — token threading, the empty-token terminator,
-    /// the URL shape — is spelled once here instead of three times.
+    /// arguments, so the paging (token threading, the empty-token terminator,
+    /// the URL shape) is spelled once here instead of three times.
     ///
     /// Pagination stops as soon as `max` is reached, so `find_version` costs one
     /// page in the common case rather than a full walk.

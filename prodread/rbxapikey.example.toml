@@ -13,7 +13,7 @@
 # load this file if any key here asks for an operation other than read or list.
 #
 # It used to say the rule was enforced by Roblox, because a key is bound to its
-# scopes at creation. Half of that is true — no call widens a key at runtime,
+# scopes at creation. Half of that is true: no call widens a key at runtime,
 # so whatever holds the secret cannot escalate it. The other half was wrong and
 # was disproved by running `rbx apikey update` on an already created key and
 # watching Roblox accept a write scope. The verb that widens a key is one this
@@ -27,7 +27,7 @@
 [settings]
 # Refuse any key here that asks for more than read or list.
 readonly = true
-# PLACEHOLDER, like every id in this directory — see
+# PLACEHOLDER, like every id in this directory: see
 # testenv/rbxapikey.example.toml for the full note. The real value lives in
 # .local/real-ids.toml, gitignored.
 default_allowed_cidrs = ["203.0.113.7/32"]

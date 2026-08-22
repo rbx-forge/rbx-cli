@@ -4,8 +4,8 @@
 //! `apply_pass_actions` and `apply_product_actions` used to be two ~108-line
 //! functions that were 0.94 identical after renaming their identifiers, with
 //! `apply_badge_actions` a third variation on the same theme. The shape they
-//! share — resolve the display name, hash the icon, call the API, write the
-//! entry back, save — now lives once in `apply_kind`, and each kind supplies
+//! share: resolve the display name, hash the icon, call the API, write the
+//! entry back, save: now lives once in `apply_kind`, and each kind supplies
 //! only its own two API calls (see `Appliable`).
 //!
 //! The lockfile is saved after every single resource, not once at the end.
@@ -48,9 +48,9 @@ pub async fn run(
     let envs = ctx.resolve_envs(&config)?;
 
     // For a multi-env sync (--env all), confirm once up front if ANY target
-    // env has `confirm = true` in rbxplace.toml — there's no per-env per-plan
+    // env has `confirm = true` in rbxplace.toml: there's no per-env per-plan
     // prompt because we'd hit it mid-loop after starting writes elsewhere.
-    // Dry-run skips both — no writes to gate.
+    // Dry-run skips both: no writes to gate.
     if !dry_run && ctx.env().is_some() {
         let env_requires_confirm = PlacesFile::load(ctx.places_path())
             .ok()
@@ -156,11 +156,11 @@ async fn sync_one_env(
     println!("\n{}", plan.summary());
 
     if dry_run {
-        println!("\nDry run — no changes applied.");
+        println!("\nDry run: no changes applied.");
         // Said out loud, because the plan above is incomplete in one specific
         // way and a reader has no way to tell from it. The duplicate-name guard
         // asks Roblox what already exists, and a dry run deliberately never
-        // opens a connection — so a plan that says "create" here can still be
+        // opens a connection, so a plan that says "create" here can still be
         // refused by the real run.
         //
         // The alternative was to run the guard during the dry run, which would
@@ -272,7 +272,7 @@ async fn sync_one_env(
 ///
 /// Roblox already knows. A badge on a group-owned game is paid from group
 /// funds and one on a user-owned game from the user's, with no way to cross
-/// them, so the answer follows from ownership — and ownership is a field on
+/// them, so the answer follows from ownership, and ownership is a field on
 /// the universe that `universe:read` returns. Asking removes a whole class of
 /// wrong answer: a config saying `user` for a group-owned game is a create
 /// Roblox refuses, and nothing local would have caught it.
@@ -311,7 +311,7 @@ struct Resolved<'a, C> {
     display_name: &'a str,
     icon: Option<&'a Path>,
     /// Hash of the icon file as it sits on disk, which is what the next diff
-    /// compares against — not the hash of the re-encoded upload.
+    /// compares against, not the hash of the re-encoded upload.
     icon_hash: Option<String>,
 }
 
@@ -319,7 +319,7 @@ struct Resolved<'a, C> {
 ///
 /// The two `async fn`s are the only genuinely per-kind part: which endpoint
 /// gets called, and what the response means for the lockfile entry. Each also
-/// prints its own update line, because the shapes differ — a badge update can
+/// prints its own update line, because the shapes differ: a badge update can
 /// be a metadata call, an icon upload, or both.
 trait Appliable {
     type Cfg;
@@ -666,7 +666,7 @@ impl Appliable for BadgeKind {
     }
 
     /// Badges are the one kind whose metadata and icon are two endpoints, so
-    /// this decides from the plan's own field list which of them to call —
+    /// this decides from the plan's own field list which of them to call:
     /// a metadata-only change must not re-upload the icon, and an icon-only
     /// change must not rewrite name and description for nothing.
     async fn update(

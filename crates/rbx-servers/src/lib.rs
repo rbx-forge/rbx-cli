@@ -145,14 +145,14 @@ pub struct Walk {
 /// Follow the listing pages until `limit` rows are collected.
 ///
 /// A function rather than a loop inside `run`, so the three properties that
-/// make it correct can be asserted — none of them were, and one was lost in a
+/// make it correct can be asserted: none of them were, and one was lost in a
 /// port before this existed.
 ///
 /// **The page size is fixed for the whole walk.** The endpoint states the rule
 /// itself: "When paginating, all other parameters provided to the subsequent
 /// call must match the call that provided the page token." A second page asking
 /// for a different size than the call that issued its token is a request Roblox
-/// may reject, and only on listings long enough to page — the ones nobody tries
+/// may reject, and only on listings long enough to page: the ones nobody tries
 /// by hand.
 ///
 /// **So the result is truncated.** A fixed page size overshoots on the last page
@@ -390,9 +390,9 @@ pub async fn run(cli: ServersCli, global: &GlobalFlags) -> Result<()> {
             lines.truncate(limit as usize);
 
             if lines.is_empty() {
-                // The advice is worth keeping under `--json` too — a job id
+                // The advice is worth keeping under `--json` too (a job id
                 // from the wrong version returns nothing and no error, which
-                // is the mistake this sentence exists to catch — so it goes to
+                // is the mistake this sentence exists to catch) so it goes to
                 // stderr and the document still comes out on stdout.
                 format.note(
                     "No logs for that server. Check the job id is complete and the version \

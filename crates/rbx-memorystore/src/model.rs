@@ -51,7 +51,7 @@ impl ItemList {
 ///
 /// Only the fields Roblox accepts. `id` is deliberately absent: it travels as
 /// a query parameter, and putting it in the body answers
-/// `400 INVALID_ARGUMENT "The id field is required."` — the error names the
+/// `400 INVALID_ARGUMENT "The id field is required."`: the error names the
 /// field you just sent, which is why it costs a request to work out.
 #[derive(Debug, Clone, Default, Serialize)]
 #[serde(rename_all = "camelCase")]

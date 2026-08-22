@@ -67,7 +67,7 @@ jobs:
       # https://rbx-forge.github.io/rbx-cli/schemas/<name>.schema.json
       #
       # Not decoration. The editor associations in README.md used to be written
-      # as relative paths — `schema.path = "schemas/rbxplace.schema.json"` —
+      # as relative paths (`schema.path = "schemas/rbxplace.schema.json"`)
       # which only resolves if you have *this* repository checked out. The
       # people the schemas exist for installed `rbx` through Rokit and have no
       # `schemas/` directory anywhere, so the documented instructions did not
@@ -78,7 +78,7 @@ jobs:
       # with it.
       #
       # This tracks `main`, which is right for an editor pointed at the tool
-      # you are developing against and wrong for a SchemaStore catalog entry —
+      # you are developing against and wrong for a SchemaStore catalog entry:
       # that is a public promise about a URL and wants a tag. See TODO.md.
       - name: Publish the schemas alongside the book
         run: cp -r schemas book/schemas

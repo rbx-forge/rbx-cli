@@ -6,8 +6,8 @@
 //! changed, no metadata patch when only the icon has.
 //!
 //! Everything is driven through `run` rather than by calling `apply_*`
-//! directly. That keeps the assertions pinned to observable behaviour — the
-//! requests on the wire and the resulting lockfile — so they stay meaningful
+//! directly. That keeps the assertions pinned to observable behaviour: the
+//! requests on the wire and the resulting lockfile, so they stay meaningful
 //! when the dispatch behind them is reorganised.
 //!
 //! Moved out of `sync.rs` without a line of them changing, and moved here
@@ -243,7 +243,7 @@ price = 99
 /// experience before the first write, and an unmocked listing would 404 into a
 /// failure that says nothing about what the test was checking. Mounted as
 /// *empty* because that is the honest remote state for a fixture whose
-/// resources do not exist yet — a test wanting the collision case mounts its
+/// resources do not exist yet: a test wanting the collision case mounts its
 /// own non-empty listing instead.
 async fn mount_no_existing(server: &MockServer) {
     mount_existing(server, json!([]), json!([]), json!([])).await;
@@ -321,7 +321,7 @@ async fn mount_creates_only(server: &MockServer) {
 // ── the dry-run invariant ──
 
 /// The invariant the whole command hangs on. No mocks are mounted, so any
-/// request at all would 404 and surface as an error too — but the count is
+/// request at all would 404 and surface as an error too, but the count is
 /// asserted directly, because "it happened to fail" is not the property.
 #[tokio::test]
 async fn a_dry_run_sends_no_request_and_writes_no_lockfile() {
@@ -385,7 +385,7 @@ async fn only_passes_leaves_badges_and_products_untouched() {
     assert!(env.products.is_empty());
 }
 
-/// Nothing to do means nothing sent — and, as it stands, no lockfile
+/// Nothing to do means nothing sent, and, as it stands, no lockfile
 /// rewrite either. Pinned so that a future change to the up-to-date path
 /// is a deliberate one.
 #[tokio::test]
@@ -461,7 +461,7 @@ regional_pricing = true
     assert_eq!(locked.name, "VIP Pass");
     assert_eq!(locked.price, Some(499));
     assert_eq!(locked.icon_asset_id, Some(777));
-    // The hash of the file on disk, not of the re-encoded upload — the
+    // The hash of the file on disk, not of the re-encoded upload: the
     // next diff hashes the file, so anything else re-uploads forever.
     assert_eq!(locked.icon_hash.as_deref(), Some(hash.as_str()));
 }
@@ -787,7 +787,7 @@ store_page = true
 
 /// Roblox validates `isForSale` against the *current* remote state, so
 /// taking a product off sale needs the store page removed first. Two
-/// patches, in that order — one patch and the change is silently refused.
+/// patches, in that order: one patch and the change is silently refused.
 #[tokio::test]
 async fn taking_a_product_off_sale_clears_the_store_page_first() {
     let shop = Shop::new(

@@ -10,7 +10,7 @@ pub use crate::toml_write::KeyRename;
 
 /// Every table `rbxshop.toml` gives a meaning to at the top level.
 ///
-/// A key outside this list is kept — `save_in_place` never deletes what it
+/// A key outside this list is kept: `save_in_place` never deletes what it
 /// does not model, and rejecting it would make a config written for a newer
 /// rbx unloadable by an older one. But it is not kept *silently*: an ignored
 /// key looks exactly like an honoured one from the outside, which is the same
@@ -100,7 +100,7 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub experience: Option<Experience>,
 
-    /// Who owns this project — global to the config, not env-scoped. The one
+    /// Who owns this project: global to the config, not env-scoped. The one
     /// thing it decides is the payment source for badge creation, and that is
     /// not a free choice: Roblox pays a group-owned game's badge out of group
     /// funds and a user-owned game's out of the user's, with no way to cross
@@ -123,7 +123,7 @@ pub struct Config {
 
     /// Extra files (relative to this one) whose `passes`/`badges`/`products`
     /// tables (and their `[envs.<name>.*]` overlays) get merged in at load
-    /// time via `Config::load_merged`. Only meaningful on the main file —
+    /// time via `Config::load_merged`. Only meaningful on the main file:
     /// included files must be "pure" resource files (no
     /// `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their
     /// own). See `docs/shop.md` for the `pull`/`rename` limitation this
@@ -260,13 +260,13 @@ pub struct GiftsConfig {
     /// Prefixed to the source's TOML key to build the resolved/codegen key,
     /// e.g. with the default "Gift": `VIP` -> `GiftVIP`, `vip_pass` ->
     /// `Giftvip_pass`. Must be non-empty. The source's own TOML key is never
-    /// modified by this — see `capitalize_key` for the one exception, which
+    /// modified by this: see `capitalize_key` for the one exception, which
     /// only affects the copy used in this derived string.
     #[serde(default = "default_gift_key_prefix")]
     pub key_prefix: String,
 
     /// When true, the source key's first letter is uppercased in the
-    /// *derived* gift key only (never in the source's own TOML key) — e.g.
+    /// *derived* gift key only (never in the source's own TOML key): e.g.
     /// with `key_prefix = "gift"`: `vipPass` -> `giftVipPass` instead of the
     /// default `giftvipPass`. Default: `false` (exact concatenation).
     #[serde(default)]
@@ -332,7 +332,7 @@ pub struct PassConfig {
     #[serde(default)]
     pub regional_pricing: bool,
     /// When true, an extra developer product is derived automatically at
-    /// resolve time — same price/description/icon, name prefixed with
+    /// resolve time: same price/description/icon, name prefixed with
     /// `[gifts].label`. See `crate::gifts`.
     #[serde(default)]
     pub create_gift: bool,
@@ -341,7 +341,7 @@ pub struct PassConfig {
 }
 
 // `deny_unknown_fields` (unlike Pass/ProductConfig) because `create_gift` is
-// documented right next to badges and only applies to passes/products —
+// documented right next to badges and only applies to passes/products:
 // silently swallowing it here would look like a no-op bug rather than an
 // unsupported field.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -377,7 +377,7 @@ pub struct ProductConfig {
     #[serde(default)]
     pub store_page: bool,
     /// When true, an extra developer product is derived automatically at
-    /// resolve time — same price/description/icon, name prefixed with
+    /// resolve time: same price/description/icon, name prefixed with
     /// `[gifts].label`. See `crate::gifts`.
     #[serde(default)]
     pub create_gift: bool,
@@ -403,7 +403,7 @@ pub fn resolve_name<'a>(config_name: Option<&'a str>, key: &'a str) -> &'a str {
 // Env overlays
 // ---------------------------------------------------------------------------
 
-/// Per-env overlay grouping the three resource maps. All fields are optional —
+/// Per-env overlay grouping the three resource maps. All fields are optional:
 /// merging is done resource by resource, field by field. A resource defined
 /// only in the overlay (not in base) is treated as env-exclusive.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -654,7 +654,7 @@ impl ProductConfig {
 // ---------------------------------------------------------------------------
 
 /// One physical file backing part of a (possibly split) config, alongside
-/// its raw, unmerged contents. Produced by `Config::load_all` — index 0 in
+/// its raw, unmerged contents. Produced by `Config::load_all`: index 0 in
 /// that `Vec` is always the main file.
 #[derive(Debug, Clone)]
 pub struct ConfigFile {
@@ -687,7 +687,7 @@ impl ResourceKind {
         ResourceKind::Product,
     ];
 
-    /// Singular, lowercase — the word used in progress lines and errors.
+    /// Singular, lowercase: the word used in progress lines and errors.
     pub fn label(self) -> &'static str {
         match self {
             ResourceKind::Pass => "pass",
@@ -696,20 +696,20 @@ impl ResourceKind {
         }
     }
 
-    /// Plural, lowercase — for prose naming a whole collection.
+    /// Plural, lowercase, for prose naming a whole collection.
     ///
     /// Spelled out rather than `format!("{}s", label())`, which produces
     /// "passs" and shipped to users in the preflight scope error before anybody
     /// read it aloud.
     pub fn plural(self) -> &'static str {
         // Delegates rather than repeating the three strings. `section()` is
-        // already the plural — it names the TOML table — and two independent
+        // already the plural (it names the TOML table) and two independent
         // matches over the same variants returning the same words drift the
         // first time a kind is renamed in one and not the other.
         self.section()
     }
 
-    /// Singular, capitalized — for a message that starts with the kind.
+    /// Singular, capitalized, for a message that starts with the kind.
     pub fn title(self) -> &'static str {
         match self {
             ResourceKind::Pass => "Pass",
@@ -948,7 +948,7 @@ impl Config {
     /// config (`init`), where there is no document to preserve.
     ///
     /// Commands that write back to a config the user already owns must use
-    /// [`Config::save_in_place`] instead — this one reorders keys and drops
+    /// [`Config::save_in_place`] instead: this one reorders keys and drops
     /// both comments and unmodeled fields.
     pub fn save(&self, path: &Path) -> Result<()> {
         let content = toml::to_string_pretty(self)?;
@@ -981,8 +981,8 @@ impl Config {
 
     /// Load the main file plus every file listed under its `[include].files`
     /// (resolved relative to `path`'s directory), each kept as its own
-    /// unmerged `ConfigFile` — index 0 is always the main file. Included
-    /// files must be "pure" resource files — `experience`/`owner`/
+    /// unmerged `ConfigFile`: index 0 is always the main file. Included
+    /// files must be "pure" resource files: `experience`/`owner`/
     /// `codegen`/`icons`/`gifts`/`include` are only ever read from the main
     /// file and rejected elsewhere.
     ///
@@ -1014,7 +1014,7 @@ impl Config {
             {
                 bail!(
                     "Included file {} may only contain [passes.*], [badges.*], [products.*], \
-                     and their [envs.<name>.*] overlays — experience/owner/codegen/icons/\
+                     and their [envs.<name>.*] overlays: experience/owner/codegen/icons/\
                      gifts/include belong in the main config file.",
                     inc_path.display()
                 );
@@ -1030,7 +1030,7 @@ impl Config {
     }
 
     /// Merge already-loaded files (see `load_all`) into one `Config` view,
-    /// by cloning entries — `files` stays usable by the caller afterward.
+    /// by cloning entries: `files` stays usable by the caller afterward.
     /// Errors if the same resource key, or the same env+key overlay, is
     /// declared in more than one file.
     pub fn merge_loaded(files: &[ConfigFile]) -> Result<Config> {
@@ -1046,7 +1046,7 @@ impl Config {
                     {
                         bail!(
                             "Overlay [envs.{env_name}.passes.{key}] is declared in more than \
-                             one file (main config or {}) — each (env, key) pair may only be \
+                             one file (main config or {}): each (env, key) pair may only be \
                              declared once across all included files.",
                             file.path.display()
                         );
@@ -1060,7 +1060,7 @@ impl Config {
                     {
                         bail!(
                             "Overlay [envs.{env_name}.badges.{key}] is declared in more than \
-                             one file (main config or {}) — each (env, key) pair may only be \
+                             one file (main config or {}): each (env, key) pair may only be \
                              declared once across all included files.",
                             file.path.display()
                         );
@@ -1074,7 +1074,7 @@ impl Config {
                     {
                         bail!(
                             "Overlay [envs.{env_name}.products.{key}] is declared in more than \
-                             one file (main config or {}) — each (env, key) pair may only be \
+                             one file (main config or {}): each (env, key) pair may only be \
                              declared once across all included files.",
                             file.path.display()
                         );
@@ -1085,7 +1085,7 @@ impl Config {
             for (key, value) in &file.config.passes {
                 if main.passes.insert(key.clone(), value.clone()).is_some() {
                     bail!(
-                        "Pass '{key}' is declared in both the main config and {} — \
+                        "Pass '{key}' is declared in both the main config and {}: \
                          each resource key may only be declared once across all included files.",
                         file.path.display()
                     );
@@ -1094,7 +1094,7 @@ impl Config {
             for (key, value) in &file.config.badges {
                 if main.badges.insert(key.clone(), value.clone()).is_some() {
                     bail!(
-                        "Badge '{key}' is declared in both the main config and {} — \
+                        "Badge '{key}' is declared in both the main config and {}: \
                          each resource key may only be declared once across all included files.",
                         file.path.display()
                     );
@@ -1103,7 +1103,7 @@ impl Config {
             for (key, value) in &file.config.products {
                 if main.products.insert(key.clone(), value.clone()).is_some() {
                     bail!(
-                        "Product '{key}' is declared in both the main config and {} — \
+                        "Product '{key}' is declared in both the main config and {}: \
                          each resource key may only be declared once across all included files.",
                         file.path.display()
                     );
@@ -1189,7 +1189,7 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # type = "user"          # "user" or "group"
 # id = 0                 # Your Roblox user or group ID
 
-# Codegen — generate a Luau module folder with all asset IDs.
+# Codegen: generate a Luau module folder with all asset IDs.
 # `output` is a FOLDER path (no extension). It will contain:
 #   <output>/init.luau     -- dispatcher + exported type
 #   <output>/<env>.luau    -- per-env IDs (0-stubs for missing resources)
@@ -1197,15 +1197,15 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # output = "src/shared/GameIds"
 # typescript = false           # Also generate <output>/init.d.ts
 # style = "flat"               # "flat" (default) or "nested"
-#                              # flat:   GameIds.passes["VIP"]   — path-like keys
-#                              # nested: GameIds.passes.VIP      — nested tables
+#                              # flat:   GameIds.passes["VIP"]: path-like keys
+#                              # nested: GameIds.passes.VIP: nested tables
 #
-# Custom paths — dot-separated, used as prefix (flat) or nesting (nested)
+# Custom paths: dot-separated, used as prefix (flat) or nesting (nested)
 # [codegen.paths]
 # passes = "player.vips"
 # products = "shop.items"
 #
-# Extra entries — pre-existing assets injected into every env's module
+# Extra entries: pre-existing assets injected into every env's module
 # [codegen.extra]
 # "passes.legacy_vip" = 1234567
 
@@ -1214,7 +1214,7 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # bleed = true         # Apply alpha bleed (fixes resize artifacts)
 # dir = "icons"        # Directory for downloaded icons
 
-# Gift products — see `create_gift` below. `label` is prefixed to the
+# Gift products: see `create_gift` below. `label` is prefixed to the
 # source's display name for the derived product (e.g. "VIP Pass" becomes
 # "[GIFT] VIP Pass"). `key_prefix` does the same for the codegen/lockfile
 # key (e.g. "VIP" becomes "GiftVIP"); `capitalize_key` uppercases just the
@@ -1226,33 +1226,33 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 
 # Game Passes
 # [passes.VIP]
-# name = "VIP Pass"       # optional — defaults to "VIP"
+# name = "VIP Pass"       # optional: defaults to "VIP"
 # price = 499
 # description = "VIP access"
 # icon = "icons/vip.png"
-# for_sale = true          # optional — defaults to true
-# regional_pricing = false # optional — defaults to false
-# create_gift = false      # optional — derive a "GiftVIP" dev product twin
-# path = "shop.specials"   # optional — override codegen path
+# for_sale = true          # optional: defaults to true
+# regional_pricing = false # optional: defaults to false
+# create_gift = false      # optional: derive a "GiftVIP" dev product twin
+# path = "shop.specials"   # optional: override codegen path
 
 # Badges
 # [badges.Welcome]
-# name = "Welcome Badge"  # optional — defaults to "Welcome"
+# name = "Welcome Badge"  # optional: defaults to "Welcome"
 # description = "Welcome to the game!"
 # icon = "icons/welcome.png"
 # enabled = true
-# path = "rewards"          # optional — override codegen path
+# path = "rewards"          # optional: override codegen path
 
 # Developer Products
 # [products.Coins100]
-# name = "100 Coins"      # optional — defaults to "Coins100"
+# name = "100 Coins"      # optional: defaults to "Coins100"
 # price = 99
 # description = "100 coins"
 # icon = "icons/coins.png"
 # for_sale = true
 # regional_pricing = false
 # store_page = false
-# create_gift = false      # optional — derive a "GiftCoins100" dev product twin
+# create_gift = false      # optional: derive a "GiftCoins100" dev product twin
 # path = "shop.specials"
 
 # Per-env overrides. Layered on top of base when `--env <name>` is passed.

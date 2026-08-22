@@ -6,8 +6,8 @@
 //! is worse than one that failed, because nothing prompts you to look.
 //!
 //! So every domain that is skipped, and every field Open Cloud has no coverage
-//! for, is named at the end of the run with the reason and — where there is
-//! one — what to do about it.
+//! for, is named at the end of the run with the reason and, where there is
+//! one: what to do about it.
 
 use colored::Colorize;
 
@@ -18,7 +18,7 @@ use crate::Domain;
 pub struct Gap {
     /// Where it belonged.
     pub domain: Domain,
-    /// What is missing, in the user's vocabulary — a file, a field, a group of
+    /// What is missing, in the user's vocabulary: a file, a field, a group of
     /// resources.
     pub subject: String,
     /// Why. Written to be read by somebody who did not write this code.
@@ -46,7 +46,7 @@ impl Gap {
 /// The fields no API this tool can reach will return without a browser
 /// session, listed once so the report says the same thing every run.
 ///
-/// These are not failures — `meta` models them and `sync` can write them — but
+/// These are not failures (`meta` models them and `sync` can write them) but
 /// an import that leaves them blank has to say so, or the first `meta sync`
 /// after an import looks like it is inventing changes.
 pub fn cookie_only_meta_gaps(has_cookie: bool) -> Vec<Gap> {
@@ -61,7 +61,7 @@ pub fn cookie_only_meta_gaps(has_cookie: bool) -> Vec<Gap> {
     .with_remedy("re-run with --cookie, or set them by hand in rbxmeta.toml")]
 }
 
-/// Print the report. Nothing is printed when there is nothing to say — a clean
+/// Print the report. Nothing is printed when there is nothing to say: a clean
 /// import should not end on a list of headings.
 pub fn print(gaps: &[Gap]) {
     if gaps.is_empty() {

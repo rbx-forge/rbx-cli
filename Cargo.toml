@@ -37,12 +37,12 @@ members = [
 version = "0.3.0"
 edition = "2021"
 # Verified, not aspirational: 1.88 is the lowest toolchain that compiles the
-# workspace and its test targets. It is set by a dependency, not by our code —
+# workspace and its test targets. It is set by a dependency, not by our code:
 # `image 0.25.10` declares 1.88, and below that `icu_*` wants 1.86 and `ravif`
 # wants edition 2024. Our own sources need only 1.82 (`Option::is_none_or`).
 #
 # So this moves when a dependency moves it. Bumping is fine; bumping silently
-# is not, which is the whole reason to declare it — precompiled binaries mean
+# is not, which is the whole reason to declare it: precompiled binaries mean
 # most users never build this, and the ones who do deserve a real number rather
 # than a compile error three crates deep.
 rust-version = "1.88"
@@ -88,7 +88,7 @@ clap_complete = "4"
 # here as reqwest's runtime, plus the few pieces the CLI touches directly:
 # `macros` for `#[tokio::main]` and `#[tokio::test]`, `time` for retry backoff
 # and analytics polling, `sync` for the `Mutex` guarding cached API lookups.
-# "full" additionally pulls in fs, io-util, net, process, signal — compile cost
+# "full" additionally pulls in fs, io-util, net, process, signal: compile cost
 # for surface nothing calls. Adding one back is a one-line, considered change.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
 # TLS is rustls, not the platform default, and that is a portability decision
@@ -125,15 +125,15 @@ blake3 = "1"
 colored = "2"
 # Decoders only, and not every decoder: this workspace decodes an icon a user
 # hands it and always encodes PNG (`ImageFormat::Png`, the one encode site in
-# the tree). The default features add an AVIF encoder — `rav1e`, an AV1 video
-# encoder — to a tool that writes PNGs. The decoders kept are the formats
+# the tree). The default features add an AVIF encoder: `rav1e`, an AV1 video
+# encoder, to a tool that writes PNGs. The decoders kept are the formats
 # somebody plausibly saves an icon as.
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 bit-vec = "0.8"
 # The library, not its command line. One call site in this workspace,
 # `rbx_cookie::get_value()` in `rbx_core::env`. The default `cli` feature
 # brings a second copy of clap (2.34, beside our 4.x), `env_logger` and
-# `atty` — the last of which carries an advisory of its own.
+# `atty`: the last of which carries an advisory of its own.
 rbx_cookie = { version = "0.1", default-features = false }
 dialoguer = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
@@ -145,15 +145,15 @@ wiremock = "0.6"
 #
 # `crypto_box` and not a libsodium binding, because a binding means either a C
 # toolchain on every machine that builds this or a vendored `libsodium` in the
-# published binary — and this workspace is `rustls` rather than `native-tls`
+# published binary, and this workspace is `rustls` rather than `native-tls`
 # for exactly that reason. RustCrypto's implementation is the one NaCl-compat
 # crate that is pure Rust, stable (0.9), and carries the `seal` construction
 # rather than only the keypair-to-keypair `box`.
 #
 # The defaults are kept, unlike everywhere else in this file, and that is not
 # an oversight: `seal` is built on `SalsaBox`, so `default-features = false`
-# without `salsa20` does not compile at all. The default set — `alloc`,
-# `getrandom`, `salsa20` — is exactly what sealing needs, `getrandom` included,
+# without `salsa20` does not compile at all. The default set: `alloc`,
+# `getrandom`, `salsa20`: is exactly what sealing needs, `getrandom` included,
 # because each seal generates a fresh ephemeral keypair and has to seed it.
 crypto_box = { version = "0.9", features = ["seal"] }
 # Roblox takes the sealed ciphertext base64-encoded, and hands the public key

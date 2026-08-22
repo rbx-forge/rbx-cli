@@ -1,4 +1,4 @@
-//! `rbx shop show` — pretty-print the local `rbxshop.toml` (read-only).
+//! `rbx shop show`: pretty-print the local `rbxshop.toml` (read-only).
 //!
 //! Loads the config (so serde defaults like `for_sale=true` are filled in) and
 //! prints passes/badges/products as aligned tables. Targets the global
@@ -37,13 +37,13 @@ pub fn run(ctx: &ShopCtx<'_>, sort: ShowSort, flat: bool, json: bool) -> Result<
     if format.is_json() {
         // The overlay hint the human view prints under its tables. It is
         // advice about how to run the command, not part of the declared state,
-        // so under `--json` it goes to stderr — stdout carries the document.
+        // so under `--json` it goes to stderr: stdout carries the document.
         // Plainer than the human line for the same reason: it is a diagnostic
         // now, not a laid-out block.
         if env.is_none() && !config.envs.is_empty() {
             let names: Vec<&str> = config.envs.keys().map(|s| s.as_str()).collect();
             format.note(format!(
-                "per-env overlays defined: {} — pass --env <name> to include env-specific resources",
+                "per-env overlays defined: {}: pass --env <name> to include env-specific resources",
                 names.join(", ")
             ));
         }
@@ -65,7 +65,7 @@ pub fn run(ctx: &ShopCtx<'_>, sort: ShowSort, flat: bool, json: bool) -> Result<
     }
     match env {
         Some(name) => println!("  env: {}", name.cyan()),
-        None => println!("  env: {} (base values)", "—".dimmed()),
+        None => println!("  env: {} (base values)", "-".dimmed()),
     }
 
     let empty =
@@ -86,7 +86,7 @@ pub fn run(ctx: &ShopCtx<'_>, sort: ShowSort, flat: bool, json: bool) -> Result<
     if env.is_none() && !config.envs.is_empty() {
         let names: Vec<&str> = config.envs.keys().map(|s| s.as_str()).collect();
         println!(
-            "\nper-env overlays defined: {} — pass {} to include env-specific resources",
+            "\nper-env overlays defined: {}: pass {} to include env-specific resources",
             names.join(", "),
             "--env <name>".cyan()
         );
@@ -135,7 +135,7 @@ fn show_flat(res: &ResolvedResources, sort: ShowSort) {
             kind: ResourceKind::Badge,
             name: resolve_name(b.name.as_deref(), key).to_string(),
             price_sort: None,
-            price_str: "—".dimmed().to_string(),
+            price_str: "-".dimmed().to_string(),
             flags: if b.enabled {
                 "enabled".green().to_string()
             } else {

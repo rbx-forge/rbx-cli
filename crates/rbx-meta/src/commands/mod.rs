@@ -20,7 +20,7 @@ pub enum Repoint {
     Nothing,
     /// Allow a universe change, refuse a place change. Repointing an env at a
     /// new universe and pulling is how you adopt it, and `sync` already
-    /// refuses that case and tells you to delete the section — closing the
+    /// refuses that case and tells you to delete the section: closing the
     /// door here too would leave no way through.
     Universe,
 }

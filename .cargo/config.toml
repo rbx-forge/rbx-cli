@@ -3,7 +3,7 @@
 # ## The failure this fixes
 #
 # On a debug build, `rbx --version` died with `thread 'main' has overflowed its
-# stack` — before printing anything, because the overflow happens while clap is
+# stack`, before printing anything, because the overflow happens while clap is
 # building the command tree, which runs before any subcommand is dispatched.
 # Every integration test that shells out to the binary failed with it, and
 # `cargo run` was unusable.
@@ -13,7 +13,7 @@
 # Nothing recursed. Windows reserves 1 MB of stack for the main thread by
 # default, where Linux and macOS give 8 MB. A `Command` tree built by clap's
 # derive is deeply nested, and an unoptimised build does not merge or elide the
-# frames — so the stack cost scales with the number of subcommands and
+# frames, so the stack cost scales with the number of subcommands and
 # arguments, and this workspace has a lot of both. The tree crossed 1 MB when
 # `env rm` and `data ordered` were added. It had been approaching it for a
 # while; those were not the cause so much as the last two.

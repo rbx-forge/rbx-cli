@@ -16,8 +16,8 @@
 //! That is the one place where a missing field means the worst outcome rather
 //! than "nothing to report", and a consumer that reads `.duration // "none"`
 //! would report a permanent ban as no ban. So `permanent` is always present and
-//! always says which of the two it is, and `duration` — the raw `604800s`
-//! Roblox sent, not the `7d` the table renders — is absent exactly when
+//! always says which of the two it is, and `duration`: the raw `604800s`
+//! Roblox sent, not the `7d` the table renders: is absent exactly when
 //! `permanent` is true. The human form takes the same care: `duration_label`
 //! prints the word `permanent` rather than a blank.
 //!
@@ -61,7 +61,7 @@ pub struct ListDocument {
     pub limit_reached: bool,
     /// Rows in `restrictions`.
     pub count: usize,
-    /// One object per row, in the order Roblox returned them — the order the
+    /// One object per row, in the order Roblox returned them: the order the
     /// human table prints.
     pub restrictions: Vec<Restriction>,
 }

@@ -4,7 +4,7 @@
 //! code: a `require` that returns a table of the wrong shape breaks a running
 //! experience, not a build. `tests/codegen.rs` asserted that contract with
 //! `contains()` on fragments, which passes happily while the surrounding
-//! output degrades — a stray blank line, a lost `local`, a type that stopped
+//! output degrades: a stray blank line, a lost `local`, a type that stopped
 //! being exported.
 //!
 //! So the whole folder goes into one snapshot per style, files and separators
@@ -216,7 +216,7 @@ fn generated_folder(style: CodegenStyle, typescript: bool) -> String {
 
 // ── snapshots ──
 
-/// Nested style with TypeScript on — the fullest output the crate produces.
+/// Nested style with TypeScript on: the fullest output the crate produces.
 #[test]
 fn nested_style_folder() {
     insta::assert_snapshot!("nested", generated_folder(CodegenStyle::Nested, true));
@@ -229,7 +229,7 @@ fn flat_style_folder() {
     insta::assert_snapshot!("flat", generated_folder(CodegenStyle::Flat, true));
 }
 
-/// With `typescript = false` the `.d.ts` is simply absent — asserted here
+/// With `typescript = false` the `.d.ts` is simply absent: asserted here
 /// rather than by reading a directory, so the snapshot is the file list too.
 #[test]
 fn nested_style_folder_without_typescript() {

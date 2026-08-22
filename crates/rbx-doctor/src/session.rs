@@ -4,7 +4,7 @@
 //! Step 1 reported where the cookie came from and stopped there, so a run could
 //! print a green credentials section for a session Roblox had stopped
 //! accepting. Every command that needs the cookie would then fail somewhere
-//! else, with a message about the resource rather than about the session — and
+//! else, with a message about the resource rather than about the session, and
 //! `rbx meta sync` would fail halfway through (#63).
 //!
 //! One `users/authenticated` call answers it. `doctor` already spends

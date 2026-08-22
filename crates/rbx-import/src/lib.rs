@@ -6,8 +6,8 @@
 //! transcription where a typo does damage. `import` is the missing gesture.
 //!
 //! It is deliberately **composition, not reimplementation**. Each domain is
-//! imported by driving the command that already knows how — `shop init
-//! --from-remote`, `meta init --from-remote`, `meta pull`, `config pull` —
+//! imported by driving the command that already knows how: `shop init
+//! --from-remote`, `meta init --from-remote`, `meta pull`, `config pull`:
 //! through that crate's own public entry point. Two consequences are the whole
 //! design:
 //!
@@ -33,7 +33,7 @@ use clap::Args;
 
 use rbx_core::GlobalFlags;
 
-/// `rbx import` — bring an existing universe under management.
+/// `rbx import`: bring an existing universe under management.
 #[derive(Args, Debug)]
 pub struct ImportCli {
     /// Universe to adopt.
@@ -75,11 +75,11 @@ pub struct ImportCli {
 /// One tool's worth of state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum Domain {
-    /// `rbxshop.toml` — game passes, badges, developer products.
+    /// `rbxshop.toml`: game passes, badges, developer products.
     Shop,
-    /// `rbxmeta.toml` — universe and place metadata, icon, thumbnails.
+    /// `rbxmeta.toml`: universe and place metadata, icon, thumbnails.
     Meta,
-    /// `rbxconfig.toml` — the live in-experience config.
+    /// `rbxconfig.toml`: the live in-experience config.
     Config,
 }
 

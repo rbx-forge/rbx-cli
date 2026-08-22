@@ -1,4 +1,4 @@
-//! `build_sync_plan` — the function that decides what gets created, updated,
+//! `build_sync_plan`: the function that decides what gets created, updated,
 //! or left alone on a live Roblox account.
 //!
 //! It is pure (config + lockfile + a directory of icons in, plan out), so
@@ -336,7 +336,7 @@ fn every_product_field_that_diverges_is_named_in_the_update() {
 }
 
 /// A single field changing must produce a single-field update, not a blanket
-/// "everything changed" — the printed diff is what a user reads before
+/// "everything changed": the printed diff is what a user reads before
 /// approving a sync that spends money.
 #[test]
 fn one_diverging_field_yields_a_one_field_update() {
@@ -353,7 +353,7 @@ fn one_diverging_field_yields_a_one_field_update() {
     );
 }
 
-/// `None` price and `Some(0)` are different states — a pass with no price is
+/// `None` price and `Some(0)` are different states: a pass with no price is
 /// not a free pass, and collapsing them would silently put a paid pass on sale
 /// for nothing.
 #[test]
@@ -449,7 +449,7 @@ fn an_icon_whose_bytes_changed_is_an_icon_update() {
     );
 }
 
-/// No hash in the lock means the icon was never uploaded, so it must be sent —
+/// No hash in the lock means the icon was never uploaded, so it must be sent:
 /// the empty-string fallback has to compare unequal to any real hash.
 #[test]
 fn an_icon_with_no_hash_in_the_lock_is_an_icon_update() {
@@ -554,7 +554,7 @@ fn a_missing_icon_file_fails_the_plan() {
 
 // ── warnings ──
 
-/// Removing a resource from the config never deletes it remotely — it just
+/// Removing a resource from the config never deletes it remotely: it just
 /// falls out of management. The warning is the only signal the user gets, so
 /// it must name the resource and say deletion is not happening.
 #[test]

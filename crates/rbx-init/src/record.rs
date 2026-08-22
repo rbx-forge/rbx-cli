@@ -5,14 +5,14 @@
 //!
 //! **Deciding** always happens before the Roblox call that creates the
 //! resource. Creating a universe or a place is irreversible and costs a real
-//! resource, so a Ctrl-C at the prompt — or an ambiguous config we refuse to
-//! guess at — must not be able to leave something created but unrecorded.
+//! resource, so a Ctrl-C at the prompt, or an ambiguous config we refuse to
+//! guess at: must not be able to leave something created but unrecorded.
 //! Every function here is therefore side-effect-free until the caller has its
 //! ids in hand.
 //!
 //! **Writing** is deliberately line-level rather than a serde round-trip.
 //! Reserializing through `toml::to_string_pretty` drops every comment,
-//! reorders keys, and silently deletes any field the struct does not model —
+//! reorders keys, and silently deletes any field the struct does not model,
 //! which is how the removed `gen-rbxplace` came to eat `env` overrides. The
 //! helpers below only ever insert lines, so existing content (comments, key
 //! order, CRLF endings, fields this crate never heard of)
@@ -106,7 +106,7 @@ fn slugify(s: &str) -> String {
 /// itself.
 ///
 /// The list comes from `rbx_core::places` rather than from a literal here, so
-/// this crate and rbx-import cannot end up refusing different names — see
+/// this crate and rbx-import cannot end up refusing different names: see
 /// [`rbx_core::places::RESERVED_ENV_NAMES`].
 fn ensure_recordable_env(env: &str) -> Result<()> {
     if is_reserved_env_name(env) {
@@ -143,9 +143,9 @@ pub fn choose_new_env(
         ensure_recordable_env(env)?;
         if !places_path.exists() {
             bail!(
-                "--env {} was passed but {} does not exist. Create it first — a \
+                "--env {} was passed but {} does not exist. Create it first (a \
                  minimal file is a [<env>] section with a universe_id, plus the \
-                 shared [owner] block — or point --places at an existing one.",
+                 shared [owner] block) or point --places at an existing one.",
                 env,
                 places_path.display()
             );
@@ -159,7 +159,7 @@ pub fn choose_new_env(
     }
 
     // No explicit target: only prompt when there is a file to add to and a
-    // human to ask. `--yes` means "don't ask me anything", so it must skip —
+    // human to ask. `--yes` means "don't ask me anything", so it must skip:
     // otherwise a scripted `-y` invocation that used to run unattended would
     // start hanging on a prompt.
     if yes || !places_path.exists() || !std::io::stdin().is_terminal() {
@@ -232,7 +232,7 @@ pub fn choose_new_place(
 }
 
 /// Map a universe id back to the env that points at it. An explicit `--env`
-/// must match that universe — recording a place under the wrong env would be
+/// must match that universe: recording a place under the wrong env would be
 /// worse than not recording it at all.
 fn resolve_env_for_universe(
     places: &PlacesFile,
@@ -314,7 +314,7 @@ fn ensure_place_absent(entry: &Environment, env: &str, place: &str) -> Result<()
 /// Prompt for the resource's display name when `--name` was omitted.
 ///
 /// Empty input keeps the template's own name, which is exactly what omitting
-/// the flag does today — so a bare Enter reproduces the previous behavior.
+/// the flag does today, so a bare Enter reproduces the previous behavior.
 /// Asking here also feeds the env/place suggestion downstream, which is why
 /// this runs before [`choose_new_env`].
 pub fn prompt_display_name(label: &str, yes: bool) -> Result<Option<String>> {
@@ -385,7 +385,7 @@ fn prompt_place_name(entry: &Environment, env: &str, suggested: &str) -> Result<
 // ---------------------------------------------------------------------------
 
 /// Append a brand-new env block at the end of the file. A `[header]` always
-/// opens a fresh table, so this is a pure append — nothing already on disk is
+/// opens a fresh table, so this is a pure append: nothing already on disk is
 /// re-read, re-parsed, or rewritten.
 pub fn append_env(
     path: &Path,
@@ -459,8 +459,8 @@ pub fn insert_place_str(content: &str, env: &str, place: &str, place_id: u64) ->
     };
     let block_end = table_end(&lines, block_start);
 
-    // Anchor on the last key line so trailing blanks and comments — which
-    // usually introduce whatever comes next — stay below the insertion.
+    // Anchor on the last key line so trailing blanks and comments (which
+    // usually introduce whatever comes next) stay below the insertion.
     let anchor = (block_start + 1..block_end)
         .rfind(|&i| is_key_line(&lines[i]))
         .unwrap_or(block_start);
@@ -513,7 +513,7 @@ fn is_key_line(line: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// Every write must still parse as the shared rbxplace.toml shape — the
+    /// Every write must still parse as the shared rbxplace.toml shape: the
     /// line surgery is only safe if the result round-trips.
     fn parsed(content: &str) -> PlacesFile {
         toml::from_str(content).unwrap_or_else(|e| panic!("result must parse: {e}\n---\n{content}"))
@@ -529,7 +529,7 @@ id = 1234567
 universe_id = 100
 places.main = 1001
 
-# Production — do not point this at a test universe.
+# Production: do not point this at a test universe.
 [prod]
 universe_id = 200
 [prod.places]
@@ -622,7 +622,7 @@ main = 2001
     fn insert_place_keeps_every_comment() {
         let out = insert_place_str(WITH_COMMENTS, "dev", "lobby", 1002).unwrap();
         assert!(out.contains("# Shared env map. Keep prod last."));
-        assert!(out.contains("# Production — do not point this at a test universe."));
+        assert!(out.contains("# Production: do not point this at a test universe."));
     }
 
     #[test]
@@ -658,7 +658,7 @@ universe_id = 200
 
     #[test]
     fn insert_place_stops_at_a_sibling_sub_table() {
-        // `[dev.places]` ends where `[dev.owner]` begins — the new key must
+        // `[dev.places]` ends where `[dev.owner]` begins: the new key must
         // not slide into the owner table.
         let content = "\
 [dev]

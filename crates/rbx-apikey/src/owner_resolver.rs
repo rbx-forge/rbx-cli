@@ -14,7 +14,7 @@
 //!
 //! That third condition is the fix for a latent bug rather than an obvious
 //! rule. The placeholder exists because the schema cannot say "not asked", and
-//! for a long time the cache test was `universe_id` alone — so the first key
+//! for a long time the cache test was `universe_id` alone, so the first key
 //! on an env with no creator-target scope wrote `(User, 0)`, and every later
 //! key that *did* need the owner found a matching `universe_id` and reused it.
 //! The resulting scope targets `U0`. Treating the placeholder as a miss also

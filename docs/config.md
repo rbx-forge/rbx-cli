@@ -59,7 +59,7 @@ rbx config get "features.new_xp_popup" --env dev
 
 One JSON document on stdout, nothing else. Diagnostics stay on stderr, so the document parses whatever else the run had to say.
 
-This document is a snapshot of the **published** config: what Roblox is serving right now. It does not read `rbxconfig.toml`, and says so by having no `config_file` field. Whether the local file agrees with live is a different question, and `rbx config check` is what answers it — under `rbx check --json` that row is `config/live` and it carries `outcome`, `summary` and `details`. None of those three words appears here, so a filter written for one cannot half-read the other.
+This document is a snapshot of the **published** config: what Roblox is serving right now. It does not read `rbxconfig.toml`, and says so by having no `config_file` field. Whether the local file agrees with live is a different question, and `rbx config check` is what answers it: under `rbx check --json` that row is `config/live` and it carries `outcome`, `summary` and `details`. None of those three words appears here, so a filter written for one cannot half-read the other.
 
 ```sh
 rbx config get "ops.teleport_place_id" --env dev --json
@@ -79,7 +79,7 @@ rbx config get "ops.teleport_place_id" --env dev --json
 }
 ```
 
-Without a key, the whole published config comes back in the same envelope — the identical document `rbx config list --json` emits, so one filter reads both.
+Without a key, the whole published config comes back in the same envelope: the identical document `rbx config list --json` emits, so one filter reads both.
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -90,12 +90,12 @@ Without a key, the whole published config comes back in the same envelope — th
 | `key` | string | The key asked for. **Absent** when none was |
 | `value` | any | That key's value, raw, exactly what the bare form prints. **Absent** whenever `key` is |
 | `entries` | object | Keyed by config key: one entry when `key` is set, all of them otherwise. Always present |
-| `entries.<key>.type` | string | `bool`, `number`, `string`, `array`, `object`, `null` — the words the listing prints in its type column |
+| `entries.<key>.type` | string | `bool`, `number`, `string`, `array`, `object`, `null`: the words the listing prints in its type column |
 | `entries.<key>.value` | any | The published value |
 
 There is no `totals` object. `rbx check --json` has one and it counts outcomes; one here would count keys under the same name. `.entries | length` is the count, and it cannot be misread.
 
-Which of `value` and `entries` you get is decided by the invocation, never by the data: a keyless read omits `value` even against a config holding exactly one key, so a filter cannot start working by accident and break when a second key is published. An unknown key stays an error (exit 1), never a document with a null value — "not published" and "published as nothing" are different facts.
+Which of `value` and `entries` you get is decided by the invocation, never by the data: a keyless read omits `value` even against a config holding exactly one key, so a filter cannot start working by accident and break when a second key is published. An unknown key stays an error (exit 1), never a document with a null value, "not published" and "published as nothing" are different facts.
 
 ```sh
 PLACE=$(rbx config get "ops.teleport_place_id" --env dev --json | jq -r .value)
@@ -124,7 +124,7 @@ Live config keys - env: dev (configVersion 14)
 
 ### `--json`
 
-The same snapshot as one JSON document on stdout, nothing else — and it is the *same document* `rbx config get --json` emits without a key, envelope and all, so one filter reads both. See the field table under `rbx config get` for what each field means.
+The same snapshot as one JSON document on stdout, nothing else, and it is the *same document* `rbx config get --json` emits without a key, envelope and all, so one filter reads both. See the field table under `rbx config get` for what each field means.
 
 ```sh
 rbx config list --env dev --json
@@ -182,7 +182,7 @@ rbx config sync --env dev --strategy gradual-rollout
 | --- | --- |
 | `--message` / `--no-message` | Publish message, or publish without one |
 
-**`--yes` answers the message question too.** `sync` asks twice on a terminal: once to confirm, once for a publish message. `--yes` means "do not ask me anything", so it covers both and publishes with an empty message — pass `--message` alongside it if the message matters.
+**`--yes` answers the message question too.** `sync` asks twice on a terminal: once to confirm, once for a publish message. `--yes` means "do not ask me anything", so it covers both and publishes with an empty message: pass `--message` alongside it if the message matters.
 
 Off a terminal with none of the three, the run refuses and names them. It used to reach the prompt anyway and fail with `not a terminal`, which is a fact about the stream rather than about the flag that fixes it.
 | `--strategy` | `immediate` (default) or `gradual-rollout` |
@@ -269,9 +269,9 @@ rbx config versions --env dev --json
 | `revisions[].revision_id` | string | Full id, not the eight-character prefix the listing shows. This is what `rbx config rollback` takes |
 | `revisions[].version` | integer | The `configVersion` this publish produced |
 | `revisions[].time` | string | The timestamp Roblox sent, untouched ISO. The listing rewrites it to be read; a consumer wants it back |
-| `revisions[].message` | string | The publish message. **Absent** when there was none, which is not the same fact as an empty one — the listing renders both as `(no message)` |
+| `revisions[].message` | string | The publish message. **Absent** when there was none, which is not the same fact as an empty one: the listing renders both as `(no message)` |
 | `revisions[].changed_keys` | array of strings | The keys this revision changed, sorted so the same history renders the same bytes twice running. The listing prints only the count, which is `length`. Always an array, empty included |
-| `revisions[].published` | boolean | True for the revision currently serving players — the one the listing tags `[published]`. Stated rather than inferred from the position, so a consumer that sorted the array still knows |
+| `revisions[].published` | boolean | True for the revision currently serving players: the one the listing tags `[published]`. Stated rather than inferred from the position, so a consumer that sorted the array still knows |
 
 This is history, not state: it shares nothing with the `get`/`list` document beyond the envelope, and nothing at all with the `config/live` row of `rbx check --json`, which is a verdict rather than a record.
 

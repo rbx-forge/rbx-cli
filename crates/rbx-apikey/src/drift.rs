@@ -36,7 +36,7 @@ pub fn check_one_env(
 }
 
 /// Walk every env present in the lockfile. Envs missing from `rbxplace.toml`
-/// are silently skipped — orphan envs (left over after a key was deleted)
+/// are silently skipped: orphan envs (left over after a key was deleted)
 /// are not drift; reporting them is the responsibility of `status`/`list`.
 pub fn check_all(lock: &lock::Lock, places: &PlacesFile) -> Result<()> {
     for (env_name, cached) in &lock.envs {

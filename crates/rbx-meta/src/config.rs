@@ -107,8 +107,8 @@ pub struct Game {
     /// config file.
     ///
     /// The API field is `engineAvatarSettings`, and it is a JSON *string*: a
-    /// whole nested document — animation rules, clothing rules, accessory
-    /// rules, collision rules, body rules — handed over as an opaque blob with
+    /// whole nested document (animation rules, clothing rules, accessory
+    /// rules, collision rules, body rules) handed over as an opaque blob with
     /// no published schema for what is inside it.
     ///
     /// So this tool does not model it. It reads the file, checks it parses as
@@ -166,7 +166,7 @@ fn clean_path(path: &str) -> String {
 /// # Why the whole path and not just the root
 ///
 /// `rbx-shop`'s equivalent checks top-level keys only, and would not have
-/// caught any of the keys above — every one of them is nested inside `[game]`.
+/// caught any of the keys above: every one of them is nested inside `[game]`.
 /// `serde_ignored` reports the full dotted path, so `game.permissions` and
 /// `game.avatar.min_scale.hieght` are both named where they are.
 ///
@@ -182,7 +182,7 @@ fn clean_path(path: &str) -> String {
 /// That is worth stating precisely because it is exactly where this bug was
 /// first noticed: `genre` appended to the wrong place in the file landed inside
 /// `[game.server_fill]` and vanished. The remedy would be a hand-written key
-/// list for those two tables — which is the drift this whole approach was
+/// list for those two tables, which is the drift this whole approach was
 /// chosen to avoid, so it is a deliberate 90% rather than an oversight. See
 /// TODO.md.
 fn warn_ignored_keys(path: &Path, ignored: &[String]) {
@@ -243,7 +243,7 @@ impl Game {
 ///
 /// **All four fields are required**, and that is a consequence of the API
 /// rather than a style choice. Roblox takes `permissions` as a single object on
-/// the PATCH body, so sending one flag means sending all four — and it exposes
+/// the PATCH body, so sending one flag means sending all four, and it exposes
 /// no GET that returns them: the v1 configuration response has no `permissions`
 /// field, and the v2 endpoint answers to PATCH only. There is therefore no way
 /// to fill in the flags a partial table left out, not from Roblox and not from
@@ -277,7 +277,7 @@ pub struct Permissions {
 /// Which rig players get.
 ///
 /// The API takes an integer, and the integers are not in the order the names
-/// suggest — `PlayerChoice` sits between the two rigs. Hence the explicit
+/// suggest: `PlayerChoice` sits between the two rigs. Hence the explicit
 /// mapping rather than a `#[repr]` cast.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -310,8 +310,8 @@ impl AvatarType {
     ///
     /// Measured against a live universe on 2026-08-17: the v1 read returns
     /// `"MorphToR15"` where the v2 write takes `3`. Both spellings are in the
-    /// vendored spec — the integers as the request type, the names inside the
-    /// response field's own description — and this tool has to speak both.
+    /// vendored spec (the integers as the request type, the names inside the
+    /// response field's own description) and this tool has to speak both.
     pub fn from_api_name(name: &str) -> Option<Self> {
         match name {
             "MorphToR6" => Some(AvatarType::R6),
@@ -532,13 +532,13 @@ impl AssetOverride {
 /// same reason: Roblox takes `universeAvatarAssetOverrides` as one array and
 /// replaces it wholesale, so a table naming three slots is a request to reset
 /// the other seven. Since there is no endpoint that returns the array either,
-/// nothing could fill in the missing seven — not Roblox, not the lockfile.
+/// nothing could fill in the missing seven, not Roblox, not the lockfile.
 /// Requiring all ten makes a partial table a load error rather than a silent
 /// reset.
 ///
 /// The `assetTypeID` each slot maps to is Roblox's global asset-type
-/// numbering, which is neither contiguous nor ordered the way this list reads
-/// — `Head` is 17 and `Torso` is 27. Hence the explicit table in
+/// numbering, which is neither contiguous nor ordered the way this list reads:
+/// `Head` is 17 and `Torso` is 27. Hence the explicit table in
 /// [`AssetOverrides::to_legacy`].
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

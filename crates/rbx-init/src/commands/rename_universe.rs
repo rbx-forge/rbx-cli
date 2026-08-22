@@ -10,7 +10,7 @@ pub async fn run(global: &GlobalFlags, universe: u64, name: &str, yes: bool) -> 
 
     // #63: the read below (root place) answers for any universe with no
     // session at all, so it is no proof the rename that follows will be
-    // accepted. The session is checked before either — and before the prompt,
+    // accepted. The session is checked before either, and before the prompt,
     // so the question names the account doing the renaming.
     client.require_valid_session().await?;
     let account = client.known_account().await;

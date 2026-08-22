@@ -98,12 +98,12 @@ pub async fn run(
     };
 
     // One read, several fields. `permissions` and the avatar scale tables are
-    // deliberately absent from it — Roblox exposes no GET that returns them,
+    // deliberately absent from it: Roblox exposes no GET that returns them,
     // so they are write-only and `pull` leaves whatever the config says.
     // A failure warns and yields an empty configuration, which is exactly the
     // right shape: every field then resolves to `None`, meaning "not
     // confirmed", and `reconcile_lock` keeps the previous lock entry rather
-    // than recording what the config asked for. No separate flag is needed —
+    // than recording what the config asked for. No separate flag is needed:
     // the absence *is* the signal, and it covers a value Roblox sent that this
     // build does not recognise just as well as a call that never happened.
     let universe_config = match client.get_universe_config_legacy().await {
@@ -971,7 +971,7 @@ pub(crate) struct ConfirmedReads {
 /// doors: fields Roblox never returns, a cleared hash, a universe-configuration
 /// read that failed, and a place-configuration read that was never attempted.
 /// Rather than block them one at a time, every field here is now
-/// `confirmed.or(previous)` — never the config, ever, by construction. A fifth
+/// `confirmed.or(previous)`: never the config, ever, by construction. A fifth
 /// door would have to be a field added to `GameLock` and not to this function,
 /// which is a much smaller hole than the shape that produced the first four.
 ///
@@ -1399,8 +1399,8 @@ fn remove_subtable_dotted(doc: &mut DocumentMut, parent: &str, child: &str) {
 
 /// Assign `item` to `t[key]`, carrying over the decor of whatever was there.
 ///
-/// `toml_edit` stores a value's surrounding trivia — the whitespace before it
-/// and, crucially, any trailing `# comment` — on the value itself. A plain
+/// `toml_edit` stores a value's surrounding trivia (the whitespace before it
+/// and, crucially, any trailing `# comment`) on the value itself. A plain
 /// `t[key] = value(..)` therefore drops the user's inline comment on every key
 /// pull rewrites, which defeats the point of maintaining this mirror at all.
 fn set_value(t: &mut Table, key: &str, mut item: Item) {
@@ -1610,7 +1610,7 @@ mod tests {
 
     /// A `Config` with every optional field populated.
     ///
-    /// The struct literals here are deliberately exhaustive — no
+    /// The struct literals here are deliberately exhaustive: no
     /// `..Default::default()`. A field added to `config.rs` breaks this
     /// constructor at compile time, which forces whoever adds it to decide what
     /// the `toml_edit` mirror should do with it. That is the whole point: the
@@ -1905,7 +1905,7 @@ mod not_confirmed_tests {
     ///
     /// This is the property the `beta_mode` change relies on. That read used to
     /// fall back to the *lockfile's* value on failure and hand it here, which
-    /// writes into the config and lists it under "Config updates" — so a user
+    /// writes into the config and lists it under "Config updates", so a user
     /// who had edited `beta_mode` and pulled while the endpoint was down had
     /// their edit silently replaced by an old value, and was told Roblox had
     /// said so. Yielding `None` instead is only safe because of what is
@@ -2004,7 +2004,7 @@ mod reconcile_lock_tests {
     /// The rule in one test: when nothing was confirmed, **no field** may come
     /// from the config.
     ///
-    /// This is the shape that produced the same failure four times — fields
+    /// This is the shape that produced the same failure four times: fields
     /// Roblox never returns, a cleared hash, a failed universe read, and a
     /// place read that was never attempted. One assertion per door.
     #[test]

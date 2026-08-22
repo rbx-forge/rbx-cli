@@ -6,7 +6,7 @@
 //! would have nothing to layer onto.
 //!
 //! Within a domain the choice is between `init --from-remote` and `pull`, and
-//! it is decided by whether the config file exists — not by whether this is the
+//! it is decided by whether the config file exists, not by whether this is the
 //! first import. `init` builds a config from nothing and refuses to overwrite;
 //! `pull` layers a new env onto a config that already describes another. Using
 //! `init` on an existing file would erase the env imported before it.
@@ -27,11 +27,11 @@ use crate::{Domain, ImportCli};
 ///
 /// Production drives the domain crate's own command ([`Domains`]); tests
 /// substitute a recorder. The seam exists because the domain crates inject
-/// their API host per-client and gate it behind `cfg(test)` — a deliberate
+/// their API host per-client and gate it behind `cfg(test)`: a deliberate
 /// choice documented in `rbx_core::api::base`, and one that leaves no way to
 /// point `rbx_shop::run` at a mock server from outside its own crate. Without
-/// this trait, everything below — the order, the init-versus-pull decision,
-/// the env wiring, what happens when one domain fails — would be untested.
+/// this trait, everything below (the order, the init-versus-pull decision,
+/// the env wiring, what happens when one domain fails) would be untested.
 pub(crate) trait DomainImporter {
     async fn import(&self, domain: Domain, global: &GlobalFlags, dir: &Path) -> Result<()>;
 }
@@ -69,7 +69,7 @@ pub(crate) async fn run_with(
     })?;
     // Checked before anything is resolved or written: this name becomes a
     // section in `rbxplace.toml`, and the reserved ones are read as something
-    // else entirely by every later command — `all` as "every env", `owner` and
+    // else entirely by every later command: `all` as "every env", `owner` and
     // `codegen` as the top-level tables they name.
     if rbx_core::places::is_reserved_env_name(&env) {
         anyhow::bail!(
@@ -108,7 +108,7 @@ pub(crate) async fn run_with(
     };
 
     println!(
-        "  {} {} — {} place{}{}",
+        "  {} {}, {} place{}{}",
         "✓".green(),
         universe
             .display_name
@@ -154,13 +154,13 @@ pub(crate) async fn run_with(
                 // question `import` just answered: `pull` layers onto a config
                 // that exists, `init --from-remote` creates one that does not.
                 // Hardcoding `pull` sent people to the one command that cannot
-                // work in the case that just happened — a failed `init` leaves
+                // work in the case that just happened: a failed `init` leaves
                 // no file, and `pull` refuses without one.
                 let remedy = if dir.join(config_file(*domain)).exists() {
                     format!("fix the cause and run `rbx {domain} pull --env {env}`")
                 } else {
                     format!(
-                        "fix the cause and run `rbx {domain} init --from-remote --env {env}`                          — {} was never written, so there is nothing to pull into yet",
+                        "fix the cause and run `rbx {domain} init --from-remote --env {env}`                          : {} was never written, so there is nothing to pull into yet",
                         config_file(*domain)
                     )
                 };
@@ -208,7 +208,7 @@ fn global_for_env(global: &GlobalFlags, env: &str, places: &Path) -> GlobalFlags
         places: places.to_path_buf(),
         // Cleared on purpose: the domains must resolve through the env, or a
         // second import would write its resources into the first env's section.
-        // `place_id` goes with it for the same reason — meta resolves the root
+        // `place_id` goes with it for the same reason: meta resolves the root
         // place from the env, and an id carried over from the import
         // invocation would pin every domain to one place.
         universe_id: None,
@@ -258,8 +258,8 @@ fn existing_configs(dir: &Path, domains: &[Domain]) -> Vec<&'static str> {
 ///
 /// The domain pulls run with `accept_remote` and `yes` set, so every conflict
 /// between a local edit and what Roblox holds is settled remote-wards with no
-/// prompt. That is the right default for adoption — the whole point is that
-/// the live game is authoritative — and the wrong surprise for somebody
+/// prompt. That is the right default for adoption (the whole point is that
+/// the live game is authoritative) and the wrong surprise for somebody
 /// re-importing an env they have been editing. `--dry-run` cannot preview it
 /// either: it returns before the domains run, so it never reaches the
 /// resolution.
@@ -271,7 +271,7 @@ fn warn_existing_configs(existing: &[&str]) {
         return;
     }
     println!(
-        "  {} {} already exist{} — this env is layered onto {}, and a local edit that \
+        "  {} {} already exist{}: this env is layered onto {}, and a local edit that \
          disagrees with Roblox is resolved to the remote value without asking. Commit or \
          sync local edits first if you have any.",
         "!".yellow(),
@@ -286,7 +286,7 @@ fn report_places_write(path: &Path, env: &str, written: &places_file::PlacesWrit
         println!("  {} [{}] added to {}", "✓".green(), env, path.display());
     } else {
         println!(
-            "  {} [{}] already in {} — left as it is",
+            "  {} [{}] already in {}: left as it is",
             "=".dimmed(),
             env,
             path.display()
@@ -304,7 +304,7 @@ fn report_places_write(path: &Path, env: &str, written: &places_file::PlacesWrit
     }
     if let Some(on_file) = written.existing_universe_id {
         println!(
-            "  {} [{}] already points at universe {} — kept. Nothing was retargeted; \
+            "  {} [{}] already points at universe {}: kept. Nothing was retargeted; \
              use a different --env if you meant to add this universe.",
             "!".yellow(),
             env,
@@ -329,7 +329,7 @@ pub(crate) enum Entry {
     Pull,
 }
 
-/// Decided by the file on disk, not by whether this is the first import — a
+/// Decided by the file on disk, not by whether this is the first import: a
 /// directory can already be under management for reasons that have nothing to
 /// do with a previous `import`.
 pub(crate) fn entry_for(config: &Path) -> Entry {
@@ -353,7 +353,7 @@ async fn import_shop(global: &GlobalFlags, dir: &Path) -> Result<()> {
     let config = dir.join("rbxshop.toml");
     let command = if config.exists() {
         println!(
-            "\n{} rbxshop.toml exists — pulling this env into it",
+            "\n{} rbxshop.toml exists: pulling this env into it",
             "→".cyan()
         );
         ShopCommands::Pull {
@@ -379,7 +379,7 @@ async fn import_shop(global: &GlobalFlags, dir: &Path) -> Result<()> {
 /// and thumbnails down.
 ///
 /// Two calls because `init` writes the config and lockfile but records no media
-/// hashes — it never downloads. Without the second call the files exist and
+/// hashes: it never downloads. Without the second call the files exist and
 /// `check` is green, but `media.dir` is empty and the first `sync` would upload
 /// nothing over the real icon.
 async fn import_meta(global: &GlobalFlags, dir: &Path) -> Result<()> {
@@ -402,7 +402,7 @@ async fn import_meta(global: &GlobalFlags, dir: &Path) -> Result<()> {
         .await?;
     } else {
         println!(
-            "\n{} rbxmeta.toml exists — pulling this env into it",
+            "\n{} rbxmeta.toml exists: pulling this env into it",
             "→".cyan()
         );
     }
@@ -446,7 +446,7 @@ async fn import_config(global: &GlobalFlags, dir: &Path) -> Result<()> {
 ///
 /// It used to chain each domain's own check with `&&`. `rbx check` discovers
 /// the same tools from the files this import just wrote, runs them in one
-/// pass, and aggregates into one exit code — 0 clean, 2 drift, 1 error — so
+/// pass, and aggregates into one exit code (0 clean, 2 drift, 1 error) so
 /// the chain is now three round trips and three exit codes for one answer.
 ///
 /// `--dir` is repeated when it is not the default: `rbx check` resolves the
@@ -467,7 +467,7 @@ fn print_plan(
     places_path: &Path,
     domains: &[Domain],
 ) {
-    println!("\nDry run — nothing written.\n");
+    println!("\nDry run: nothing written.\n");
     println!("Would write:");
     println!(
         "  {} [{}] universe_id = {}",
@@ -742,7 +742,7 @@ mod tests {
         import(c, "prod", &server, &recorder).await.unwrap();
 
         assert_eq!(recorder.domains(), vec![Domain::Shop]);
-        // rbxplace.toml is not a domain — it is written regardless.
+        // rbxplace.toml is not a domain: it is written regardless.
         assert!(dir.path().join("rbxplace.toml").exists());
     }
 
@@ -793,7 +793,7 @@ mod tests {
     }
 
     /// An import that cannot even resolve the universe must not have created
-    /// anything — the failure has to happen before the first write.
+    /// anything: the failure has to happen before the first write.
     #[tokio::test]
     async fn a_refused_universe_leaves_the_directory_untouched() {
         let dir = tempfile::tempdir().unwrap();
@@ -869,14 +869,14 @@ mod tests {
     }
 
     /// The cookie-only fields are reported as missing when the meta step will
-    /// have no cookie, and not when it will have one — whichever source it
+    /// have no cookie, and not when it will have one, whichever source it
     /// comes from.
     ///
     /// `RBXAPIKEY_COOKIE` stands in for every source that is resolved without
     /// being typed on this command line: it is the one such source reachable
     /// from outside `rbx-core`, whose Studio lookup has no seam here. Keying
     /// the gap off `--cookie` alone passed the first two assertions and failed
-    /// the third, and the user it failed for was the common case — Studio
+    /// the third, and the user it failed for was the common case: Studio
     /// signed in, no flag.
     #[test]
     fn the_meta_gap_follows_the_cookie_the_meta_step_will_resolve() {

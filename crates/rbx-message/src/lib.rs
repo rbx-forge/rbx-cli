@@ -10,7 +10,7 @@
 //! It was declined once, on the grounds that publishing is server-to-server
 //! IPC and belongs to game code rather than to an ops CLI. That reasoning
 //! assumed the publisher is a game server. It is not, in the case this exists
-//! for: the publisher is a VPS, a cron job, a deploy step — something outside
+//! for: the publisher is a VPS, a cron job, a deploy step: something outside
 //! Roblox that has just changed a value and wants the running servers to
 //! notice. There is no in-experience way to originate that.
 //!
@@ -26,7 +26,7 @@
 //!
 //! Whether anybody heard. The call answers `200` once Roblox has accepted the
 //! message for delivery, with no count of servers reached and no delivery
-//! receipt — an experience with no running servers accepts a publish exactly
+//! receipt: an experience with no running servers accepts a publish exactly
 //! like a busy one. Anything needing confirmation needs the servers to write
 //! back somewhere, which is what a memory store map is for.
 
@@ -52,8 +52,8 @@ use json::PublishDocument;
 /// documentation, which says 1 KB. 1024 was this crate's first guess and it was
 /// wrong in the direction that matters: it refused messages between 1025 and
 /// 1114 bytes that Roblox accepts. The service states the real bounds itself
-/// when you cross them —
-/// `The length of published message must be between 1 and 1114.` — and 1114
+/// when you cross them
+/// (`The length of published message must be between 1 and 1114.`) and 1114
 /// answers 200 while 1115 does not.
 ///
 /// The floor is not decoration either: an empty message is a 400, so a caller

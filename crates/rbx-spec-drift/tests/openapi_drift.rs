@@ -15,7 +15,7 @@
 //! The vendored document is broader than its `cloud/v2` reputation suggests.
 //! Its top-level `servers` entry is `https://apis.roblox.com`, but individual
 //! operations override that with per-operation `servers` blocks naming the
-//! legacy hosts — `develop.roblox.com`, `games.roblox.com`,
+//! legacy hosts: `develop.roblox.com`, `games.roblox.com`,
 //! `groups.roblox.com`, `badges.roblox.com`, `thumbnails.roblox.com`,
 //! `users.roblox.com`, `assetdelivery.roblox.com`, `economy.roblox.com` and
 //! others. So a large part of our legacy surface *is* checkable here, and this
@@ -44,7 +44,7 @@
 //! Cloud (see `join_receiver_host`).
 //!
 //! **Adding a new shape is a change to this file too.** A helper that
-//! concatenates path fragments, a table of `const` endpoints, a builder — none
+//! concatenates path fragments, a table of `const` endpoints, a builder: none
 //! of them are recognised, and the crate that introduces one silently drops
 //! out of the checked set. Two guards exist for that: `MINIMUM_ENDPOINTS`
 //! catches gross breakage, and
@@ -62,11 +62,11 @@
 //!   read. Unit tests assert against fixed ids (`/cloud/v2/universes/1`),
 //!   which are not real endpoint templates. This used to cut the file at the
 //!   first marker and keep nothing after it, which cost `rbx-place` and
-//!   `rbx-config` their entire coverage — both gate a `with_base_url` helper
+//!   `rbx-config` their entire coverage: both gate a `with_base_url` helper
 //!   near the top of `api/mod.rs`.
 //! - **`www.roblox.com` and `create.roblox.com`** are skipped. Every use of
 //!   those is a human-facing web link (a profile URL, a dashboard link) or an
-//!   `Origin`/`Referer` header — not an API call.
+//!   `Origin`/`Referer` header, not an API call.
 //! - **Endpoints assembled from a `const` base plus runtime pieces** are only
 //!   resolved for the simple, single-line `format!` shapes this codebase
 //!   actually uses (`format!("{BASE}/x")` and `format!("{}/x", BASE)`). A
@@ -116,7 +116,7 @@ const SKIPPED_CRATES: &[(&str, &str)] = &[
 ///
 /// Adding to this list is a deliberate act: it says "Roblox does not describe
 /// this endpoint, so we accept that we cannot get an early warning for it".
-/// Removing an entry is free — if Roblox documents one of these later, the
+/// Removing an entry is free, if Roblox documents one of these later, the
 /// test simply starts covering it, and a stale entry costs nothing but a line.
 const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
     (
@@ -198,7 +198,7 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
 /// Without this, a refactor that changes how URLs are written would quietly
 /// reduce the test to checking nothing, and it would still pass. If this trips
 /// after a legitimate change, read the extraction rules above before lowering
-/// it — the usual cause is a new URL-building shape that needs supporting, not
+/// it: the usual cause is a new URL-building shape that needs supporting, not
 /// a number that needs editing.
 const MINIMUM_ENDPOINTS: usize = 60;
 
@@ -207,7 +207,7 @@ const MINIMUM_ENDPOINTS: usize = 60;
 ///
 /// The floor above only catches gross breakage. The failure mode in between is
 /// one crate: a new domain crate builds its URLs with a shape the extractor
-/// does not recognise, contributes zero, and nothing goes red — the net
+/// does not recognise, contributes zero, and nothing goes red: the net
 /// narrows by one crate while the total stays comfortably above the floor.
 /// [`every_crate_that_calls_roblox_contributes_an_endpoint`] closes that, and
 /// this list is where a genuine exception is admitted out loud.
@@ -217,9 +217,9 @@ const MINIMUM_ENDPOINTS: usize = 60;
 /// see a call the crate really makes, teach the extractor.
 const CRATES_WITHOUT_ENDPOINTS: &[(&str, &str)] = &[(
     "rbx-config",
-    "assembles every URL through two helpers — `configs_url()` joins a const path, \
+    "assembles every URL through two helpers (`configs_url()` joins a const path, \
      `repo_url()` formats the universe and repository onto it, and each call appends its \
-     own suffix — so no literal in the crate is a whole path. The endpoints it reaches ARE \
+     own suffix) so no literal in the crate is a whole path. The endpoints it reaches ARE \
      documented in the spec (/creator-configs-public-api/v1/configs/universes/{}/repositories/{} \
      and its draft/publish/revisions children), so this entry admits a real gap in coverage \
      rather than an inapplicable check: closing it needs the extractor to follow a \
@@ -406,7 +406,7 @@ fn is_const_declaration(line: &str) -> bool {
 /// after it. That is right for the `mod tests` at the bottom of a file and
 /// catastrophic for the `#[cfg(test)] fn with_base_url` some clients keep near
 /// the top: `rbx-place` and `rbx-config` each have one, so every endpoint
-/// below it — place upload, rollback, download, config publish, revisions —
+/// below it (place upload, rollback, download, config publish, revisions)
 /// was invisible to this check while the workspace total stayed comfortably
 /// above `MINIMUM_ENDPOINTS`. That is the exact erosion
 /// [`every_crate_that_calls_roblox_contributes_an_endpoint`] now guards.
@@ -595,7 +595,7 @@ const DEFAULT_JOIN_HOST: &str = "https://apis.roblox.com";
 
 /// The host a `.join(...)` call resolves against, when it is not the default.
 ///
-/// A client that talks to more than one host keeps one `ApiBase` per host —
+/// A client that talks to more than one host keeps one `ApiBase` per host:
 /// `rbx-place` has `self.base` for Open Cloud and `self.develop` for the
 /// `develop` family. Assuming every join meant Open Cloud attributed
 /// `/v1/universes/{}/places` to `apis.roblox.com`, where it does not exist,
@@ -1010,13 +1010,13 @@ fn every_endpoint_we_call_still_exists_in_the_roblox_spec() {
              \x20    REMOVED it. The upstream changelog and the paths listed above are the\n\
              \x20    fastest way to tell.\n\
              \n  2. If it moved, update the call site(s) named above to the new path, and the\n\
-             \x20    response types with it — a moved endpoint often reshapes its payload, which\n\
+             \x20    response types with it: a moved endpoint often reshapes its payload, which\n\
              \x20    is what produces `Failed to parse response` for users.\n\
              \n  3. If it was removed with no replacement, the feature that depends on it is\n\
              \x20    broken for every user. Decide whether to drop it or move to a different API.\n\
              \n  4. If Roblox merely stopped DOCUMENTING an endpoint that still works, add it to\n\
              \x20    KNOWN_UNDOCUMENTED in this file with a one-line reason. Do that only after\n\
-             \x20    confirming it still works — that list is how we admit we have no early\n\
+             \x20    confirming it still works: that list is how we admit we have no early\n\
              \x20    warning for something, not a way to silence this test.\n\
              \n  5. If the spec was just refreshed and you did not expect any of this, check\n\
              \x20    `git log -1 -- spec/openapi.json` and diff the two revisions of the paths\n\
@@ -1074,7 +1074,7 @@ fn every_crate_that_calls_roblox_contributes_an_endpoint() {
         silent.is_empty(),
         "these crates depend on the HTTP layer but contributed no endpoint to the drift \
          check, so nothing they call is verified against the Roblox spec:\n\n{}\n\n\
-         The usual cause is a URL-building shape the extractor in {} does not recognise — \
+         The usual cause is a URL-building shape the extractor in {} does not recognise: \
          a helper that concatenates paths, a const table, a different formatting macro. \
          Read the module docs (\"The URL shapes it recognises\") and teach it the shape.\n\
          If the crate really calls no Roblox endpoint of its own, add it to \
@@ -1112,7 +1112,7 @@ fn every_crate_that_calls_roblox_contributes_an_endpoint() {
         unknown.is_empty(),
         "these crates are listed in CRATES_WITHOUT_ENDPOINTS but no longer depend on the HTTP \
          layer (renamed, deleted, or the dependency was dropped): {}. Remove them from the \
-         list — an exemption for a crate that cannot call Roblox anyway hides nothing and \
+         list: an exemption for a crate that cannot call Roblox anyway hides nothing and \
          outlives the reason it was written.",
         unknown.join(", ")
     );
@@ -1255,7 +1255,7 @@ fn the_manifest_scan_sees_dependencies_and_ignores_dev_dependencies() {
 /// contents.
 ///
 /// So this asserts the constraint still holds rather than the schema still
-/// matches — the only checkable form of the question. If Roblox ever replaces
+/// matches: the only checkable form of the question. If Roblox ever replaces
 /// `"type": "string"` with a real object schema, this fails and says so, and
 /// the hand-written file becomes a derived one like the rest.
 ///

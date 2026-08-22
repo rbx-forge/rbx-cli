@@ -33,7 +33,7 @@ Banning a player has no desired state in a TOML file: it is a consequence of wha
 
 It would not be the boundary that *holds* in any case. Roblox binds an API key to its scopes and universes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
 
-**Keep read and write in separate keys.** That is the boundary that holds, and it is the one worth arranging your `rbxapikey.toml` around. The same argument splits a key per environment, and `envs` written as a table of named groups does that from one declaration rather than three copied blocks — see [One key per environment](./apikey.md#one-key-per-environment).
+**Keep read and write in separate keys.** That is the boundary that holds, and it is the one worth arranging your `rbxapikey.toml` around. The same argument splits a key per environment, and `envs` written as a table of named groups does that from one declaration rather than three copied blocks: see [One key per environment](./apikey.md#one-key-per-environment).
 
 ## Install
 
@@ -50,7 +50,7 @@ rokit install
 rbx servers list --env prod
 ```
 
-One binary, one archive per platform, which is what makes it installable at all — see [why they are marked out](#why-they-are-marked-out) for what the old second binary cost.
+One binary, one archive per platform, which is what makes it installable at all: see [why they are marked out](#why-they-are-marked-out) for what the old second binary cost.
 
 ## Getting a key
 
@@ -144,14 +144,14 @@ the public IP for the key allowlists, and the live universe and place ids.
 **Why not just commit them with placeholders.** They were, and it worked, but
 only by discipline. These files are useless without real values, so the first
 thing anyone does is paste their own IP into `default_allowed_cidrs` to get a
-call to stop returning 401 — and now a tracked file holds personal data, one
+call to stop returning 401, and now a tracked file holds personal data, one
 `git commit -a` away from being published. A public IP in an allowlist is
 personal data *and* an operational disclosure: it announces which address is
 authorised on the Open Cloud keys. Untracked paths remove the accident instead
 of asking people not to have it.
 
 Edit the `.example` only for changes worth sharing: a new key, a scope
-decision, a comment. Those comments are the valuable part — they record why
+decision, a comment. Those comments are the valuable part: they record why
 each scope was chosen, and the rule that **nothing in `prodread/` may ever hold
 a write scope**.
 
@@ -165,7 +165,7 @@ Every client here is tested against **recorded production responses**, in `crate
 
 The last two are not obvious and were missed on the first pass. A pagination token is an opaque base64 blob, but decoding one shows Roblox packs real data inside it, including a `LastGameId` that is a live server's job id. Replacing only the `jobId` field left a copy of it in the cursor. The tests only ever ask whether a token exists, never what is in it, so an opaque placeholder costs nothing.
 
-**Place versions are kept as recorded, and that is a decision rather than an oversight.** A version number is a publish counter, so on its own it says how often some experience shipped — but the universe and place ids in these files are placeholders, so it is attached to nothing. Replacing them would cost the property the recordings exist for, since the ordering and the numeric-versus-string sorting of real version numbers is exactly the kind of detail a hand-written fixture gets wrong. Documentation is the opposite case: every figure on these pages is invented, because a page is read far more often than a fixture and nothing there needs to be real to make its point.
+**Place versions are kept as recorded, and that is a decision rather than an oversight.** A version number is a publish counter, so on its own it says how often some experience shipped, but the universe and place ids in these files are placeholders, so it is attached to nothing. Replacing them would cost the property the recordings exist for, since the ordering and the numeric-versus-string sorting of real version numbers is exactly the kind of detail a hand-written fixture gets wrong. Documentation is the opposite case: every figure on these pages is invented, because a page is read far more often than a fixture and nothing there needs to be real to make its point.
 
 Recordings rather than hand-written JSON, because the specification is wrong or silent about several fields, and a hand-written fixture would encode the specification and agree with the bug. Caught this way:
 

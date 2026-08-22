@@ -45,7 +45,7 @@ pub fn backend_for(cfg: &Config, key_cfg: Option<&KeyConfig>, tool_name: &str) -
     }
 }
 
-/// Returns None if the secret is missing or empty (does NOT error — callers decide).
+/// Returns None if the secret is missing or empty (does NOT error: callers decide).
 pub fn read(resolved: &Resolved, lock_entry: Option<&LockEntry>) -> Option<String> {
     match resolved.backend {
         Backend::Lockfile => {
@@ -121,7 +121,7 @@ pub struct CleanupResult {
 }
 
 /// Backend that the lockfile entry was last written with. Mirrors `backend_for` but reads from the
-/// lock entry instead of the live config — used by `update` to detect when the user changed
+/// lock entry instead of the live config: used by `update` to detect when the user changed
 /// `secret_file` in `rbxapikey.toml` and we need to migrate the secret.
 pub fn previous_backend_from_entry(entry: &LockEntry, tool_name: &str) -> Resolved {
     if let Some(path) = &entry.secret_file {

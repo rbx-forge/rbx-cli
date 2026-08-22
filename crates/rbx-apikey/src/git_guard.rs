@@ -7,8 +7,8 @@
 //! way past: `rbx apikey create` printed where the secret went only when it
 //! went to a *file* backend, and stayed silent on the default.
 //!
-//! So the documented happy path — `rbx init`, `rbx apikey create`,
-//! `git add -A` — ends with a live Open Cloud key in a public repository, and
+//! So the documented happy path: `rbx init`, `rbx apikey create`,
+//! `git add -A`: ends with a live Open Cloud key in a public repository, and
 //! every page the reader consulted told them it could not.
 //!
 //! ## Why this refuses rather than fixes
@@ -30,7 +30,7 @@
 //! files nest, negate, and are joined by `.git/info/exclude` and the global
 //! core.excludesFile. Reimplementing that is how a guard ends up confidently
 //! wrong. When git is not on PATH the question cannot be answered, and an
-//! unanswerable check warns rather than blocks — the same rule the session
+//! unanswerable check warns rather than blocks: the same rule the session
 //! check follows.
 
 use std::path::{Path, PathBuf};
@@ -63,7 +63,7 @@ pub fn status_of(path: &Path) -> GitStatus {
     }
 
     // `check-ignore` exits 0 when the path is ignored, 1 when it is not, and
-    // 128 when something else went wrong — which is the case that must not be
+    // 128 when something else went wrong, which is the case that must not be
     // read as either answer.
     match Command::new("git")
         .arg("-C")

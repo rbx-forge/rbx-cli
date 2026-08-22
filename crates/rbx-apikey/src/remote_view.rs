@@ -79,7 +79,7 @@ impl RemoteKey {
     pub fn secret_preview(&self) -> String {
         match self.info.apikey_secret_preview.as_deref() {
             Some(p) if !p.is_empty() => format!("{}…", p),
-            _ => "—".to_string(),
+            _ => "-".to_string(),
         }
     }
 

@@ -1,4 +1,4 @@
-//! `rbx apikey scopes list|show` — inspect the bundled scope catalog.
+//! `rbx apikey scopes list|show`: inspect the bundled scope catalog.
 
 use anyhow::Result;
 use colored::Colorize;

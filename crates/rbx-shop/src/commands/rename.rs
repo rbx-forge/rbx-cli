@@ -65,7 +65,7 @@ fn rename_across_files(
         )?;
     }
 
-    // Applying the rename to every file is safe unconditionally — it's a
+    // Applying the rename to every file is safe unconditionally: it's a
     // no-op in whichever files don't currently have `old_key` anywhere.
     let mut found_anywhere = false;
     for file in files.iter_mut() {
@@ -82,7 +82,7 @@ fn rename_across_files(
         );
     }
 
-    // The lockfile is a single global structure — never split across files —
+    // The lockfile is a single global structure (never split across files)
     // so this part is unchanged regardless of how many config files exist.
     for env_lock in lockfile.envs.values_mut() {
         match kind {
@@ -92,7 +92,7 @@ fn rename_across_files(
         }
 
         // A gift twin (if any) lives in the products lockfile section under a
-        // derived key — carry the rename over so the next sync updates the
+        // derived key: carry the rename over so the next sync updates the
         // existing remote product instead of creating a duplicate. Badges have
         // no `create_gift`, so nothing twins them.
         if kind != ResourceKind::Badge {
@@ -135,7 +135,7 @@ fn check_new_key_available(
 }
 
 /// A gift-enabled pass/product derives a product keyed `<prefix><new_key>` at
-/// resolve time (see `crate::gifts`) — refuse a rename that would collide
+/// resolve time (see `crate::gifts`): refuse a rename that would collide
 /// with a real product under that key, in base or any env-exclusive overlay.
 fn check_gift_collision(
     config: &Config,
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn rename_bails_when_gift_key_collides_with_overlay_only_product() {
         // The colliding real product lives only in an env overlay (env-
-        // exclusive), never in base — the precheck must still catch it.
+        // exclusive), never in base: the precheck must still catch it.
         let config = Config {
             experience: None,
             owner: None,
@@ -400,7 +400,7 @@ price = 999
 
         run(&ctx, ResourceKind::Pass, "VIP", "vip_pass").unwrap();
 
-        // Renamed in place, in the file that actually owned it — the main
+        // Renamed in place, in the file that actually owned it: the main
         // file (still just [experience] + [include]) is untouched. The old
         // key is preserved as an explicit `name` so the Roblox display name
         // doesn't change.

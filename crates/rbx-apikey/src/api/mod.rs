@@ -1,7 +1,7 @@
 //! Roblox cloud-authentication + api-keys API wrapper.
 //!
-//! Auth: the session cookie this client is handed. Every source — an explicit
-//! flag, `RBX_COOKIE`, `RBXAPIKEY_COOKIE`, Studio auto-detection — is resolved
+//! Auth: the session cookie this client is handed. Every source: an explicit
+//! flag, `RBX_COOKIE`, `RBXAPIKEY_COOKIE`, Studio auto-detection: is resolved
 //! once, in `rbx_core::GlobalFlags::resolve_cookie`. Nothing here looks one up.
 //! CSRF: Roblox returns 403 + x-csrf-token on first mutating request; retry with the token.
 
@@ -17,7 +17,7 @@ use rbx_core::session::{self, Session};
 const UA: &str = "rbx-cli (https://github.com/rbx-forge/rbx-cli)";
 
 /// Where "who is this cookie" is asked. The key administration endpoints do
-/// not answer it, so it is a second host and gets its own const — the naming
+/// not answer it, so it is a second host and gets its own const: the naming
 /// `rbx-spec-drift` resolves `ApiBase` receivers by.
 const USERS_HOST: &str = "https://users.roblox.com";
 
@@ -82,7 +82,7 @@ impl RbxApiKeyClient {
     /// The cookie this client was handed, unwrapped.
     ///
     /// Exists for the one test asserting that `make_client` adds nothing to
-    /// what `resolve_cookie` decided — the field itself is private so that
+    /// what `resolve_cookie` decided: the field itself is private so that
     /// nothing outside this module can send the cookie by a route that skips
     /// `cookie_header`. `cfg(test)` for the same reason `with_base_url` is:
     /// outside the test build it would be dead code under `-D warnings`.
@@ -117,8 +117,8 @@ impl RbxApiKeyClient {
 
     /// Refuse to go on when the cookie is no longer a session (#63).
     ///
-    /// Called by the subcommands that write with it — `update`, `regenerate`,
-    /// `delete` — before their first write. `create` and `prune` need the
+    /// Called by the subcommands that write with it (`update`, `regenerate`,
+    /// `delete`) before their first write. `create` and `prune` need the
     /// signed-in account for their own reasons and get the same guarantee out
     /// of `authenticated_account`, which shares this check's one cached call.
     /// The read-only subcommands do not call it: a listing that fails is a
@@ -148,7 +148,7 @@ impl RbxApiKeyClient {
     ///
     /// Routed through the shared session check rather than its own request, so
     /// `apikey create` spends one round trip on the question rather than one
-    /// for the creator id and another to prove the session — and so a refusal
+    /// for the creator id and another to prove the session, and so a refusal
     /// reads as an expired session everywhere instead of as "identifying the
     /// signed-in account failed".
     pub async fn authenticated_account(&self) -> Result<session::SessionAccount> {
@@ -189,14 +189,14 @@ impl RbxApiKeyClient {
 //
 // Both halves now live in `rbx_core::env`: the Studio lookup, and the
 // `RBXAPIKEY_COOKIE` variable this used to read first. The notice string went
-// with them — it was duplicated here byte-for-byte and pinned by a test, which
+// with them: it was duplicated here byte-for-byte and pinned by a test, which
 // is the cost of having had two sites at all.
 
 // `authenticated_user` was here: a second `users/authenticated` request with
 // its own URL literal, its own error mapping and no memory of having been
 // asked before. It is `RbxApiKeyClient::authenticated_account` now, over
 // `rbx_core::session`, which is also what the preflight in
-// `require_valid_session` consults — one call per run, one wording for a
+// `require_valid_session` consults: one call per run, one wording for a
 // refusal, and one place holding the host.
 
 // The test that used to sit here pinned this crate's copy of the notice
@@ -205,7 +205,7 @@ impl RbxApiKeyClient {
 
 /// The session preflight, from this crate's side (#63).
 ///
-/// What `rbx-core` owns — the statuses, the caching, the wording — is tested
+/// What `rbx-core` owns (the statuses, the caching, the wording) is tested
 /// there. What this owns is that its client asks the right host with the right
 /// cookie, that the creator-id lookup and the preflight are the same question,
 /// and that a refusal comes back as one.
@@ -265,7 +265,7 @@ mod session_tests {
     }
 
     /// The cookie leaves in the form Roblox reads, whichever form it was
-    /// supplied in — the same normalisation `cookie_header` applies to every
+    /// supplied in: the same normalisation `cookie_header` applies to every
     /// other call this client makes.
     #[tokio::test]
     async fn the_session_call_carries_the_normalised_cookie() {

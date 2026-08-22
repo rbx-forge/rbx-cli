@@ -66,7 +66,7 @@ DailyActiveUsers (total)
 | `--csv` | CSV instead of a table. |
 | `--json` | One JSON document instead of a table. Rejected together with `--csv`. |
 
-A wide range comes back queued rather than answered — Roblox hands over an operation to poll. That is handled: the command says so and waits. It gives up after a minute and tells you to narrow `--days`.
+A wide range comes back queued rather than answered: Roblox hands over an operation to poll. That is handled: the command says so and waits. It gives up after a minute and tells you to narrow `--days`.
 
 ### `--json`
 
@@ -113,7 +113,7 @@ One JSON document on stdout, nothing else. The waiting note above and every warn
 | `filters` | array of objects | The `--filter` clauses, parsed: `dimension`, `operation`, `values` |
 | `queued` | boolean | Roblox did not answer inline and handed back an operation to poll. The same fact the waiting note reports, kept here because that note is on stderr |
 | `totals.series` | integer | Entries in `series` |
-| `totals.points` | integer | Points across every series — what Roblox returned, not what a dense range would hold |
+| `totals.points` | integer | Points across every series: what Roblox returned, not what a dense range would hold |
 | `totals.missing` | integer | How many of those came back with no value. Non-zero means the series has holes that are not zeros |
 | `series` | array of objects | One per series, in the order Roblox returned them. A single series when nothing was broken down |
 | `series[].label` | string | The short label the table and the CSV print: `total`, or the dimension values joined with ` / ` |
@@ -136,7 +136,7 @@ Series are not dense, and three things that look alike have to stay apart. An al
 
 `has("value")` is the test, in line with the rule the other `--json` commands follow: an optional field is omitted rather than emitted as `null`. The `-` the table prints covers the first two cases; the document does not.
 
-Missing buckets are never synthesised. The CLI does not know Roblox's calendar for every granularity — funnel metrics accept `--granularity none` only, and a breakdown can be ragged across series — so an invented bucket would be a guess presented as data. Reindex against `start_time` and `end_time`, which the document carries for exactly that:
+Missing buckets are never synthesised. The CLI does not know Roblox's calendar for every granularity (funnel metrics accept `--granularity none` only, and a breakdown can be ragged across series) so an invented bucket would be a guess presented as data. Reindex against `start_time` and `end_time`, which the document carries for exactly that:
 
 ```sh
 # refuse to average a series that has holes in it
@@ -193,7 +193,7 @@ Platform
   TV
 ```
 
-Where a value is an opaque id — funnel steps are — the readable label is printed beside the raw value, and the raw one is what `--filter` takes.
+Where a value is an opaque id (funnel steps are) the readable label is printed beside the raw value, and the raw one is what `--filter` takes.
 
 ## Tutorial funnels
 
@@ -226,7 +226,7 @@ time,series,metric,value
 
 Point a dashboard tool or a spreadsheet at that file. An evening of that beats weeks of writing a dashboard, and the result is better.
 
-`--csv` and `--json` answer two different questions and the command rejects them together rather than picking one. CSV is for whatever reads a file: a spreadsheet, a charting tool, a load into a table. JSON is for whatever makes a decision: it carries the query alongside the numbers, keeps a breakdown as series instead of flattening it into a column, and distinguishes a hole from a zero, which the CSV cannot — an empty last field there is both.
+`--csv` and `--json` answer two different questions and the command rejects them together rather than picking one. CSV is for whatever reads a file: a spreadsheet, a charting tool, a load into a table. JSON is for whatever makes a decision: it carries the query alongside the numbers, keeps a breakdown as series instead of flattening it into a column, and distinguishes a hole from a zero, which the CSV cannot: an empty last field there is both.
 
 The other thing worth automating is the alert, not the chart: a scheduled job that queries `D1Retention`, compares it against the previous week, and posts to Discord when it moves. A dashboard you have to remember to open tells you nothing.
 

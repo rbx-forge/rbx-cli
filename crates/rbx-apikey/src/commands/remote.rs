@@ -1,4 +1,4 @@
-//! `rbx apikey list --remote` — every key on the account, not just this project's.
+//! `rbx apikey list --remote`: every key on the account, not just this project's.
 //!
 //! `list` (config + lockfile) answers "what does this project declare?".
 //! `status --remote` answers "is what this project declares still there?".

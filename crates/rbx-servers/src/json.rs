@@ -16,9 +16,9 @@
 //! inferred. `servers logs` is not a tail: it reads a bounded slice of a log
 //! Roblox has already finished writing, it has no `--follow`, and it has
 //! nothing to print until pagination has stopped at `--limit`. Streaming would
-//! therefore buy no earlier output at all, and would cost the envelope — which
+//! therefore buy no earlier output at all, and would cost the envelope, which
 //! job id, which place version, which severity filter, whether `--limit`
-//! truncated the answer — since a line stream has nowhere to put a fact about
+//! truncated the answer, since a line stream has nowhere to put a fact about
 //! the run. One document per invocation is also what every other `--json` in
 //! this tool emits, so one filter shape reads them all.
 //!
@@ -41,7 +41,7 @@ use crate::model::{GameServer, GameServerLog, ServerStatus};
 pub struct VersionsDocument {
     pub schema_version: u32,
     /// The version `list` and `logs` use when `--version` is not given, which
-    /// is the newest one — the entry the human listing marks with `*`. Named
+    /// is the newest one: the entry the human listing marks with `*`. Named
     /// rather than left as "index 0" so a consumer does not have to know that
     /// the order is newest first to pick the right one. **Absent** when no
     /// version has servers.
@@ -108,7 +108,7 @@ pub struct Totals {
 /// what this emits is what a scheduled export gets to keep.
 ///
 /// Nulls are omitted rather than emitted, so `has("frame_rate")` is a usable
-/// test — and it needs to be, because a null frame rate (never reported) and a
+/// test, and it needs to be, because a null frame rate (never reported) and a
 /// zero one (reported, stalled) are different facts.
 #[derive(Debug, Serialize)]
 pub struct Server {

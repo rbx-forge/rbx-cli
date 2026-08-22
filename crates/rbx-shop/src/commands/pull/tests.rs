@@ -22,7 +22,7 @@ const UNIVERSE: u64 = 66778899001;
 
 /// Comments, a top-level table rbx does not model, and a stray key inside a
 /// resource. All three used to be gone after any pull.
-const USER_WRITTEN: &str = r#"# Our shop. Prices are agreed with finance — ask before editing.
+const USER_WRITTEN: &str = r#"# Our shop. Prices are agreed with finance: ask before editing.
 
 # Read by our deploy script, not by rbx.
 [deploy]
@@ -340,7 +340,7 @@ fn one_locked_pass(lock: PassLock) -> EnvLock {
 
 /// A resource is tracked by its id, not by its display name. Renaming a
 /// pass on the website has to update the entry the lockfile already points
-/// at — keying off the new name instead would strand the old key and add a
+/// at: keying off the new name instead would strand the old key and add a
 /// duplicate under the new one.
 #[tokio::test]
 async fn a_pass_renamed_remotely_updates_the_entry_its_id_points_at() {
@@ -451,7 +451,7 @@ async fn a_badge_the_individual_fetch_cannot_find_either_is_dropped() {
 /// The third case, which used to share a path with the second: the fetch
 /// failed, so nothing was learned about the badge. Dropping it would make
 /// the next `sync` create a duplicate on a live universe, and a Roblox
-/// badge cannot be deleted — so the pull aborts and leaves the lockfile
+/// badge cannot be deleted, so the pull aborts and leaves the lockfile
 /// exactly as it found it.
 ///
 /// 403 rather than 500 because a 5xx is retried, and the assertion is
@@ -510,12 +510,12 @@ async fn a_badge_whose_refetch_fails_aborts_the_pull_instead_of_dropping_it() {
 // ── icon persistence ──
 
 /// Arbitrary bytes: this path writes the asset to disk and blake3-hashes
-/// it, and decodes nothing — unlike the upload path in `sync`.
+/// it, and decodes nothing: unlike the upload path in `sync`.
 const ICON_BYTES: &[u8] = b"\x89PNG\r\n\x1a\n-- stand-in asset --";
 
 /// Two hops: the thumbnails service answers with a CDN url, and the bytes
 /// come from there. Both have to happen exactly once, and the result
-/// has to land in three places — the file, the lockfile hash, and the
+/// has to land in three places: the file, the lockfile hash, and the
 /// config's `icon` key.
 #[tokio::test]
 async fn accept_remote_downloads_the_icon_and_records_it_in_config_and_lockfile() {
@@ -612,7 +612,7 @@ icon = \"vip.png\"
 ";
 
 /// With neither flag, an icon that changed on both sides is a question the
-/// tool refuses to answer for you — and refusing has to mean *nothing* was
+/// tool refuses to answer for you, and refusing has to mean *nothing* was
 /// written, config and lockfile alike.
 #[tokio::test]
 async fn an_icon_conflict_aborts_the_pull_before_anything_is_written() {
@@ -797,8 +797,8 @@ fn apply_product_config_changes_never_materializes_gift_twin() {
 
 #[test]
 fn unrelated_product_named_like_a_gift_key_is_still_pulled_normally() {
-    // "GiftCard" isn't derived from anything — "Card" doesn't exist as a
-    // gift-enabled source — so pull should treat it as a normal new product.
+    // "GiftCard" isn't derived from anything: "Card" doesn't exist as a
+    // gift-enabled source, so pull should treat it as a normal new product.
     let config = config_with_gift_pass();
     let product_locks = BTreeMap::from([("GiftCard".to_string(), gift_product_lock())]);
     let changes = compute_config_changes::<ProductKind>(&config, "default", true, &product_locks);
@@ -824,7 +824,7 @@ fn pass_config(price: u64) -> PassConfig {
 
 #[test]
 fn apply_pass_config_changes_updates_base_in_its_owning_file() {
-    // "VIP" lives in an included file, not main — the update must land
+    // "VIP" lives in an included file, not main: the update must land
     // there, not silently re-create it in the main file.
     let main = Config {
         experience: None,
@@ -863,7 +863,7 @@ fn apply_pass_config_changes_updates_base_in_its_owning_file() {
 
 #[test]
 fn apply_pass_config_changes_adds_new_overlay_next_to_its_base() {
-    // No overlay exists yet for "prod" — the new one should be created
+    // No overlay exists yet for "prod": the new one should be created
     // in the same file as the base ("VIP" lives in the included file),
     // not in main.
     let main = Config {

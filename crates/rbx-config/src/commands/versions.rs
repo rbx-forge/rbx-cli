@@ -1,4 +1,4 @@
-//! `rbx config versions` — the publish history for one universe.
+//! `rbx config versions`: the publish history for one universe.
 //!
 //! `--json` emits the same revisions as one document, with the keys each one
 //! changed rather than a count of them; see `crate::json`.
@@ -19,7 +19,7 @@ pub async fn run(ctx: &ConfigCtx, count: usize, json: bool) -> Result<()> {
     let format = OutputFormat::from_json_flag(json);
 
     // Decoration over a single request, and the document already carries the
-    // env, the universe and the revisions — so under `--json` there is nothing
+    // env, the universe and the revisions, so under `--json` there is nothing
     // here to move to stderr, only something not to print.
     if !format.is_json() {
         print!(

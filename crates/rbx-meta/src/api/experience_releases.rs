@@ -1,4 +1,4 @@
-//! Roblox "Experience Releases" endpoint — the one Creator Hub hits for the
+//! Roblox "Experience Releases" endpoint: the one Creator Hub hits for the
 //! `Enable Beta mode` toggle. Cookie-based, requires CSRF.
 
 use anyhow::Result;

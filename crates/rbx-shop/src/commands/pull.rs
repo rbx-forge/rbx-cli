@@ -90,7 +90,7 @@ pub async fn run(
     }
 
     // Icon-only differences don't show up in the config/lockfile diffs, but
-    // the queued downloads and conflicts below still rewrite local files —
+    // the queued downloads and conflicts below still rewrite local files:
     // count them as changes so dry-run reporting and the confirmation gate
     // see them.
     had_any_changes |= !all_conflicts.is_empty() || !all_downloads.is_empty();
@@ -99,12 +99,12 @@ pub async fn run(
         if !had_any_changes {
             println!("{} Already up to date with remote (all envs).", "✓".green());
         } else {
-            println!("\nDry run — no changes applied.");
+            println!("\nDry run: no changes applied.");
         }
         return Ok(());
     }
 
-    // Report icon conflicts before asking for confirmation — they abort the
+    // Report icon conflicts before asking for confirmation: they abort the
     // pull, so prompting first would make the user confirm a no-op.
     if !all_conflicts.is_empty() {
         println!();
@@ -334,8 +334,8 @@ async fn pull_one_env(
         };
 
         // The list API doesn't report regional pricing, so preserve whatever the
-        // lockfile last recorded (set by sync) instead of clobbering it to false
-        // — otherwise a synced `regional_pricing = true` shows a phantom diff
+        // lockfile last recorded (set by sync) instead of clobbering it to false:
+        // otherwise a synced `regional_pricing = true` shows a phantom diff
         // after every pull.
         let prior_regional = old_env_lock
             .passes
@@ -430,7 +430,7 @@ async fn pull_one_env(
                 // Anything else means the run never learned whether the badge
                 // exists. Omitting it from the lockfile would assert that it
                 // is gone, and the next `sync` would act on that by creating a
-                // second badge on a live universe — which Roblox does not let
+                // second badge on a live universe, which Roblox does not let
                 // anyone delete. A pull that fails changes nothing and can be
                 // retried; a pull that writes a lockfile short one entry
                 // cannot be undone.
@@ -502,7 +502,7 @@ async fn pull_one_env(
         );
     }
 
-    // Detect icon conflicts and queue downloads BEFORE mutating config — we
+    // Detect icon conflicts and queue downloads BEFORE mutating config: we
     // need the current config.icons.dir + per-resource icon path resolution
     // against the resolved view.
     let resources_pre = merged.resolve_env(Some(&env_target.name))?;
@@ -744,7 +744,7 @@ trait Pullable {
     /// A full overlay for a resource with no base entry to diverge from.
     fn overlay_from_lock(key: &str, lock: &Self::Lock) -> Self::Overlay;
 
-    /// Whether the overlay carries nothing at all — including the fields pull
+    /// Whether the overlay carries nothing at all, including the fields pull
     /// never writes, since an overlay the user hand-wrote still counts.
     fn overlay_is_empty(overlay: &Self::Overlay) -> bool;
     /// Whether the overlay already on disk says something different from the
@@ -1113,7 +1113,7 @@ impl Pullable for ProductKind {
     }
 
     /// Gift twins are derived from their source at resolve time (see
-    /// `crate::gifts`) and never live in rbxshop.toml — writing one back would
+    /// `crate::gifts`) and never live in rbxshop.toml: writing one back would
     /// turn the remote twin into a real `[products.*]` entry, which the next
     /// resolve would then collide with.
     fn is_derived(config: &Config, overlay: Option<&EnvOverlay>, key: &str) -> bool {

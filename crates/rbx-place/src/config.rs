@@ -9,7 +9,7 @@ fn default_true() -> bool {
     true
 }
 
-/// `skip_serializing_if` for a bool defaulting to true — keeps the default out
+/// `skip_serializing_if` for a bool defaulting to true: keeps the default out
 /// of the written file.
 fn is_true(value: &bool) -> bool {
     *value
@@ -42,7 +42,7 @@ pub struct PlacesConfig {
     /// Roblox account/group that owns this project (see `rbx_core::owner`).
     /// rbx-place doesn't act on it, but it must be parsed as a reserved key
     /// (not as an env) and preserved across `save()` round-trips so other
-    /// tools — and `rbx place fetch --write` — don't clobber it.
+    /// tools (and `rbx place fetch --write`) don't clobber it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
 
@@ -150,7 +150,7 @@ impl Environment {
                 let mut available: Vec<&str> = self.places.keys().map(|s| s.as_str()).collect();
                 available.sort();
                 bail!(
-                    "Multiple places defined — specify one with --place: {}",
+                    "Multiple places defined: specify one with --place: {}",
                     available.join(", ")
                 )
             }

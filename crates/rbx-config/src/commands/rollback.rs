@@ -74,8 +74,8 @@ pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> 
     println!("{}", "ok".green());
 
     // `false` for both: rollback takes neither --no-message nor --yes. It is
-    // interactive by construction — without an explicit revision id it draws a
-    // picker — so there is no unattended path for the guard to serve.
+    // interactive by construction (without an explicit revision id it draws a
+    // picker) so there is no unattended path for the guard to serve.
     let message = resolve_message(None, false, false)?;
     print!("  Publishing ... ");
     match client

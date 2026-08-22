@@ -66,7 +66,7 @@ The timestamp is not decoration. A fixed name like `<entry>.backup.json` means r
 rbx data --datastore PlayerData reset Player_156 --env prod --keep 3 --apply
 ```
 
-Retention counts the file it just wrote, applies to that entry only — one env's directory holds every key, and `--keep` on one player never evicts another's — and touches nothing it did not write. It is refused with `--backup` and `--no-backup`, which leave it nothing to do, and `--keep 0` is refused too: "no backup at all" is `--no-backup`, said plainly.
+Retention counts the file it just wrote, applies to that entry only (one env's directory holds every key, and `--keep` on one player never evicts another's) and touches nothing it did not write. It is refused with `--backup` and `--no-backup`, which leave it nothing to do, and `--keep 0` is refused too: "no backup at all" is `--no-backup`, said plainly.
 
 Nothing prunes on a schedule or in the background. A directory only shrinks during a write to that same entry, so a key you stop touching keeps its history until you delete it yourself.
 
@@ -78,7 +78,7 @@ Nothing prunes on a schedule or in the background. A directory only shrinks duri
 rbx data --datastore PlayerData set Player_156 --value '{}' --no-backup --apply --yes
 ```
 
-Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the replaced value as a revision for 30 days, so the local copy is redundant for the next write to each key. And in a container with a read-only working directory there is nowhere to put it — without this flag the command fails before it sends anything, because the copy is written first on purpose.
+Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the replaced value as a revision for 30 days, so the local copy is redundant for the next write to each key. And in a container with a read-only working directory there is nowhere to put it, without this flag the command fails before it sends anything, because the copy is written first on purpose.
 
 Outside those, it throws away the only way back. The command says so on every run rather than only in this page, and the two flags cannot be combined: one names where the copy goes, the other says there is none.
 
@@ -118,7 +118,7 @@ rbx data snapshot --env prod --apply
 
 After a snapshot, the next write to *every* key in the experience keeps the value it replaced as a revision, guaranteed readable for 30 days. That is exactly the guarantee the table above says you do not normally get. It covers one overwrite per key: the second write of the day replaces the first without keeping it.
 
-Roblox allows **one snapshot per experience per UTC day**. A second call the same day is not an error — it reports the standing snapshot's time and changes nothing.
+Roblox allows **one snapshot per experience per UTC day**. A second call the same day is not an error: it reports the standing snapshot's time and changes nothing.
 
 That cap is why this takes `--apply` even though a snapshot can only ever add recoverability. Spending the day's snapshot early is not free: one taken at 09:00 protects the values as of 09:00, so a key written at 10:00 and again at 17:00 keeps the 09:00 value, not the 10:00 one. Take it immediately before the risky write, not at the start of the day out of habit.
 
@@ -132,7 +132,7 @@ rbx data --datastore PlayerData revisions Player_156 --revision <id> --env prod
 rbx data --datastore PlayerData restore Player_156 --revision <id> --env prod --apply
 ```
 
-Expect fewer revisions than you wrote, for the reason above. This is mostly useful after a delete, where the value from before survives, or after a snapshot, which is what puts a revision there to find. To undo an overwrite with neither, use the backup file — `ls .rbx/backups/<env>/` lists them newest last, and putting one back is `set --file`:
+Expect fewer revisions than you wrote, for the reason above. This is mostly useful after a delete, where the value from before survives, or after a snapshot, which is what puts a revision there to find. To undo an overwrite with neither, use the backup file: `ls .rbx/backups/<env>/` lists them newest last, and putting one back is `set --file`:
 
 ```sh
 rbx data --datastore PlayerData set Player_156 \
@@ -164,7 +164,7 @@ That is DataStoria's best screen, obtained without writing a diff viewer, and it
 
 ## Ordered data stores
 
-`rbx data ordered` is the leaderboard resource — a different Open Cloud resource from everything above, not a mode of it. Values are integers, ordering happens on Roblox's side, and there is **no revision history at all**.
+`rbx data ordered` is the leaderboard resource: a different Open Cloud resource from everything above, not a mode of it. Values are integers, ordering happens on Roblox's side, and there is **no revision history at all**.
 
 That last point is why nothing here writes a backup file. The backups the rest of this page insists on exist because an overwrite to a standard store destroys a JSON document that only a local copy can bring back. An ordered entry is one integer, and there is nothing to reconstruct.
 
@@ -185,7 +185,7 @@ rbx data ordered delete Player_156 --datastore Highscores
 
 | Verb | What it does |
 | --- | --- |
-| `list` | The leaderboard. Descending by default — "the top players" is the reason the resource exists, so ascending is the case that takes a flag |
+| `list` | The leaderboard. Descending by default: "the top players" is the reason the resource exists, so ascending is the case that takes a flag |
 | `get <entry>` | One value. A key nobody has written prints a note, not an error |
 | `set <entry> <value>` | Exact value, creating the entry when absent. `--no-create` refuses instead |
 | `increment <entry> <amount>` | Atomic add. Negative subtracts |
@@ -195,7 +195,7 @@ rbx data ordered delete Player_156 --datastore Highscores
 
 **Reach for `increment` over `set` whenever more than one writer touches a key.** A read-then-set from two places loses one of the two updates; the increment endpoint does not.
 
-`set`, `increment` and `delete` ask before writing, and `set` and `delete` name the current value in the prompt — there is no revision history to look it up in afterwards. `-y` / `--yes` skips the prompt.
+`set`, `increment` and `delete` ask before writing, and `set` and `delete` name the current value in the prompt: there is no revision history to look it up in afterwards. `-y` / `--yes` skips the prompt.
 
 **What is deliberately missing**: `snapshot`, `revisions`, `restore`, `diff`. Roblox offers none of them on this resource, and a command answering "not supported" for four of its verbs would be worse than not having them.
 
@@ -203,9 +203,9 @@ Scopes: `universe.ordered-data-store.scope.entry:read` for `list` and `get`, `:w
 
 ## Machine-readable output
 
-`--json` on the four reads — `get`, `list`, `revisions` and `diff` — writes one JSON document to stdout and nothing else. Everything that is not the result (the revision line, the key count, "No entry", the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
+`--json` on the four reads (`get`, `list`, `revisions` and `diff`) writes one JSON document to stdout and nothing else. Everything that is not the result (the revision line, the key count, "No entry", the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
 
-The four writes do not take it. `set`, `reset`, `restore`, `copy`, `increment` and `snapshot` all stop and ask before they act, and a format that owns stdout cannot stop and ask: the prompt would land in the document, or in a pipeline where nobody can answer it. So the flag is not there to be refused at runtime — it does not exist on those subcommands at all.
+The four writes do not take it. `set`, `reset`, `restore`, `copy`, `increment` and `snapshot` all stop and ask before they act, and a format that owns stdout cannot stop and ask: the prompt would land in the document, or in a pipeline where nobody can answer it. So the flag is not there to be refused at runtime: it does not exist on those subcommands at all.
 
 ### The stored value is nested, not escaped
 

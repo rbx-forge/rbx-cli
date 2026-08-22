@@ -1,4 +1,4 @@
-//! `rbx apikey prune` — pick keys off the account and delete them.
+//! `rbx apikey prune`: pick keys off the account and delete them.
 //!
 //! The dangerous cousin of `list --remote`, and built defensively because the
 //! danger is measured, not hypothetical: on a real account the keys this
@@ -64,7 +64,7 @@ pub async fn run(global: &GlobalFlags, opts: PruneOptions) -> Result<()> {
                 remote_view::Tracked::No => "UNTRACKED (another project?)".to_string(),
             };
             format!(
-                "{}  [{}]  {}  created {}  {}  — {}",
+                "{}  [{}]  {}  created {}  {}  - {}",
                 k.name(),
                 k.state(),
                 k.secret_preview(),
@@ -166,7 +166,7 @@ pub async fn run(global: &GlobalFlags, opts: PruneOptions) -> Result<()> {
 /// What a selected key gets: the lockfile-aware delete, or a bare remote one.
 ///
 /// Split out from the loop so the decision can be tested. Getting it wrong is
-/// silent in both directions — routing a tracked key to the bare delete leaves
+/// silent in both directions: routing a tracked key to the bare delete leaves
 /// a lockfile pointing at nothing and an orphan secret on disk, and routing an
 /// untracked one through `delete_one` makes it look up a lockfile entry that
 /// does not exist.

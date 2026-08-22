@@ -43,8 +43,8 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     // Lockfile bookkeeping, before the "nothing to do" exit and outside the
     // confirmation gate below.
     //
-    // A thumbnail entry with no `image_id` produces no remote work — nothing to
-    // delete, nothing to reorder — so it never appears in a plan, and a
+    // A thumbnail entry with no `image_id` produces no remote work (nothing to
+    // delete, nothing to reorder) so it never appears in a plan, and a
     // lockfile holding only these yields an empty plan. Pruned after that exit,
     // it would never be pruned at all, which is how these came to survive every
     // sync forever. It is a local write and touches nothing on Roblox, so it
@@ -91,7 +91,7 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     };
     // Both credential checks happen before the prompt, and before anything is
     // sent. A cookie problem is the user's to fix either way, and finding out
-    // after typing "yes" — or worse, after half the plan has landed — is the
+    // after typing "yes" (or worse, after half the plan has landed) is the
     // failure this ordering exists to prevent.
     let cookie = ctx.resolve_cookie();
     if plan.needs_cookie() && cookie.is_none() {
@@ -166,7 +166,7 @@ struct ApplyTarget<'a> {
 ///
 /// Split out of `run` so it can be driven against a mock server: `run` resolves
 /// config, builds the plan and prompts, none of which a test of the call
-/// *ordering* wants to reproduce. The ordering is the reason this exists —
+/// *ordering* wants to reproduce. The ordering is the reason this exists:
 /// going public must activate before every other call and going private must
 /// deactivate after them all, because Roblox rejects
 /// `privateServerPriceRobux > 0` on a private universe. That rule lives here
@@ -178,7 +178,7 @@ struct ApplyTarget<'a> {
 /// #63: the session check is the first statement, before the lockfile is even
 /// touched. It is asked in `run` too, early enough to precede the prompt, but
 /// the guarantee that no half of a sync can land on a dead cookie has to hold
-/// here, where the writes are — a check that lives only at the caller is one
+/// here, where the writes are: a check that lives only at the caller is one
 /// refactor away from being skipped. The verdict is cached per process, so
 /// asking twice costs one round trip.
 async fn apply_plan(
@@ -229,7 +229,7 @@ async fn apply_plan(
         // Only the fields this call actually wrote.
         //
         // This used to assign `config_to_lock(game)` wholesale, which recorded
-        // the cookie-only fields as applied too — before the legacy patch that
+        // the cookie-only fields as applied too, before the legacy patch that
         // applies them had run, and regardless of whether it then failed. The
         // two blocks below already do it the narrow way; this one did not, and
         // the mismatch stopped being cosmetic when `permissions` and the
@@ -399,7 +399,7 @@ async fn apply_plan(
 /// It is inert in every direction: `build_thumbnail_plan` cannot delete it
 /// (there is no remote image), cannot reorder it (reordering is keyed on the
 /// id), and re-uploads the file anyway when the hash still matches something
-/// declared — so keeping it prevents nothing and enables nothing. What it does
+/// declared, so keeping it prevents nothing and enables nothing. What it does
 /// do is survive, because `sync` only ever removed entries inside its deletes
 /// loop, which is keyed on `image_id` and therefore skips exactly these.
 ///
@@ -523,8 +523,8 @@ mod tests {
         assert_eq!(thumbnails.len(), 2);
     }
 
-    /// Order is the thing the lockfile carries beyond the ids themselves —
-    /// `sync` mirrors Roblox's thumbnail order into it — so pruning must not
+    /// Order is the thing the lockfile carries beyond the ids themselves
+    /// (`sync` mirrors Roblox's thumbnail order into it) so pruning must not
     /// disturb the entries it keeps.
     #[test]
     fn pruning_preserves_the_order_of_what_it_keeps() {
@@ -601,7 +601,7 @@ mod ordering_tests {
 
     /// Open Cloud and `develop` point at the same mock. Their paths do not
     /// overlap (`/cloud/v2/...` against `/v1/...` and `/v2/...`), so one server
-    /// can record the interleaving of the two services — which is the whole
+    /// can record the interleaving of the two services, which is the whole
     /// point: the ordering under test spans both.
     ///
     /// The session check goes to a third server on purpose. It is a different
@@ -858,8 +858,8 @@ mod ordering_tests {
 
     /// #63, the case the issue is about.
     ///
-    /// A plan with both halves — an Open Cloud universe patch and the
-    /// cookie-only legacy patch, visibility and beta mode — against a session
+    /// A plan with both halves (an Open Cloud universe patch and the
+    /// cookie-only legacy patch, visibility and beta mode) against a session
     /// Roblox refuses. Before the check existed this landed the Open Cloud half
     /// and then failed on the first legacy call, leaving a live universe
     /// half-updated until somebody re-ran with a fresh cookie.
@@ -1042,7 +1042,7 @@ fn report_engine_echo(patch: &crate::diff::UniverseLegacyPatch, response: &str) 
 
     if !echo.dropped.is_empty() {
         println!(
-            "  {} Roblox did not keep {} avatar key{} — {} not applied:",
+            "  {} Roblox did not keep {} avatar key{}, {} not applied:",
             "!".yellow(),
             echo.dropped.len(),
             if echo.dropped.len() == 1 { "" } else { "s" },

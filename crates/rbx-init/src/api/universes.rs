@@ -149,7 +149,7 @@ mod tests {
     }
 
     /// Group ownership is a query parameter, not a body field. Dropping it
-    /// creates the universe under the signed-in user instead of the group —
+    /// creates the universe under the signed-in user instead of the group:
     /// a real resource in the wrong place, and not movable afterwards.
     #[tokio::test]
     async fn creating_under_a_group_puts_the_group_in_the_query() {

@@ -1,5 +1,5 @@
 //! Bundled scope catalog. Loaded once from `src/data/catalog.json` (embedded at compile time).
-//! Lookups are advisory — unknown scopes emit warnings, not errors.
+//! Lookups are advisory: unknown scopes emit warnings, not errors.
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;

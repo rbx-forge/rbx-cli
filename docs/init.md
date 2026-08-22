@@ -9,7 +9,7 @@ Bootstrap Roblox resources from the command line: create groups, universes, and 
 - **Create a group**: `rbx init create-group --name ... --icon icon.png`
 - **Create a universe**: `rbx init create-universe [--group <id>]`, returns the universe ID and the root place ID in one call
 - **Create a place** inside an existing universe: `rbx init create-place --universe-id <id>`
-- **Auto-record into `rbxplace.toml`**: both creates append their new ids to the shared env map, prompting for the env/place name — comments and formatting in the file are preserved
+- **Auto-record into `rbxplace.toml`**: both creates append their new ids to the shared env map, prompting for the env/place name: comments and formatting in the file are preserved
 - **Rename a place / universe** by id: `rbx init rename-place` / `rbx init rename-universe`
 - **List your groups**: `rbx init list-groups` (cookie required)
 - **List a group's universes**: `rbx init list-universes --group <id>` (no credential needed; see [what these listings expose](#the-listings-need-no-credential))
@@ -71,7 +71,7 @@ The new universe is recorded in `rbxplace.toml` as a new `[<env>]` block, so you
 | `--env` | No | Env name to record the universe as. Prompted for when omitted. **Refused with `--no-record`** |
 | `--place` | No | Place key for the root place (default `main`). **Refused with `--no-record`** |
 | `--no-record` | No | Don't touch `rbxplace.toml`. Refused alongside `--env` or `--place`, which would be asking for the record and refusing it in one command |
-| `--yes` / `-y` | No | Skip the confirmation prompt. Whether the universe is still recorded depends on `--env` — see below |
+| `--yes` / `-y` | No | Skip the confirmation prompt. Whether the universe is still recorded depends on `--env`: see below |
 
 **Owning it without a group.** Omitting both `--group` and `--user` is not an error and does not require a group: the owner falls back to `[owner]` in `rbxplace.toml`, and with no `[owner]` either, to your own user account. So a personal universe is `rbx init create-universe` with neither flag.
 
@@ -142,7 +142,7 @@ Created place (id 444555666) in universe 9876543299
 Added places.lobby to [test] in rbxplace.toml
 ```
 
-Same skip rules as `create-universe`. If no env points at `--universe-id`, recording is skipped silently — unless you asked for it explicitly with `--env`/`--place`, in which case it's an error. If several envs point at the same universe, pass `--env` to disambiguate.
+Same skip rules as `create-universe`. If no env points at `--universe-id`, recording is skipped silently, unless you asked for it explicitly with `--env`/`--place`, in which case it's an error. If several envs point at the same universe, pass `--env` to disambiguate.
 
 </details>
 
@@ -207,7 +207,7 @@ List every place inside a universe.
 
 `rbx init` only uses cookie auth. Roblox does **not** expose group, universe, or place creation through Open Cloud, so there's no API key option. The cookie is supplied via the global `--cookie` flag, the `RBX_COOKIE` env var, or a local Roblox Studio install.
 
-That last one is **opt-in**: finding a signed-in Studio is not the same as being allowed to send its session. `--auto-cookie` is the standing yes, an interactive run is asked once, and a run with nowhere to ask — CI, a pipe, a cron job — declines and says so. `--no-auto-cookie` is the standing no.
+That last one is **opt-in**: finding a signed-in Studio is not the same as being allowed to send its session. `--auto-cookie` is the standing yes, an interactive run is asked once, and a run with nowhere to ask (CI, a pipe, a cron job) declines and says so. `--no-auto-cookie` is the standing no.
 
 This is the command with the least choice about it, so it is worth knowing what you are handing over: see [docs/cookie.md](./cookie.md) for the resolution order in full, the stderr notice on auto-detection, and why the cookie never reaches disk.
 

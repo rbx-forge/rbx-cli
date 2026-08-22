@@ -78,9 +78,9 @@ pub async fn run(
         // drafts answers empty under `published` and is not empty at all.
         match filter {
             "published" => {
-                println!("  (no published versions — try --filter saved, or --filter all)")
+                println!("  (no published versions: try --filter saved, or --filter all)")
             }
-            "saved" => println!("  (no saved versions — try --filter published, or --filter all)"),
+            "saved" => println!("  (no saved versions: try --filter published, or --filter all)"),
             _ => println!("  (no versions)"),
         }
         return Ok(());

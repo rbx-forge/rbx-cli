@@ -4,9 +4,9 @@
 //! it, so the receipt is the only record that the call went out. It carries
 //! what the human form prints and nothing more.
 //!
-//! **Emitted only when nothing failed.** A run that stops before the request —
+//! **Emitted only when nothing failed.** A run that stops before the request:
 //! a malformed payload, an oversized message, an env that resolves to no
-//! universe — writes nothing to stdout, and neither does a publish Roblox
+//! universe: writes nothing to stdout, and neither does a publish Roblox
 //! refuses. An empty stdout next to a non-zero exit says "this did not happen"
 //! without a consumer having to read a field to find out.
 //!

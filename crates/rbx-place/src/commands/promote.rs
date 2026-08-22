@@ -106,7 +106,7 @@ pub async fn run(
     // the single source place. Listing the targets without saying so reads as
     // "lobby gets lobby", which is what the no-flag path does and this one
     // does not. Naming it in the question is the only place a person can still
-    // stop it — three places get a new version each and the only way back is
+    // stop it: three places get a new version each and the only way back is
     // three rollbacks.
     let fan_out = if all_places && targets.len() > 1 {
         format!(

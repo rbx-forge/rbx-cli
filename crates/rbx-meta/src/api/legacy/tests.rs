@@ -1,8 +1,8 @@
 #![allow(clippy::unwrap_used)]
 //! The universe configuration read, against the body Roblox actually returns.
 //!
-//! Captured from a live universe on 2026-08-17 — ids and names replaced with
-//! invented ones — after the read started failing outright. `GET
+//! Captured from a live universe on 2026-08-17: ids and names replaced with
+//! invented ones, after the read started failing outright. `GET
 //! /v1/universes/{id}/configuration` answers with the *names* of the enum
 //! fields, where the v2 `PATCH` takes their integers. Modelling only the
 //! integers broke the whole struct, and with it every cookie-only field `pull`
@@ -40,7 +40,7 @@ const REAL_BODY: &str = r#"{
   "demoModeEnabled": false
 }"#;
 
-/// Through the real parsing path, not a direct deserialize of the model —
+/// Through the real parsing path, not a direct deserialize of the model:
 /// nothing ever deserializes that from the wire, so a test that did would pass
 /// while the endpoint stayed broken.
 fn parse(body: &str) -> UniverseConfigLegacy {
@@ -48,7 +48,7 @@ fn parse(body: &str) -> UniverseConfigLegacy {
 }
 
 /// The regression itself. Before the fix this returned `Err`, and the caller
-/// turned that into "skipping the cookie-only universe fields" — so a field
+/// turned that into "skipping the cookie-only universe fields", so a field
 /// that had nothing to do with avatars stopped being read.
 #[test]
 fn the_real_response_body_deserializes() {
@@ -100,7 +100,7 @@ fn the_named_spelling_resolves_to_the_right_variant() {
 
 /// The integer spelling still resolves. The vendored spec documents the
 /// request type as an integer, so a response that used one would not be a
-/// surprise — and nothing says which spelling a future response will pick.
+/// surprise, and nothing says which spelling a future response will pick.
 #[test]
 fn the_integer_spelling_still_resolves() {
     let config = parse(r#"{"universeAvatarType": 3, "universeAnimationType": 2, "genre": 14}"#);
@@ -121,7 +121,7 @@ fn the_integer_spelling_still_resolves() {
     );
 }
 
-/// A name nobody has documented is not coerced into the first variant — the
+/// A name nobody has documented is not coerced into the first variant: the
 /// same contract the integer parsers hold. A pull that guessed here would write
 /// a wrong value into the config, and the next sync would apply it.
 #[test]

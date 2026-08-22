@@ -1,8 +1,8 @@
-//! `rbx apikey catalog regenerate [url]` — refresh the embedded scope catalog from
+//! `rbx apikey catalog regenerate [url]`: refresh the embedded scope catalog from
 //! Roblox's live `openapi.json` and write `src/data/catalog.json`.
 //!
 //! The catalog is embedded at compile time (include_str!), so a rebuild is required for
-//! the change to take effect — the command prints the next steps after writing.
+//! the change to take effect: the command prints the next steps after writing.
 //!
 //! That makes this a maintainer command: it only means anything from a checkout, and it
 //! refuses to run anywhere else rather than writing a file that can never be applied.
@@ -71,8 +71,8 @@ pub async fn regenerate(url: Option<&str>) -> Result<()> {
 /// Refuse unless the output directory is already there.
 ///
 /// `OUTPUT_FILE` is relative to the working directory, so it only names
-/// anything from a checkout of this repository. Creating the parents instead —
-/// what this used to do — turned running the command from anywhere else into a
+/// anything from a checkout of this repository. Creating the parents instead
+/// (what this used to do) turned running the command from anywhere else into a
 /// junk `./src/data/catalog.json` and a success message, which is the one
 /// outcome nobody wants: the catalog is embedded with `include_str!`, so a
 /// written file changes nothing until something rebuilds the binary.
@@ -97,7 +97,7 @@ fn ensure_writable_from_here(path: &Path) -> Result<()> {
 /// What to record as the catalog's `source_url`.
 ///
 /// A URL is its own provenance. A local path is not: regenerating from the
-/// vendored `spec/openapi.json` — the offline, deterministic way to do it —
+/// vendored `spec/openapi.json` (the offline, deterministic way to do it)
 /// would otherwise stamp an absolute path from one developer's machine into a
 /// committed file, which tells the next reader nothing about where the scopes
 /// came from.
@@ -166,8 +166,8 @@ fn parse_scopes(json_body: &str) -> Result<BTreeMap<String, ScopeInfo>> {
     let mut scopes: BTreeMap<String, ScopeInfo> = BTreeMap::new();
     // Specifiers seen per scope type, collected across every path that
     // references it and applied once at the end. A scope type appears on many
-    // operations and Roblox does not fill the field in consistently —
-    // `universe` carries `universes` on some paths and nothing on others — so
+    // operations and Roblox does not fill the field in consistently
+    // (`universe` carries `universes` on some paths and nothing on others) so
     // deciding on first sight would make the catalog depend on map iteration
     // order. Empty strings are dropped at insert: the field is present but
     // says nothing, which is not the same as naming a target.
@@ -331,7 +331,7 @@ fn split_scope(raw: &str) -> (&str, Vec<&str>) {
 ///
 /// Where it does speak it has been wrong-footing us: `developer-product` and
 /// `game-pass` both say `universes` while the heuristic called them `none`,
-/// which builds a key targeting `*` — every universe the owner has — instead of
+/// which builds a key targeting `*` (every universe the owner has) instead of
 /// the ones the config names.
 fn resolve_target_type(scope_type: &str, spec_specifiers: Option<&BTreeSet<String>>) -> String {
     let from_spec = spec_specifiers
@@ -345,7 +345,7 @@ fn resolve_target_type(scope_type: &str, spec_specifiers: Option<&BTreeSet<Strin
 ///
 /// `universes` is the only value Roblox currently emits. Anything else is
 /// returned as `None` so an unrecognised value falls back to the heuristic
-/// rather than being written into the catalog untranslated — a target type
+/// rather than being written into the catalog untranslated: a target type
 /// `scope_builder` does not know produces a malformed key request, and that
 /// fails at key creation rather than at compile time.
 fn map_specifier(specifier: &str) -> Option<String> {
@@ -362,7 +362,7 @@ fn infer_target_type(scope_type: &str) -> String {
         "universe".into()
     } else if scope_type.starts_with("memory-store") {
         // The spec says nothing about these, and the fall-through below would
-        // call them `creator` — a key spanning every universe the owner has.
+        // call them `creator`: a key spanning every universe the owner has.
         // The Creator Hub's own key editor offers "Restrict by Experience" for
         // Memory Stores, which it would not if the grant were creator-wide, and
         // every memory-store path is rooted at
@@ -497,7 +497,7 @@ mod tests {
     }
 
     /// The spec is silent on all three memory-store scopes, so the fall-through
-    /// used to make them `creator` — one key over every universe the owner has.
+    /// used to make them `creator`: one key over every universe the owner has.
     #[test]
     fn memory_store_scopes_target_a_universe_not_the_creator() {
         let json = r#"{"paths":{"/a":{"get":{"x-roblox-scopes":[

@@ -12,8 +12,8 @@ use crate::json::ListDocument;
 /// A single value rather than the three booleans clap parses, because only
 /// four of the eight combinations exist: clap already rejects the rest with
 /// `conflicts_with`, and encoding that once here keeps the printer from having
-/// to re-derive which flag wins. The alternative — threading `names_only`,
-/// `place_names_only` and `json` down — is how a fourth flag would silently
+/// to re-derive which flag wins. The alternative (threading `names_only`,
+/// `place_names_only` and `json` down) is how a fourth flag would silently
 /// grow a precedence bug.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Mode {
@@ -29,7 +29,7 @@ pub enum Mode {
 
 impl Mode {
     /// Fold the parsed flags. `json` wins over the two name listings, which
-    /// cannot both be set — clap rejects that pair before this runs.
+    /// cannot both be set: clap rejects that pair before this runs.
     pub fn new(names: bool, place_names: bool, json: bool) -> Self {
         match (names, place_names, json) {
             (_, _, true) => Mode::Json,
@@ -78,8 +78,8 @@ pub fn run(global: &GlobalFlags, mode: Mode) -> Result<()> {
     }
 
     if mode == Mode::PlaceNames {
-        // Deduplicated across envs, because a place name is a role — `main`,
-        // `lobby` — that most files repeat in every env. `--place main` means
+        // Deduplicated across envs, because a place name is a role (`main`,
+        // `lobby`) that most files repeat in every env. `--place main` means
         // the same thing in each, so printing it once per env would be noise
         // in a completion menu and a lie in a script counting entries.
         let mut place_names: Vec<&str> = names

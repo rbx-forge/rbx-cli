@@ -1,11 +1,11 @@
-//! `rbxapikey.lock.toml` — tool-managed, never edit by hand. Tracks Roblox cloud_auth_id,
+//! `rbxapikey.lock.toml`: tool-managed, never edit by hand. Tracks Roblox cloud_auth_id,
 //! secret (or pointer to external secret file), creator, dates, and a normalized
 //! per-env table of `(universe_id, owner_type, owner_id)`.
 //!
 //! Schema is bumped from v3 → v4: the per-key `universe_ids` / `universe_owners`
 //! vectors were lifted into a top-level `[envs.<name>]` table referenced indirectly
 //! through each key's `envs` list in `rbxapikey.toml`. Old v3 files are rejected
-//! (no migration shim) — delete the file and re-run `rbx apikey create`.
+//! (no migration shim): delete the file and re-run `rbx apikey create`.
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -33,7 +33,7 @@ impl LockEnv {
     /// `sync_envs` writes `(User, 0)` when no scope on the key being built
     /// needs creator-targeting, because the schema has nowhere to say "not
     /// asked". Roblox issues no user or group id 0, so the value is
-    /// unambiguous as a sentinel — but it is only a sentinel if every reader
+    /// unambiguous as a sentinel, but it is only a sentinel if every reader
     /// treats it as one, which is what this method is for.
     pub fn owner_is_placeholder(&self) -> bool {
         self.owner_id == 0
@@ -44,7 +44,7 @@ impl LockEnv {
 /// want a `(universe_id, owner_type, owner_id)` triple don't have to
 /// reach into `LockEnv` themselves. Kept around (instead of being deleted
 /// with the v3 schema) because `scope_builder::build` still takes a
-/// `&[UniverseOwner]` slice — the *caller* now assembles it from
+/// `&[UniverseOwner]` slice: the *caller* now assembles it from
 /// `[envs.X]` instead of reading it off `LockEntry`.
 #[derive(Debug, Clone)]
 pub struct UniverseOwner {
@@ -104,7 +104,7 @@ pub fn load_from(path: &Path) -> Result<Lock> {
     if lock.version != VERSION {
         bail!(
             "{} has schema version {} but this tool expects v{}. \
-             Lockfile migrations are not supported — delete {} and re-run \
+             Lockfile migrations are not supported: delete {} and re-run \
              `rbx apikey create --all` to regenerate it.",
             path.display(),
             lock.version,

@@ -1,4 +1,4 @@
-//! `rbx shop list` — what Roblox currently has, for one resource kind.
+//! `rbx shop list`: what Roblox currently has, for one resource kind.
 //!
 //! The remote side. `shop show` is the declared side, and `rbx check --json`
 //! is the only one of the three that says whether they agree. See

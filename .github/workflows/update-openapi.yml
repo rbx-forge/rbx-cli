@@ -155,7 +155,7 @@ jobs:
           set -euo pipefail
           if [ "${{ steps.drift.outputs.exit }}" = "0" ]; then
             verdict="The drift check **passed**: every endpoint this workspace calls is still present in the refreshed document."
-            action="Review the diff for changes this check cannot see — renamed response fields, new required parameters, changed enum values — then merge."
+            action="Review the diff for changes this check cannot see (renamed response fields, new required parameters, changed enum values) then merge."
           else
             verdict="The drift check **FAILED**. At least one endpoint this workspace calls is gone from the refreshed document."
             action="Do not merge until a human has decided what to do. Read the failure below: it names the missing path, the call sites that use it, and the closest paths Roblox still documents."

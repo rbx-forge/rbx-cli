@@ -87,7 +87,7 @@ Statuses: `active`, `shut_down`, `restarted`, `roblox_restarted`, `crashed`, `ou
 rbx servers list --env prod --version 412 --json
 ```
 
-One JSON document on stdout, nothing else. Warnings — the partial-page one below in particular — stay on stderr, so a monitoring script's input parses even on the run where something was wrong.
+One JSON document on stdout, nothing else. Warnings (the partial-page one below in particular) stay on stderr, so a monitoring script's input parses even on the run where something was wrong.
 
 ```json
 {
@@ -133,7 +133,7 @@ One JSON document on stdout, nothing else. Warnings — the partial-page one bel
 | `totals.failed` | integer | How many of those ended in a crash or out-of-memory |
 | `totals.available` | integer | How many exist for this version before `--status` and `--limit`. **Absent** when Roblox did not say |
 | `servers` | array of objects | One per server, in the order Roblox returned them |
-| `servers[].job_id` | string | Full job id — what `servers logs` takes. Never truncated here |
+| `servers[].job_id` | string | Full job id: what `servers logs` takes. Never truncated here |
 | `servers[].status` | string | `active`, `shut_down`, `restarted`, `roblox_restarted`, `crashed`, `out_of_memory`, `moderated`, or `unknown` for a status this build has not seen. Same spelling `--status` takes |
 | `servers[].failure` | boolean | True for `crashed` and `out_of_memory`, so a consumer does not keep its own list |
 | `servers[].place_id` / `.place_version` / `.engine_version` | string | As Roblox sends them. Ids stay strings: they exceed 2^53 and a JSON number would round |
@@ -147,7 +147,7 @@ One JSON document on stdout, nothing else. Warnings — the partial-page one bel
 | `servers[].player_count` | integer | Length of `player_ids` |
 | `servers[].player_ids` | array of integers | The ids themselves, which CSV drops for width. **Absent** when Roblox sent no list |
 
-Optional fields are omitted rather than emitted as `null`, so `has("frame_rate")` distinguishes "never measured" from "measured zero" — the same distinction the table draws with `-`. Every row is an object keyed by name, never a positional array.
+Optional fields are omitted rather than emitted as `null`, so `has("frame_rate")` distinguishes "never measured" from "measured zero": the same distinction the table draws with `-`. Every row is an object keyed by name, never a positional array.
 
 A version with no servers is an empty `servers` array and exit 0, not an error and not silence: `.servers | length` answers either way.
 
@@ -209,7 +209,7 @@ Stack traces are never truncated. After a crash they are the entire reason for r
 
 **One document per run, not one object per line.** This is the only command here where you might reasonably expect the other thing, so it is worth being explicit: `rbx servers logs --json` emits a single JSON document, the same as every other `--json` in the tool.
 
-That is a choice about what this command is. It reads a **bounded slice of a log Roblox has already finished writing** — there is no `--follow`, the server is usually one that stopped hours ago, and nothing can be printed until pagination has stopped at `--limit`. Streaming would therefore produce no output any earlier, and would cost the envelope: which job id, which place version, which severity filter, and whether `--limit` cut the answer short are facts about the run that a line has nowhere to carry. So `jq` reads it like every other document here, and `jq -c '.lines[]'` turns it into JSON Lines if that is what you are feeding:
+That is a choice about what this command is. It reads a **bounded slice of a log Roblox has already finished writing**: there is no `--follow`, the server is usually one that stopped hours ago, and nothing can be printed until pagination has stopped at `--limit`. Streaming would therefore produce no output any earlier, and would cost the envelope: which job id, which place version, which severity filter, and whether `--limit` cut the answer short are facts about the run that a line has nowhere to carry. So `jq` reads it like every other document here, and `jq -c '.lines[]'` turns it into JSON Lines if that is what you are feeding:
 
 ```sh
 rbx servers logs <jobId> --version 407 --env prod --json | jq -c '.lines[]' >> logs.ndjson

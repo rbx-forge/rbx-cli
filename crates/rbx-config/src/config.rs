@@ -1,10 +1,10 @@
-/// rbxconfig.toml — the local source of truth for in-experience tunables, per environment.
+/// rbxconfig.toml: the local source of truth for in-experience tunables, per environment.
 ///
 /// Layout:
 /// ```toml
 /// [dev.entries."features.new_xp_popup"]
 /// value = true
-/// description = "Testing new popup — remove in v2"
+/// description = "Testing new popup: remove in v2"
 ///
 /// [dev.entries."balance.speed_multipliers"]
 /// value = { tier_1 = 1.5, tier_2 = 2.0 }

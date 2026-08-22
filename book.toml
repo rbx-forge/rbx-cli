@@ -10,7 +10,7 @@
 # `index.md` (the landing page, which has no per-command file to live in).
 #
 # mdBook rather than a JavaScript site generator: this repository has no Node
-# toolchain and adding one — package.json, a lockfile, a dependency tree — to
+# toolchain and adding one (package.json, a lockfile, a dependency tree) to
 # publish static HTML from markdown that already exists is a maintenance
 # surface with nothing behind it. mdBook is a single Rust binary CI fetches.
 [book]
@@ -42,7 +42,7 @@ edit-url-template = "https://github.com/rbx-forge/rbx-cli/edit/main/{path}"
 site-url = "/rbx-cli/"
 # `light` rather than `rust`, which is the mdBook default and the one every
 # Rust project ships. Two reasons, both about what these pages are: they are
-# dense with tables — fields, flags, scopes, on nearly every page — and `rust`
+# dense with tables (fields, flags, scopes, on nearly every page) and `rust`
 # puts them on a beige at 87% lightness, which costs the contrast a table's
 # borders and alternating rows depend on. And its dark brown sidebar is a large
 # block of colour next to 26 entries; `light`'s #fafafa lets the content lead.

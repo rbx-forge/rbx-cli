@@ -3,7 +3,7 @@ use colored::Colorize;
 
 use crate::ctx::ConfigCtx;
 
-const TEMPLATE: &str = r#"# rbxconfig.toml — local source of truth for Roblox in-experience tunables.
+const TEMPLATE: &str = r#"# rbxconfig.toml: local source of truth for Roblox in-experience tunables.
 #
 # Structure: [<env>.entries."<key>"] with required `value` and optional `description`.
 # Env names map to universes via rbxplace.toml (configurable with --places).

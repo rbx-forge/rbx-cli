@@ -91,7 +91,7 @@ pub struct Budget {
     /// Micro-USD, exactly as Roblox sent it. A string, and the authoritative
     /// figure: `25000000` is $25.00.
     pub amount_micros: String,
-    /// The same amount in dollars, as a decimal string truncated to the cent —
+    /// The same amount in dollars, as a decimal string truncated to the cent:
     /// the figure the human output prints. **Absent** when `amount_micros` is
     /// not a number, in which case the raw field is all there is to report.
     #[serde(skip_serializing_if = "Option::is_none")]

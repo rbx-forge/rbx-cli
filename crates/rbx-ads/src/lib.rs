@@ -304,8 +304,8 @@ fn describe(campaign: &model::Campaign) -> String {
 
 /// The format the commands that can ask a question run under.
 ///
-/// Only writes prompt here — `launch` for its creatives, `pause`, `resume`,
-/// `cancel` and `budget` for their target — and none of them has a `--json`:
+/// Only writes prompt here (`launch` for its creatives, `pause`, `resume`,
+/// `cancel` and `budget` for their target) and none of them has a `--json`:
 /// this issue's flag covers reads, and a command that spends money is not one
 /// to hand a pipeline. So the format is `Human` by construction.
 ///

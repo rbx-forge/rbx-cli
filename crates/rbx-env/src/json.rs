@@ -29,7 +29,7 @@ pub struct ListDocument {
     /// The top-level `owner`. **Absent** when the file sets none.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
-    /// One object per env, in name order — the same order the human listing
+    /// One object per env, in name order: the same order the human listing
     /// uses, so two runs of the same file produce the same bytes. Narrowed to
     /// one entry by `--env <name>`.
     pub envs: Vec<Env>,
@@ -107,7 +107,7 @@ impl ListDocument {
 ///
 /// `results` is always present and always an array, so one filter reads both
 /// forms; `value` is the single-target shortcut. Which of the two you get is
-/// decided by the invocation and never by the data — `--env all` omits `value`
+/// decided by the invocation and never by the data: `--env all` omits `value`
 /// even against a file with exactly one env, so a script cannot start working
 /// by accident and stop when a second env is added.
 #[derive(Debug, Serialize)]
@@ -125,8 +125,8 @@ pub struct GetDocument {
 
 #[derive(Debug, Serialize)]
 pub struct GetResult {
-    /// The env this answer is for. **Absent** when the lookup did not need one
-    /// — the owner fields resolve from the top-level `owner` block without an
+    /// The env this answer is for. **Absent** when the lookup did not need one:
+    /// the owner fields resolve from the top-level `owner` block without an
     /// `--env`. Same omission rule `rbx check --json` uses for its own `env`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<String>,

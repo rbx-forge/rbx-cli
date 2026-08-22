@@ -1,4 +1,4 @@
-//! `rbx config list` — the published config keys, with types and previews.
+//! `rbx config list`: the published config keys, with types and previews.
 //!
 //! `--json` emits the same snapshot as one document; see `crate::json` for why
 //! it is the same document `get --json` emits.
@@ -30,7 +30,7 @@ pub async fn run(ctx: &ConfigCtx, json: bool) -> Result<()> {
     }
 
     println!(
-        "Live config keys — env: {} (configVersion {})",
+        "Live config keys: env: {} (configVersion {})",
         ctx.env_label().bold(),
         snapshot.metadata.config_version
     );

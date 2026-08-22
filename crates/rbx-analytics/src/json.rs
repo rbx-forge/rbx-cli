@@ -25,9 +25,9 @@
 //! - no point at all for a timestamp means Roblox returned nothing for it.
 //!
 //! What this module never does is invent the third case into the second. The
-//! CLI does not know Roblox's bucket calendar for every granularity — funnel
+//! CLI does not know Roblox's bucket calendar for every granularity: funnel
 //! metrics only accept `granularity: None`, a breakdown can be ragged across
-//! series — so a synthesised bucket would be a guess presented as data. The
+//! series, so a synthesised bucket would be a guess presented as data. The
 //! points are the ones Roblox sent, in the order it sent them, and a consumer
 //! that wants a dense series reindexes against `start_time` and `end_time`,
 //! which the document carries for exactly that reason.
@@ -379,7 +379,7 @@ mod tests {
         assert_eq!(doc["totals"]["missing"], 1);
     }
 
-    /// A point with no time at all — the case the table prints as `-` — omits
+    /// A point with no time at all (the case the table prints as `-`) omits
     /// the key rather than inventing a timestamp.
     #[test]
     fn a_point_with_no_time_omits_the_key() {
@@ -425,7 +425,7 @@ mod tests {
         assert_eq!(doc["totals"]["series"], 2);
     }
 
-    /// Nothing was broken down, so there is nothing to key by — an empty
+    /// Nothing was broken down, so there is nothing to key by: an empty
     /// object, and the label still says which series this is.
     #[test]
     fn an_unbroken_series_has_no_dimensions_and_is_labelled_total() {
@@ -503,8 +503,8 @@ mod tests {
     /// question: a prompt on stdout corrupts the document and a prompt on
     /// stderr hangs a pipeline.
     ///
-    /// Analytics has nothing to ask today — no picker, no confirmation, and no
-    /// `dialoguer` in its manifest — which is why the command branches on
+    /// Analytics has nothing to ask today (no picker, no confirmation, and no
+    /// `dialoguer` in its manifest) which is why the command branches on
     /// `is_json` and never on `may_prompt`. This is the test that says which
     /// way a question added later has to go.
     #[test]

@@ -255,8 +255,8 @@ fn message_and_payload_cannot_be_passed_together() {
     assert!(parsed.is_err(), "expected clap to refuse the pair");
 }
 
-/// A 403 is the commonest failure here — `universe-messaging-service:publish`
-/// is not on the key most people already have — so it is worth checking it
+/// A 403 is the commonest failure here (`universe-messaging-service:publish`
+/// is not on the key most people already have) so it is worth checking it
 /// arrives as the shared scope guidance rather than a bare status.
 #[tokio::test]
 async fn a_failed_publish_is_an_error_rather_than_a_success_line() {

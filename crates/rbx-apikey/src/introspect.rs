@@ -3,7 +3,7 @@
 //! Roblox does not echo back what it was sent. A scope goes out as
 //! `{scopeType, targetParts, operations}` and comes back from
 //! `/cloud-authentication/v1/apiKey/introspect` as
-//! `{name, operations, universeIds}` — a different name for the type, a
+//! `{name, operations, universeIds}`: a different name for the type, a
 //! different name for the target, and targets typed as universe ids rather
 //! than the `U<id>` / `G<id>` / `*` strings a creator-targeted scope is sent
 //! with.
@@ -49,7 +49,7 @@ struct IntrospectScope {
 /// Parse the `scopes` array of an introspect response into the request shape,
 /// so a caller can compare what came back against what it sent.
 ///
-/// Returns `None` when the document has no `scopes` array at all — the one
+/// Returns `None` when the document has no `scopes` array at all: the one
 /// case that means "this is not an introspect response" rather than "this key
 /// has no scopes". An entry that cannot be read is an error rather than a
 /// silent drop: a key reported as granting nothing, because its scopes were

@@ -271,7 +271,7 @@ pub enum PlaceCommands {
 /// `env` as a documented field, so an env-less write would either walk past a
 /// guard somebody set on purpose or emit a document missing a field consumers
 /// were told to expect. Refusing is better than either, and better than
-/// accepting the flag and ignoring it — which is the failure the
+/// accepting the flag and ignoring it, which is the failure the
 /// `--universe-id` doc-comment describes from the last time it happened.
 fn refuse_place_id_for_writes(global: &GlobalFlags, verb: &str) -> Result<()> {
     if !global.place_id.is_empty() {

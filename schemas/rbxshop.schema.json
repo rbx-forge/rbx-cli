@@ -38,7 +38,7 @@
       "$ref": "#/definitions/IconsConfig"
     },
     "include": {
-      "description": "Extra files (relative to this one) whose `passes`/`badges`/`products` tables (and their `[envs.<name>.*]` overlays) get merged in at load time via `Config::load_merged`. Only meaningful on the main file — included files must be \"pure\" resource files (no `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their own). See `docs/shop.md` for the `pull`/`rename` limitation this currently carries.",
+      "description": "Extra files (relative to this one) whose `passes`/`badges`/`products` tables (and their `[envs.<name>.*]` overlays) get merged in at load time via `Config::load_merged`. Only meaningful on the main file: included files must be \"pure\" resource files (no `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their own). See `docs/shop.md` for the `pull`/`rename` limitation this currently carries.",
       "allOf": [
         {
           "$ref": "#/definitions/IncludeConfig"
@@ -46,7 +46,7 @@
       ]
     },
     "owner": {
-      "description": "Who owns this project — global to the config, not env-scoped. The one thing it decides is the payment source for badge creation, and that is not a free choice: Roblox pays a group-owned game's badge out of group funds and a user-owned game's out of the user's, with no way to cross them. So the payer is the owner, necessarily, and this is an override of `[owner]` in `rbxplace.toml` rather than a second concept.\n\nOptional. When absent, `ShopCtx::resolve_owner_type` falls back to `rbxplace.toml`: the env's own `[<env>.owner]` first, then top-level.",
+      "description": "Who owns this project: global to the config, not env-scoped. The one thing it decides is the payment source for badge creation, and that is not a free choice: Roblox pays a group-owned game's badge out of group funds and a user-owned game's out of the user's, with no way to cross them. So the payer is the owner, necessarily, and this is an override of `[owner]` in `rbxplace.toml` rather than a second concept.\n\nOptional. When absent, `ShopCtx::resolve_owner_type` falls back to `rbxplace.toml`: the env's own `[<env>.owner]` first, then top-level.",
       "anyOf": [
         {
           "$ref": "#/definitions/Owner"
@@ -207,7 +207,7 @@
       ]
     },
     "EnvOverlay": {
-      "description": "Per-env overlay grouping the three resource maps. All fields are optional — merging is done resource by resource, field by field. A resource defined only in the overlay (not in base) is treated as env-exclusive.",
+      "description": "Per-env overlay grouping the three resource maps. All fields are optional: merging is done resource by resource, field by field. A resource defined only in the overlay (not in base) is treated as env-exclusive.",
       "type": "object",
       "properties": {
         "badges": {
@@ -247,12 +247,12 @@
       "type": "object",
       "properties": {
         "capitalize_key": {
-          "description": "When true, the source key's first letter is uppercased in the *derived* gift key only (never in the source's own TOML key) — e.g. with `key_prefix = \"gift\"`: `vipPass` -> `giftVipPass` instead of the default `giftvipPass`. Default: `false` (exact concatenation).",
+          "description": "When true, the source key's first letter is uppercased in the *derived* gift key only (never in the source's own TOML key): e.g. with `key_prefix = \"gift\"`: `vipPass` -> `giftVipPass` instead of the default `giftvipPass`. Default: `false` (exact concatenation).",
           "default": false,
           "type": "boolean"
         },
         "key_prefix": {
-          "description": "Prefixed to the source's TOML key to build the resolved/codegen key, e.g. with the default \"Gift\": `VIP` -> `GiftVIP`, `vip_pass` -> `Giftvip_pass`. Must be non-empty. The source's own TOML key is never modified by this — see `capitalize_key` for the one exception, which only affects the copy used in this derived string.",
+          "description": "Prefixed to the source's TOML key to build the resolved/codegen key, e.g. with the default \"Gift\": `VIP` -> `GiftVIP`, `vip_pass` -> `Giftvip_pass`. Must be non-empty. The source's own TOML key is never modified by this: see `capitalize_key` for the one exception, which only affects the copy used in this derived string.",
           "default": "Gift",
           "type": "string"
         },
@@ -325,7 +325,7 @@
       "type": "object",
       "properties": {
         "create_gift": {
-          "description": "When true, an extra developer product is derived automatically at resolve time — same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
+          "description": "When true, an extra developer product is derived automatically at resolve time: same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
           "default": false,
           "type": "boolean"
         },
@@ -433,7 +433,7 @@
       ],
       "properties": {
         "create_gift": {
-          "description": "When true, an extra developer product is derived automatically at resolve time — same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
+          "description": "When true, an extra developer product is derived automatically at resolve time: same price/description/icon, name prefixed with `[gifts].label`. See `crate::gifts`.",
           "default": false,
           "type": "boolean"
         },

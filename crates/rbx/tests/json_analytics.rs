@@ -3,7 +3,7 @@
 //!
 //! The unit tests in `rbx_analytics::json` pin what the documents *say*. They
 //! cannot pin what else reaches stdout, because a stray `println!` three layers
-//! down is invisible to a test that renders a struct into a buffer — and a
+//! down is invisible to a test that renders a struct into a buffer, and a
 //! stray `println!` is exactly the failure that breaks `jq` in somebody's
 //! pipeline. `analytics query` has two of those to get right: the unknown-key
 //! warning every command that reads `rbxplace.toml` can emit, and the "queued
@@ -217,7 +217,7 @@ async fn a_broken_down_query_keys_each_series_by_dimension_name() {
 }
 
 /// The case this file exists for. Roblox queues the query, the command says so
-/// while it waits — and under `--json` that note has to be on stderr, or the
+/// while it waits, and under `--json` that note has to be on stderr, or the
 /// document is unreadable on exactly the slow queries a pipeline runs.
 #[tokio::test(flavor = "multi_thread")]
 async fn a_queued_query_puts_its_waiting_note_on_stderr() {

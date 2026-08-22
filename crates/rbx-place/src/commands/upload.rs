@@ -33,7 +33,7 @@ pub async fn run(
     let client = make_client(global, base_url)?;
 
     // `Bytes`, not `Vec<u8>`: the file is read once and every place in
-    // `targets` — and every retry inside each upload — shares that one buffer.
+    // `targets` (and every retry inside each upload) shares that one buffer.
     let data = Bytes::from(
         std::fs::read(file).with_context(|| format!("Failed to read file: {}", file.display()))?,
     );

@@ -96,7 +96,7 @@ pub async fn run(
         yes,
     )?;
 
-    // `published: true` — a rollback republishes the old bytes live; there is
+    // `published: true`: a rollback republishes the old bytes live; there is
     // no draft form of it.
     let mut receipt = WriteDocument::new(
         WriteCommand::Rollback,

@@ -71,7 +71,7 @@ Recognised by extension, not by looking on disk: `rbx open prod` has to stay an
 environment even in a folder that happens to contain a file called `prod`.
 
 The path is handed to the desktop's opener rather than wrapped in a
-`roblox-studio:` URI, because that URI is parsed by splitting on `+` and `:` —
+`roblox-studio:` URI, because that URI is parsed by splitting on `+` and `:`,
 which both a Windows path and any filename containing a `+` would break. Studio
 ends up in the same place either way; its log says
 `createAndShowIDEDoc with task EditFile`.
@@ -90,9 +90,9 @@ imitation of it. Clicking it logs:
 ```
 [FLog::PlaceManager] PlaceManager::createAndShowIDEDoc with task EditPlace
 [FLog::StudioKeyEvents] open place (identifier = 95206881)
-```
+```:
 
-— an ordinary `roblox-studio:` open of place `95206881`, Roblox's stock
+ an ordinary `roblox-studio:` open of place `95206881`, Roblox's stock
 baseplate, which is exactly what `--new --baseplate` sends.
 
 **Nothing is created on Roblox.** Studio binds the session to the template long
@@ -159,8 +159,8 @@ roblox-studio:1+task:EditPlace+placeId:123456789+universeId:0
 
 This is handled by your system's Roblox Studio installation.
 
-On Linux the URI goes to `xdg-open`, and if that is not there — or if this is
-WSL, where Studio lives on the Windows side — it crosses to the Windows host
+On Linux the URI goes to `xdg-open`, and if that is not there (or if this is
+WSL, where Studio lives on the Windows side) it crosses to the Windows host
 instead, via `powershell.exe Start-Process`, then `rundll32`, then `cmd.exe
 start`, then `wslview`. Studio has no native Linux build, so a Linux `rbx` with
 nowhere to hand the URI says so rather than failing silently.
@@ -169,8 +169,8 @@ nowhere to hand the URI says so rather than failing silently.
 
 [ROpen](https://github.com/Barocena/ROpen) (Luau, MPL-2.0) is where this command comes from: the launcher it was written against, and where the `roblox-studio:` URI dispatch was learned from, having contributed to it.
 
-That dispatch is older than either of us. [rojo-rbx/edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place) (Rust, MIT) was doing the same thing in **August 2019** — one command, one place id, and the same `roblox-studio:1+task:EditPlace+placeId:<id>` this command sends. Nobody here knew of it until long after `rbx open` shipped; it is named because the honest version of "prior art" is not "whatever its author met first".
+That dispatch is older than either of us. [rojo-rbx/edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place) (Rust, MIT) was doing the same thing in **August 2019**: one command, one place id, and the same `roblox-studio:1+task:EditPlace+placeId:<id>` this command sends. Nobody here knew of it until long after `rbx open` shipped; it is named because the honest version of "prior art" is not "whatever its author met first".
 
 What `rbx open` adds to either is the part that belongs to this tool: the place is named rather than numbered. `rbx open prod main` resolves through `rbxplace.toml`, so the id nobody remembers stays in the file that already holds it.
 
-No code from either project is reused, and none is owed — see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
+No code from either project is reused, and none is owed: see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).

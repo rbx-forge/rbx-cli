@@ -93,7 +93,7 @@ Pull never auto-promotes overlays back into base. To DRY, edit the toml manually
 
 When the env in `rbxplace.toml` has multiple places (`[prod.places.lobby]`, `[prod.places.world]`), pass `--place <name>`. Defaults to `main` if present, otherwise the only entry.
 
-**One place per env, and the tool enforces it.** `rbxmeta.lock.toml` keys its sections by env and holds a single `place_id` in each, while `name`, `description` and `server_size` are place-level fields written to that place. So syncing `--place lobby` and then `--place main` under one env would leave `[envs.prod]` recording one place's metadata under the other's id — and every later diff, which is what decides whether a field gets sent at all, would be computed against the wrong baseline.
+**One place per env, and the tool enforces it.** `rbxmeta.lock.toml` keys its sections by env and holds a single `place_id` in each, while `name`, `description` and `server_size` are place-level fields written to that place. So syncing `--place lobby` and then `--place main` under one env would leave `[envs.prod]` recording one place's metadata under the other's id, and every later diff, which is what decides whether a field gets sent at all, would be computed against the wrong baseline.
 
 `sync` and `pull` therefore refuse a place that disagrees with the one the section already tracks:
 
@@ -133,7 +133,7 @@ Apply the config (base + env overlay) to Roblox. Diffs against the lockfile's `[
 | `--dry-run` | Show what would change without applying |
 | `--yes` / `-y` | Skip the confirmation prompt. What CI passes; see below |
 
-`sync` prompts before applying when the env has `confirm = true` in `rbxplace.toml`. `--yes` answers it in advance, which is how a pipeline gets through — and is the only thing standing between an unattended run and a write, so it belongs in the job that was reviewed rather than in a shell alias.
+`sync` prompts before applying when the env has `confirm = true` in `rbxplace.toml`. `--yes` answers it in advance, which is how a pipeline gets through, and is the only thing standing between an unattended run and a write, so it belongs in the job that was reviewed rather than in a shell alias.
 
 </details>
 
@@ -216,7 +216,7 @@ reserved_slots = 5           # only with mode = "custom"
 title = "Join our Discord"
 url = "https://discord.gg/example"
 
-# All four keys or none — Roblox takes this object whole. Cookie-only, and
+# All four keys or none: Roblox takes this object whole. Cookie-only, and
 # write-only: no Roblox endpoint returns it, so `pull` cannot adopt it.
 [game.permissions]
 third_party_teleport = false
@@ -296,8 +296,8 @@ Scalar fields live directly under `[game]`. Grouped multi-field settings (device
 | `visibility` | `string` | Open Cloud read / Cookie write | `"public"` or `"private"` |
 | `studio_access_to_apis_allowed` | `bool` | Cookie | Allow Studio scripts to call Open Cloud / data store APIs |
 | `beta_mode` | `bool` | Cookie | Enable Experience Beta mode (hides from Home Recommendations) |
-| `engine_avatar_settings` | `string` | Cookie | Path to a `.toml` or `.json` file holding the modern avatar rules, relative to this config file. Passed through opaquely — see the section below |
-| `genre` | `string` | Cookie | Legacy genre. One of `all`, `tutorial`, `scary`, `town_and_city`, `war`, `funny`, `fantasy`, `adventure`, `sci_fi`, `pirate`, `fps`, `rpg`, `sports`, `ninja`, `wild_west`. Legacy in Roblox's own sense — discovery moved to experience types and tags years ago — but the field still round-trips, so a config that does not model it loses whatever it was set to on the next `pull` |
+| `engine_avatar_settings` | `string` | Cookie | Path to a `.toml` or `.json` file holding the modern avatar rules, relative to this config file. Passed through opaquely: see the section below |
+| `genre` | `string` | Cookie | Legacy genre. One of `all`, `tutorial`, `scary`, `town_and_city`, `war`, `funny`, `fantasy`, `adventure`, `sci_fi`, `pirate`, `fps`, `rpg`, `sports`, `ninja`, `wild_west`. Legacy in Roblox's own sense (discovery moved to experience types and tags years ago) but the field still round-trips, so a config that does not model it loses whatever it was set to on the next `pull` |
 
 </details>
 
@@ -344,7 +344,7 @@ Server fill mode. **Requires cookie**: not exposed by Open Cloud.
 
 What the experience lets other experiences and the client do to it. **Requires cookie.**
 
-**All four fields are required.** That is the API's doing, not a style choice: Roblox takes `permissions` as one object, so writing one flag writes all four, and it exposes no endpoint that returns them. There is no way to fill in the flags a partial table left out — not from Roblox, and not from a first-run lockfile. A table with three of the four keys is a load error rather than a write whose result nobody can predict.
+**All four fields are required.** That is the API's doing, not a style choice: Roblox takes `permissions` as one object, so writing one flag writes all four, and it exposes no endpoint that returns them. There is no way to fill in the flags a partial table left out, not from Roblox, and not from a first-run lockfile. A table with three of the four keys is a load error rather than a write whose result nobody can predict.
 
 The same absence means **`pull` and `init` cannot adopt these**. The lockfile records what `rbx meta` last wrote, which is what `check` and `sync` compare against; a change made in the Creator Dashboard will not be noticed until the next `sync` overwrites it.
 
@@ -386,7 +386,7 @@ The scale range players are held to. **Requires cookie**, and **write-only**: Ro
 | `body_type` | `float` | **Yes** | Body-type ("rthro") multiplier, 0 to 1 |
 | `proportion` | `float` | **Yes** | Proportions multiplier, 0 to 1 |
 
-Roblox's model declares a sixth field, `depth`, and this sends five. That is on precedent rather than principle: Mantle carries the same five and wrote avatar scales against real experiences for years, and `depth` appears in no avatar scaling UI to compare against. It is the strongest evidence available, and it is not proof — **nothing here has sent this object to Roblox yet.** If a synced experience comes back with squashed avatars, this is the first place to look.
+Roblox's model declares a sixth field, `depth`, and this sends five. That is on precedent rather than principle: Mantle carries the same five and wrote avatar scales against real experiences for years, and `depth` appears in no avatar scaling UI to compare against. It is the strongest evidence available, and it is not proof: **nothing here has sent this object to Roblox yet.** If a synced experience comes back with squashed avatars, this is the first place to look.
 
 </details>
 
@@ -395,7 +395,7 @@ Roblox's model declares a sixth field, `depth`, and this sends five. That is on 
 
 Forces what players wear in each of the ten slots Roblox exposes. **Requires cookie**, and **write-only**.
 
-**All ten slots are required.** Roblox takes `universeAvatarAssetOverrides` as one array and replaces it wholesale, so a table naming three slots is a request to reset the other seven — and since no endpoint returns the array, nothing could fill in the missing seven either.
+**All ten slots are required.** Roblox takes `universeAvatarAssetOverrides` as one array and replaces it wholesale, so a table naming three slots is a request to reset the other seven, and since no endpoint returns the array, nothing could fill in the missing seven either.
 
 Each slot is one of two things:
 
@@ -423,7 +423,7 @@ Anything other than an id or `"player_choice"` is a load error naming the valid 
 <details>
 <summary><code>game.engine_avatar_settings</code></summary>
 
-Path to a file holding the modern avatar rules — animation rules, clothing rules, accessory rules, collision rules, body rules. **Requires cookie**, and **write-only**.
+Path to a file holding the modern avatar rules: animation rules, clothing rules, accessory rules, collision rules, body rules. **Requires cookie**, and **write-only**.
 
 **TOML or JSON, decided by the extension.** Roblox's field is a JSON string, so anything dumped out of Studio or copied from someone's example is already JSON and refusing it would mean hand-converting a hundred and fifty keys. But a project whose every other config file is TOML should not have to grow one that is not. Both are accepted; both land on the same document before it is hashed and sent, so rewriting `avatar.toml` as `avatar.json` with the same content changes nothing and re-sends nothing.
 
@@ -434,7 +434,7 @@ Path to a file holding the modern avatar rules — animation rules, clothing rul
 > Three things were established by sending real documents:
 >
 > - The `PATCH` accepts any inner content. To that endpoint the field is an
->   opaque string, so it validates nothing — **a `200` says the request was
+>   opaque string, so it validates nothing: **a `200` says the request was
 >   transported, not that Roblox understood the document.**
 > - Roblox returns no echo. The specification says the response carries
 >   `engineAvatarSettings` back; it does not, so a misspelled key cannot be
@@ -443,14 +443,14 @@ Path to a file holding the modern avatar rules — animation rules, clothing rul
 >   Studio's `Game Settings → Avatar`, and even there the mapping to this
 >   document has not been confirmed.
 >
-> The practical consequence: **nothing — not this tool, not the dashboard —
+> The practical consequence: **nothing (not this tool, not the dashboard)
 > can currently tell you that an avatar document took effect.** Treat it as
 > fire-and-forget, keep the document small, and verify in game rather than by
 > reading a setting back. This is also why `schemas/rbxavatar.schema.json`
 > exists: an editor catching a typo before the write is the only check
 > available anywhere in the loop.
 
-**It is not an extra layer on top of the avatar fields — it is the same settings written another way, and sending both is refused.**
+**It is not an extra layer on top of the avatar fields: it is the same settings written another way, and sending both is refused.**
 
 `AvatarBodyRules` in this document carries `CustomHeightScale = { min, max }`, which is `game.avatar.min_scale.height` and `game.avatar.max_scale.height` in one place. Its per-slot `Custom*Id` keys are `game.avatar.asset_overrides`. Sending both in one sync tells Roblox the same thing twice, in two shapes, with nothing making them agree:
 
@@ -463,7 +463,7 @@ and this sync would send both:
 Keep whichever one you maintain and remove the other from rbxmeta.toml.
 ```
 
-This refuses rather than warns for a reason specific to this field: **no read returns either side.** A project that writes a contradiction cannot discover it from this tool, from the API, or from the Creator Hub. It surfaces the next time somebody opens Studio, as `AvatarSettings Error: Failed to deserialize properties` — which is how the overlap was found, on a test universe that had been sent both.
+This refuses rather than warns for a reason specific to this field: **no read returns either side.** A project that writes a contradiction cannot discover it from this tool, from the API, or from the Creator Hub. It surfaces the next time somebody opens Studio, as `AvatarSettings Error: Failed to deserialize properties`, which is how the overlap was found, on a test universe that had been sent both.
 
 The check is per field, not blanket: a document that describes only collisions does not conflict with the scales, and either channel alone is the ordinary case.
 
@@ -471,29 +471,29 @@ The check is per field, not blanket: a document that describes only collisions d
 
 ```
   ✓ legacy universe config patched
-  ! Roblox did not keep 1 avatar key — it was not applied:
+  ! Roblox did not keep 1 avatar key: it was not applied:
       AvatarRules.AvatarTpye
     A misspelling is the usual cause. The rest of the document applied.
 ```
 
 **As measured, this does not currently fire**: the response carried no
 `engineAvatarSettings` and a deliberately misspelled key went unreported. The
-sync now says so — `Roblox returned no avatar echo to check against (N bytes)` —
+sync now says so (`Roblox returned no avatar echo to check against (N bytes)`)
 rather than staying silent and letting a reader assume the document was
 verified. The byte count is the diagnosis, and the check is kept because it
 costs a comparison on a response that was already arriving.
 
-When it does fire, it is a warning and not an error, because by the time there is an echo to read the write has already landed — failing then would report an error for something that succeeded. Keys Roblox *filled in* are reported too, more quietly: that is the normal completion of a partial document, and it is how you learn the full shape without guessing.
+When it does fire, it is a warning and not an error, because by the time there is an echo to read the write has already landed: failing then would report an error for something that succeeded. Keys Roblox *filled in* are reported too, more quietly: that is the normal completion of a partial document, and it is how you learn the full shape without guessing.
 
-`schemas/rbxavatar.schema.json` describes this document, so an editor completes the key names and shows what each numeric mode means on hover. Name the file `rbxavatar.toml` and the associations in the [README](../README.md#editor-support) match it without editing. The schema is **guidance, not a gate**: `additionalProperties` is open everywhere, so a key Roblox adds tomorrow is one your editor stays quiet about and `rbx meta` sends anyway — the same reason the document is not modelled in the first place.
+`schemas/rbxavatar.schema.json` describes this document, so an editor completes the key names and shows what each numeric mode means on hover. Name the file `rbxavatar.toml` and the associations in the [README](../README.md#editor-support) match it without editing. The schema is **guidance, not a gate**: `additionalProperties` is open everywhere, so a key Roblox adds tomorrow is one your editor stays quiet about and `rbx meta` sends anyway: the same reason the document is not modelled in the first place.
 
 Watch one trap the schema calls out on hover: `AvatarRules.AvatarType` here runs `0` = R6, `1` = R15, `2` = both, while `[game.avatar] type` is the older `universeAvatarType` and runs `1` = R6, `2` = player choice, `3` = R15. Same idea, two endpoints, different integers.
 
-An extension that is neither is refused by name rather than sniffed — guessing from the content would let a `.txt` through and turn a typo in the path into a silent success. The one thing TOML cannot express is `null`; nothing in the documents Roblox accepts here uses one, but a document that needed it would have to be the JSON form.
+An extension that is neither is refused by name rather than sniffed: guessing from the content would let a `.txt` through and turn a typo in the path into a silent success. The one thing TOML cannot express is `null`; nothing in the documents Roblox accepts here uses one, but a document that needed it would have to be the JSON form.
 
 **This tool does not model what is in the file.** It reads it, checks it parses as JSON, and sends it. That is a deliberate limit rather than a shortcut, and the reason is in Roblox's own specification: the field is typed as a JSON *string*, and it is annotated *"This is an experimental field which may be changed or removed in future."* Modelling its structure would be inventing a contract nobody offered, and would break the day Roblox redefined a key. A file you control, versioned next to the rest of the config, keeps working whatever happens inside it.
 
-The trade-off is stated plainly: a typo in a key name reaches Roblox. What is checked locally is that the file exists and parses — a malformed file fails before a cookie-authenticated write, not as an opaque `400` after it.
+The trade-off is stated plainly: a typo in a key name reaches Roblox. What is checked locally is that the file exists and parses: a malformed file fails before a cookie-authenticated write, not as an opaque `400` after it.
 
 ```toml
 [game]
@@ -501,7 +501,7 @@ engine_avatar_settings = "avatar-settings.toml"
 ```
 
 ```toml
-# avatar-settings.toml — the same document the JSON form would carry
+# avatar-settings.toml: the same document the JSON form would carry
 version = 1
 
 [AvatarRules]
@@ -525,7 +525,7 @@ To get a starting document, the most complete public example is [Phoenix-CLI's `
 
 Whether players pay to enter. **Requires cookie.**
 
-Omitting the table leaves paid access unmanaged; `mode = "free"` actively turns it off. Those are different states, which is why this is a tagged table rather than a bare price — a price of zero means neither.
+Omitting the table leaves paid access unmanaged; `mode = "free"` actively turns it off. Those are different states, which is why this is a tagged table rather than a bare price: a price of zero means neither.
 
 `isForSale` and `price` are sent together, because Roblox ignores a price on an experience that is not for sale, and an experience switched on for sale with no price is free by accident.
 
@@ -584,7 +584,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.avatar.asset_overrides` | **Cookie**, write-only | `universeAvatarAssetOverrides`. Sent whole, ten slots |
 | `game.engine_avatar_settings` | **Cookie**, write-only | `engineAvatarSettings`, a JSON string. Read from a `.toml` or `.json` file and passed through unmodelled |
 | `game.paid_access` | **Cookie** | `isForSale` + `price`, sent together |
-| `game.permissions.*` | **Cookie**, write-only | The `permissions` object. Not returned by any GET — see below |
+| `game.permissions.*` | **Cookie**, write-only | The `permissions` object. Not returned by any GET: see below |
 
 ### Not supported
 
@@ -604,9 +604,9 @@ A field being cookie-only means the API key alone cannot write it. A field being
 - `game.avatar.asset_overrides`
 - `game.engine_avatar_settings`
 
-The read used by `pull` and `init` is `GET /v1/universes/{id}/configuration`, and it carries neither. The endpoint that does — `/v2/universes/{id}/configuration` — answers to `PATCH` only.
+The read used by `pull` and `init` is `GET /v1/universes/{id}/configuration`, and it carries neither. The endpoint that does (`/v2/universes/{id}/configuration`) answers to `PATCH` only.
 
-The consequence, in one sentence: **`pull` never touches these, and `check` compares them against the lockfile rather than against Roblox.** A pull keeps whatever the previous lockfile recorded for them rather than adopting what the config asks for — taking the config's word would make the lockfile assert that Roblox holds a value nobody checked, and the next `sync` would then send nothing while `check` reported agreement. Setting one in the Creator Dashboard will not show up as drift; the next `sync` that touches the field will simply overwrite it.
+The consequence, in one sentence: **`pull` never touches these, and `check` compares them against the lockfile rather than against Roblox.** A pull keeps whatever the previous lockfile recorded for them rather than adopting what the config asks for: taking the config's word would make the lockfile assert that Roblox holds a value nobody checked, and the next `sync` would then send nothing while `check` reported agreement. Setting one in the Creator Dashboard will not show up as drift; the next `sync` that touches the field will simply overwrite it.
 
 ### Cookie-only fields
 
@@ -623,7 +623,7 @@ The Open Cloud API doesn't expose every metadata field. These fields require a c
 - `game.paid_access`
 - `game.permissions.*`
 
-The cookie is provided via the global `--cookie` flag, the `RBX_COOKIE` env var, or a local Roblox Studio install (Windows registry, macOS plist) — that last one opt-in, asked once or declined where there is nobody to ask. `--auto-cookie` is the standing yes and `--no-auto-cookie` the standing no. `pull` and `init` skip these fields and say so when no cookie is available; `sync` stops before applying anything if the plan touches one.
+The cookie is provided via the global `--cookie` flag, the `RBX_COOKIE` env var, or a local Roblox Studio install (Windows registry, macOS plist): that last one opt-in, asked once or declined where there is nobody to ask. `--auto-cookie` is the standing yes and `--no-auto-cookie` the standing no. `pull` and `init` skip these fields and say so when no cookie is available; `sync` stops before applying anything if the plan touches one.
 
 A cookie that exists is not a cookie that still works, so when the plan touches one of these fields `sync` also asks Roblox once, before the confirmation prompt and before the first write, whether the session is still valid. An expired one refuses the whole run rather than applying the Open Cloud half and failing on the legacy half. See [what is checked](./cookie.md#what-is-checked-and-when).
 
@@ -647,7 +647,7 @@ $env:RBX_COOKIE = (lune run get-cookie)
 | --- | --- | --- |
 | Universe | `universe:read`, `universe:write` | [Universe API](https://create.roblox.com/docs/cloud/reference/Universe) |
 | Place | `universe.place:read`, `universe.place:write` | [Place API](https://create.roblox.com/docs/cloud/reference/Place) |
-| Icons & thumbnails | none to read; see note to write | `pull` reads them from `thumbnails.roblox.com`, the public service, with no key attached. `sync` uploads through `legacy-game-internationalization`, whose scope is not in the catalog and has not been established here — if an upload is refused, that is the thing to look for |
+| Icons & thumbnails | none to read; see note to write | `pull` reads them from `thumbnails.roblox.com`, the public service, with no key attached. `sync` uploads through `legacy-game-internationalization`, whose scope is not in the catalog and has not been established here, if an upload is refused, that is the thing to look for |
 
 ## Lockfile
 

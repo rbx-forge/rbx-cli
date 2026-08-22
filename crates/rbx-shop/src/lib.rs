@@ -80,7 +80,7 @@ pub enum ShopCommands {
         /// passes, badges and products and refuses if a name it is about to
         /// create is already taken. That check exists because a
         /// `rbxshop.lock.toml` that was never committed makes every resource
-        /// look new, and the duplicate it would create cannot be deleted —
+        /// look new, and the duplicate it would create cannot be deleted:
         /// Roblox has no delete for a pass or a developer product.
         ///
         /// Pass this when the duplicate name is deliberate. It does not skip
@@ -100,7 +100,7 @@ pub enum ShopCommands {
         /// Every field Roblox returns, including the ids the table truncates
         /// nothing of but the description column crowds out. This says what
         /// Roblox has; `shop show --json` says what the repo declares, and
-        /// neither says whether the two agree — that is `rbx check --json`.
+        /// neither says whether the two agree: that is `rbx check --json`.
         /// Field names are documented in docs/shop.md.
         #[arg(long)]
         json: bool,
@@ -114,7 +114,7 @@ pub enum ShopCommands {
 
     /// Regenerate the codegen folder from rbxshop.toml + rbxshop.lock.
     ///
-    /// Offline — reads local files only, never contacts Roblox. `sync` already
+    /// Offline: reads local files only, never contacts Roblox. `sync` already
     /// does this at the end of a successful run; use this to rebuild after a
     /// `git pull` without credentials, or with `--check` from a git hook or CD
     /// to prove the committed modules were not hand-edited.
@@ -191,7 +191,7 @@ pub enum ShopCommands {
 /// impl is allowed here, in the one module that already knows about `clap`.
 /// The domain modules are unchanged and still see a plain enum.
 ///
-/// The strings are the argument spelling and are deliberately plural — they
+/// The strings are the argument spelling and are deliberately plural: they
 /// read as a list on a command line, where `label()` is the singular word used
 /// in prose about one resource. Keeping them here, next to the parser, is also
 /// what makes it obvious that changing one changes the CLI.

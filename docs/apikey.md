@@ -88,7 +88,7 @@ rbx apikey catalog regenerate [url]  # Regenerate scope catalog from openapi.jso
 
 ## Configuration
 
-Create `rbxapikey.toml` in your project root. Keys target Roblox universes by **env name** (declared in `rbxplace.toml`), not raw universe ids — the same source of truth used by `rbxmeta`, `rbxconfig`, and the rest of the suite.
+Create `rbxapikey.toml` in your project root. Keys target Roblox universes by **env name** (declared in `rbxplace.toml`), not raw universe ids: the same source of truth used by `rbxmeta`, `rbxconfig`, and the rest of the suite.
 
 ```toml
 [settings]
@@ -122,7 +122,7 @@ ci   = ["dev", "staging"]   # → key deploy_ci, scoped to the dev + staging uni
 prod = ["prod"]             # → key deploy_prod, scoped to the prod universe only
 ```
 
-Two keys, one declaration. Everything except the envs — scopes above all — is written once, so a scope added for production cannot be forgotten for CI. That is the whole point: the alternative is three near-identical `[keys.*]` blocks, and a scope added to one and not the others compiles fine, syncs fine, and desyncs your environments silently.
+Two keys, one declaration. Everything except the envs (scopes above all) is written once, so a scope added for production cannot be forgotten for CI. That is the whole point: the alternative is three near-identical `[keys.*]` blocks, and a scope added to one and not the others compiles fine, syncs fine, and desyncs your environments silently.
 
 TOML distinguishes an array from a table on its own, so there is no flag to set and the array form means exactly what it always meant.
 
@@ -150,7 +150,7 @@ An empty group (`ci = []`) is refused too. A key targeting no universe is scoped
 
 ### Duplicate scopes
 
-A scope written twice is collapsed on the way in, at both levels — `["asset:read", "asset:read"]` and `["asset:read,read"]` alike — and the collapse is reported on stderr, naming the table and the entry. First-seen order survives, so what you read back from `apikey introspect` is in the order your file wrote.
+A scope written twice is collapsed on the way in, at both levels (`["asset:read", "asset:read"]` and `["asset:read,read"]` alike) and the collapse is reported on stderr, naming the table and the entry. First-seen order survives, so what you read back from `apikey introspect` is in the order your file wrote.
 
 Collapsing is safe: a duplicate grants nothing extra, it only makes the payload Roblox is asked to store redundant. It is reported rather than dropped in silence because it is almost always a merge artefact, and the line it was meant to be is worth a look.
 
@@ -166,7 +166,7 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 
 - `default_enabled` - (optional) Whether keys are enabled by default (defaults to `true`)
 - `default_expiration_months` - (optional) Default months until key expiry; omit to allow keys without expiry
-- `default_allowed_cidrs` - Default IP CIDR blocks for keys that set no `allowed_cidrs` of their own. **Not optional in practice**: with no allowlist from either place, `create` and `update` refuse and name the three ways out — set it here, set `allowed_cidrs` on the key, or pass `--no-ip` to allow every address. Nothing is inferred; neither this tool nor Roblox fills in your address for you
+- `default_allowed_cidrs` - Default IP CIDR blocks for keys that set no `allowed_cidrs` of their own. **Not optional in practice**: with no allowlist from either place, `create` and `update` refuse and name the three ways out: set it here, set `allowed_cidrs` on the key, or pass `--no-ip` to allow every address. Nothing is inferred; neither this tool nor Roblox fills in your address for you
 - `default_envs` - (optional) Default env list used when a key has no `envs` field of its own. Each name must exist in `rbxplace.toml`.
 - `name_prefix` - (optional) Prepended verbatim to every key's display name on Roblox. You control the separator: use `mygame_` for underscore, `mygame-` for dash, etc. Useful when the same `rbxapikey.toml` is reused across games so the Creator Hub distinguishes same-named keys (e.g. `mygame_deploy`, `othergame_deploy`). Does not change the local TOML key.
 - `readonly` - (optional) Refuse to load this file if any key in it asks for an operation other than `read` or `list`. See [Read-only by declaration](#read-only-by-declaration)
@@ -176,10 +176,10 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 
 - `name` - (optional) Display name on Roblox Creator Hub (defaults to key ID)
 - `description` - (optional) Description on Roblox Creator Hub; auto-generated if omitted
-- `envs` - Either a list of env names from `rbxplace.toml` (one key, targeting every one of them), or a table of named groups (one key per group — see [One key per environment](#one-key-per-environment)). The list form falls back to `settings.default_envs` when omitted or empty; the table form always names its envs.
+- `envs` - Either a list of env names from `rbxplace.toml` (one key, targeting every one of them), or a table of named groups (one key per group: see [One key per environment](#one-key-per-environment)). The list form falls back to `settings.default_envs` when omitted or empty; the table form always names its envs.
 - `group_ids` - (optional) List of group IDs for group-target scopes
 - `user_ids` - (optional) List of user IDs for user-target scopes
-- `scopes` - List of scope strings in format `"scopeType:operation1,operation2"`. A scope listed twice is collapsed and reported, at both levels — see [Duplicate scopes](#duplicate-scopes).
+- `scopes` - List of scope strings in format `"scopeType:operation1,operation2"`. A scope listed twice is collapsed and reported, at both levels: see [Duplicate scopes](#duplicate-scopes).
 - `enabled` - (optional) `true`/`false` to enable/disable the key (defaults to `settings.default_enabled`)
 - `expiration_months` - (optional) Months until key expires
 - `expiration_days` - (optional) Days until key expires (more precise than months)
@@ -202,7 +202,7 @@ Loading fails, naming the key and the scope, if either is set and a scope asks f
 
 ```
 [keys.viewer] is readonly and asks for `universe:write`. A readonly key may only use
-read and list. Drop the operation, or drop `readonly` — but if this file is the one
+read and list. Drop the operation, or drop `readonly`, but if this file is the one
 that is not supposed to hold write scopes, dropping `readonly` is the change to think
 twice about.
 ```
@@ -211,7 +211,7 @@ twice about.
 
 So the guard sits at config load, which is the one place that sees the declaration before anything reaches Roblox.
 
-It is an **allow-list** — `read` and `list`, nothing else — rather than a list of forbidden writes. Roblox adds operations whenever it likes, and a deny-list would quietly let each new one through, which is the failure this exists to close.
+It is an **allow-list** (`read` and `list`, nothing else) rather than a list of forbidden writes. Roblox adds operations whenever it likes, and a deny-list would quietly let each new one through, which is the failure this exists to close.
 
 `[settings] readonly` and a per-key `readonly` add to each other; neither turns the other off. A key produced by [fan-out](#one-key-per-environment) is checked and named by its generated name, since that is the name it would be created under.
 
@@ -275,7 +275,7 @@ The TOML is the source of truth. The lockfile and Roblox are the applied state.
 
 Studio detection is **opt-in**: `--auto-cookie` is the standing yes, an interactive run is asked once, `--no-auto-cookie` is the standing no, and a run with nowhere to ask declines by itself.
 
-**In CI, that last rule means `--auto-cookie` is not the answer** — there is no Studio on a runner, and a runner that happens to have one must not reach into it. Every write verb here (`create`, `update`, `regenerate`, `delete`, `prune`) requires a cookie, so a scheduled `rbx apikey create --all` needs `RBX_COOKIE` from a secret store. Prefer arranging the pipeline so none of these run there at all: the keys they mint are the credential CI should be *using*, not making.
+**In CI, that last rule means `--auto-cookie` is not the answer**: there is no Studio on a runner, and a runner that happens to have one must not reach into it. Every write verb here (`create`, `update`, `regenerate`, `delete`, `prune`) requires a cookie, so a scheduled `rbx apikey create --all` needs `RBX_COOKIE` from a secret store. Prefer arranging the pipeline so none of these run there at all: the keys they mint are the credential CI should be *using*, not making.
 
 A session cookie is a full-account credential, strictly more powerful than the scoped keys this command creates. [docs/cookie.md](./cookie.md) is the trust model: the full resolution order (including `RBXAPIKEY_COOKIE`, the per-tool variable that survived the merge into one binary), what an auto-detected cookie prints on stderr, and why it is never written to disk.
 
@@ -343,7 +343,7 @@ API keys on Roblox for user 1234567890 (12 total):
 1 tracked by this project, 11 untracked (3 expired, 1 disabled).
 ```
 
-The fourth column is Roblox's own secret preview, the same one the Creator Hub shows — the first characters of the secret and nothing more. It is enough to recognise a key you already hold without the tool ever storing the secret. The values above are placeholders: real previews are fragments of live credentials and do not belong in documentation.
+The fourth column is Roblox's own secret preview, the same one the Creator Hub shows: the first characters of the secret and nothing more. It is enough to recognise a key you already hold without the tool ever storing the secret. The values above are placeholders: real previews are fragments of live credentials and do not belong in documentation.
 
 ### Names are not identity
 
@@ -360,7 +360,7 @@ Matching on names would report your own key as untracked and offer it for deleti
 
 - **Nothing is ever preselected.** A prune where the safe answer is "press enter" eventually deletes a production key.
 - **There is no `--all`.** `delete --all` is bounded by your lockfile; a `prune --all` would not be.
-- Selecting a **tracked** key routes through the ordinary `delete` path, so the lockfile entry and stored secret go with it. An **untracked** key is deleted on Roblox only — the tool never had its secret.
+- Selecting a **tracked** key routes through the ordinary `delete` path, so the lockfile entry and stored secret go with it. An **untracked** key is deleted on Roblox only: the tool never had its secret.
 - `--dry-run` prints the candidates and exits, which is the only non-interactive mode. Deleting other people's keys from a script is not a workflow this supports.
 
 ### The listing is scoped to the active cookie
@@ -383,7 +383,7 @@ It is a **POST that reads**, and the resource is plural. Every `GET` spelling re
 
 ## Machine-readable output
 
-`--json` on the three reads — `list`, `status` and `scopes show` — writes one JSON document to stdout and nothing else. Everything that is not the result (the "N item(s) need attention" line, the `status` summary and its tip, the auto-detected-cookie notice, the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
+`--json` on the three reads (`list`, `status` and `scopes show`) writes one JSON document to stdout and nothing else. Everything that is not the result (the "N item(s) need attention" line, the `status` summary and its tip, the auto-detected-cookie notice, the unknown-key warning from `rbxplace.toml`) goes to stderr, so `jq` reads the pipe and a human still reads the terminal.
 
 Nothing that writes takes it. `create`, `update`, `regenerate`, `delete` and `prune` all stop and ask before they act, and a format that owns stdout cannot stop and ask. `resolve` is excluded for a harder reason: it prints the raw secret, so there is no document that could carry its answer.
 
@@ -426,7 +426,7 @@ What this project declares, joined to what it created: `rbxapikey.toml` and the 
 }
 ```
 
-`declared` and `created` are the two tags the human listing prints, kept as separate booleans rather than folded into one word: a declared key with no lockfile entry is *pending*, a lockfile entry with no declaration is an *orphan*, and they are fixed in opposite directions. Everything the lockfile would have said — `id`, `creator_id`, `expires_at`, both secret fields — is **absent** for a key that was never created.
+`declared` and `created` are the two tags the human listing prints, kept as separate booleans rather than folded into one word: a declared key with no lockfile entry is *pending*, a lockfile entry with no declaration is an *orphan*, and they are fixed in opposite directions. Everything the lockfile would have said (`id`, `creator_id`, `expires_at`, both secret fields) is **absent** for a key that was never created.
 
 `days_until_expiry` is negative once it has passed, and **absent** both when there is no expiry and when the timestamp could not be parsed, which is the `(unparseable)` the human listing marks. `expires_at` stays at full precision where the listing shortens it to the date.
 
@@ -457,7 +457,7 @@ What the **account** holds, which is mostly not this project's doing. Same call 
 }
 ```
 
-`owner` is there for the same reason the human listing starts with the account id: switching the signed-in Studio account changes which account answers and the same key names recur across accounts. `tracked_as` is the lockfile's name for a key, which is not the name Roblox has for it — `name_prefix` makes `viewer` into `myproject_viewer` on purpose — and it is **absent** when `tracked` is false. `state` is `active`, `expired` or `disabled`. `missing_on_account` lists lockfile names Roblox no longer has, the same warning the human form prints.
+`owner` is there for the same reason the human listing starts with the account id: switching the signed-in Studio account changes which account answers and the same key names recur across accounts. `tracked_as` is the lockfile's name for a key, which is not the name Roblox has for it (`name_prefix` makes `viewer` into `myproject_viewer` on purpose) and it is **absent** when `tracked` is false. `state` is `active`, `expired` or `disabled`. `missing_on_account` lists lockfile names Roblox no longer has, the same warning the human form prints.
 
 ### `rbx apikey status --json`
 
@@ -474,7 +474,7 @@ What the **account** holds, which is mostly not this project's doing. Same call 
 }
 ```
 
-`status` is one of `HEALTHY`, `PENDING`, `EXPIRED`, `EXPIRING_SOON`, `ORPHAN_LOCK`, `ORPHAN_REMOTE`, `SECRET_MISSING`, `DISABLED`, `CHECK_FAILED` — the word the human form prints beside the glyph. `healthy` is true only for the first, so a gate reads one field instead of enumerating eight spellings of "no". `remote` says whether Roblox was asked: `ORPHAN_REMOTE` cannot be reported without it, so a consumer that sees no orphan needs to know which of the two runs it is reading. `issues` is the count the human form prints as "N key(s) need attention".
+`status` is one of `HEALTHY`, `PENDING`, `EXPIRED`, `EXPIRING_SOON`, `ORPHAN_LOCK`, `ORPHAN_REMOTE`, `SECRET_MISSING`, `DISABLED`, `CHECK_FAILED`: the word the human form prints beside the glyph. `healthy` is true only for the first, so a gate reads one field instead of enumerating eight spellings of "no". `remote` says whether Roblox was asked: `ORPHAN_REMOTE` cannot be reported without it, so a consumer that sees no orphan needs to know which of the two runs it is reading. `issues` is the count the human form prints as "N key(s) need attention".
 
 A drift between the lockfile and `rbxplace.toml` still fails the command outright, before any document is written. Empty stdout next to a non-zero exit says nothing was read.
 
@@ -495,4 +495,4 @@ rbx apikey status --json | jq -r '.keys[] | select(.healthy | not) | "\(.name): 
 }
 ```
 
-The catalog is advisory: an unknown scope is a warning and never an error, and `rbxapikey.toml` forwards any string Roblox will take. So an unknown scope is a document with `"known": false` and exit 0, not a failure — and `target_type` and `operations` are **absent** there, because the catalog has no answer rather than an empty one. `catalog_version` is what tells "Roblox does not have this scope" from "this catalog is older than that scope".
+The catalog is advisory: an unknown scope is a warning and never an error, and `rbxapikey.toml` forwards any string Roblox will take. So an unknown scope is a document with `"known": false` and exit 0, not a failure, and `target_type` and `operations` are **absent** there, because the catalog has no answer rather than an empty one. `catalog_version` is what tells "Roblox does not have this scope" from "this catalog is older than that scope".

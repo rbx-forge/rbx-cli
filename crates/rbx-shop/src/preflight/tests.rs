@@ -1,6 +1,6 @@
 //! The matching rule and the message it produces.
 //!
-//! The end-to-end behaviour — that `sync` lists before it creates, and stops —
+//! The end-to-end behaviour (that `sync` lists before it creates, and stops)
 //! is asserted in `commands/sync/tests.rs`, where the mock server and the
 //! config fixture already live. What is left here is the part that is a
 //! judgement call rather than a wiring question: which names count as the

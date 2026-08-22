@@ -4,7 +4,7 @@
 # The unit tests pin the contract between the two halves: each generated script
 # contains its hook and asks for the right lister, and the listers print the
 # right lines. What no test in the workspace can reach is the half that runs
-# inside a shell — whether the graft survives that shell's own completion
+# inside a shell, whether the graft survives that shell's own completion
 # system. This is that half, and it is why #102 asked for it.
 #
 # Usage: scripts/completion-smoke.sh <path-to-rbx>
@@ -63,7 +63,7 @@ report() { # name, output, expected...
   if [ ${#missing[@]} -eq 0 ]; then
     echo "  ok   $name"
   else
-    echo "  FAIL $name — missing: ${missing[*]}"
+    echo "  FAIL $name: missing: ${missing[*]}"
     echo "       got: $(tr '\n' ' ' <<<"$out")"
     fail=1
   fi

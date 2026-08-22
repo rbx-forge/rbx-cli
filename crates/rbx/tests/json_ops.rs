@@ -5,7 +5,7 @@
 //! The unit tests in `rbx_servers::json` and `rbx_ads::json` pin what the
 //! documents *say*. They cannot pin what else reaches stdout, because a stray
 //! `println!` three layers down is invisible to a test that renders a struct
-//! into a buffer — and a stray `println!` is exactly the failure that breaks
+//! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
 //! Every case is arranged to have something to say on stderr as well: the

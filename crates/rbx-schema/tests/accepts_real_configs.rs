@@ -86,7 +86,7 @@ fn the_committed_apikey_configs_validate() {
 }
 
 /// Every documented env key at once, including the ones no committed file
-/// happens to use. The `.example` files are a thin corpus — between them they
+/// happens to use. The `.example` files are a thin corpus: between them they
 /// exercise `universe_id` and `places` and nothing else.
 #[test]
 fn a_place_config_using_every_documented_key_validates() {
@@ -207,7 +207,7 @@ value = false
 }
 
 /// One shop config exercising all three resource kinds, the tables around
-/// them, and a per-env overlay — the shape `docs/shop.md` documents.
+/// them, and a per-env overlay: the shape `docs/shop.md` documents.
 #[test]
 fn a_shop_config_with_all_three_resource_kinds_validates() {
     assert_valid(
@@ -325,7 +325,7 @@ CustomWalkAnimationId = 123456789
 
 /// The rule that matters most for this file. `rbx meta` sends the document
 /// through without inspecting it, so a key Roblox adds tomorrow already works
-/// today — and a schema that painted it red would be lying about the tool.
+/// today, and a schema that painted it red would be lying about the tool.
 #[test]
 fn an_avatar_key_the_schema_does_not_know_is_still_accepted() {
     assert_valid(

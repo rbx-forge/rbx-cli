@@ -253,7 +253,7 @@ async fn an_error_unrelated_to_scopes_is_not_dressed_up_as_one() {
 /// The endpoint states the first: "When paginating, all other parameters
 /// provided to the subsequent call must match the call that provided the page
 /// token." So the page size is decided once. That alone overshoots on the last
-/// page, which is why the walk truncates — a fix that carried the rule without
+/// page, which is why the walk truncates: a fix that carried the rule without
 /// the truncate made `--limit 150` return 200 rows.
 #[tokio::test]
 async fn the_walk_keeps_one_page_size_and_respects_the_limit() {

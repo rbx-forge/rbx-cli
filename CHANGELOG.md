@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`rbx secret`** — the universe secrets store `HttpService:GetSecret` reads
+- **`rbx secret`**: the universe secrets store `HttpService:GetSecret` reads
   from: `list`, `set`, `delete`, and `public-key`. Until now the only way to
   put a credential in front of a running experience was the Creator Dashboard,
   by hand, one universe at a time, which is how staging ends up still holding
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Writes are encrypted **before they are sent**, because Roblox does not accept
   a secret in the clear even over TLS: the value is sealed with a LibSodium
   sealed box against the universe's own public key, so the ciphertext cannot be
-  opened by anything — including the process that produced it. That is what
+  opened by anything, including the process that produced it. That is what
   makes `printenv API_TOKEN | rbx secret set api_token --stdin --domain
   api.example.com --apply` safe to run from CI.
 
@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   `set` requires `--domain <pattern>` or `--no-domain` on every write, with no
   default for either. A secret with no domain cannot be attached to an outgoing
-  request at all — right for a signing key, silent breakage for an API token —
+  request at all (right for a signing key, silent breakage for an API token)
   and since a `set` replaces the whole secret, an unstated domain would be a
   cleared one.
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`rbx open <file.rbxl>`** — open a place file from disk, by extension
+- **`rbx open <file.rbxl>`**: open a place file from disk, by extension
   (`.rbxl` / `.rbxlx`) or explicitly with `--file`. An env is still an env: a
   folder holding a file named after one does not change what the name means.
 - **`rbx open` works under WSL.** It used to call `xdg-open`, which cannot
@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   all there. WSL is now detected and the target crosses to the Windows host.
   The gap was pointed out by ROpen 1.3.2, which fixed the same one in Luau; the
   implementation here is independent.
-- **`rbx open --new`** — open a new, empty place, the way Studio's own "New
+- **`rbx open --new`**: open a new, empty place, the way Studio's own "New
   Experience" button does. `--new` lists Roblox's templates and asks; `--baseplate`
   takes the stock one without a picker or a network call; `--template <place-id>`
   names one outright. Nothing is created on Roblox: Studio fetches the template's
@@ -57,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`rbx ban list` honours `--limit`.** It stopped fetching once it held
   `--limit` rows but never trimmed to them, so with the page size nailed to
   100, `--limit 5` answered with up to 100 rows under a JSON document claiming
-  `limit: 5, count: 100, limit_reached: true` — three fields contradicting each
+  `limit: 5, count: 100, limit_reached: true`: three fields contradicting each
   other, and the ones a script reads. The walk also refused to end on an empty
   page that still carried a token, which could spin.
 - **`h2` 0.4.16**, for RUSTSEC-2026-0258: unbounded queuing of empty DATA
@@ -75,12 +75,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`rbx env rm <name>`** — take an env out of every file that mentions it:
+- **`rbx env rm <name>`**: take an env out of every file that mentions it:
   the block in `rbxplace.toml`, every overlay and lockfile section keyed by it,
   and the generated per-env module. Not called `destroy`, because Roblox does
   not let a tool keep that promise: a game pass cannot be deleted, only taken
   off sale.
-- **`rbx data ordered`** — the leaderboard resource, with `list`, `get`, `set`,
+- **`rbx data ordered`**: the leaderboard resource, with `list`, `get`, `set`,
   `increment` and `delete`. Ordering and `--min` / `--max` filtering happen on
   Roblox rather than after the fact.
 - **Avatar rules, third-party permissions, paid access and genre** in
@@ -163,24 +163,24 @@ to universes and places, and every command resolves `--env` through it.
 State you write into a TOML file and commit, reconciled against Roblox.
 Diffable, reviewable, safe on every push.
 
-- **`init`** — create a group, a universe, places, and record their ids.
-- **`import`** — adopt a universe that already exists: every config and
+- **`init`**: create a group, a universe, places, and record their ids.
+- **`import`**: adopt a universe that already exists: every config and
   lockfile written from what is live, in one pass, so that `check` is green
   immediately after with nothing in between.
-- **`env`** — read `rbxplace.toml`, print one id for a script, generate a Luau,
+- **`env`**: read `rbxplace.toml`, print one id for a script, generate a Luau,
   Lua, JSON or TypeScript module so game code branches on env instead of
   hardcoding ids.
-- **`apikey`** — declare Open Cloud keys and scopes in `rbxapikey.toml`, create
+- **`apikey`**: declare Open Cloud keys and scopes in `rbxapikey.toml`, create
   and rotate them, and see every key the account holds rather than only the
   ones this project made. `readonly = true` refuses a write scope at load.
-- **`doctor`** — prove the loaded key works with one real read.
-- **`check`** / **`status`** — every configured tool's check in one pass, one
+- **`doctor`**: prove the loaded key works with one real read.
+- **`check`** / **`status`**: every configured tool's check in one pass, one
   exit code for CI; the same engine rendered for a person.
-- **`place`** — upload, download, promote between envs, roll back.
-- **`meta`** — universe and place metadata, including the fields Open Cloud
+- **`place`**: upload, download, promote between envs, roll back.
+- **`meta`**: universe and place metadata, including the fields Open Cloud
   does not expose.
-- **`config`** — the live in-experience config, with revisions and rollback.
-- **`shop`** — game passes, badges and developer products, with typed Luau
+- **`config`**: the live in-experience config, with revisions and rollback.
+- **`shop`**: game passes, badges and developer products, with typed Luau
   codegen and a `--check` that proves the committed module was not hand-edited.
 
 ### Operational
@@ -188,25 +188,25 @@ Diffable, reviewable, safe on every push.
 State that only exists while the game is running, which no TOML file can
 describe. Dry run by default, `--apply` to write, `--env all` refused.
 
-- **`servers`** — servers up now, how the stopped ones ended, and what a
+- **`servers`**: servers up now, how the stopped ones ended, and what a
   crashed one logged.
-- **`analytics`** — players, retention, revenue per payer; CSV for charting
+- **`analytics`**: players, retention, revenue per payer; CSV for charting
   elsewhere.
-- **`ban`** — inspect and change player restrictions.
-- **`restart`** — forecast how many players a rolling restart would disconnect,
+- **`ban`**: inspect and change player restrictions.
+- **`restart`**: forecast how many players a rolling restart would disconnect,
   then launch it.
-- **`data`** — read, overwrite, copy and recover one data store entry, with a
+- **`data`**: read, overwrite, copy and recover one data store entry, with a
   local backup written before every write.
-- **`memorystore`** — cache values servers read through `MemoryStoreService`.
-- **`message`** — push a MessagingService message to every running server.
-- **`ads`** — launch and steer ad campaigns.
-- **`probe`** — a raw authenticated request to any Open Cloud path.
+- **`memorystore`**: cache values servers read through `MemoryStoreService`.
+- **`message`**: push a MessagingService message to every running server.
+- **`ads`**: launch and steer ad campaigns.
+- **`probe`**: a raw authenticated request to any Open Cloud path.
 
 ### Local
 
-- **`open`** — launch Studio at a place, by name or by id.
-- **`download`** — fetch an asset by id.
-- **`completions`** — shell completions that read your `rbxplace.toml` at TAB
+- **`open`**: launch Studio at a place, by name or by id.
+- **`download`**: fetch an asset by id.
+- **`completions`**: shell completions that read your `rbxplace.toml` at TAB
   time, so a new env completes without regenerating anything.
 
 ### Credentials

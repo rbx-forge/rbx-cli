@@ -73,7 +73,7 @@ impl RbxClient {
             }
             // As in places.rs: the request goes in the context, the response
             // stays on the ApiError that anyhow prints as the cause. The hint
-            // belongs with the context — it is advice about the request we
+            // belongs with the context: it is advice about the request we
             // made, not about the bytes that came back.
             return Err(
                 anyhow::Error::from(ApiError::new(status, resp_body)).context(format!(
@@ -180,7 +180,7 @@ mod tests {
             .unwrap();
     }
 
-    /// The everyday failure — a key without `universe:write` — has to arrive
+    /// The everyday failure (a key without `universe:write`) has to arrive
     /// as an error rather than as a success over an unchanged universe.
     #[tokio::test]
     async fn a_rejected_patch_is_an_error_not_a_silent_no_op() {
@@ -199,7 +199,7 @@ mod tests {
             .unwrap_err();
 
         // `{:?}` rather than `{}`: the top-level context is the request that
-        // failed — method, mask and body, which is what you need to see — and
+        // failed (method, mask and body, which is what you need to see) and
         // the status lives further down the chain.
         let chain = format!("{error:?}").to_lowercase();
         assert!(

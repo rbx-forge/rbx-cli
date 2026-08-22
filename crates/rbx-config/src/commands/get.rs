@@ -1,4 +1,4 @@
-//! `rbx config get` — the published config, or one key of it.
+//! `rbx config get`: the published config, or one key of it.
 //!
 //! `--json` wraps the answer in a document rather than printing it bare; see
 //! `crate::json`.
@@ -48,7 +48,7 @@ pub async fn run(ctx: &ConfigCtx, key: Option<&str>, json: bool) -> Result<()> {
             ));
         }
         println!(
-            "Live config — env: {} (universe {})",
+            "Live config: env: {} (universe {})",
             ctx.env_label().bold(),
             universe_id
         );

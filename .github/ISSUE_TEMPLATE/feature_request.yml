@@ -9,7 +9,7 @@ body:
         [What this tool does not do](https://github.com/rbx-forge/rbx-cli#what-this-tool-does-not-do).
         Several plausible-sounding features are deliberately out of scope, with
         the reasoning written down. If yours is on that list, the interesting
-        conversation is about the reasoning, not the feature — say which part
+        conversation is about the reasoning, not the feature: say which part
         you think is wrong.
 
         This is a solo-maintained project. Issues are triaged, not promised.
@@ -20,7 +20,7 @@ body:
       label: The problem
       description: >
         What are you trying to do, and what stops you today? Describe the
-        situation, not the solution — the workaround you currently use is the
+        situation, not the solution: the workaround you currently use is the
         most useful detail here.
     validations:
       required: true
@@ -30,7 +30,7 @@ body:
     attributes:
       label: What you'd like it to do
       description: >
-        If you have a command shape in mind, write it out — flags included.
+        If you have a command shape in mind, write it out: flags included.
       render: shell
     validations:
       required: true
@@ -40,7 +40,7 @@ body:
     attributes:
       label: Alternatives you considered
       description: >
-        Including "do it in a shell script" and "do it by hand" — knowing why
+        Including "do it in a shell script" and "do it by hand": knowing why
         those don't work is what makes the case.
     validations:
       required: false

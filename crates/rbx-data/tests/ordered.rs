@@ -346,7 +346,7 @@ async fn every_request_carries_the_api_key() {
 /// subsequent call must match the call that provided the page token." A second
 /// page asking for a different `maxPageSize` than the call that issued its
 /// token is a request Roblox may reject, and the failure would only appear on
-/// listings long enough to page — which is exactly the listing nobody tests by
+/// listings long enough to page, which is exactly the listing nobody tests by
 /// hand.
 #[tokio::test]
 async fn every_page_asks_for_the_same_size() {

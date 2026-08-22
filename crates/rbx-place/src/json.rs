@@ -2,11 +2,11 @@
 //!
 //! Two kinds of document live here, and the second one is new to the tree.
 //!
-//! The read commands — `versions`, `places` — follow the pilots: a
+//! The read commands (`versions`, `places`) follow the pilots: a
 //! `schema_version` first, then named objects all the way down, optional
 //! fields omitted rather than emitted as `null`.
 //!
-//! The write commands — `upload`, `promote`, `rollback` — share one envelope,
+//! The write commands (`upload`, `promote`, `rollback`) share one envelope,
 //! `WriteDocument`, and it is deliberately a *receipt* rather than a status
 //! line. Three decisions make it one:
 //!
@@ -135,7 +135,7 @@ pub struct Place {
     /// the universe listing this command uses.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_player_count: Option<u64>,
-    /// The `rbxplace.toml` key this place is mapped to — the name `--place`
+    /// The `rbxplace.toml` key this place is mapped to: the name `--place`
     /// takes. **Absent** when the file does not have it, and absent for every
     /// place under a bare `--universe-id`.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -202,7 +202,7 @@ pub enum WriteCommand {
 
 /// What one `place upload`, `promote`, or `rollback` did.
 ///
-/// Emitted once the run has started writing — after the confirmation gate, on
+/// Emitted once the run has started writing, after the confirmation gate, on
 /// the way out, whether or not every target succeeded. A failure before that
 /// point (a missing env, a refused confirmation, a source version that does not
 /// exist) writes nothing to stdout at all: nothing happened, and an empty
@@ -216,7 +216,7 @@ pub struct WriteDocument {
     /// plumb `$?` through as well, the way `rbx check --json` carries
     /// `exit_code`.
     pub ok: bool,
-    /// The env that was written to. For `promote`, the target — `from_env`
+    /// The env that was written to. For `promote`, the target, `from_env`
     /// carries the other one.
     pub env: String,
     /// The source env of a `promote`. **Absent** for `upload` and `rollback`.
@@ -451,7 +451,7 @@ mod tests {
     }
 
     /// With no env there is no file to compare against, so `configured` is
-    /// absent rather than false — reporting every place as missing would be a
+    /// absent rather than false: reporting every place as missing would be a
     /// lie a monitoring script could act on.
     #[test]
     fn a_universe_id_listing_omits_the_configured_question_entirely() {

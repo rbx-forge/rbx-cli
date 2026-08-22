@@ -27,7 +27,7 @@ pub struct Owner {
 /// One place in the universe, as it will be written under `[<env>.places]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Place {
-    /// Key for the TOML table — slugified, and `main` for the root place.
+    /// Key for the TOML table: slugified, and `main` for the root place.
     pub key: String,
     pub id: u64,
     /// What Roblox calls it, kept for the progress line only.
@@ -141,8 +141,8 @@ struct DevelopPlacesPage {
 
 /// List the universe's places, root first.
 ///
-/// Open Cloud has no endpoint for this — `/cloud/v2/universes/{id}/places/{p}`
-/// reads one place but cannot enumerate them — so this is the legacy host.
+/// Open Cloud has no endpoint for this (`/cloud/v2/universes/{id}/places/{p}`
+/// reads one place but cannot enumerate them) so this is the legacy host.
 ///
 /// The cookie is accepted and buys nothing. Measured against a private
 /// universe with no credential of any kind, this listing answers 200 with
@@ -282,9 +282,9 @@ fn unique_key(base: &str, taken: &[Place]) -> String {
 /// every call at a single mock server.
 #[derive(Debug)]
 pub struct Hosts {
-    /// `apis.roblox.com` — the universe itself.
+    /// `apis.roblox.com`: the universe itself.
     pub cloud: ApiBase,
-    /// `develop.roblox.com` — the place list, which Open Cloud does not serve.
+    /// `develop.roblox.com`: the place list, which Open Cloud does not serve.
     pub develop: ApiBase,
 }
 
@@ -334,7 +334,7 @@ mod tests {
         );
     }
 
-    /// An owner rbx cannot parse is skipped, not fatal — `[owner]` is a
+    /// An owner rbx cannot parse is skipped, not fatal: `[owner]` is a
     /// convenience, and failing the import over it would be out of proportion.
     #[test]
     fn an_unparseable_owner_is_none_rather_than_an_error() {
@@ -376,7 +376,7 @@ mod tests {
     /// re-parsed by the server as something else: `a+b` decodes to `a b`, and
     /// everything after an `&` becomes a separate parameter. Both ask for page
     /// one again, so the place listing loops on the first page for ever rather
-    /// than erroring — and an import silently writes only the first hundred
+    /// than erroring, and an import silently writes only the first hundred
     /// places.
     #[tokio::test]
     async fn a_cursor_with_reserved_characters_reaches_the_server_intact() {

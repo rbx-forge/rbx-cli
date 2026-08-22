@@ -4,7 +4,7 @@
 //! Two thirds of a useful completion for this CLI lives in `rbxplace.toml`.
 //! `--env` takes a section name from that file and `--place` takes a key from
 //! that section's `places` table, so a script generated at build time can only
-//! offer file names for both — which is worse than nothing, because it looks
+//! offer file names for both, which is worse than nothing, because it looks
 //! like it worked.
 //!
 //! ## Why not clap's own dynamic completions
@@ -29,12 +29,12 @@
 //! warning, no non-zero status the shell reports. A completion that prints is
 //! worse than a completion that is empty, because it lands in the middle of a
 //! half-typed command line. Every hook therefore sends stderr to the void and
-//! ignores the exit status — `rbx env list` already prints its diagnostics
+//! ignores the exit status: `rbx env list` already prints its diagnostics
 //! there and its values on stdout, so discarding one stream is enough.
 //!
 //! The hook is also the reason `--env`/`--place` values are never synthesised
 //! shell-side. `all` is a valid `--env` and is not in the file, and it would
-//! be one line to add to each of the four hooks — four copies of a rule that
+//! be one line to add to each of the four hooks: four copies of a rule that
 //! then has to stay true. The hooks pipe one command's stdout and decide
 //! nothing, so they cannot drift from the CLI.
 
@@ -48,7 +48,7 @@ use clap_complete::Shell;
 /// Build the completion script for `shell`.
 ///
 /// With `dynamic` false the output is exactly what `clap_complete` emits, byte
-/// for byte — the escape hatch for anyone who does not want a subprocess on
+/// for byte: the escape hatch for anyone who does not want a subprocess on
 /// every `<TAB>`, and the baseline the tests compare against.
 pub fn script(shell: Shell, cmd: &mut Command, dynamic: bool) -> String {
     let mut buf = Vec::new();
@@ -108,7 +108,7 @@ fn with_hook(shell: Shell, base: String) -> String {
 ///
 /// `.gitattributes` normalises the repository to LF but checks the working
 /// tree out in the platform's ending, so on a Windows clone these constants
-/// arrive with CRLF baked into the literal — and a bash script with CRLF fails
+/// arrive with CRLF baked into the literal, and a bash script with CRLF fails
 /// on its first line with `$'\r': command not found`. Where the binary was
 /// built must not decide whether the script it writes runs, so the endings are
 /// fixed here rather than left to the checkout. clap's own output is already
@@ -145,7 +145,7 @@ fn zsh_hook(base: String) -> String {
 /// powershell: put the hook immediately after the script block's `param(...)`,
 /// so it runs before the generated `switch` builds the static candidate list.
 ///
-/// Falls back to leaving the script alone if the marker is gone — a completion
+/// Falls back to leaving the script alone if the marker is gone: a completion
 /// missing its dynamic values still completes every command and flag, whereas
 /// text spliced at a guessed offset produces a script that does not parse, and
 /// a broken profile is a much worse failure than a missing feature.
@@ -172,7 +172,7 @@ fn powershell_hook(base: String) -> String {
 /// containing a space survives as one candidate. `compopt` turns off the
 /// file-name fallback the registration asks for, so outside a project the
 /// answer is nothing rather than a directory listing offered where an env name
-/// belongs. It is redirected because bash 3.2 — still what macOS ships — has
+/// belongs. It is redirected because bash 3.2 (still what macOS ships) has
 /// no `compopt`; there the fallback stays, which is the behaviour that shell
 /// had before this hook.
 const BASH_HOOK: &str = r#"
@@ -212,7 +212,7 @@ fi
 /// zsh helpers. `_describe` is what gives the values zsh's own grouping and
 /// menu behaviour, so they list like any other completion rather than like raw
 /// words. Returning 1 on an empty list hands the decision back to zsh, which
-/// then shows nothing at all — the intended answer outside a project.
+/// then shows nothing at all: the intended answer outside a project.
 const ZSH_HOOK: &str = r#"
 # --- rbx dynamic values -----------------------------------------------------
 # `--env` and `--place` take names from ./rbxplace.toml. Errors are discarded:
@@ -259,7 +259,7 @@ complete -c rbx -l place -r -f -a "(rbx env list --place-names 2>/dev/null)"
 ///
 /// The early return happens whether or not any value was found. Falling
 /// through to the generated switch would be the smaller diff, but the switch
-/// answers a value position with the list of flags and subcommands — thirty
+/// answers a value position with the list of flags and subcommands: thirty
 /// candidates, none of them valid there. Once the previous token is known to
 /// be `--env` or `--place`, an empty list is the honest answer.
 const POWERSHELL_HOOK: &str = r#"

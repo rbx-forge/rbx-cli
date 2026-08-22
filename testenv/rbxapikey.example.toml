@@ -6,7 +6,7 @@
 # `rbxapikey.toml` itself is gitignored, which is the point: a real public IP
 # in an allowlist is personal data and an operational disclosure, and it cannot
 # be committed by accident if the path holding it is not a path git watches.
-# Edit *this* file only for changes worth sharing — a new key, a scope
+# Edit *this* file only for changes worth sharing: a new key, a scope
 # decision, a comment. Never paste a real value into it.
 #
 # rbxapikey.toml for the rbx-ops test environment.

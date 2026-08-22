@@ -21,7 +21,7 @@ fn a_key_roblox_dropped_is_reported() {
 }
 
 /// The ordinary case: a partial document, completed by Roblox. Reported, but
-/// it is not a problem — it is how somebody learns the full shape.
+/// it is not a problem: it is how somebody learns the full shape.
 #[test]
 fn a_default_roblox_filled_in_is_reported_separately() {
     let echo = compare(

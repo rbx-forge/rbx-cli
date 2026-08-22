@@ -1,4 +1,4 @@
-//! `rbx apikey update <key>|--all` — re-apply key config from rbxapikey.toml.
+//! `rbx apikey update <key>|--all`: re-apply key config from rbxapikey.toml.
 
 use anyhow::{bail, Result};
 use colored::Colorize;
@@ -102,7 +102,7 @@ async fn update_one(
     let effective_envs = config::effective_envs(cfg, key_cfg);
     let need_owners = scope_builder::needs_owner_resolution(key_cfg);
 
-    // Drift check is global (per-env) and runs once at command entry — see
+    // Drift check is global (per-env) and runs once at command entry: see
     // `run()`. By the time we get here, the cached `lk.envs` entries for the
     // envs this key uses are guaranteed to match `rbxplace.toml`.
     let synced =
@@ -139,7 +139,7 @@ async fn update_one(
     if needs_migration {
         let secret = secret_store::read(&previous_resolved, Some(&entry)).ok_or_else(|| {
             anyhow::anyhow!(
-                "\"{}\": cannot migrate secret — not found at previous location ({}: {}). Run `rbx apikey regenerate {}` after updating to create a fresh secret at the new location.",
+                "\"{}\": cannot migrate secret, not found at previous location ({}: {}). Run `rbx apikey regenerate {}` after updating to create a fresh secret at the new location.",
                 name,
                 previous_resolved.backend.as_str(),
                 previous_resolved.target,
@@ -223,7 +223,7 @@ async fn update_one(
         .green()
     );
 
-    // Cleanup the old secret file (if any) only after Roblox confirmed the update — don't destroy
+    // Cleanup the old secret file (if any) only after Roblox confirmed the update: don't destroy
     // local state if the API call failed. Same UX as `delete`: prompt unless --clean-files.
     if needs_migration && previous_resolved.backend == secret_store::Backend::File {
         let should_delete = if clean_files {

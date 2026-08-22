@@ -76,7 +76,7 @@ mod tests {
 
     /// #20, from this side. `resolve_cookie` owns the whole decision, so the
     /// only way this crate can get it wrong again is by adding a source of its
-    /// own — which is exactly what the `.or_else` here used to be.
+    /// own, which is exactly what the `.or_else` here used to be.
     ///
     /// Asserting the two agree, rather than asserting a particular cookie,
     /// keeps this true on a machine with Studio signed in and in CI without.

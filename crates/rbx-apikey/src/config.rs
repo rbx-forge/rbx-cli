@@ -1,4 +1,4 @@
-//! `rbxapikey.toml` — user-editable, safe to commit. Declarative per-key configuration.
+//! `rbxapikey.toml`: user-editable, safe to commit. Declarative per-key configuration.
 
 use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -39,7 +39,7 @@ pub struct KeyConfig {
     /// `[settings] readonly`; neither turns the other off.
     pub readonly: bool,
     /// The env names this one key targets. For a key produced by fan-out these
-    /// are its group's envs, not the whole declaration's — that separation is
+    /// are its group's envs, not the whole declaration's: that separation is
     /// the point of the feature.
     pub envs: Vec<String>,
     /// The name of the env group this key came from, when it came from one.
@@ -82,8 +82,8 @@ pub struct Settings {
     pub default_secret_file: Option<String>,
     /// Refuse any key in this file that asks for a write operation.
     ///
-    /// For a directory whose whole point is that it cannot write — `prodread/`
-    /// here — where the rule used to live in a comment and was enforced by
+    /// For a directory whose whole point is that it cannot write (`prodread/`
+    /// here) where the rule used to live in a comment and was enforced by
     /// nothing. A per-key `readonly` adds to this; neither turns the other off.
     pub readonly: bool,
 }
@@ -145,22 +145,22 @@ pub struct RawSettings {
 
 /// What a key's `envs` field may hold: one list, or one list per named group.
 ///
-/// TOML tells the two apart on its own — an array is not a table — so fan-out
+/// TOML tells the two apart on its own (an array is not a table) so fan-out
 /// needs no flag of its own to switch on. The array form keeps the meaning it
 /// has always had, which matters: a read-only observability key that legitimately
 /// spans dev, staging and prod is still one key, and turning every declaration
 /// into per-env keys would have broken it.
 ///
 /// Rejected alternatives, both recorded in issue 8. A `per_env = true` flag
-/// cannot express the split people actually run — dev and staging sharing one
-/// key while prod stays alone — since it only produces singletons. A positional
+/// cannot express the split people actually run (dev and staging sharing one
+/// key while prod stays alone) since it only produces singletons. A positional
 /// list of lists gives the groups no stable identity, so the generated key
 /// names, secret files and lockfile entries would be keyed by position and
 /// would all move the day somebody reorders the list or adds an env.
 #[derive(Debug)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema), serde(untagged))]
 pub enum RawEnvs {
-    /// `envs = ["dev", "prod"]` — one key, targeting every env listed.
+    /// `envs = ["dev", "prod"]`: one key, targeting every env listed.
     Shared(Vec<String>),
     /// A table of named groups, written as `keys.<name>.envs` with one array
     /// per group, producing one key per group: a `ci` group of dev and staging
@@ -177,7 +177,7 @@ pub enum RawEnvs {
 /// Hand-written rather than `#[serde(untagged)]`, for the error message.
 ///
 /// The derived version reports a mistyped `envs` as "data did not match any
-/// variant of untagged enum RawEnvs" — a Rust type name, in a message about a
+/// variant of untagged enum RawEnvs": a Rust type name, in a message about a
 /// TOML file, offered to somebody who has never heard of either. A visitor
 /// keeps the line and column that TOML parse errors carry and says what the
 /// field takes instead.
@@ -226,7 +226,7 @@ pub struct RawKey {
     readonly: Option<bool>,
     /// Env names this key targets, overriding `default_envs`. Written as an
     /// array for one key spanning them all, or as a table of named groups for
-    /// one key per group — see the two forms above.
+    /// one key per group: see the two forms above.
     #[serde(default)]
     envs: Option<RawEnvs>,
     /// Group ids this key acts on behalf of, for scopes that take a group
@@ -292,7 +292,7 @@ pub struct RawFile {
 /// One redundancy the loader took out of a key's `scopes` on the way in.
 ///
 /// Reported rather than dropped in silence. A scope written twice grants
-/// nothing extra — the key is no wider for it — so collapsing it is safe, but
+/// nothing extra (the key is no wider for it) so collapsing it is safe, but
 /// it is almost always a merge artefact or a half-finished edit, and the line
 /// it was meant to be is worth a look. This is the same stance the duplicate
 /// resource name in `init --from-remote` takes: a duplicate is a question.
@@ -423,7 +423,7 @@ fn parse_scope_string(s: &str) -> Result<ParsedScope> {
 /// Parse a key's `scopes`, collapsing duplicates at both levels.
 ///
 /// Two entries are the same entry when they name the same scope type and the
-/// same set of operations, whatever order each wrote them in — `universe:read,write`
+/// same set of operations, whatever order each wrote them in: `universe:read,write`
 /// and `universe:write,read` are one declaration written twice. The first
 /// spelling survives verbatim.
 ///
@@ -476,8 +476,8 @@ fn parse_scopes(
     Ok(scopes)
 }
 
-/// Env group names end up in three identities at once — the generated key's
-/// name here, its display name on Roblox, and its secret file path — so the
+/// Env group names end up in three identities at once (the generated key's
+/// name here, its display name on Roblox, and its secret file path) so the
 /// character set is the intersection of what all three take without escaping.
 ///
 /// Refusing rather than sanitising: a silently rewritten group name is a name
@@ -503,7 +503,7 @@ fn validate_group_name(key_name: &str, group: &str) -> Result<()> {
 /// One declaration to one or more keys.
 ///
 /// The array form yields the declaration itself. The table form yields one key
-/// per group, named `<key>_<group>`, differing only in which envs they target —
+/// per group, named `<key>_<group>`, differing only in which envs they target,
 /// which is the whole point: everything else, scopes above all, is written once
 /// and cannot drift between environments the way three hand-copied blocks do.
 fn parse_key(
@@ -589,7 +589,7 @@ fn parse_key(
 ///
 /// Deliberately a short allow-list rather than a deny-list of writes. Roblox
 /// adds scope types and operations whenever it likes, and a deny-list would
-/// silently let each new one through — which is the failure mode this guard
+/// silently let each new one through, which is the failure mode this guard
 /// exists to close, so it must not have it too.
 const READ_ONLY_OPERATIONS: &[&str] = &["read", "list"];
 
@@ -612,7 +612,7 @@ fn check_readonly(name: &str, scopes: &[ScopeSpec]) -> Result<()> {
         for op in &scope.operations {
             if !READ_ONLY_OPERATIONS.contains(&op.as_str()) {
                 bail!(
-                    "[keys.{name}] is readonly and asks for `{}:{op}`. A readonly key may only use {}. Drop the operation, or drop `readonly` — but if this file is the one that is not supposed to hold write scopes, dropping `readonly` is the change to think twice about.",
+                    "[keys.{name}] is readonly and asks for `{}:{op}`. A readonly key may only use {}. Drop the operation, or drop `readonly`, but if this file is the one that is not supposed to hold write scopes, dropping `readonly` is the change to think twice about.",
                     scope.scope_type,
                     READ_ONLY_OPERATIONS.join(" and ")
                 );
@@ -705,8 +705,8 @@ pub fn load_from(path: &Path) -> Result<Config> {
 
 /// Refuse a fan-out whose generated keys would write their secrets to one file.
 ///
-/// Every other identity a fanned-out key has is distinct by construction — the
-/// name carries the group — but `secret_file` is written by hand, and a path
+/// Every other identity a fanned-out key has is distinct by construction (the
+/// name carries the group) but `secret_file` is written by hand, and a path
 /// with no `{name}` or `{env_group}` in it is the same path for every group.
 /// The last `create` would then overwrite the secret of the key created before
 /// it, leaving a live key on Roblox that nothing local can authenticate as, and
@@ -822,7 +822,7 @@ pub fn resolve_universe_ids(
 
 /// Display name sent to Roblox: explicit `key.name`, else the TOML key,
 /// optionally prefixed by `settings.name_prefix` (verbatim, no separator
-/// injected — the user controls the separator).
+/// injected: the user controls the separator).
 ///
 /// A fanned-out key appends its group, because Roblox stores this name and two
 /// keys called `deploy` in one Creator Hub are two keys nobody can tell apart.
@@ -854,7 +854,7 @@ pub fn resolve_remote_name(cfg: &Config, key_cfg: &KeyConfig, key_name: &str) ->
 /// `{env_group}` is the group on its own, for layouts that want it as a path
 /// segment of its own (`.secrets/{env_group}/{name}.env`). It expands to
 /// nothing for a key that does not fan out, which is why it belongs in a file
-/// where every key does — `{name}` already separates the rest.
+/// where every key does: `{name}` already separates the rest.
 ///
 /// Templating the explicit `secret_file` too is a change from the verbatim
 /// path it used to be. A fanned-out declaration has one `secret_file` and
@@ -1556,7 +1556,7 @@ scopes = [\"asset:read\", \"asset:write\"]
     }
 
     /// An allow-list, not a deny-list. Roblox adds operations whenever it
-    /// likes, and a deny-list would let each new one through — which is the
+    /// likes, and a deny-list would let each new one through, which is the
     /// failure this guard exists to close, so it must not have it too.
     #[test]
     fn an_operation_nobody_has_heard_of_is_refused_rather_than_allowed() {

@@ -1,7 +1,7 @@
 //! The secrets store over HTTP.
 //!
 //! The tests worth having here are the ones covering what would otherwise cost
-//! a real request — or a real leaked credential — to learn:
+//! a real request (or a real leaked credential) to learn:
 //!
 //! - **The ciphertext is a genuine sealed box.** Every write is decrypted with
 //!   the mock universe's private key and compared against the plaintext. A
@@ -156,7 +156,7 @@ async fn a_new_secret_is_posted_sealed_and_never_in_the_clear() {
 }
 
 /// A `409` is the branch, not an error: it is how this finds out that the
-/// secret already exists without spending a listing — and a read scope — on
+/// secret already exists without spending a listing (and a read scope) on
 /// every write.
 #[tokio::test]
 async fn an_existing_secret_falls_back_from_post_to_patch() {
@@ -402,7 +402,7 @@ async fn a_malformed_public_key_stops_the_write() {
     assert_eq!(requests[0].method, wiremock::http::Method::GET);
 }
 
-/// A file is taken byte for byte — a PEM keeps its trailing newline — where a
+/// A file is taken byte for byte (a PEM keeps its trailing newline) where a
 /// pipe is not. `--file` is the escape hatch for a value whose exact bytes
 /// matter.
 #[tokio::test]

@@ -93,7 +93,7 @@ Finding a signed-in Studio on the machine is not the same as being allowed to se
 | --- | --- |
 | `--auto-cookie` passed | Sent. The standing yes, for a person who has decided once. |
 | A terminal on all three streams | Asked, once, and the answer is remembered for the process. |
-| Anything else — CI, a pipe, a cron job, `--json` into a file | **Not sent**, with one line on stderr naming the two ways forward. |
+| Anything else: CI, a pipe, a cron job, `--json` into a file | **Not sent**, with one line on stderr naming the two ways forward. |
 
 The question is drawn on stderr, never stdout, so it cannot land inside a document a command is emitting:
 
@@ -123,7 +123,7 @@ It names the yes as well as the two noes, and that is not symmetry for its own s
 
 Once per process, not once per call, because a single command can build two or three clients and three identical notices read like three separate reads of the credential. Commands that only used the API key print nothing, so the line appearing at all is the signal.
 
-The username is deliberately not in the sentence. Naming it would mean a network round trip to `users.roblox.com` on every command that touches a cookie, which is a real cost for a nicer sentence, and the notice is printed at resolution — before anything has decided whether this run will talk to Roblox at all. The commands that are about to write with the cookie do make that call, one line later (see [what is checked](#what-is-checked-and-when)); `rbx doctor` and `rbx apikey list --remote` will name the account when you want to know.
+The username is deliberately not in the sentence. Naming it would mean a network round trip to `users.roblox.com` on every command that touches a cookie, which is a real cost for a nicer sentence, and the notice is printed at resolution, before anything has decided whether this run will talk to Roblox at all. The commands that are about to write with the cookie do make that call, one line later (see [what is checked](#what-is-checked-and-when)); `rbx doctor` and `rbx apikey list --remote` will name the account when you want to know.
 
 Both controls in that sentence work, and both are tested: `--no-auto-cookie` skips the lookup, and `RBX_COOKIE=` counts as explicit. In CI the line never appears at all, because a run with nowhere to ask does not reach it. Set `RBX_COOKIE` there only for the few commands that need it, from a secret store, and prefer arranging the pipeline so that none of them do.
 
@@ -158,12 +158,12 @@ Four rules the check follows:
 Every cookie-authenticated write asks its question *as* somebody:
 
 ```
-⚠ As builderman (156) — create universe 'My Game' under group 1234567 and record it as [test]? [y/N]
+⚠ As builderman (156): create universe 'My Game' under group 1234567 and record it as [test]? [y/N]
 ```
 
 It costs nothing. The check above has just identified the account, the verdict is cached for the process, and the prompt reads it back rather than asking again. A run with no cookie, or one whose check could not answer, prompts exactly as it did before: the tool never claims an identity nothing established.
 
-This is the cheap half of the identity problem below. Auto-detection follows whichever account Studio is signed into, silently, and the same key names recur across accounts — so "wrong account" is the realistic mistake here, and a question about a group id or a key name cannot catch it. Naming the account turns it into something a person can answer.
+This is the cheap half of the identity problem below. Auto-detection follows whichever account Studio is signed into, silently, and the same key names recur across accounts, so "wrong account" is the realistic mistake here, and a question about a group id or a key name cannot catch it. Naming the account turns it into something a person can answer.
 
 It also moved the session check ahead of the prompt everywhere, which is worth having on its own: being asked to approve an irreversible creation and only then learning the session was dead wastes the decision.
 

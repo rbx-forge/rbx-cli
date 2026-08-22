@@ -843,7 +843,7 @@
       "type": "object",
       "properties": {
         "CollisionMode": {
-          "description": "`0` = default (outer box), `1` = single collider, `2` = legacy (inner box).\n\nA third numbering for collisions, and again not the one `[game.avatar] collision` uses — that field is the older `universeCollisionType`, where `1` = inner box and `2` = outer box.",
+          "description": "`0` = default (outer box), `1` = single collider, `2` = legacy (inner box).\n\nA third numbering for collisions, and again not the one `[game.avatar] collision` uses: that field is the older `universeCollisionType`, where `1` = inner box and `2` = outer box.",
           "type": [
             "integer",
             "null"

@@ -16,7 +16,7 @@ HttpService:RequestAsync({
 
 Before this command, the only way to put a value there was the Creator Dashboard, by hand, one universe at a time. That is exactly the shape of chore that goes wrong quietly: staging keeps last quarter's key because somebody rotated production and stopped there.
 
-This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
+**(0.4.0+)** This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
 
 ## The value is encrypted before it is sent
 

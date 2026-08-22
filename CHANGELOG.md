@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0]
+
 ### Added
 
 - **`rbx secret`**: the universe secrets store `HttpService:GetSecret` reads
@@ -224,6 +226,8 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rbx-forge/rbx-cli/releases/tag/v0.2.0
 [0.1.0]: https://github.com/rbx-forge/rbx-cli/releases/tag/v0.1.0

@@ -24,6 +24,7 @@ rbx-shop = { path = "../rbx-shop" }
 rbx-place = { path = "../rbx-place" }
 rbx-meta = { path = "../rbx-meta" }
 rbx-config = { path = "../rbx-config" }
+rbx-secret = { path = "../rbx-secret" }
 rbx-env = { path = "../rbx-env" }
 rbx-apikey = { path = "../rbx-apikey" }
 rbx-doctor = { path = "../rbx-doctor" }

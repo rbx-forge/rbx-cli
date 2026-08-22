@@ -18,6 +18,10 @@
 - [rbx config](config.md)
 - [rbx shop](shop.md)
 
+# Credentials the repository cannot hold
+
+- [rbx secret](secret.md)
+
 # Operational: kubectl for Roblox
 
 - [Live operations](ops.md)

@@ -19,6 +19,7 @@ members = [
     "crates/rbx-place",
     "crates/rbx-meta",
     "crates/rbx-config",
+    "crates/rbx-secret",
     "crates/rbx-env",
     "crates/rbx-apikey",
     "crates/rbx-doctor",
@@ -138,3 +139,23 @@ dialoguer = "0.11"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 wiremock = "0.6"
+# Secrets store encryption. Roblox will not take a secret in the clear: the
+# content has to arrive as a LibSodium sealed box under the universe's public
+# key, so the encryption happens here or the feature does not exist.
+#
+# `crypto_box` and not a libsodium binding, because a binding means either a C
+# toolchain on every machine that builds this or a vendored `libsodium` in the
+# published binary — and this workspace is `rustls` rather than `native-tls`
+# for exactly that reason. RustCrypto's implementation is the one NaCl-compat
+# crate that is pure Rust, stable (0.9), and carries the `seal` construction
+# rather than only the keypair-to-keypair `box`.
+#
+# The defaults are kept, unlike everywhere else in this file, and that is not
+# an oversight: `seal` is built on `SalsaBox`, so `default-features = false`
+# without `salsa20` does not compile at all. The default set — `alloc`,
+# `getrandom`, `salsa20` — is exactly what sealing needs, `getrandom` included,
+# because each seal generates a fresh ephemeral keypair and has to seed it.
+crypto_box = { version = "0.9", features = ["seal"] }
+# Roblox takes the sealed ciphertext base64-encoded, and hands the public key
+# back the same way. Standard alphabet with padding, which is `STANDARD`.
+base64 = "0.22"

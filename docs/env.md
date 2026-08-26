@@ -330,6 +330,7 @@ The env is named as a positional argument, not read from the global `--env`. Thi
 | `rbxshop.lock.toml` | The `[envs.<env>]` section |
 | `rbxconfig.lock.toml` | The `[envs.<env>]` section |
 | `rbxapikey.lock.toml` | The `[envs.<env>]` section |
+| `rbxplace.toml` | The env's block, and its name out of every `[groups]` array. A group left empty is deleted with it |
 | `rbxapikey.toml` | The env's name, out of every list that holds it |
 | `<codegen.output>/<env>.luau` | The per-env module `rbx shop codegen` wrote |
 
@@ -343,7 +344,7 @@ The aggregate generated files (`init.luau`, the type module, whatever `rbx env g
 
 **Nothing is deleted on Roblox, and nothing could be.** A game pass or a developer product cannot be deleted there at all, only taken off sale; a badge can only be disabled; a universe can be deactivated and is still there. A command called `destroy` would be describing something it does not do, on resources people paid money for. This removes the env, which is the part that really can be removed.
 
-An env that is not in `rbxplace.toml` is refused, and the error names the ones that are: a typo must not report success having done nothing. `[owner]` and `[codegen]` are top-level tables and not envs, so they are refused too.
+An env that is not in `rbxplace.toml` is refused, and the error names the ones that are: a typo must not report success having done nothing. `[owner]`, `[codegen]` and `[groups]` are top-level tables and not envs, so they are refused too.
 
 </details>
 

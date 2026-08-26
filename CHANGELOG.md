@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx restart launch --attribute k=v` and `--payload <json>`**: the free
+  dictionary servers scheduled to close receive as the third argument of
+  `game.ServerRestartScheduled(restartTime, source, attributes)`. Until now that
+  table was always empty for anything this tool restarted, so a game could be
+  told it was about to be restarted and nothing about why. `--attribute` is
+  repeatable and sends strings; `--payload` takes the whole object as JSON, for
+  a number, a boolean or nesting. The two are mutually exclusive.
+
+  Both are parsed and bounds-checked before the first request, so a malformed
+  body fails locally rather than as a 400 from inside a deploy, and never after
+  the confirmation prompt. Roblox's limits are enforced here: it must be a JSON
+  object, and at most 500 bytes serialised.
+
+  Settling this needed no live probe, only the vendored spec: the devforum
+  announcement and the Universes reference describe **two different endpoints**.
+  `rbx restart launch` calls `Restarts_LaunchRestart`, which accepts
+  `attributes` and a bleed-off of 1 to 240 minutes;
+  `Cloud_RestartUniverseServers` accepts no `attributes` and caps the bleed-off
+  at 60. Both are right about their own endpoint, and the 240 this tool checks
+  was already correct.
+
 ### Fixed
 
 - **`rbx apikey create` failed for any key declared without a `description`.**

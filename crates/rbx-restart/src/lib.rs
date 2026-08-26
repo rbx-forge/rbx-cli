@@ -24,7 +24,8 @@ use rbx_core::confirm::confirm_always;
 use rbx_core::GlobalFlags;
 
 use crate::model::{
-    validate_bleed_off, Forecast, RestartLaunched, RestartRequest, RestartStatuses,
+    attributes_from_pairs, validate_attributes, validate_bleed_off, Forecast, RestartLaunched,
+    RestartRequest, RestartStatuses,
 };
 
 /// Roblox's own default is unstated, so one is chosen here rather than left to
@@ -81,6 +82,30 @@ enum Command {
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
+
+        /// One attribute handed to the game servers, `key=value`. Repeatable.
+        ///
+        /// Servers scheduled to close fire
+        /// `game.ServerRestartScheduled(restartTime, source, attributes)`, and
+        /// these are its third argument: a reason, an urgency, a line to show
+        /// players. Without any, that table arrives empty.
+        ///
+        /// Values are sent as strings. For a number, a boolean or nesting, use
+        /// `--payload`.
+        #[arg(
+            long = "attribute",
+            value_name = "KEY=VALUE",
+            conflicts_with = "payload"
+        )]
+        attributes: Vec<String>,
+
+        /// The whole attributes object as JSON.
+        ///
+        /// Parsed here, the way `rbx message publish --payload` is, so a
+        /// malformed body fails locally rather than as a 400 from inside a
+        /// deploy. Must be a JSON object, at most 500 bytes serialised.
+        #[arg(long)]
+        payload: Option<String>,
     },
 }
 
@@ -199,8 +224,31 @@ pub async fn run(cli: RestartCli, global: &GlobalFlags) -> Result<()> {
             bleed_off,
             apply,
             yes,
+            attributes,
+            payload,
         } => {
             validate_bleed_off(bleed_off)?;
+
+            // Resolved before a single request goes out. A malformed payload is
+            // the caller's typo, and finding out should not cost a round trip
+            // (nor, on the `--apply` path, happen after the confirmation).
+            // `validate_attributes` hands back the exact text it measured, so
+            // the dry-run line below prints the bytes that were checked rather
+            // than a second serialisation of the same value.
+            let attributes = match (&payload, attributes.is_empty()) {
+                (Some(raw), _) => {
+                    let parsed: serde_json::Value =
+                        serde_json::from_str(raw).context("--payload must be valid JSON")?;
+                    let text = validate_attributes(&parsed)?;
+                    Some((parsed, text))
+                }
+                (None, false) => {
+                    let built = attributes_from_pairs(&attributes)?;
+                    let text = validate_attributes(&built)?;
+                    Some((built, text))
+                }
+                (None, true) => None,
+            };
 
             // Always fetched, whether or not this run will do anything. The
             // forecast is the whole basis for deciding, and it is Roblox's
@@ -215,6 +263,14 @@ pub async fn run(cli: RestartCli, global: &GlobalFlags) -> Result<()> {
                     "Every server is already on the newest version. Nothing to restart.".green()
                 );
                 return Ok(());
+            }
+
+            // Printed on both paths. The forecast says how much a restart
+            // costs and nothing about what the servers will be told, and the
+            // dry run is where somebody checks the second half.
+            if let Some((_, text)) = &attributes {
+                println!("attributes: {text}");
+                println!();
             }
 
             if !apply {
@@ -244,6 +300,7 @@ pub async fn run(cli: RestartCli, global: &GlobalFlags) -> Result<()> {
             let launched = api
                 .launch(&RestartRequest {
                     bleed_off_duration_minutes: Some(bleed_off),
+                    attributes: attributes.map(|(value, _text)| value),
                 })
                 .await?;
 

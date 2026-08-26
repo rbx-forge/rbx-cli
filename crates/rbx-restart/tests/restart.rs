@@ -164,6 +164,193 @@ async fn a_bleed_off_outside_roblox_bounds_fails_before_any_request() {
 }
 
 #[tokio::test]
+async fn repeated_attribute_flags_travel_in_the_restart_body() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .and(body_json(serde_json::json!({
+            "bleedOffDurationMinutes": 30,
+            "attributes": { "reason": "hotfix", "message": "Back in 5 minutes" }
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "abc", "playersImpacted": 42, "instancesImpacted": 7
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(
+            &[
+                "launch",
+                "--attribute",
+                "reason=hotfix",
+                "--attribute",
+                "message=Back in 5 minutes",
+                "--apply",
+                "--yes",
+            ],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+/// `--payload` is the way to send a number, a boolean or nesting, which
+/// `--attribute` deliberately cannot.
+#[tokio::test]
+async fn a_payload_keeps_the_json_types_it_was_given() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .and(body_json(serde_json::json!({
+            "bleedOffDurationMinutes": 30,
+            "attributes": { "urgency": 3, "silent": false, "show": { "seconds": 300 } }
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "abc", "playersImpacted": 42, "instancesImpacted": 7
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(
+            &[
+                "launch",
+                "--payload",
+                r#"{"urgency":3,"silent":false,"show":{"seconds":300}}"#,
+                "--apply",
+                "--yes",
+            ],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+/// Sending no attributes must send no `attributes` key, not an empty object:
+/// this is the path every existing caller takes, and it must not change shape.
+#[tokio::test]
+async fn without_the_flags_the_body_is_what_it_always_was() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .and(body_json(
+            serde_json::json!({ "bleedOffDurationMinutes": 30 }),
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "abc", "playersImpacted": 42, "instancesImpacted": 7
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["launch", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+/// The whole point of parsing locally: a typo in a deploy script must cost
+/// nothing, and above all must not be discovered after the confirmation.
+#[tokio::test]
+async fn a_bad_attributes_payload_never_reaches_the_network() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+
+    for (bad, expected) in [
+        (vec!["--payload", "{oops"], "--payload"),
+        (vec!["--payload", r#""hotfix""#], "must be a JSON object"),
+        (vec!["--attribute", "noequals"], "key=value"),
+        (vec!["--attribute", " =hotfix"], "needs a key before"),
+        (
+            vec![
+                "--payload",
+                r#"{"m":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+            ],
+            "over Roblox's 500-byte limit",
+        ),
+    ] {
+        let mut args = vec!["launch"];
+        args.extend_from_slice(&bad);
+        args.extend_from_slice(&["--apply", "--yes"]);
+
+        let error = run(cli(&args, &server), &flags(&places_file(dir.path())))
+            .await
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(expected), "got: {error}");
+    }
+    assert!(
+        server.received_requests().await.unwrap().is_empty(),
+        "a payload the tool refuses must not cost a request"
+    );
+}
+
+/// No flags omits the key entirely; `--payload '{}'` sends the empty object as
+/// written. Both arrive in-experience as an empty table, so the difference only
+/// matters as a promise about what the tool does with what it was handed.
+#[tokio::test]
+async fn an_explicitly_empty_payload_is_sent_as_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .and(body_json(serde_json::json!({
+            "bleedOffDurationMinutes": 30,
+            "attributes": {}
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "id": "abc", "playersImpacted": 42, "instancesImpacted": 7
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["launch", "--payload", "{}", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[test]
+fn attribute_and_payload_cannot_be_passed_together() {
+    let parsed = <Wrapper as clap::Parser>::try_parse_from([
+        "restart",
+        "launch",
+        "--attribute",
+        "reason=hotfix",
+        "--payload",
+        "{}",
+    ]);
+    assert!(parsed.is_err(), "expected clap to refuse the pair");
+}
+
+#[tokio::test]
 async fn env_all_is_refused_before_anything_is_fetched() {
     let dir = tempfile::tempdir().unwrap();
     let server = MockServer::start().await;

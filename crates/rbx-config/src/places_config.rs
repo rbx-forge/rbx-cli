@@ -25,6 +25,18 @@ pub struct PlacesConfig {
     #[allow(dead_code)]
     pub codegen: Option<PlacesCodegen>,
 
+    /// Reserved top-level `[groups]` block: the named env subsets `--env`
+    /// accepts (see `rbx_core::places::PlacesFile::groups`).
+    ///
+    /// Claimed for the same reason as the two above, and it is not optional
+    /// courtesy: `environments` below is a flattened catch-all, so an
+    /// unclaimed `[groups]` table is read as an env and fails the whole file
+    /// on a missing `universe_id`. Every `rbx config` command in a project
+    /// that declares a group would stop working.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub groups: HashMap<String, Vec<String>>,
+
     #[serde(flatten)]
     pub environments: HashMap<String, EnvEntry>,
 }

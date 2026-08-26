@@ -26,6 +26,11 @@
 //!   same reason: a filter must not start working by accident and stop when a
 //!   second place is added.
 //!
+//! That last rule is also why an `upload` that named several envs gets its own
+//! envelope, [`MultiEnvWriteDocument`], instead of a plural `env` field: the
+//! shape follows the invocation, so a single-env upload keeps emitting the
+//! document it always has.
+//!
 //! Field names are documented in `docs/place.md` and are the compatibility
 //! surface. Ids and version numbers are strings: they identify an asset, they
 //! exceed 2^53 in the case of a place id, and a consumer that parses them as
@@ -343,6 +348,43 @@ impl WriteDocument {
     }
 }
 
+/// What one `place upload` that named several envs did, one [`WriteDocument`]
+/// per env.
+///
+/// A separate envelope rather than a plural `env` on [`WriteDocument`].
+/// `promote` and `rollback` share that struct and act on one env by
+/// construction, and every consumer already reads its `env` and `universe_id`
+/// as scalars: widening them would break those readers in order to describe a
+/// case they never asked about. So a single-env upload keeps emitting exactly
+/// the document it always has, and only `--env all` (or a group) gets this
+/// shape. `rbx check --json` sets the precedent: one document naming several
+/// envs, each carrying its own per-env result.
+///
+/// `results` is in target order and stops where the run stopped. The walk
+/// halts at the first env that fails, so the envs before it keep their
+/// receipts, that env carries its own `error`, and the ones after it are
+/// absent rather than reported as anything.
+#[derive(Debug, Serialize)]
+pub struct MultiEnvWriteDocument {
+    pub schema_version: u32,
+    pub command: WriteCommand,
+    /// False when any env failed. Read off the per-env receipts rather than
+    /// tracked separately, so the two cannot disagree.
+    pub ok: bool,
+    pub results: Vec<WriteDocument>,
+}
+
+impl MultiEnvWriteDocument {
+    pub fn new(command: WriteCommand, results: Vec<WriteDocument>) -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            command,
+            ok: results.iter().all(|receipt| receipt.ok),
+            results,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -367,6 +409,13 @@ mod tests {
             display_name: name.to_string(),
             max_player_count: max,
         }
+    }
+
+    /// One env's finished upload receipt, the shape the fan-out envelope holds.
+    fn upload_receipt(env: &str, place_id: u64, version: u64) -> WriteDocument {
+        let mut doc = WriteDocument::new(WriteCommand::Upload, env, place_id * 10, false, true);
+        doc.landed("main", place_id, version);
+        doc
     }
 
     #[test]
@@ -587,5 +636,103 @@ mod tests {
         assert!(doc["version"].is_string(), "{doc}");
         assert!(doc["results"][0]["place_id"].is_string(), "{doc}");
         assert!(doc["results"][0]["version"].is_string(), "{doc}");
+    }
+
+    /// The exact bytes a one-env `place upload --json` puts on stdout.
+    ///
+    /// Spelled out rather than asserted field by field, because this document
+    /// is the compatibility surface and fan-out was the change most likely to
+    /// widen it by accident. A field added here breaks this test on purpose:
+    /// the answer is a new envelope beside it, which is what
+    /// [`MultiEnvWriteDocument`] is.
+    #[test]
+    fn a_single_env_upload_emits_the_document_it_always_has() {
+        let mut doc = WriteDocument::new(
+            WriteCommand::Upload,
+            "prod",
+            109_876_543_210_987,
+            false,
+            true,
+        );
+        doc.landed("main", 109_876_543_210_988, 42);
+
+        let mut buf = Vec::new();
+        rbx_core::output::write_json(&mut buf, &doc).expect("write");
+
+        assert_eq!(
+            String::from_utf8(buf).expect("utf-8"),
+            concat!(
+                "{\n",
+                "  \"schema_version\": 1,\n",
+                "  \"command\": \"upload\",\n",
+                "  \"ok\": true,\n",
+                "  \"env\": \"prod\",\n",
+                "  \"universe_id\": \"109876543210987\",\n",
+                "  \"published\": false,\n",
+                "  \"place_id\": \"109876543210988\",\n",
+                "  \"version\": \"42\",\n",
+                "  \"results\": [\n",
+                "    {\n",
+                "      \"place\": \"main\",\n",
+                "      \"place_id\": \"109876543210988\",\n",
+                "      \"version\": \"42\"\n",
+                "    }\n",
+                "  ]\n",
+                "}\n",
+            )
+        );
+    }
+
+    /// One receipt per env, in the order they were written, under an envelope
+    /// that keeps the same `schema_version` and `command` a reader already
+    /// dispatches on.
+    #[test]
+    fn a_fan_out_carries_one_receipt_per_env_in_target_order() {
+        let doc = parsed(&MultiEnvWriteDocument::new(
+            WriteCommand::Upload,
+            vec![upload_receipt("dev", 11, 1), upload_receipt("prod", 22, 7)],
+        ));
+
+        assert_eq!(doc["schema_version"], SCHEMA_VERSION);
+        assert_eq!(doc["command"], "upload");
+        assert_eq!(doc["ok"], true);
+        assert_eq!(doc["results"].as_array().map(Vec::len), Some(2));
+        assert_eq!(doc["results"][0]["env"], "dev");
+        assert_eq!(doc["results"][0]["version"], "1");
+        assert_eq!(doc["results"][1]["env"], "prod");
+        assert_eq!(doc["results"][1]["version"], "7");
+    }
+
+    /// The fan-out case of the rule the whole envelope is shaped around: the
+    /// second env failed, and the first one's version exists whatever happens
+    /// next. A deploy log that loses it is worse than no log.
+    #[test]
+    fn a_fan_out_that_fails_partway_keeps_the_envs_that_landed() {
+        let failed = upload_receipt("prod", 22, 7).failed(&anyhow::anyhow!(
+            "Place 22 is locked by an active Team Create session."
+        ));
+        let doc = parsed(&MultiEnvWriteDocument::new(
+            WriteCommand::Upload,
+            vec![upload_receipt("dev", 11, 1), failed],
+        ));
+
+        assert_eq!(doc["ok"], false);
+        assert_eq!(doc["results"].as_array().map(Vec::len), Some(2));
+        // The env that landed keeps its version and its own `ok`.
+        assert_eq!(doc["results"][0]["env"], "dev");
+        assert_eq!(doc["results"][0]["ok"], true);
+        assert_eq!(doc["results"][0]["version"], "1");
+        // The env that failed carries the reason, next to what it had written
+        // before it stopped.
+        assert_eq!(doc["results"][1]["ok"], false);
+        assert!(
+            doc["results"][1]["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("Team Create")),
+            "{doc}"
+        );
+        // The envs after the failure are absent rather than reported as
+        // anything: the walk stopped, so there is nothing to say about them.
+        assert!(doc["results"][2].is_null(), "{doc}");
     }
 }

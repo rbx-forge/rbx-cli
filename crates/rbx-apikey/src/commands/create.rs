@@ -16,7 +16,7 @@ use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
 
 use super::update::{build_cidrs, build_description};
-use super::{make_client, require_no_collision};
+use super::{explain_invalid_name_or_description, make_client, require_no_collision};
 
 /// Name the account and ask, before a credential is minted on it.
 ///
@@ -250,7 +250,10 @@ async fn create_one(
         build.scopes.len()
     );
 
-    let resp: CreateApiKeyResponse = client.create_api_key(&payload).await?;
+    let resp: CreateApiKeyResponse = client
+        .create_api_key(&payload)
+        .await
+        .map_err(|e| explain_invalid_name_or_description(e, &payload.name, &payload.description))?;
     let info = resp.cloud_auth_info;
     let secret = resp.apikey_secret;
     if info.id.is_empty() || secret.is_empty() {

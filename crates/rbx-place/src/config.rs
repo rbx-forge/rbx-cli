@@ -53,6 +53,19 @@ pub struct PlacesConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub codegen: Option<PlacesCodegen>,
 
+    /// Reserved top-level `[groups]` block: the named env subsets `--env`
+    /// accepts (see `rbx_core::places::PlacesFile::groups`).
+    ///
+    /// Claimed as a known key rather than modelled, for the reason the two
+    /// above are: `environments` is a flattened catch-all, so an unclaimed
+    /// `[groups]` table is read as an env and fails the whole file on a
+    /// missing `universe_id`. That made `--env <group>` unusable here while
+    /// the group was resolved perfectly well in rbx-core. Kept (rather than
+    /// skipped) so `rbx place fetch --write` round-trips it instead of
+    /// deleting somebody's groups.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub groups: HashMap<String, Vec<String>>,
+
     #[serde(flatten)]
     pub environments: HashMap<String, Environment>,
 }

@@ -175,7 +175,7 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 ### Key attributes
 
 - `name` - (optional) Display name on Roblox Creator Hub (defaults to key ID)
-- `description` - (optional) Description on Roblox Creator Hub; auto-generated if omitted
+- `description` - (optional) Description on Roblox Creator Hub; auto-generated if omitted. **Roblox refuses a name or description carrying a brand**, answering `Response.InvalidNameOrDescription` without saying which of the two it means. The working rule, stated in `testenv/rbxapikey.example.toml`, is that `rbx` or `roblox` glued to an API or commerce term is rejected: a description reading ``Validate `rbx secret` against real Open Cloud`` was refused, and the same text without the brand was accepted. Nothing is checked locally, because "glued to an API or commerce term" is a judgement and not a substring, so a local check would reject text Roblox takes; the tool explains the refusal when it happens, and its auto-generated fallback names neither Roblox nor itself
 - `envs` - Either a list of env names from `rbxplace.toml` (one key, targeting every one of them), or a table of named groups (one key per group: see [One key per environment](#one-key-per-environment)). The list form falls back to `settings.default_envs` when omitted or empty; the table form always names its envs.
 - `group_ids` - (optional) List of group IDs for group-target scopes
 - `user_ids` - (optional) List of user IDs for user-target scopes

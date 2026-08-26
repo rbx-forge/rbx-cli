@@ -11,7 +11,7 @@ use rbx_core::confirm::confirm_always;
 use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
 
-use super::{make_client, require_no_collision};
+use super::{explain_invalid_name_or_description, make_client, require_no_collision};
 
 pub async fn run(
     global: &GlobalFlags,
@@ -199,7 +199,8 @@ async fn update_one(
     println!("Updating \"{}\" (id={})...", name, entry.cloud_auth_id);
     let resp = client
         .update_api_key(&entry.cloud_auth_id, &payload)
-        .await?;
+        .await
+        .map_err(|e| explain_invalid_name_or_description(e, &payload.name, &payload.description))?;
     let _ = resp.cloud_auth_info; // presence verified by deserialization
 
     entry.expires_at = expiration_time.clone();
@@ -250,6 +251,23 @@ async fn update_one(
     Ok(())
 }
 
+/// The `description` a key is created and updated with.
+///
+/// **The fallback must not name Roblox or this tool.** Roblox refuses a key
+/// whose name or description carries a brand with
+/// `Response.InvalidNameOrDescription`; the working rule is stated in
+/// `testenv/rbxapikey.example.toml` and reasoned about on
+/// [`super::explain_invalid_name_or_description`]. The fallback used to read
+/// `Managed by rbxapikey (...)`, which contains `rbx` welded to a commerce
+/// term, so it put the failure on the path the documentation recommends:
+/// `description` is optional, so a key declared without one got a string the
+/// server would not take, answered by a refusal naming neither field.
+///
+/// The wording loses nothing by dropping the brand. What the string is for is
+/// telling a human which declaration a key on the Creator Hub came from, and
+/// the declaration name still does that. `the_fallback_never_carries_the_brand`
+/// is what keeps it out, because the failure is invisible in review and only
+/// appears against the live API.
 pub(crate) fn build_description(
     name: &str,
     key_cfg: &config::KeyConfig,
@@ -261,12 +279,12 @@ pub(crate) fn build_description(
     if !universe_ids.is_empty() {
         let ids: Vec<String> = universe_ids.iter().map(|u| u.to_string()).collect();
         return format!(
-            "Managed by rbxapikey ({}). Universes: {}.",
+            "Managed declaratively ({}). Universes: {}.",
             name,
             ids.join(", ")
         );
     }
-    format!("Managed by rbxapikey ({}).", name)
+    format!("Managed declaratively ({}).", name)
 }
 
 pub(crate) fn build_cidrs(

@@ -517,3 +517,87 @@ fn an_inline_envs_table_is_not_skipped() {
 // which needs `run` to return the removals rather than only printing them.
 // Worth doing when something else needs that shape; not worth a signature
 // change on its own.
+
+/// `[groups]` names envs inside arrays, so removing an env leaves a dangling
+/// member unless the arrays are walked. This is worse than the same shape in
+/// `rbxapikey.toml` that the module header describes: a group naming an
+/// undeclared env is **refused at load**, so before this walk existed
+/// `rbx env rm dev` reported success and left a `rbxplace.toml` that every
+/// command in the suite then refused, on a file the user never edited.
+#[test]
+fn removing_an_env_takes_it_out_of_every_group_that_named_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    std::fs::write(
+        p.join("rbxplace.toml"),
+        r#"# the map every command resolves --env against
+[groups]
+nonprod = ["dev", "staging"]
+onlydev = ["dev"]
+live = ["prod"]
+
+[dev]
+universe_id = 100
+
+[staging]
+universe_id = 150
+
+[prod]
+universe_id = 200
+"#,
+    )
+    .unwrap();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let text = read(p, "rbxplace.toml");
+    // Narrowed, not left dangling.
+    assert!(text.contains(r#"nonprod = ["staging"]"#), "got:\n{text}");
+    // Emptied, so deleted: an empty group is itself refused at load, and
+    // leaving one behind would trade one unloadable file for another.
+    assert!(!text.contains("onlydev"), "got:\n{text}");
+    // Untouched groups survive whole.
+    assert!(text.contains(r#"live = ["prod"]"#), "got:\n{text}");
+    // The comment the file opened with is still there.
+    assert!(
+        text.contains("the map every command resolves"),
+        "got:\n{text}"
+    );
+    // And the whole point: it loads.
+    rbx_core::places::PlacesFile::load(&places(p)).expect("the file must still load");
+}
+
+/// The last group going empty takes the table with it, rather than leaving an
+/// empty `[groups]` header in a file this command just rewrote.
+#[test]
+fn the_groups_table_goes_when_its_last_group_does() {
+    let dir = tempfile::tempdir().unwrap();
+    let p = dir.path();
+    std::fs::write(
+        p.join("rbxplace.toml"),
+        "[groups]\nonlydev = [\"dev\"]\n\n[dev]\nuniverse_id = 100\n\n[prod]\nuniverse_id = 200\n",
+    )
+    .unwrap();
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let text = read(p, "rbxplace.toml");
+    assert!(!text.contains("[groups]"), "got:\n{text}");
+    rbx_core::places::PlacesFile::load(&places(p)).expect("the file must still load");
+}
+
+/// A file with no `[groups]` at all is the overwhelmingly common case and must
+/// be untouched by the walk.
+#[test]
+fn a_file_without_groups_is_unaffected_by_the_group_walk() {
+    let dir = project();
+    let p = dir.path();
+    let before = read(p, "rbxplace.toml");
+    assert!(!before.contains("[groups]"));
+
+    rm::run(&places(p), "dev", false, true).unwrap();
+
+    let after = read(p, "rbxplace.toml");
+    assert!(!after.contains("[groups]"), "got:\n{after}");
+    assert!(after.contains("[prod]"), "got:\n{after}");
+}

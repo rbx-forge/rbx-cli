@@ -297,8 +297,10 @@ whoever runs it.
 **Do not run `--env all` from two places at once.** `rbx shop sync --env all`
 walks every env in `rbxplace.toml` sequentially, holding one lockfile in memory
 across all of them and saving as it goes. Two such runs multiply every
-per-env hazard above by the number of envs. (`rbx meta` and `rbx config` act on
-one env per invocation and do not accept `--env all` at all.)
+per-env hazard above by the number of envs. `rbx meta check`, `rbx meta sync`,
+`rbx meta pull` and `rbx place upload` walk a plural `--env` the same way, and
+the same caution applies to each. (`rbx config` still acts on one env per
+invocation and does not accept `--env all`.)
 
 **Never hand-edit a lockfile outside a conflict resolution.** They are
 tool-owned state. The values a human can safely retype are none of them, and

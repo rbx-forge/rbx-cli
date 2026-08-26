@@ -75,6 +75,28 @@ Three concepts:
 
 `sync --env dev` applies `[game] + [envs.dev]` to dev. `sync --env prod` applies `[game] + [envs.prod]` to prod. Same `rbxmeta.toml`, different effective state.
 
+### `--env all` and groups
+
+`check`, `sync` and `pull` all take a plural `--env`: `all` walks every env in `rbxplace.toml` in alphabetical order, a group walks its members in the order `[groups]` declared them. `--place` is resolved inside each env, against that env's own `[<env>.places]` map.
+
+```sh
+rbx meta check --env all             # one report per env
+rbx meta sync --env nonprod          # apply to the envs the group names
+rbx meta pull --env all --dry-run    # what each env would write back
+```
+
+Four things follow from walking several envs in one run, and all four are deliberate:
+
+**One confirmation covers the lot**, and it appears if *any* target env has `confirm = true`. A prompt per env would be reached mid-walk, after another env had already been written, which is too late for an answer to mean anything. The prompt names every env it is about to write to.
+
+**`check` fails if any env drifts**, not only the last one, and exits 2 for that aggregate. A CI step asking whether the repository is in sync is asking about all of it.
+
+**`sync` plans every env before it sends anything.** Building a plan is offline (it reads the config, the lockfile and the media files), so every env's pending changes are on screen before the one confirmation, and a config error in the last env stops the run before the first one is touched.
+
+**`pull` writes `rbxmeta.toml` once, at the end.** Every env is read first, then each contributes its `[envs.<name>]` overlay against the same base, so a field is promoted to `[game]` once and the later envs diff against what the earlier ones taught it. Each env's lockfile section is written after that, for the same reason: an entry written mid-walk could record a base a later env went on to fill in, and the next `check` would report drift on an env the pull had just reconciled.
+
+A group name is never recorded anywhere. It is expanded to its envs before the run starts, so `[envs.nonprod]` is not a thing and will not become one. See [Groups](env.md#groups).
+
 ### Pull behavior (differential)
 
 For each field, when you `pull --env <name>`:

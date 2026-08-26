@@ -38,6 +38,22 @@ pub async fn run(
         anyhow::bail!("Source and target environments are the same: '{}'", from);
     }
 
+    // `--env` is not how promote names an env: `--from` and `--to` are, one
+    // each, and a selector standing for several has no way to split itself
+    // across the two. Refusing beats accepting the flag and ignoring it, which
+    // is the failure `--universe-id` records in lib.rs from the last time it
+    // happened. Asked through `EnvSelector` so a group is turned away wherever
+    // `all` is.
+    if global
+        .env_selector()?
+        .is_some_and(|selector| selector.is_plural())
+    {
+        anyhow::bail!(
+            "`rbx place promote` names its two envs itself, with --from and --to, so a plural \
+             --env selects nothing here. Drop it, or run promote once per pair of envs."
+        );
+    }
+
     let format = OutputFormat::from_json_flag(json);
     let config = PlacesConfig::load(&global.places)?;
     let from_env = config.get_env(from)?;

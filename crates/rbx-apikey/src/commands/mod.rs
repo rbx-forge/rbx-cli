@@ -39,6 +39,63 @@ pub fn missing_key_note(cfg: &config::Config, name: &str) -> String {
     )
 }
 
+/// Add the missing half of Roblox's `InvalidNameOrDescription`.
+///
+/// The refusal names neither of the two fields it covers, and gives no rule for
+/// either, so the first suspicion lands on the scopes or the cookie and the
+/// real cause costs a session to find.
+///
+/// The working rule was already in the repository, in
+/// `testenv/rbxapikey.example.toml`: `rbx` or `roblox` glued to an API or
+/// commerce term is rejected. That note covered key *names*; the description
+/// half was confirmed on 2026-08-22, when a description reading ``Validate `rbx
+/// secret` against real Open Cloud.`` was refused and the same declaration with
+/// the brand taken out was accepted with nothing else changed. A key named
+/// `secrettest` passed in the same session, which is what the rule predicts:
+/// the commerce term alone is fine, the brand welded to it is not.
+///
+/// **Nothing is refused locally, and the rule is why.** "Glued to an API or
+/// commerce term" is a judgement, not a substring. A preflight check can only
+/// approximate it, and every approximation rejects text Roblox accepts, which
+/// is a worse failure than the one it replaces and an invisible one: nobody
+/// debugs a check that fires wrongly on a string the server would have taken.
+/// So this explains the error once Roblox has returned it, and quotes both
+/// candidate values, because which of the two carries a brand is the one thing
+/// a reader sees at a glance and the server will not say.
+///
+/// Leaves any other error untouched.
+pub fn explain_invalid_name_or_description(
+    error: anyhow::Error,
+    name: &str,
+    description: &str,
+) -> anyhow::Error {
+    // The chain rather than the outermost error, for the reason
+    // `rbx_core::api::explain_missing_scope` documents: `to_string()` renders
+    // only the top frame, so a caller that added context first would hide the
+    // body this match needs.
+    let says_so = error
+        .chain()
+        .any(|cause| cause.to_string().contains("InvalidNameOrDescription"));
+    if !says_so {
+        return error;
+    }
+    // A 5xx echoing the token means Roblox broke, not that the name is wrong,
+    // and sending somebody off rewording a valid declaration gets them nowhere.
+    if let Some(status) = rbx_core::api::api_status(&error) {
+        if !status.is_client_error() {
+            return error;
+        }
+    }
+    error.context(format!(
+        "Roblox refused the name or the description, and does not say which. \
+         Sent name: \"{name}\". Sent description: \"{description}\". A description \
+         naming Roblox or this tool has been refused before, so try rewording \
+         either field to drop brand names and retry. Set `description` on the key \
+         in {} to control the text outright.",
+        config::FILE
+    ))
+}
+
 /// Build the HTTP client on whatever cookie the global flags resolve to.
 ///
 /// No `.or_else` fallback. There used to be one, onto a second lookup that did
@@ -100,6 +157,7 @@ mod tests {
     #[test]
     fn naming_a_declaration_instead_of_a_key_lists_the_keys_it_made() {
         let cfg = config::load_from(std::path::Path::new(&write_config(
+            "fanout",
             "[keys.deploy]\nscopes = [\"universe:read\"]\n\n\
              [keys.deploy.envs]\nci = [\"dev\"]\nprod = [\"prod\"]\n",
         )))
@@ -116,8 +174,38 @@ mod tests {
         assert!(config::get(&cfg, "deploy_ci").is_some());
     }
 
-    fn write_config(text: &str) -> String {
-        let dir = std::env::temp_dir().join(format!("rbxapikey_note_{}", std::process::id()));
+    /// A key declared without a `description` is handed the fallback, and the
+    /// fallback is what Roblox refuses when it carries a brand. The failure
+    /// only appears against the live API and a reviewer has no reason to look
+    /// for it, so the string itself is the thing asserted.
+    #[test]
+    fn the_fallback_never_carries_the_brand() {
+        let cfg = config::load_from(std::path::Path::new(&write_config(
+            "nodesc",
+            "[keys.deploy]\nscopes = [\"universe:read\"]\n",
+        )))
+        .unwrap();
+        let key_cfg = config::get(&cfg, "deploy").expect("the key is declared");
+
+        // Both arms of the fallback: with universes listed and without.
+        for text in [
+            update::build_description("deploy", key_cfg, &[]),
+            update::build_description("deploy", key_cfg, &[123, 456]),
+        ] {
+            let lowered = text.to_lowercase();
+            assert!(!lowered.contains("rbx"), "got: {text}");
+            assert!(!lowered.contains("roblox"), "got: {text}");
+            // And it still says which declaration the key came from, which is
+            // the only thing the string is for.
+            assert!(text.contains("deploy"), "got: {text}");
+        }
+    }
+
+    /// `label` keeps two tests from writing different files to one path: the
+    /// suite is threaded, and a shared name makes them race.
+    fn write_config(label: &str, text: &str) -> String {
+        let dir =
+            std::env::temp_dir().join(format!("rbxapikey_note_{}_{label}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(config::FILE);
         std::fs::write(&path, text).unwrap();
@@ -129,5 +217,119 @@ mod tests {
         let mut global = flags(false);
         global.cookie = Some("explicit".into());
         assert_eq!(make_client(&global).cookie(), Some("explicit"));
+    }
+
+    /// The hint's whole value is that it appears exactly when it applies.
+    mod explain_invalid_name_or_description {
+        use super::super::explain_invalid_name_or_description as explain;
+        use reqwest::StatusCode;
+
+        /// Substring of the advice, enough to tell it apart from the original.
+        const HINT: &str = "does not say which";
+
+        /// Built the way production builds it. A refusal from
+        /// `create_api_key` leaves `send_with_csrf` as a `CsrfError::Refused`
+        /// and reaches the chain through `roblox_error`, which keeps **only**
+        /// `userFacingMessage` or `message` out of a legacy envelope and
+        /// discards the rest. Constructing an `ApiError` directly would skip
+        /// exactly the step that can drop the token the hint matches on, which
+        /// is to say it would test everything except the assumption.
+        fn refusal(status: StatusCode, body: &str) -> anyhow::Error {
+            rbx_core::api::roblox_error(status, body)
+        }
+
+        /// The body observed on 2026-08-22 against
+        /// `/cloud-authentication/v1/apiKey`, which rendered as
+        /// `API error 400 Bad Request: Response.InvalidNameOrDescription`.
+        const OBSERVED: &str = "Response.InvalidNameOrDescription";
+
+        #[test]
+        fn the_refusal_gets_both_values_it_could_have_been() {
+            let explained = explain(
+                refusal(StatusCode::BAD_REQUEST, OBSERVED),
+                "deploy_ci",
+                "Managed declaratively (deploy_ci).",
+            );
+            let text = explained.to_string();
+            assert!(text.contains(HINT), "got: {text}");
+            assert!(text.contains("deploy_ci"), "got: {text}");
+            assert!(text.contains("Managed declaratively"), "got: {text}");
+            assert!(text.contains("rbxapikey.toml"), "got: {text}");
+        }
+
+        /// The legacy envelope shape, which is what `roblox_error` exists for.
+        /// `message` is the only place the token can be, so the hint has to
+        /// survive the unwrapping.
+        #[test]
+        fn the_token_survives_a_legacy_envelope_that_carries_it_as_the_message() {
+            let explained = explain(
+                refusal(
+                    StatusCode::BAD_REQUEST,
+                    r#"{"errors":[{"code":5,"message":"Response.InvalidNameOrDescription"}]}"#,
+                ),
+                "deploy_ci",
+                "whatever",
+            );
+            assert!(explained.to_string().contains(HINT), "got: {explained}");
+        }
+
+        /// **A known limit, pinned rather than hidden.** `roblox_error` prefers
+        /// `userFacingMessage` and discards the rest, so an envelope that keeps
+        /// the token only in `message` *behind* a generic user-facing string
+        /// loses it before this function ever sees it, and the hint does not
+        /// fire. Matching on the token is still right: the alternative is
+        /// keying on 400-from-this-endpoint, which would fire on every other
+        /// way a key can be refused. Roblox has not been observed answering
+        /// this shape; if it starts, this test is where the change lands.
+        #[test]
+        fn a_generic_user_facing_message_hides_the_token_and_the_hint_stays_away() {
+            let explained = explain(
+                refusal(
+                    StatusCode::BAD_REQUEST,
+                    r#"{"errors":[{"message":"Response.InvalidNameOrDescription",
+                       "userFacingMessage":"Something went wrong."}]}"#,
+                ),
+                "deploy_ci",
+                "whatever",
+            );
+            assert!(!explained.to_string().contains(HINT), "got: {explained}");
+        }
+
+        #[test]
+        fn a_server_error_quoting_the_same_token_does_not() {
+            // Roblox's 5xx echo upstream text. Telling somebody to reword a
+            // valid declaration because Roblox is down gets them nowhere.
+            let explained = explain(
+                refusal(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "upstream said Response.InvalidNameOrDescription",
+                ),
+                "deploy_ci",
+                "whatever",
+            );
+            assert!(!explained.to_string().contains(HINT), "got: {explained}");
+        }
+
+        #[test]
+        fn an_unrelated_refusal_is_left_alone() {
+            let explained = explain(
+                refusal(StatusCode::BAD_REQUEST, "Response.InvalidScopes"),
+                "deploy_ci",
+                "whatever",
+            );
+            assert!(!explained.to_string().contains(HINT), "got: {explained}");
+        }
+
+        #[test]
+        fn the_body_is_found_under_a_context_layer() {
+            // `to_string()` renders only the top frame, so a caller that adds
+            // context before asking would otherwise lose the hint entirely.
+            let explained = explain(
+                refusal(StatusCode::BAD_REQUEST, OBSERVED).context("creating \"deploy_ci\""),
+                "deploy_ci",
+                "whatever",
+            );
+            assert!(explained.to_string().contains(HINT), "got: {explained}");
+        }
     }
 }

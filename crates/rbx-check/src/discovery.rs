@@ -16,6 +16,8 @@ pub enum Tool {
     Shop,
     Meta,
     Config,
+    /// `rbxrtbf.toml`: the right-to-be-forgotten deletion templates.
+    Rtbf,
     Apikey,
 }
 
@@ -23,11 +25,12 @@ impl Tool {
     /// Every tool, in the order `rbx check` runs them: local-only work first,
     /// so a repo that is going to fail on a byte comparison fails before
     /// spending a round trip on a remote diff.
-    pub const ALL: [Tool; 5] = [
+    pub const ALL: [Tool; 6] = [
         Tool::Env,
         Tool::Shop,
         Tool::Meta,
         Tool::Config,
+        Tool::Rtbf,
         Tool::Apikey,
     ];
 
@@ -42,6 +45,7 @@ impl Tool {
             Tool::Shop => "rbxshop.toml",
             Tool::Meta => "rbxmeta.toml",
             Tool::Config => "rbxconfig.toml",
+            Tool::Rtbf => rbx_rtbf::config::FILE,
             Tool::Apikey => "rbxapikey.toml",
         }
     }
@@ -157,9 +161,39 @@ mod tests {
                 "rbxshop.toml",
                 "rbxmeta.toml",
                 "rbxconfig.toml",
+                "rbxrtbf.toml",
                 "rbxapikey.toml"
             ]
         );
+    }
+
+    /// A tool added to the enum and forgotten in `ALL` is a check that never
+    /// runs and never says it did not, which is the one failure `rbx check`
+    /// cannot have. Named per tool rather than counted, so the assertion says
+    /// which one went missing.
+    #[test]
+    fn rtbf_is_both_listed_and_named() {
+        assert!(Tool::ALL.contains(&Tool::Rtbf));
+        assert_eq!(Tool::Rtbf.config_file(), rbx_rtbf::config::FILE);
+    }
+
+    /// The file name comes from the crate that owns it rather than a literal
+    /// here, so renaming it there cannot leave `rbx check` looking for the old
+    /// one. Pinned anyway, because the name is a user-facing contract.
+    #[test]
+    fn the_rtbf_file_is_the_one_the_crate_writes() {
+        assert_eq!(rbx_rtbf::config::FILE, "rbxrtbf.toml");
+    }
+
+    #[test]
+    fn the_rtbf_file_is_discovered_on_its_own() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        touch(dir.path(), "rbxrtbf.toml");
+
+        let found = discover(dir.path(), &dir.path().join("rbxplace.toml"));
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].tool, Tool::Rtbf);
     }
 
     #[test]

@@ -26,9 +26,9 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 use serde_json::Value as Json;
 
+use rbx_core::api::{ConfigSnapshot, RevisionEntry};
 use rbx_core::output::SCHEMA_VERSION;
 
-use crate::api::models::{ConfigSnapshot, RevisionEntry};
 use crate::value::type_label;
 
 /// One `config get` or `config list` invocation: the published config.

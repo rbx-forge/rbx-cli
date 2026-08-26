@@ -108,6 +108,28 @@ pub const REQUIREMENTS: &[ToolRequirements] = &[
         ],
     },
     ToolRequirements {
+        config_file: "rbxrtbf.toml",
+        tool: "rbx rtbf",
+        operations: &[
+            Operation {
+                what: "rbx rtbf check / pull",
+                scopes: &[("universe", "read")],
+            },
+            Operation {
+                what: "rbx rtbf sync",
+                scopes: &[("universe", "write")],
+            },
+            Operation {
+                // The one operation here that is not a Configs API call.
+                // `verify` lists the universe's data stores so it can say
+                // whether a template names one that exists, which is the check
+                // nothing else performs.
+                what: "rbx rtbf verify",
+                scopes: &[("universe-datastores.control", "list")],
+            },
+        ],
+    },
+    ToolRequirements {
         config_file: "rbxshop.toml",
         tool: "rbx shop",
         operations: &[

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "rbxrtbf.toml",
+  "description": "Right-to-be-forgotten deletion templates: which data store keys and stores hold a user's data, published through the Open Cloud Configs API. `{UserId}` is case-sensitive and a pattern that matches nothing is accepted by Roblox and deletes nothing. See docs/rtbf.md.",
+  "type": "object",
+  "properties": {
+    "key": {
+      "description": "Templates naming keys inside a named store.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/KeyTemplate"
+      }
+    },
+    "store": {
+      "description": "Templates naming a whole store by pattern.\n\nDeliberately a second array rather than one list with a discriminator. Order across the two kinds carries no meaning (deletion is a match, not a sequence), and two arrays read as what they are: the keys you delete and the stores you delete.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/StoreTemplate"
+      }
+    }
+  },
+  "definitions": {
+    "KeyTemplate": {
+      "description": "One template naming specific keys inside a data store.",
+      "type": "object",
+      "required": [
+        "pattern",
+        "store"
+      ],
+      "properties": {
+        "ordered": {
+          "description": "Whether this is an ordered data store rather than a standard one.\n\nA bool rather than the API's `STANDARD` / `ORDERED` string, because those are the only two values and a bool cannot be misspelled.",
+          "type": "boolean"
+        },
+        "pattern": {
+          "description": "The key pattern, which must contain `{UserId}`.",
+          "type": "string"
+        },
+        "scope": {
+          "description": "The scope pattern. Omitted means `DEFAULT_SCOPE`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "store": {
+          "description": "The data store holding the key. An exact name, not a pattern: Roblox matches the store by name and only the key and scope by pattern.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StoreTemplate": {
+      "description": "One template naming a whole data store, by pattern.",
+      "type": "object",
+      "required": [
+        "pattern"
+      ],
+      "properties": {
+        "pattern": {
+          "description": "The data store name pattern, which must contain `{UserId}`.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

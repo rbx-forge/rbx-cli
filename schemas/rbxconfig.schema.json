@@ -3,6 +3,15 @@
   "title": "rbxconfig.toml",
   "description": "In-experience config entries per environment, published through the Open Cloud Configs API. See docs/config.md.",
   "type": "object",
+  "properties": {
+    "repository": {
+      "description": "Which configs repository these entries belong to.\n\nAbsent means `InExperienceConfig`, so every file written before this field existed keeps meaning what it meant. Held as text rather than a parsed `Repository` because `Repository` is not a serde type, and parsing it here would trade the name the reader typed for a serde error that lists nothing: `declared_repository` does the parse and answers with the eight names the API exposes.\n\nDeclared **before** the flattened environments on purpose. `serde` offers a key to the named fields first and only then to the flattened map, so after the flatten this field would never be reached and `repository = \"...\"` would be read as an environment called `repository`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
   "additionalProperties": {
     "$ref": "#/definitions/EnvConfig"
   },

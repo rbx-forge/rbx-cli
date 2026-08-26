@@ -1,11 +1,11 @@
 [package]
-name = "rbx-check"
+name = "rbx-rtbf"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "rbx subcommand: run every tool's check in one pass and aggregate the exit code"
+description = "rbx subcommand: declare which data store keys hold a user's data, for right-to-be-forgotten deletion"
 # Never published to crates.io. This workspace ships one binary through GitHub
 # releases, and these crates exist to structure it: they carry path
 # dependencies with no version requirement, which crates.io rejects outright,
@@ -16,19 +16,23 @@ publish = false
 anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
+reqwest.workspace = true
+schemars = { workspace = true, optional = true }
 serde.workspace = true
+serde_json.workspace = true
 tokio.workspace = true
+toml.workspace = true
 
 rbx-core = { path = "../rbx-core" }
-rbx-env = { path = "../rbx-env" }
-rbx-shop = { path = "../rbx-shop" }
-rbx-meta = { path = "../rbx-meta" }
-rbx-config = { path = "../rbx-config" }
-rbx-rtbf = { path = "../rbx-rtbf" }
 
 [dev-dependencies]
-serde_json.workspace = true
 tempfile.workspace = true
+wiremock.workspace = true
+
+[features]
+# Derives the JSON Schema for `rbxrtbf.toml`, built only by `rbx-schema` so
+# `schemars` stays out of the shipped binary.
+schema = ["dep:schemars"]
 
 [lints]
 workspace = true

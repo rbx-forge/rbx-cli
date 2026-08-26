@@ -196,6 +196,17 @@ pub fn all() -> Vec<Schema> {
             "In-experience config entries per environment, published through the Open \
              Cloud Configs API. See docs/config.md.",
         ),
+        // The plain builder, not `build_map`: `Templates` is two named arrays
+        // of named fields with no `#[serde(flatten)]` anywhere, so schemars
+        // sees all of it and there is no silently-empty table to patch in.
+        build::<rbx_rtbf::model::Templates>(
+            "rbxrtbf.toml",
+            "rbxrtbf.schema.json",
+            "Right-to-be-forgotten deletion templates: which data store keys and stores \
+             hold a user's data, published through the Open Cloud Configs API. \
+             `{UserId}` is case-sensitive and a pattern that matches nothing is accepted \
+             by Roblox and deletes nothing. See docs/rtbf.md.",
+        ),
         build::<rbx_shop::config::Config>(
             "rbxshop.toml",
             "rbxshop.schema.json",
@@ -244,12 +255,24 @@ mod tests {
     /// `[badges.*]` and its per-env overlay carry
     /// `#[serde(deny_unknown_fields)]`: `create_gift` is documented right next
     /// to badges but only applies to passes and products, and swallowing it
-    /// there would read as a no-op bug rather than an unsupported field. The
-    /// rule below is "never stricter than the tool", not "never strict", so
-    /// these are named here rather than dissolved by loosening the check,
-    /// and `the_badge_tables_really_do_reject_an_unknown_key` holds the
-    /// justification in place.
-    const CLOSED_ON_PURPOSE: &[&str] = &["BadgeConfig", "BadgeOverlay"];
+    /// there would read as a no-op bug rather than an unsupported field.
+    ///
+    /// `[[key]]` and `[[store]]` in `rbxrtbf.toml` close for a sharper reason.
+    /// A dropped key there is not a no-op: an ignored `scopes` leaves the
+    /// template on the default `global` scope, an ignored `ordered` leaves it
+    /// pointed at a standard store, and either way Roblox accepts the template
+    /// and deletes nothing. That is the exact failure the crate exists to
+    /// catch, so a misspelling has to stop at the parse.
+    ///
+    /// The rule below is "never stricter than the tool", not "never strict", so
+    /// these are named here rather than dissolved by loosening the check, and
+    /// the two `really_do_reject` tests hold the justification in place.
+    const CLOSED_ON_PURPOSE: &[&str] = &[
+        "BadgeConfig",
+        "BadgeOverlay",
+        "KeyTemplate",
+        "StoreTemplate",
+    ];
 
     /// The rule from the module docs of `main.rs`, as a test.
     ///
@@ -298,6 +321,30 @@ mod tests {
         assert!(
             toml::from_str::<rbx_shop::config::Config>(open).is_ok(),
             "the neighbouring tables stay open, and so must their schemas"
+        );
+    }
+
+    /// The same standard applied to the other exemption. A key silently
+    /// dropped from a `[[key]]` table is a template Roblox stores and never
+    /// matches, so the parse has to refuse it, and only then may the schema
+    /// paint it red.
+    #[test]
+    fn the_rtbf_template_tables_really_do_reject_an_unknown_key() {
+        let misspelled_scope = "[[key]]\nstore = \"Inventory\"\n\
+                                pattern = \"User_{UserId}\"\nscopes = \"global\"\n";
+        assert!(
+            toml::from_str::<rbx_rtbf::model::Templates>(misspelled_scope).is_err(),
+            "rbx rtbf rejects an unknown key under [[key]], so its schema may too"
+        );
+        let misspelled_pattern = "[[store]]\npatern = \"Player_{UserId}_Save\"\n";
+        assert!(
+            toml::from_str::<rbx_rtbf::model::Templates>(misspelled_pattern).is_err(),
+            "rbx rtbf rejects an unknown key under [[store]], so its schema may too"
+        );
+        let known = "[[key]]\nstore = \"Inventory\"\npattern = \"User_{UserId}\"\n";
+        assert!(
+            toml::from_str::<rbx_rtbf::model::Templates>(known).is_ok(),
+            "the fields the tool does know must still load"
         );
     }
 

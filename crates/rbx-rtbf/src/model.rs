@@ -1,0 +1,638 @@
+//! Deletion templates: what `rbxrtbf.toml` declares, and what Roblox stores.
+//!
+//! # What these are for
+//!
+//! When Roblox processes a right-to-be-forgotten request for one of your
+//! players, it does not know where that player's data lives. A template tells
+//! it: a data store name and a key pattern holding a `{UserId}` token, which
+//! Roblox substitutes with the requester's id and then deletes what matches.
+//!
+//! # Why this file is typed rather than left to `rbx config`
+//!
+//! The templates live in the `DataStoresConfig` repository of the same Configs
+//! API `rbx config` drives, under a single entry named `user_data_templates`, so
+//! `rbx config sync --repository DataStoresConfig` could push them today. What
+//! it could not do is check them, because its entry model holds an opaque
+//! `toml::Value`.
+//!
+//! Every rule below is one this tool can check and that command cannot, and the
+//! failure mode is why it is worth the crate: a template that matches nothing
+//! deletes nothing, in silence, and you find out when a legal request goes
+//! unfulfilled. Roblox's own guidance is to compare the patterns against your
+//! live Luau by hand in the Creator Hub and then to confirm within 30 days that
+//! the data went, which is an admission that nothing verifies it for you.
+
+use std::collections::BTreeMap;
+
+use anyhow::{bail, Result};
+use serde::{Deserialize, Serialize};
+use serde_json::Value as Json;
+
+/// The single entry name the templates are stored under.
+pub const ENTRY_KEY: &str = "user_data_templates";
+
+/// The token Roblox substitutes with the requester's user id.
+///
+/// **Case-sensitive**, which is the first thing Roblox's own best-practices
+/// list says. `{userId}` is not accepted and does not warn: the template simply
+/// matches nothing.
+pub const USER_ID_TOKEN: &str = "{UserId}";
+
+/// Roblox's stated ceiling on how many templates one universe may declare.
+pub const MAX_TEMPLATES: usize = 100;
+
+/// The scope a key template targets when it names none.
+///
+/// Roblox's rule, stated in the RTBF guide: an omitted or blank `scope_pattern`
+/// defaults to `global`. Written out rather than left implicit, because a store
+/// using a non-default scope and a template silently defaulting to `global` is
+/// one of the ways a pattern matches nothing.
+pub const DEFAULT_SCOPE: &str = "global";
+
+/// One template naming specific keys inside a data store.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct KeyTemplate {
+    /// The data store holding the key. An exact name, not a pattern: Roblox
+    /// matches the store by name and only the key and scope by pattern.
+    pub store: String,
+
+    /// The key pattern, which must contain `{UserId}`.
+    pub pattern: String,
+
+    /// The scope pattern. Omitted means [`DEFAULT_SCOPE`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+
+    /// Whether this is an ordered data store rather than a standard one.
+    ///
+    /// A bool rather than the API's `STANDARD` / `ORDERED` string, because
+    /// those are the only two values and a bool cannot be misspelled.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub ordered: bool,
+}
+
+/// One template naming a whole data store, by pattern.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct StoreTemplate {
+    /// The data store name pattern, which must contain `{UserId}`.
+    pub pattern: String,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+impl KeyTemplate {
+    /// The scope this template targets, defaulted.
+    ///
+    /// Blank counts as omitted, matching Roblox's rule: a `scope = ""` in the
+    /// file means `global` on the wire, and pretending otherwise locally would
+    /// make the two disagree about the same declaration.
+    pub fn effective_scope(&self) -> &str {
+        match self.scope.as_deref() {
+            Some(scope) if !scope.trim().is_empty() => scope,
+            _ => DEFAULT_SCOPE,
+        }
+    }
+
+    fn data_store_type(&self) -> &'static str {
+        if self.ordered {
+            "ORDERED"
+        } else {
+            "STANDARD"
+        }
+    }
+
+    /// What this template looks like once Roblox substitutes a real id.
+    ///
+    /// Shown by `check` and `verify` rather than only the pattern, because a
+    /// pattern is read for what it was meant to say and a sample is read for
+    /// what it will actually match.
+    pub fn sample(&self, user_id: u64) -> String {
+        format!(
+            "{}/{}/{}",
+            self.store,
+            substitute(self.effective_scope(), user_id),
+            substitute(&self.pattern, user_id)
+        )
+    }
+}
+
+impl StoreTemplate {
+    pub fn sample(&self, user_id: u64) -> String {
+        substitute(&self.pattern, user_id)
+    }
+}
+
+/// Replace the token with a concrete id, the way Roblox will.
+pub fn substitute(pattern: &str, user_id: u64) -> String {
+    pattern.replace(USER_ID_TOKEN, &user_id.to_string())
+}
+
+/// Every template a universe declares.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, Serialize)]
+pub struct Templates {
+    /// Templates naming keys inside a named store.
+    #[serde(default, rename = "key", skip_serializing_if = "Vec::is_empty")]
+    pub keys: Vec<KeyTemplate>,
+
+    /// Templates naming a whole store by pattern.
+    ///
+    /// Deliberately a second array rather than one list with a discriminator.
+    /// Order across the two kinds carries no meaning (deletion is a match, not
+    /// a sequence), and two arrays read as what they are: the keys you delete
+    /// and the stores you delete.
+    #[serde(default, rename = "store", skip_serializing_if = "Vec::is_empty")]
+    pub stores: Vec<StoreTemplate>,
+}
+
+impl Templates {
+    pub fn total(&self) -> usize {
+        self.keys.len() + self.stores.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.total() == 0
+    }
+
+    /// Refuse a template set Roblox would take and then never match.
+    ///
+    /// The distinction that matters: Roblox rejects very little here. Almost
+    /// every mistake in this file is *accepted*, stored, and then quietly
+    /// matches nothing. So these are not a mirror of the server's validation,
+    /// they are the checks nobody else performs.
+    pub fn validate(&self) -> Result<()> {
+        if self.total() > MAX_TEMPLATES {
+            bail!(
+                "{} templates, over Roblox's limit of {MAX_TEMPLATES}. \
+                 A template can cover many keys: widen the patterns rather than \
+                 listing each one.",
+                self.total()
+            );
+        }
+
+        for (index, key) in self.keys.iter().enumerate() {
+            let at = format!("[[key]] #{}", index + 1);
+            if key.store.trim().is_empty() {
+                bail!("{at}: `store` is empty. Name the data store the key lives in.");
+            }
+            check_token(&at, "pattern", &key.pattern)?;
+            // A scope may legitimately be a constant such as `global`, so the
+            // token is not required here. A *misspelled* token is still worth
+            // catching: it means the author intended a per-user scope.
+            if let Some(scope) = key.scope.as_deref() {
+                check_no_near_miss(&at, "scope", scope)?;
+            }
+        }
+
+        for (index, store) in self.stores.iter().enumerate() {
+            let at = format!("[[store]] #{}", index + 1);
+            check_token(&at, "pattern", &store.pattern)?;
+        }
+
+        Ok(())
+    }
+
+    /// The `entries` payload the Configs API takes.
+    ///
+    /// One key, `user_data_templates`, holding the array of tagged objects the
+    /// RTBF guide documents. Built from the typed form rather than written by
+    /// hand so the two cannot drift.
+    pub fn to_entries(&self) -> BTreeMap<String, Json> {
+        let mut list: Vec<Json> = Vec::with_capacity(self.total());
+        for key in &self.keys {
+            list.push(serde_json::json!({
+                "key_template": {
+                    "data_store_type": key.data_store_type(),
+                    "data_store_name": key.store,
+                    "key_pattern": key.pattern,
+                    "scope_pattern": key.effective_scope(),
+                }
+            }));
+        }
+        for store in &self.stores {
+            list.push(serde_json::json!({
+                // Only STANDARD is supported for a whole-store template, which
+                // is why `[[store]]` has no `ordered` field to send.
+                "data_store_template": {
+                    "data_store_type": "STANDARD",
+                    "data_store_pattern": store.pattern,
+                }
+            }));
+        }
+        BTreeMap::from([(ENTRY_KEY.to_string(), Json::Array(list))])
+    }
+
+    /// Read the templates back out of a published config.
+    ///
+    /// Lenient on purpose: an entry shape this build does not recognise is
+    /// skipped and counted rather than failing the read, because `pull` and
+    /// `check` have to keep working against a universe configured by a newer
+    /// release or by the Creator Hub. The count is what the caller reports.
+    pub fn from_entries(entries: &BTreeMap<String, Json>) -> (Self, usize) {
+        let Some(Json::Array(list)) = entries.get(ENTRY_KEY) else {
+            return (Self::default(), 0);
+        };
+
+        let mut templates = Self::default();
+        let mut unrecognised = 0;
+        for item in list {
+            if let Some(key) = item.get("key_template") {
+                let store = string_at(key, "data_store_name");
+                let pattern = string_at(key, "key_pattern");
+                if store.is_empty() || pattern.is_empty() {
+                    unrecognised += 1;
+                    continue;
+                }
+                let scope = string_at(key, "scope_pattern");
+                templates.keys.push(KeyTemplate {
+                    store,
+                    pattern,
+                    // `global` is the default, so it is dropped on the way in:
+                    // writing it back would put a line in the file that says
+                    // what its absence already says.
+                    scope: (scope != DEFAULT_SCOPE && !scope.is_empty()).then_some(scope),
+                    ordered: string_at(key, "data_store_type") == "ORDERED",
+                });
+            } else if let Some(store) = item.get("data_store_template") {
+                let pattern = string_at(store, "data_store_pattern");
+                if pattern.is_empty() {
+                    unrecognised += 1;
+                    continue;
+                }
+                templates.stores.push(StoreTemplate { pattern });
+            } else {
+                unrecognised += 1;
+            }
+        }
+        (templates, unrecognised)
+    }
+}
+
+fn string_at(value: &Json, field: &str) -> String {
+    value
+        .get(field)
+        .and_then(Json::as_str)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// Refuse a pattern with no usable `{UserId}`.
+///
+/// The whole point of the file. A pattern without the token is a constant, so
+/// Roblox stores it, matches at most one key belonging to nobody in particular,
+/// and reports nothing.
+fn check_token(at: &str, field: &str, pattern: &str) -> Result<()> {
+    if pattern.trim().is_empty() {
+        bail!("{at}: `{field}` is empty.");
+    }
+    if pattern.contains(USER_ID_TOKEN) {
+        return Ok(());
+    }
+    if let Some(found) = near_miss(pattern) {
+        bail!(
+            "{at}: `{field}` contains \"{found}\", and the token is \
+             case-sensitive: it must be exactly \"{USER_ID_TOKEN}\". As written, Roblox \
+             would store this template and it would match nothing."
+        );
+    }
+    bail!(
+        "{at}: `{field}` has no \"{USER_ID_TOKEN}\" token, so it names one fixed key \
+         rather than a user's. Roblox would accept it and delete nothing."
+    )
+}
+
+/// Catch a misspelled token in a field where one is not required.
+fn check_no_near_miss(at: &str, field: &str, value: &str) -> Result<()> {
+    if value.contains(USER_ID_TOKEN) {
+        return Ok(());
+    }
+    if let Some(found) = near_miss(value) {
+        bail!(
+            "{at}: `{field}` contains \"{found}\", which is not the token. It is \
+             case-sensitive and must be exactly \"{USER_ID_TOKEN}\". Write a constant scope \
+             if that is what you meant."
+        );
+    }
+    Ok(())
+}
+
+/// A brace-delimited run that looks like the token but is not it.
+///
+/// Compared case-insensitively against the token's own text, so `{userid}`,
+/// `{USERID}` and `{userId}` are all caught while an unrelated `{version}` is
+/// left alone. This is the mistake Roblox's best-practices list puts first, and
+/// it is invisible: the wrong case is stored happily and matches nothing.
+fn near_miss(value: &str) -> Option<String> {
+    let inner_token = USER_ID_TOKEN.trim_matches(|c| c == '{' || c == '}');
+    let mut rest = value;
+    while let Some(open) = rest.find('{') {
+        let after = &rest[open + 1..];
+        // No closer: nothing after this point can be a brace-delimited run, so
+        // the whole scan is done rather than just this iteration.
+        let close = after.find('}')?;
+        let inner = &after[..close];
+        if inner.eq_ignore_ascii_case(inner_token) && inner != inner_token {
+            return Some(format!("{{{inner}}}"));
+        }
+        rest = &after[close + 1..];
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(pattern: &str) -> KeyTemplate {
+        KeyTemplate {
+            store: "PlayerInventory".into(),
+            pattern: pattern.into(),
+            scope: None,
+            ordered: false,
+        }
+    }
+
+    #[test]
+    fn a_declared_template_becomes_the_payload_the_guide_documents() {
+        let templates = Templates {
+            keys: vec![
+                KeyTemplate {
+                    store: "PlayerInventory".into(),
+                    pattern: "User_{UserId}".into(),
+                    scope: Some("Scope_{UserId}".into()),
+                    ordered: false,
+                },
+                KeyTemplate {
+                    store: "PlayerLeaderboard".into(),
+                    pattern: "User_{UserId}".into(),
+                    scope: None,
+                    ordered: true,
+                },
+            ],
+            stores: vec![StoreTemplate {
+                pattern: "Player_{UserId}_Save".into(),
+            }],
+        };
+
+        let entries = templates.to_entries();
+        assert_eq!(entries.len(), 1, "one entry, whatever the template count");
+        assert_eq!(
+            entries[ENTRY_KEY],
+            serde_json::json!([
+                {"key_template": {
+                    "data_store_type": "STANDARD",
+                    "data_store_name": "PlayerInventory",
+                    "key_pattern": "User_{UserId}",
+                    "scope_pattern": "Scope_{UserId}"
+                }},
+                {"key_template": {
+                    "data_store_type": "ORDERED",
+                    "data_store_name": "PlayerLeaderboard",
+                    "key_pattern": "User_{UserId}",
+                    "scope_pattern": "global"
+                }},
+                {"data_store_template": {
+                    "data_store_type": "STANDARD",
+                    "data_store_pattern": "Player_{UserId}_Save"
+                }}
+            ])
+        );
+    }
+
+    /// An omitted scope is `global` on the wire, and comes back omitted, so a
+    /// pull of a synced file is a no-op rather than a line that says what its
+    /// own absence already said.
+    #[test]
+    fn the_default_scope_round_trips_as_an_absence() {
+        let before = Templates {
+            keys: vec![key("User_{UserId}")],
+            stores: vec![],
+        };
+        let (after, unrecognised) = Templates::from_entries(&before.to_entries());
+        assert_eq!(after, before);
+        assert_eq!(unrecognised, 0);
+        assert_eq!(before.keys[0].effective_scope(), "global");
+    }
+
+    #[test]
+    fn a_blank_scope_is_the_default_rather_than_a_blank_scope() {
+        let mut template = key("User_{UserId}");
+        template.scope = Some("   ".into());
+        assert_eq!(template.effective_scope(), DEFAULT_SCOPE);
+    }
+
+    #[test]
+    fn everything_round_trips_including_ordered_and_an_explicit_scope() {
+        let before = Templates {
+            keys: vec![
+                KeyTemplate {
+                    store: "A".into(),
+                    pattern: "User_{UserId}".into(),
+                    scope: Some("Scope_{UserId}".into()),
+                    ordered: true,
+                },
+                key("Player_{UserId}"),
+            ],
+            stores: vec![StoreTemplate {
+                pattern: "Save_{UserId}".into(),
+            }],
+        };
+        let (after, unrecognised) = Templates::from_entries(&before.to_entries());
+        assert_eq!(after, before);
+        assert_eq!(unrecognised, 0);
+    }
+
+    /// The mistake Roblox's own best-practices list puts first, and the reason
+    /// this crate exists rather than a `rbx config` invocation: the wrong case
+    /// is accepted, stored, and matches nothing.
+    #[test]
+    fn a_miscased_token_is_refused_and_the_message_says_it_is_case_sensitive() {
+        for wrong in ["User_{userId}", "User_{userid}", "User_{USERID}"] {
+            let templates = Templates {
+                keys: vec![key(wrong)],
+                stores: vec![],
+            };
+            let err = templates.validate().unwrap_err().to_string();
+            assert!(err.contains("case-sensitive"), "{wrong}: {err}");
+            assert!(err.contains("match nothing"), "{wrong}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_pattern_with_no_token_at_all_says_it_would_delete_nothing() {
+        let templates = Templates {
+            keys: vec![key("PlayerData")],
+            stores: vec![],
+        };
+        let err = templates.validate().unwrap_err().to_string();
+        assert!(err.contains("no \"{UserId}\" token"), "{err}");
+        assert!(err.contains("delete nothing"), "{err}");
+    }
+
+    /// An unrelated placeholder is somebody's naming scheme, not a typo.
+    #[test]
+    fn an_unrelated_brace_run_is_left_alone() {
+        assert_eq!(near_miss("User_{version}_{UserId}"), None);
+        assert_eq!(near_miss("no braces here"), None);
+        assert_eq!(near_miss("unclosed {UserI"), None);
+        assert_eq!(near_miss("{userid}"), Some("{userid}".into()));
+    }
+
+    /// A constant scope is legitimate, so the token is not required there. A
+    /// *misspelled* one still is a mistake: it says a per-user scope was meant.
+    #[test]
+    fn a_constant_scope_is_fine_but_a_miscased_one_is_not() {
+        let mut ok = key("User_{UserId}");
+        ok.scope = Some("global".into());
+        assert!(Templates {
+            keys: vec![ok],
+            stores: vec![]
+        }
+        .validate()
+        .is_ok());
+
+        let mut wrong = key("User_{UserId}");
+        wrong.scope = Some("Scope_{userId}".into());
+        let err = Templates {
+            keys: vec![wrong],
+            stores: vec![],
+        }
+        .validate()
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("case-sensitive"), "{err}");
+    }
+
+    #[test]
+    fn a_key_template_with_no_store_is_refused() {
+        let mut template = key("User_{UserId}");
+        template.store = "  ".into();
+        let err = Templates {
+            keys: vec![template],
+            stores: vec![],
+        }
+        .validate()
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("`store` is empty"), "{err}");
+    }
+
+    #[test]
+    fn the_template_ceiling_is_roblox_s_and_counts_both_kinds() {
+        let fits = Templates {
+            keys: vec![key("User_{UserId}"); MAX_TEMPLATES - 1],
+            stores: vec![StoreTemplate {
+                pattern: "S_{UserId}".into(),
+            }],
+        };
+        assert_eq!(fits.total(), MAX_TEMPLATES);
+        assert!(fits.validate().is_ok());
+
+        let over = Templates {
+            keys: vec![key("User_{UserId}"); MAX_TEMPLATES],
+            stores: vec![StoreTemplate {
+                pattern: "S_{UserId}".into(),
+            }],
+        };
+        let err = over.validate().unwrap_err().to_string();
+        assert!(err.contains("101 templates"), "{err}");
+        assert!(err.contains("limit of 100"), "{err}");
+    }
+
+    /// The refusal has to say *which* template, because a hundred of them look
+    /// alike in a diff.
+    #[test]
+    fn a_refusal_names_the_template_by_kind_and_position() {
+        let templates = Templates {
+            keys: vec![key("User_{UserId}"), key("bad")],
+            stores: vec![],
+        };
+        let err = templates.validate().unwrap_err().to_string();
+        assert!(err.contains("[[key]] #2"), "{err}");
+
+        let templates = Templates {
+            keys: vec![],
+            stores: vec![
+                StoreTemplate {
+                    pattern: "A_{UserId}".into(),
+                },
+                StoreTemplate {
+                    pattern: "B".into(),
+                },
+            ],
+        };
+        let err = templates.validate().unwrap_err().to_string();
+        assert!(err.contains("[[store]] #2"), "{err}");
+    }
+
+    /// What the Creator Hub calls the sample output, and the only way to read a
+    /// template for what it will actually match.
+    #[test]
+    fn a_sample_shows_what_roblox_will_look_for() {
+        let mut template = key("User_{UserId}");
+        template.scope = Some("Scope_{UserId}".into());
+        assert_eq!(
+            template.sample(1234567890),
+            "PlayerInventory/Scope_1234567890/User_1234567890"
+        );
+
+        assert_eq!(
+            key("User_{UserId}").sample(1234567890).split('/').nth(1),
+            Some("global")
+        );
+
+        assert_eq!(
+            StoreTemplate {
+                pattern: "Player_{UserId}_Save".into()
+            }
+            .sample(1234567890),
+            "Player_1234567890_Save"
+        );
+    }
+
+    /// A universe configured by a newer release, or by hand in the Creator Hub,
+    /// must stay readable: an entry this build does not know is counted, not
+    /// fatal.
+    #[test]
+    fn an_unrecognised_entry_is_counted_rather_than_failing_the_read() {
+        let entries = BTreeMap::from([(
+            ENTRY_KEY.to_string(),
+            serde_json::json!([
+                {"key_template": {"data_store_name": "A", "key_pattern": "U_{UserId}"}},
+                {"future_template": {"whatever": true}},
+                {"key_template": {"key_pattern": "no store name"}}
+            ]),
+        )]);
+        let (templates, unrecognised) = Templates::from_entries(&entries);
+        assert_eq!(templates.keys.len(), 1);
+        assert_eq!(unrecognised, 2);
+    }
+
+    #[test]
+    fn a_universe_with_no_templates_reads_as_empty_rather_than_failing() {
+        let (templates, unrecognised) = Templates::from_entries(&BTreeMap::new());
+        assert!(templates.is_empty());
+        assert_eq!(unrecognised, 0);
+
+        let other = BTreeMap::from([("something.else".to_string(), Json::from(1))]);
+        assert!(Templates::from_entries(&other).0.is_empty());
+    }
+
+    /// An empty file is a legitimate state, not an error: it is what a project
+    /// that has not onboarded yet has, and `sync` publishing it is how you
+    /// clear templates you no longer want.
+    #[test]
+    fn no_templates_at_all_validates() {
+        assert!(Templates::default().validate().is_ok());
+        assert_eq!(
+            Templates::default().to_entries()[ENTRY_KEY],
+            serde_json::json!([])
+        );
+    }
+}

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx rtbf`**: the failure this prevents is a deletion template that
+  matches nothing. Roblox accepts one, stores it, reports it as configured,
+  and deletes nothing, so a right-to-be-forgotten request goes unfulfilled and
+  nothing says so until somebody asks why. Roblox's own advice is to compare
+  the patterns against your live Luau by hand in the Creator Hub and then to
+  confirm within 30 days that the data went, which is an admission that
+  nothing verifies it for you.
+
+  `rbxrtbf.toml` declares which data store keys and stores hold a user's data,
+  reconciled against the `DataStoresConfig` repository of the Configs API:
+  `init`, `show`, `check`, `sync`, `pull` and `verify`. No lockfile, for the
+  reason `rbx config` has none: the published set is readable in full, so the
+  remote state is a fetch.
+
+  `{UserId}` is case-sensitive, and `{userId}` is the mistake Roblox's own
+  best-practices list puts first: it is stored happily and matches nothing.
+  That, a pattern carrying no token at all, and a near-miss token in a `scope`
+  are all refused locally, before a publish makes them authoritative.
+  `rbx rtbf verify` then goes further and lists the stores the universe really
+  has, so a template naming one you renamed last year is caught before a legal
+  request depends on it.
+
+  `rbx config --repository DataStoresConfig` reaches the same place and will
+  keep working. What it cannot do is check any of the above, because its entry
+  model holds an opaque value, and this command exists for exactly those
+  checks. `rbx check` picks `rbxrtbf.toml` up as two rows, the local one
+  running under `--offline`.
+
 ## [0.4.0]
 
 ### Added

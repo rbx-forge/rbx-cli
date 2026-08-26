@@ -432,6 +432,11 @@ async fn import_config(global: &GlobalFlags, dir: &Path) -> Result<()> {
         ConfigCli {
             command: ConfigCommands::Pull { yes: true },
             config: dir.join("rbxconfig.toml"),
+            // `InExperienceConfig`, the repository an import has always
+            // mirrored. An import is a starting point, and naming another one
+            // here would be this command deciding something the user has not
+            // said anything about yet.
+            repository: None,
         },
         global,
     )

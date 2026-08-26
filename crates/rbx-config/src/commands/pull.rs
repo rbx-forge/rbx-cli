@@ -6,12 +6,24 @@ use crate::ctx::ConfigCtx;
 use crate::lock::{LockFile, LOCKFILE_NAME};
 
 use super::make_client;
+use rbx_core::api::Repository;
 use rbx_core::confirm::confirm_always;
 
 pub async fn run(ctx: &ConfigCtx, yes: bool) -> Result<()> {
     let (env, universe_id, _confirm) = ctx.resolve_target()?;
-    let client = make_client(ctx)?;
     let out = &ctx.config;
+
+    // Read before the fetch, because the file names the repository the entries
+    // are pulled from. A pull into a directory with no file is still a pull:
+    // an absent file names nothing, and takes the flag or the default.
+    let file_existed = out.exists();
+    let mut file = if file_existed {
+        ConfigsFile::load(out)?
+    } else {
+        ConfigsFile::default()
+    };
+    let repository = ctx.resolve_repository(file.declared_repository()?)?;
+    let client = make_client(ctx, repository)?;
 
     crate::lock::check_drift_beside(out, &env, universe_id)?;
     let lock_path = out
@@ -35,13 +47,6 @@ pub async fn run(ctx: &ConfigCtx, yes: bool) -> Result<()> {
         snapshot.metadata.config_version
     );
 
-    let file_existed = out.exists();
-    let mut file = if file_existed {
-        ConfigsFile::load(out)?
-    } else {
-        ConfigsFile::default()
-    };
-
     if file_existed {
         let other_envs: Vec<&String> = file
             .environments
@@ -62,6 +67,14 @@ pub async fn run(ctx: &ConfigCtx, yes: bool) -> Result<()> {
     }
 
     let stats = file.replace_env_from_json(&env, snapshot.entries);
+    // The file has to say which repository it mirrors, or the next `sync`
+    // reads a silent file, falls back to the default, and publishes these
+    // entries into `InExperienceConfig`. Written only when it is not the
+    // default and the file does not already name one, so a plain `pull`
+    // produces the bytes it always did.
+    if file.repository.is_none() && repository != Repository::default() {
+        file.repository = Some(repository.to_string());
+    }
     file.save(out)?;
 
     println!(

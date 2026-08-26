@@ -17,10 +17,13 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 use std::path::Path;
+use std::str::FromStr;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as Json;
+
+use rbx_core::api::Repository;
 
 use crate::value::{json_to_toml, toml_to_json};
 
@@ -52,6 +55,22 @@ pub struct EnvConfig {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub struct ConfigsFile {
+    /// Which configs repository these entries belong to.
+    ///
+    /// Absent means `InExperienceConfig`, so every file written before this
+    /// field existed keeps meaning what it meant. Held as text rather than a
+    /// parsed `Repository` because `Repository` is not a serde type, and
+    /// parsing it here would trade the name the reader typed for a serde error
+    /// that lists nothing: `declared_repository` does the parse and answers
+    /// with the eight names the API exposes.
+    ///
+    /// Declared **before** the flattened environments on purpose. `serde`
+    /// offers a key to the named fields first and only then to the flattened
+    /// map, so after the flatten this field would never be reached and
+    /// `repository = "..."` would be read as an environment called
+    /// `repository`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repository: Option<String>,
     #[serde(flatten)]
     pub environments: HashMap<String, EnvConfig>,
 }
@@ -73,6 +92,18 @@ impl ConfigsFile {
     /// what `toml::to_string_pretty` does for any `Value::Table` field).
     fn render(&self) -> String {
         let mut out = String::new();
+
+        // Before the first `[env.entries.*]` header, because a bare key after
+        // a table header belongs to that table: written last it would be read
+        // back as an entry of whichever env came first. A file that names no
+        // repository still renders none, so `pull` keeps writing the bytes it
+        // always did.
+        if let Some(repository) = &self.repository {
+            let literal = toml::Value::String(repository.clone()).to_string();
+            let _ = writeln!(out, "repository = {}", literal);
+            let _ = writeln!(out);
+        }
+
         let mut envs: Vec<&String> = self.environments.keys().collect();
         envs.sort();
 
@@ -90,6 +121,18 @@ impl ConfigsFile {
             }
         }
         out
+    }
+
+    /// The repository this file names, parsed, or `None` when it names none.
+    ///
+    /// Wrong name, and this is where it is caught: `Repository::from_str`
+    /// answers with the eight the public API exposes, which is more use than
+    /// the 400 Roblox would send back for an unknown path segment.
+    pub fn declared_repository(&self) -> Result<Option<Repository>> {
+        self.repository
+            .as_deref()
+            .map(Repository::from_str)
+            .transpose()
     }
 
     /// Get entries for a specific environment.
@@ -184,4 +227,105 @@ pub struct ReplaceStats {
     pub added: Vec<String>,
     pub removed: Vec<String>,
     pub preserved_descriptions: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every `rbxconfig.toml` written before the field existed. Silence is
+    /// not a repository, it is the absence of one: the caller turns that into
+    /// `InExperienceConfig`, and only after the flag has had its say.
+    #[test]
+    fn a_file_that_names_no_repository_declares_none() {
+        let file: ConfigsFile = toml::from_str(
+            r#"
+[dev.entries."features.flag"]
+value = true
+"#,
+        )
+        .expect("parse");
+
+        assert_eq!(file.repository, None);
+        assert_eq!(file.declared_repository().unwrap(), None);
+        assert!(file.environments.contains_key("dev"));
+    }
+
+    /// The field is read as a field, not as an environment called
+    /// `repository`. That is what declaring it before the `serde(flatten)`
+    /// buys, and it is invisible until it breaks.
+    #[test]
+    fn a_named_repository_is_a_field_and_not_an_environment() {
+        let file: ConfigsFile = toml::from_str(
+            r#"repository = "DataStoresConfig"
+
+[dev.entries."features.flag"]
+value = true
+"#,
+        )
+        .expect("parse");
+
+        assert_eq!(
+            file.declared_repository().unwrap(),
+            Some(Repository::DataStoresConfig)
+        );
+        assert_eq!(file.environments.len(), 1);
+        assert!(file.environments.contains_key("dev"));
+    }
+
+    /// `pull` rewrites the whole file through `render`, so a field it dropped
+    /// would turn the next `sync` into a publish into the default repository.
+    #[test]
+    fn render_round_trips_the_repository() {
+        let source = r#"repository = "LeaderboardsConfig"
+
+[dev.entries."features.flag"]
+value = true
+"#;
+        let file: ConfigsFile = toml::from_str(source).expect("parse");
+
+        let rendered = file.render();
+        let reread: ConfigsFile = toml::from_str(&rendered).expect("reparse");
+
+        assert_eq!(
+            reread.declared_repository().unwrap(),
+            Some(Repository::LeaderboardsConfig)
+        );
+        assert_eq!(reread.environments["dev"].entries.len(), 1);
+    }
+
+    /// A file with no repository renders none: `pull` keeps writing the bytes
+    /// it always wrote.
+    #[test]
+    fn render_adds_no_repository_line_to_a_file_that_had_none() {
+        let file: ConfigsFile = toml::from_str(
+            r#"
+[dev.entries."features.flag"]
+value = true
+"#,
+        )
+        .expect("parse");
+
+        assert_eq!(
+            file.render(),
+            "[dev.entries.\"features.flag\"]\nvalue = true\n\n"
+        );
+    }
+
+    /// A typo is caught here rather than by a 400 from Roblox naming nothing,
+    /// and the answer is the list, because a name that is not one of eight is
+    /// only actionable next to the eight.
+    #[test]
+    fn an_unknown_repository_lists_the_eight() {
+        let file: ConfigsFile = toml::from_str(r#"repository = "InExperience""#).expect("parse");
+
+        let err = file
+            .declared_repository()
+            .expect_err("'InExperience' is not a repository")
+            .to_string();
+        for repository in Repository::ALL {
+            assert!(err.contains(repository.as_str()), "{err}");
+        }
+        assert_eq!(Repository::ALL.len(), 8);
+    }
 }

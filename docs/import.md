@@ -91,10 +91,11 @@ Reported at the end of every run, because a directory that looks adopted but qui
     -> re-run with --cookie, or set them by hand in rbxmeta.toml
 ```
 
-Two categories:
+Three categories:
 
 - **Cookie-only metadata.** `server_fill`, `allow_copying` and `beta_mode` have no Open Cloud endpoint. `rbx meta` models them and `sync` can write them, but nothing can read them back without a session cookie, so an import that resolves no cookie at all leaves them unset and says so. The test is what the `meta` step resolves, not what you typed: it auto-detects like any other `rbx meta` run, so on a machine with Studio signed in these fields are read and this line does not appear. Without that line, the first `meta sync` after an import looks like it is inventing changes.
 - **A domain that failed.** By default a domain that errors (usually a key missing one scope) is skipped and reported rather than aborting the run, because a half-written directory with no explanation is the worse outcome. `--strict` inverts that, which is what you want in CI.
+- **RTBF deletion templates.** `rbx import` does not write `rbxrtbf.toml`, so a universe that already declares right-to-be-forgotten templates is adopted without them. Run `rbx rtbf pull --env <name>` after the import to bring them into version control. This is a gap rather than a decision that they do not belong here: nothing warns about it during an import, because with no `rbxrtbf.toml` on disk `rbx check` skips the tool entirely and reports green. The hazard is later, and it is real: writing that file by hand and running `rbx rtbf sync` would publish it as the canonical set and clear whatever the universe had. Pull first.
 
 ## Flags
 

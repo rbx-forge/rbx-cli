@@ -1800,6 +1800,7 @@ dependencies = [
  "rbx-place",
  "rbx-probe",
  "rbx-restart",
+ "rbx-rtbf",
  "rbx-secret",
  "rbx-servers",
  "rbx-shop",
@@ -1890,6 +1891,7 @@ dependencies = [
  "rbx-core",
  "rbx-env",
  "rbx-meta",
+ "rbx-rtbf",
  "rbx-shop",
  "serde",
  "serde_json",
@@ -2156,6 +2158,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "rbx-rtbf"
+version = "0.4.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "colored",
+ "rbx-core",
+ "reqwest",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "toml",
+ "wiremock",
+]
+
+[[package]]
 name = "rbx-schema"
 version = "0.4.0"
 dependencies = [
@@ -2166,6 +2186,7 @@ dependencies = [
  "rbx-config",
  "rbx-core",
  "rbx-meta",
+ "rbx-rtbf",
  "rbx-shop",
  "schemars",
  "serde_json",

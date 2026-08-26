@@ -117,6 +117,10 @@ From there:
   and place metadata, [`rbx config`](config.md) for in-experience live configs,
   [`rbx shop`](shop.md) for passes, badges and developer products with typed
   Luau codegen.
+- **Answering a deletion request.** [`rbx rtbf`](rtbf.md) declares which data
+  store keys hold a user's data, and checks the declaration against the stores
+  you actually have. A template that matches nothing is accepted by Roblox and
+  deletes nothing, which is the failure worth catching before somebody asks.
 - **Acting on a running game.** [Live operations](ops.md) is the entry point
   and the safety model: dry run by default, `--apply` to write, `--env all`
   refused.

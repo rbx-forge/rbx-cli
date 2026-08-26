@@ -78,6 +78,13 @@ enum Tool {
     // token will scan past `config` first.
     /// Secrets HttpService:GetSecret reads, written encrypted
     Secret(rbx_secret::SecretCli),
+    // Last of the three, because it is the question the other two do not ask:
+    // `config` carries the values a universe may hold, `secret` the ones it
+    // must never hold, and `rtbf` the ones it must be able to delete. It sits
+    // here rather than beside `data` because it is a declaration in a
+    // committed file, not an operation on a live store.
+    /// Data store keys holding a user's data, for right-to-be-forgotten
+    Rtbf(rbx_rtbf::RtbfCli),
     /// Game passes, badges, and developer products
     Shop(rbx_shop::ShopCli),
     /// Launch Roblox Studio at a specific place
@@ -188,6 +195,7 @@ async fn dispatch() -> Result<()> {
         Tool::Meta(c) => rbx_meta::run(c, &cli.global).await,
         Tool::Config(c) => rbx_config::run(c, &cli.global).await,
         Tool::Secret(c) => rbx_secret::run(c, &cli.global).await,
+        Tool::Rtbf(c) => rbx_rtbf::run(c, &cli.global).await,
         Tool::Shop(c) => rbx_shop::run(c, &cli.global).await,
         Tool::Open(c) => rbx_open::run(c, &cli.global).await,
         Tool::Download(c) => rbx_download::run(c, &cli.global).await,

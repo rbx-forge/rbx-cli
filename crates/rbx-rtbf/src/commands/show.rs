@@ -15,7 +15,11 @@ use crate::json::ShowDocument;
 use crate::model::{Templates, MAX_TEMPLATES};
 
 pub fn run(ctx: &RtbfCtx<'_>, user_id: u64, json: bool) -> Result<()> {
-    let templates = config::load(&ctx.config)?;
+    // `.templates` and no wipe guard: `show` echoes the file as this build
+    // reads it, which is precisely the tool for seeing that a misspelled table
+    // declared nothing. The `0` in its count, and `load`'s warning on stderr,
+    // are the answer here; refusing would hide the evidence.
+    let templates = config::load(&ctx.config)?.templates;
     // Ahead of the document: an invalid file has no declared state to report,
     // and emitting one would put a template the tool refuses into a consumer's
     // hands as though it were live.

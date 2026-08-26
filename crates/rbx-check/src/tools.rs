@@ -23,6 +23,7 @@ use rbx_core::env::DEFAULT_ENV;
 use rbx_core::generated::{compare, GeneratedFile, Verdict};
 use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
+use rbx_rtbf::config::Loaded;
 use rbx_rtbf::model::Templates;
 
 use crate::report::{Outcome, ToolReport};
@@ -652,7 +653,7 @@ pub async fn rtbf(config_path: &Path, global: &GlobalFlags, offline: bool) -> Ve
     // the live row has nothing to compare without the file either.
     let declared = rbx_rtbf::config::load(config_path);
 
-    let mut reports = vec![rtbf_templates(declared.as_ref())];
+    let mut reports = vec![rtbf_templates(config_path, declared.as_ref())];
     reports.extend(rtbf_live(declared.as_ref(), global, offline).await);
     reports
 }
@@ -671,13 +672,23 @@ fn live_row(outcome: Outcome, summary: impl Into<String>) -> ToolReport {
 }
 
 /// The local half: does the file declare templates that could ever match.
-fn rtbf_templates(declared: Result<&Templates, &anyhow::Error>) -> ToolReport {
-    let templates = match declared {
-        Ok(templates) => templates,
+fn rtbf_templates(path: &Path, declared: Result<&Loaded, &anyhow::Error>) -> ToolReport {
+    let loaded = match declared {
+        Ok(loaded) => loaded,
         Err(err) => return templates_row(Outcome::Error, one_line(err)),
     };
+    let templates = &loaded.templates;
 
     if let Err(err) = templates.validate() {
+        return templates_row(Outcome::Error, one_line(&err));
+    }
+
+    // Before the clean row below, because it is the one case where an empty
+    // declaration is not a decision: `[[keys]]` (the plural) parses to nothing
+    // and `sync --yes` would publish that over every template the universe
+    // had. `Error` rather than `Drift`: nothing here disagrees with Roblox,
+    // the tool simply cannot answer what this file meant to declare.
+    if let Err(err) = loaded.refuse_if_emptied_by_a_typo(path) {
         return templates_row(Outcome::Error, one_line(&err));
     }
 
@@ -704,7 +715,7 @@ fn rtbf_templates(declared: Result<&Templates, &anyhow::Error>) -> ToolReport {
 
 /// The remote half: does the file match what Roblox is serving.
 async fn rtbf_live(
-    declared: Result<&Templates, &anyhow::Error>,
+    declared: Result<&Loaded, &anyhow::Error>,
     global: &GlobalFlags,
     offline: bool,
 ) -> Vec<ToolReport> {
@@ -720,12 +731,16 @@ async fn rtbf_live(
     // The parse failure is already the local row's verdict. Repeating it here
     // would count one broken file as two failures, and the second copy says
     // nothing the first did not.
-    let Ok(declared) = declared else {
+    let Ok(loaded) = declared else {
         return vec![live_row(
             Outcome::Skipped,
             "rbxrtbf.toml did not load: see the rtbf/templates row",
         )];
     };
+    // The comparison is against what this build can read. A declaration a typo
+    // emptied still drifts loudly here, which is the answer this row owes: the
+    // refusal is the local row's job.
+    let declared = &loaded.templates;
 
     // `rbxrtbf.toml` is not env-keyed, so unlike `rbxconfig.toml` a bare
     // `--universe-id` is already a complete target: there is no section for an

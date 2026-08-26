@@ -1909,7 +1909,6 @@ dependencies = [
  "colored",
  "dialoguer",
  "rbx-core",
- "reqwest",
  "schemars",
  "serde",
  "serde_json",

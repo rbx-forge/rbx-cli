@@ -6,11 +6,13 @@
 //! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
-//! The fixture is arranged to have two things to say on stderr: an unrecognised
+//! Every fixture here is arranged to have something to say on stderr, because a
+//! warning with nowhere safe to go is how stdout gets polluted: an unrecognised
 //! top-level key in `rbxshop.toml`, which `Config::load` warns about on every
-//! command that reads the file, and the per-env overlay hint `shop show` prints
-//! under its tables. A warning that has nowhere safe to go is how stdout gets
-//! polluted.
+//! command that reads the file, the per-env overlay hint `shop show` prints
+//! under its tables, and the same unrecognised key in `rbxrtbf.toml`, whose
+//! warning is the one thing standing between a misspelled `[[keys]]` and a
+//! published set of no deletion templates at all.
 //!
 //! `shop list` and the three `config` commands talk to Roblox and the binary
 //! exposes no base-url override for them, so what is asserted here is the half
@@ -313,7 +315,16 @@ fn a_failing_json_command_writes_no_partial_document() {
     }
 }
 
-const RTBF_TEMPLATES: &str = r#"
+/// An `rbxrtbf.toml` with an unknown top-level key in it, so `config::load`
+/// has a warning to emit here too.
+///
+/// Not decoration. In this crate the warning is load-bearing: `[[keys]]` (the
+/// plural) parses to an empty declaration, and the only reason a reader ever
+/// learns that is a line on stderr. A line that landed on stdout instead would
+/// break the document and be silenced by the first pipeline that redirected it.
+const RTBF_WITH_UNKNOWN_KEY: &str = r#"
+notatable = "warn about me"
+
 [[key]]
 store = "PlayerInventory"
 pattern = "User_{UserId}"
@@ -330,7 +341,7 @@ pattern = "Player_{UserId}_Save"
 
 fn rtbf_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
     let path = dir.path().join("rbxrtbf.toml");
-    std::fs::write(&path, RTBF_TEMPLATES).unwrap();
+    std::fs::write(&path, RTBF_WITH_UNKNOWN_KEY).unwrap();
     path
 }
 
@@ -338,7 +349,7 @@ fn rtbf_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
 /// belongs with the other declared-state documents rather than with the live
 /// ones.
 #[test]
-fn rtbf_show_writes_one_document_and_nothing_else() {
+fn rtbf_show_emits_a_document_on_stdout_and_its_warning_on_stderr() {
     let dir = tempfile::tempdir().unwrap();
     let rtbf = rtbf_file(&dir);
 
@@ -350,7 +361,10 @@ fn rtbf_show_writes_one_document_and_nothing_else() {
     // A string, like every other id this suite emits.
     assert_eq!(doc["sample_user_id"], "1234567890");
     assert_eq!(doc["templates"].as_array().map(Vec::len), Some(3));
-    assert!(stderr.is_empty(), "stderr was:\n{stderr}");
+    // The unrecognised key was reported, and reported where it cannot corrupt
+    // the document. If this moved to stdout the parse in `run_json` would have
+    // failed, and the plural-typo wipe would have had no signal left at all.
+    assert!(stderr.contains("notatable"), "stderr was:\n{stderr}");
 }
 
 /// One list with a `kind`, and the sample Roblox will actually look for, which

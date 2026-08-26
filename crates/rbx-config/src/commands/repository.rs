@@ -30,9 +30,23 @@ const LOCAL: &str = r#"
 value = true
 "#;
 
+/// Two envs and no `repository` line: the shape `pull --repository` may not
+/// stamp, because the field governs the whole file and `prod` was not fetched.
+const TWO_ENVS: &str = r#"
+[dev.entries."features.new_popup"]
+value = true
+
+[prod.entries."retention.player_data"]
+value = "30d"
+"#;
+
 fn repo() -> TempDir {
+    repo_with(LOCAL)
+}
+
+fn repo_with(local: &str) -> TempDir {
     let dir = tempfile::tempdir().expect("tempdir");
-    std::fs::write(dir.path().join("rbxconfig.toml"), LOCAL).expect("write");
+    std::fs::write(dir.path().join("rbxconfig.toml"), local).expect("write");
     dir
 }
 
@@ -49,6 +63,12 @@ fn ctx(dir: &TempDir, server: &MockServer, repository: Option<Repository>) -> Co
 }
 
 /// The live config read, on the default path only.
+///
+/// At least one read, not exactly one: `sync` reads the repository root twice,
+/// once for the diff it prints and once inside `overwrite_and_publish`, which
+/// has to know the published conditional rules before an overwrite that omits
+/// them clears them (`rbx-core/src/api/configs.rs`). What this file pins is
+/// the path, and an unmatched path still 404s the command's own read.
 async fn published(entries: serde_json::Value) -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
@@ -57,7 +77,7 @@ async fn published(entries: serde_json::Value) -> MockServer {
             ResponseTemplate::new(200)
                 .set_body_json(json!({ "metadata": { "configVersion": 3 }, "entries": entries })),
         )
-        .expect(1)
+        .expect(1..)
         .mount(&server)
         .await;
     server
@@ -164,6 +184,55 @@ async fn pull_records_a_repository_that_is_not_the_default() {
     assert_eq!(written.environments["dev"].entries.len(), 1);
 }
 
+/// The refusal that keeps the stamp above from reaching a file it does not
+/// describe. `repository` governs the whole file, so recording it after a
+/// `pull --env dev` would move `prod`'s entries to that repository too, and
+/// the next `sync --env prod` overwrites the repository with prod's keys
+/// alone (`pull.rs:76-100`). Against `DataStoresConfig` that erases the
+/// universe's right-to-be-forgotten templates with nothing said, which is why
+/// the file has to come out of a refused pull byte for byte unchanged.
+#[tokio::test]
+async fn pull_refuses_to_record_a_repository_over_an_env_it_did_not_fetch() {
+    let dir = repo_with(TWO_ENVS);
+    let config = dir.path().join("rbxconfig.toml");
+    let before = std::fs::read(&config).expect("read");
+
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(
+            "/creator-configs-public-api/v1/configs/universes/109876543210987/repositories/DataStoresConfig",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({ "metadata": { "configVersion": 3 }, "entries": { "features.new_popup": false } }),
+        ))
+        .mount(&server)
+        .await;
+
+    let err = super::pull::run(
+        &ctx(&dir, &server, Some(Repository::DataStoresConfig)),
+        true,
+    )
+    .await
+    .expect_err("a repository line would speak for prod as well");
+
+    // Naming the env is the whole point of the message: the user has to know
+    // which one blocks the stamp to decide between `--config` and editing the
+    // field by hand.
+    let message = format!("{err:#}");
+    assert!(message.contains("prod"), "{message}");
+    assert!(message.contains("DataStoresConfig"), "{message}");
+
+    assert_eq!(
+        std::fs::read(&config).expect("read"),
+        before,
+        "a refused pull writes nothing, not even the dev entries it fetched"
+    );
+    assert!(
+        !dir.path().join(crate::lock::LOCKFILE_NAME).exists(),
+        "a refused pull records no lock either"
+    );
+}
+
 #[tokio::test]
 async fn sync_writes_to_the_default_repository() {
     let dir = repo();
@@ -245,16 +314,21 @@ async fn sync_over_a_staged_draft_publishes_and_does_not_refuse() {
     .expect("a staged draft is replaced, not a refusal");
 }
 
-/// `rollback` restores into the default repository. It cannot get further than
-/// the restore in a test: the publish message is composed interactively and
-/// there is nobody to ask, so the assertion is on the request that was made
-/// and on which question stopped the run.
+/// `rollback` restores into the default repository, on the path the vendored
+/// spec documents: `POST .../revisions/{revisionId}/restore`, a subresource
+/// and not the `:restore` custom-method form, which that document uses only
+/// for `/assets/v1/assets/{assetId}:restore`. The old spelling reached Roblox
+/// as an unknown path and the rollback never happened.
+///
+/// It cannot get further than the restore in a test: the publish message is
+/// composed interactively and there is nobody to ask, so the assertion is on
+/// the request that was made and on which question stopped the run.
 #[tokio::test]
 async fn rollback_restores_from_the_default_repository() {
     let dir = repo();
     let server = MockServer::start().await;
     Mock::given(method("POST"))
-        .and(path(format!("{REPO_PATH}/revisions/{REVISION}:restore")))
+        .and(path(format!("{REPO_PATH}/revisions/{REVISION}/restore")))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(json!({ "draftHash": "aaaaBBBBccccDDDD" })),
         )
@@ -271,7 +345,7 @@ async fn rollback_restores_from_the_default_repository() {
     assert_eq!(requests.len(), 1);
     assert_eq!(
         requests[0].url.path(),
-        format!("{REPO_PATH}/revisions/{REVISION}:restore")
+        format!("{REPO_PATH}/revisions/{REVISION}/restore")
     );
 }
 

@@ -62,8 +62,9 @@ body:
     attributes:
       label: Relevant config
       description: >
-        The section of `rbxplace.toml` / `rbxshop.toml` / `rbxmeta.toml` the
-        command reads, with ids replaced by placeholders. Skip if not relevant.
+        The section of `rbxplace.toml`, `rbxshop.toml`, `rbxmeta.toml`,
+        `rbxconfig.toml`, `rbxrtbf.toml` or `rbxapikey.toml` the command reads,
+        with ids replaced by placeholders. Skip if not relevant.
       render: toml
     validations:
       required: false

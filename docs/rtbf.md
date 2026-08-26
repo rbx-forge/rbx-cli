@@ -176,6 +176,8 @@ This is **declared state**, read from the file with no network, so there is no `
 
 Publishes the whole set: a template absent from the file is removed from live, the same way `rbx config sync` treats a missing key. The file is validated before the network and before the prompt, because a template that would match nothing must not reach a publish that makes it authoritative.
 
+**An empty declaration is refused when the file also names a table this release does not read.** The case it is there for is `[[keys]]`, the plural: it is not a table this file has, so it parses to nothing at all and the file looks full while declaring zero templates. Publishing that replaces the whole published set, and Roblox's only undo is restoring a revision. So a file that declares nothing *and* names any unrecognised root table is refused before the network and before the prompt, with every such table named next to the two the file is made of, `key` and `store`. An empty file naming nothing unrecognised is not refused: declaring nothing is a legitimate state, and publishing it is how you clear the set on purpose.
+
 ```sh
 rbx rtbf sync --env prod --dry-run    # preview only
 rbx rtbf sync --env prod              # prompts for confirmation
@@ -193,6 +195,8 @@ rbx rtbf sync --env prod --yes        # skip the prompt
 ### `rbx rtbf verify`
 
 The question `check` cannot answer. `check` says the file and the published set agree, and both can agree perfectly on a template naming a store you renamed last year.
+
+It applies the same refusal as `sync`, for its own reason: with nothing declared there is nothing to look for, so a declaration a typo emptied would answer `ok: true` with no findings, and that reads as proof the templates are sound rather than as news that they are gone.
 
 ```sh
 rbx rtbf verify --env prod
@@ -245,12 +249,14 @@ Two limits, both of them stated in the output rather than papered over:
 
 **`verdict` has three values rather than being a boolean, and that matters.** `unverifiable` is a limit of Open Cloud, not a broken template, so it is excluded from `ok`. A consumer folding it into a failure would break a build over an ordered store nothing can list.
 
-The document is written **before** the process exits non-zero, so a failing run still emits it. `.ok` is the field to branch on:
+The document is written **before** the process exits non-zero, so a run that verified and found something still emits it. `.ok` is the field to branch on:
 
 ```sh
 rbx rtbf verify --env prod --json | jq -e '.ok' > /dev/null || echo "templates need attention"
 rbx rtbf verify --env prod --json | jq -r '.findings[] | select(.verdict != "unverifiable") | .target'
 ```
+
+A run refused before it looks writes **nothing** to stdout: an unreadable file, a template that could match nothing, or a declaration an unrecognised table emptied. There is no document with `ok: false` for those, because nothing was verified; an empty stdout next to a non-zero exit says so, and `jq -e` fails on it either way.
 
 ## Environments
 
@@ -271,7 +277,7 @@ rbx rtbf sync --env all
 - rtbf/live       --offline: comparing against Roblox needs an API key
 ```
 
-`rtbf/templates` is local and always runs, `--offline` included, because every rule it checks is decidable from the file. `rtbf/live` is the comparison against the published set and needs an API key; with no target universe it is skipped rather than failed, so a keyless pre-commit hook still exits 0. A file declaring nothing is clean and says so: an empty declaration is a legitimate state, not drift. See [docs/check.md](./check.md).
+`rtbf/templates` is local and always runs, `--offline` included, because every rule it checks is decidable from the file. `rtbf/live` is the comparison against the published set and needs an API key; with no target universe it is skipped rather than failed, so a keyless pre-commit hook still exits 0. A file declaring nothing is clean and says so: an empty declaration is a legitimate state, not drift. The exception is a file that declares nothing *and* names a root table this release does not read, where `rtbf/templates` is an **error** row and `rbx check` exits 1: nothing there disagrees with Roblox, but `[[keys]]` parses to an empty declaration and no tool can say what the file meant to declare. See [docs/check.md](./check.md).
 
 ## Required API scopes
 

@@ -270,17 +270,24 @@ impl ConfigsClient {
     /// does not match the server's current draft the request fails, which is
     /// what stops a `sync` from silently discarding an edit somebody made in
     /// the Creator Hub between this command's read and its write.
+    ///
+    /// `conditional_rules` is the full intended rule set after publish, and
+    /// `None` means "clear every rule there is". It is a required decision
+    /// rather than an optional extra: see [`OverwriteBody`] and
+    /// [`ConfigsClient::conditional_rules_to_restate`].
     pub async fn overwrite_draft(
         &self,
         universe_id: u64,
         entries: &BTreeMap<String, Json>,
         previous_draft_hash: Option<&str>,
+        conditional_rules: Option<&ConditionalRules>,
     ) -> Result<DraftResult> {
         let url = format!("{}/draft:overwrite", self.repo_url(universe_id));
         let api_key = self.api_key.clone();
         let body = serde_json::to_string(&OverwriteBody {
             entries,
             previous_draft_hash,
+            conditional_rules,
         })?;
 
         execute_json(|| async {
@@ -332,6 +339,11 @@ impl ConfigsClient {
     /// the one outcome a human cannot recover from because the draft is gone
     /// before they learn it existed.
     ///
+    /// A fourth request happens when the draft stages no conditional rules,
+    /// because then the published ones are what has to be restated; see
+    /// [`ConfigsClient::conditional_rules_to_restate`] for why omitting them
+    /// is destructive rather than neutral.
+    ///
     /// Returns the publish result alongside the entries the discarded draft
     /// held, so a caller can say what it replaced.
     pub async fn overwrite_and_publish(
@@ -346,13 +358,51 @@ impl ConfigsClient {
         let replaced = ReplacedDraft {
             keys: existing.entries.keys().cloned().collect(),
         };
+        let rules = self
+            .conditional_rules_to_restate(universe_id, existing.conditional_rules)
+            .await?;
         let draft = self
-            .overwrite_draft(universe_id, entries, existing.draft_hash.as_deref())
+            .overwrite_draft(
+                universe_id,
+                entries,
+                existing.draft_hash.as_deref(),
+                rules.as_ref(),
+            )
             .await?;
         let published = self
             .publish(universe_id, message, strategy, draft.draft_hash.as_deref())
             .await?;
         Ok((published, replaced))
+    }
+
+    /// The conditional rule set a `draft:overwrite` has to restate in order to
+    /// keep it.
+    ///
+    /// `UpdateDraftRequest.conditionalRules` in the vendored spec: "When
+    /// omitted on overwrite, all published conditional rules are cleared
+    /// (entries must not reference conditionals unless you provide this
+    /// object)." So a write that says nothing about rules is a write that
+    /// deletes every one of them, and a remaining entry that references a
+    /// conditional turns that into an opaque 4xx instead. Roblox's only undo
+    /// is restoring a revision.
+    ///
+    /// Which set is the current one is layered, and the same field says so on
+    /// its PATCH side: leaving rules unchanged means "draft rules, or latest
+    /// published rules if the draft has none yet". So staged rules win when
+    /// the draft carries any, and otherwise the published ones are what a
+    /// publish would have kept. Reading the published config costs one extra
+    /// request, taken only in that second case, and the case it covers is the
+    /// ordinary state of a first `sync`: rules on the published config and no
+    /// draft at all, where echoing the draft alone would still clear them.
+    async fn conditional_rules_to_restate(
+        &self,
+        universe_id: u64,
+        staged: Option<ConditionalRules>,
+    ) -> Result<Option<ConditionalRules>> {
+        match staged {
+            Some(rules) if !rules.is_empty() => Ok(Some(rules)),
+            _ => Ok(self.get_config(universe_id).await?.conditional_rules),
+        }
     }
 
     pub async fn list_revisions(&self, universe_id: u64, max: usize) -> Result<Vec<RevisionEntry>> {
@@ -367,9 +417,15 @@ impl ConfigsClient {
 
     /// Stage a revert to `revision_id`. Does **not** publish: the returned
     /// hash is what a following `publish` takes.
+    ///
+    /// The path is `/revisions/{revisionId}/restore`, which is what the
+    /// vendored spec documents. This sent `/revisions/{revisionId}:restore`
+    /// once; no `:restore` custom method exists anywhere under
+    /// `creator-configs-public-api` in that document, so the only reachable
+    /// outcome was a 404 dressed up as a failed rollback.
     pub async fn restore_revision(&self, universe_id: u64, revision_id: &str) -> Result<String> {
         let url = format!(
-            "{}/revisions/{}:restore",
+            "{}/revisions/{}/restore",
             self.repo_url(universe_id),
             revision_id
         );
@@ -412,6 +468,11 @@ pub struct ConfigSnapshot {
     pub metadata: ConfigMetadata,
     #[serde(default)]
     pub entries: BTreeMap<String, Json>,
+    /// The published rule set. Read for one reason only: an overwrite that
+    /// does not restate it deletes it, and the draft does not always carry it.
+    /// See [`ConfigsClient::conditional_rules_to_restate`].
+    #[serde(rename = "conditionalRules", default)]
+    pub conditional_rules: Option<ConditionalRules>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -430,6 +491,45 @@ pub struct RepositoryDraft {
     /// rather than a speculative struct that would silently stop matching.
     #[serde(default)]
     pub entries: BTreeMap<String, Json>,
+    /// The rules staged on this draft, when it stages any. `None` is the
+    /// ordinary state and does **not** mean the repository has no rules: the
+    /// published ones are then the effective set.
+    #[serde(rename = "conditionalRules", default)]
+    pub conditional_rules: Option<ConditionalRules>,
+}
+
+/// The `conditionalRules` payload of a repository, carried verbatim.
+///
+/// A rule is an RPN token tree (`ConditionalRulesPayload` ->
+/// `ConditionalRuleDefinition` -> `RpnTokenDto` in the vendored spec) and
+/// nothing in this workspace reads one. So this holds raw `Json` rather than a
+/// speculative mirror of those three schemas: the only thing done with a rule
+/// set here is handing it straight back to Roblox, and a mirror that stopped
+/// matching the document would not lose a field, it would delete a rule, since
+/// on `draft:overwrite` an omitted rule id is a removed rule.
+///
+/// One question is asked of it, [`ConditionalRules::is_empty`], because an
+/// empty payload means "no rules staged here" rather than "no rules at all".
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(transparent)]
+pub struct ConditionalRules(Json);
+
+impl ConditionalRules {
+    /// Whether this payload stages nothing.
+    ///
+    /// The spec's own definition, from `UpdateDraftRequest.conditionalRules`:
+    /// a payload counts as non-empty when it carries "any rule id or
+    /// `rulesOrder` entry". Anything else means "leave rules unchanged", so it
+    /// is not a rule set and must not be restated as one.
+    pub fn is_empty(&self) -> bool {
+        let empty = |key: &str| match self.0.get(key) {
+            None | Some(Json::Null) => true,
+            Some(Json::Object(rules)) => rules.is_empty(),
+            Some(Json::Array(order)) => order.is_empty(),
+            Some(_) => false,
+        };
+        empty("rules") && empty("rulesOrder")
+    }
 }
 
 /// Response from `PATCH /draft` and `PUT /draft:overwrite`.
@@ -460,11 +560,23 @@ pub struct PublishResult {
 /// the safe side of the other branch: if the service happened to want the
 /// guide's name, the guard is merely inert, which is where this code was before
 /// it sent anything at all.
+///
+/// **`conditionalRules` is not the optional extra it looks like.** The same
+/// schema says that on `PUT draft:overwrite` a present property is "the full
+/// intended rule set after publish", and that when the property is omitted
+/// "all published conditional rules are cleared (entries must not reference
+/// conditionals unless you provide this object)". So absent and `{}` are not
+/// interchangeable here and neither is a safe default: the field stays
+/// `Option` so the distinction survives to the wire, and the absent case is
+/// only sent when there is genuinely no rule to keep, which
+/// [`ConfigsClient::conditional_rules_to_restate`] is what decides.
 #[derive(Debug, Serialize)]
 struct OverwriteBody<'a> {
     entries: &'a BTreeMap<String, Json>,
     #[serde(rename = "draftHash", skip_serializing_if = "Option::is_none")]
     previous_draft_hash: Option<&'a str>,
+    #[serde(rename = "conditionalRules", skip_serializing_if = "Option::is_none")]
+    conditional_rules: Option<&'a ConditionalRules>,
 }
 
 #[derive(Debug, Serialize)]
@@ -771,6 +883,18 @@ mod tests {
             let server = MockServer::start().await;
             let base = repo_path(Repository::InExperienceConfig);
 
+            // Read because `draft:overwrite` deletes every conditional rule it
+            // is not told about, and this draft stages none: without the mock
+            // this is an unmatched 404, which reads as "nothing published".
+            Mock::given(method("GET"))
+                .and(path(&base))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({"entries": {}})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
             Mock::given(method("GET"))
                 .and(path(format!("{base}/draft")))
                 .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -843,5 +967,332 @@ mod tests {
                 "a payload the tool refuses must not cost a request"
             );
         }
+
+        // -------------------------------------------------------------------
+        // Conditional rules.
+        //
+        // `UpdateDraftRequest.conditionalRules` makes an omitted property mean
+        // "clear every published rule", so what these assert is the outgoing
+        // body, not what the client remembers. Each uses an exact `body_json`
+        // match: dropping the echo turns the PUT into an unmatched request and
+        // the call fails, which is the point.
+        // -------------------------------------------------------------------
+
+        /// Opaque on purpose: the tokens are Roblox's shape and nothing here
+        /// reads them, so a rule set is only ever compared with itself.
+        fn rule_set() -> Json {
+            serde_json::json!({
+                "rules": {
+                    "beta": { "tokens": [{ "operand": { "attribute": "userId" } }] },
+                    "retired": null
+                },
+                "rulesOrder": ["beta"]
+            })
+        }
+
+        #[tokio::test]
+        async fn the_rules_staged_on_the_draft_are_restated_on_overwrite() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("GET"))
+                .and(path(format!("{base}/draft")))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "draftHash": "staged-elsewhere",
+                    "entries": {},
+                    "conditionalRules": rule_set()
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("PUT"))
+                .and(path(format!("{base}/draft:overwrite")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "entries": { "mine": true },
+                    "draftHash": "staged-elsewhere",
+                    "conditionalRules": rule_set()
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "new"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/publish")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"configVersion": 7})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let entries = BTreeMap::from([("mine".to_string(), Json::Bool(true))]);
+            client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .expect("the draft's rules are what the overwrite has to restate");
+
+            // The staged rules already are the effective set, so the published
+            // config is not read. One wasted round trip per publish is cheap,
+            // and asserting it here is what keeps it that way.
+            let asked: Vec<String> = server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .map(|r| r.url.path().to_string())
+                .collect();
+            assert!(
+                !asked.iter().any(|p| p.ends_with("InExperienceConfig")),
+                "the published config must not be read when the draft stages rules: {asked:?}"
+            );
+        }
+
+        /// **The silent loss this guards.** A first `sync` meets a repository
+        /// with published rules and no draft at all, so echoing the draft
+        /// alone would still send no `conditionalRules` and clear every one of
+        /// them, with no undo but a revision restore.
+        #[tokio::test]
+        async fn the_published_rules_are_restated_when_no_draft_stages_any() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("GET"))
+                .and(path(format!("{base}/draft")))
+                .respond_with(ResponseTemplate::new(404))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("GET"))
+                .and(path(&base))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "entries": { "mine": false },
+                    "conditionalRules": rule_set()
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            // No `draftHash`: there was no draft to be concurrent with.
+            Mock::given(method("PUT"))
+                .and(path(format!("{base}/draft:overwrite")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "entries": { "mine": true },
+                    "conditionalRules": rule_set()
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "new"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/publish")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"configVersion": 8})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let entries = BTreeMap::from([("mine".to_string(), Json::Bool(true))]);
+            client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .expect("published rules survive an overwrite that only changes entries");
+        }
+
+        /// An empty payload on the draft is "rules unchanged", not "no rules",
+        /// so it falls through to the published set exactly as an absent one
+        /// does. Restating `{}` instead would clear them.
+        #[tokio::test]
+        async fn an_empty_payload_on_the_draft_falls_through_to_the_published_rules() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("GET"))
+                .and(path(format!("{base}/draft")))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "draftHash": "staged-elsewhere",
+                    "entries": {},
+                    "conditionalRules": {}
+                })))
+                .mount(&server)
+                .await;
+
+            Mock::given(method("GET"))
+                .and(path(&base))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "conditionalRules": rule_set()
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("PUT"))
+                .and(path(format!("{base}/draft:overwrite")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "entries": { "mine": true },
+                    "draftHash": "staged-elsewhere",
+                    "conditionalRules": rule_set()
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "new"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/publish")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"configVersion": 9})),
+                )
+                .mount(&server)
+                .await;
+
+            let entries = BTreeMap::from([("mine".to_string(), Json::Bool(true))]);
+            client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .expect("an empty draft payload leaves the published rules in place");
+        }
+
+        /// The other half of the distinction: with nothing to keep, the
+        /// property is **absent**, not `{}` and not `null`. The exact body
+        /// match is what asserts it, since `{}` on overwrite is a rule set of
+        /// its own and sending one where none existed is a claim this tool has
+        /// no business making.
+        #[tokio::test]
+        async fn a_repository_with_no_rules_sends_no_conditional_rules_property() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("GET"))
+                .and(path(format!("{base}/draft")))
+                .respond_with(ResponseTemplate::new(404))
+                .mount(&server)
+                .await;
+
+            Mock::given(method("GET"))
+                .and(path(&base))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({"entries": {}})),
+                )
+                .mount(&server)
+                .await;
+
+            Mock::given(method("PUT"))
+                .and(path(format!("{base}/draft:overwrite")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "entries": { "mine": true }
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "new"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/publish")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"configVersion": 1})),
+                )
+                .mount(&server)
+                .await;
+
+            let entries = BTreeMap::from([("mine".to_string(), Json::Bool(true))]);
+            client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .expect("no rules anywhere means no property to send");
+        }
+
+        /// The vendored spec documents `/revisions/{revisionId}/restore`, and
+        /// defines no `:restore` custom method anywhere under
+        /// `creator-configs-public-api`. This client sent the colon form, so
+        /// every rollback was a 404 reported as a failed restore.
+        #[tokio::test]
+        async fn a_restore_posts_to_the_revision_path_the_spec_documents() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/revisions/rev-1/restore")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "restored"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let hash = client(&server, Repository::InExperienceConfig)
+                .restore_revision(UNIVERSE, "rev-1")
+                .await
+                .expect("the documented path is the only one that answers");
+            assert_eq!(hash, "restored");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Conditional rules, off the wire.
+    // -----------------------------------------------------------------------
+
+    /// `{}` is not a rule set. That distinction decides whether an overwrite
+    /// restates the published rules or deletes them, so it is asserted rather
+    /// than left to `Option` to imply.
+    #[test]
+    fn an_empty_rules_payload_stages_nothing_and_one_rule_id_stages_something() {
+        let empty: ConditionalRules = serde_json::from_str("{}").unwrap();
+        assert!(empty.is_empty());
+
+        let nulls: ConditionalRules =
+            serde_json::from_str(r#"{"rules": null, "rulesOrder": []}"#).unwrap();
+        assert!(nulls.is_empty(), "neither carries a rule id");
+
+        let one: ConditionalRules =
+            serde_json::from_str(r#"{"rules": {"beta": {"tokens": []}}}"#).unwrap();
+        assert!(!one.is_empty(), "an explicit empty rule is still a rule");
+
+        let ordered: ConditionalRules =
+            serde_json::from_str(r#"{"rulesOrder": ["beta"]}"#).unwrap();
+        assert!(
+            !ordered.is_empty(),
+            "the spec counts a rulesOrder entry as content too"
+        );
+    }
+
+    /// Verbatim, including a property this code has never heard of and a
+    /// `null` tombstone. On `draft:overwrite` a property dropped in the middle
+    /// is not a missing field, it is a deleted rule.
+    #[test]
+    fn a_rule_set_round_trips_unchanged_including_what_this_code_cannot_name() {
+        let wire = r#"{
+            "rules": {
+                "beta": {"tokens": [], "somethingAddedLater": 1},
+                "retired": null
+            },
+            "rulesOrder": ["beta"]
+        }"#;
+        let parsed: ConditionalRules = serde_json::from_str(wire).unwrap();
+        assert_eq!(
+            serde_json::to_value(&parsed).unwrap(),
+            serde_json::from_str::<Json>(wire).unwrap()
+        );
     }
 }

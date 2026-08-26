@@ -23,10 +23,20 @@ pub async fn run(
     dry_run: bool,
     yes: bool,
 ) -> Result<()> {
-    let declared = config::load(&ctx.config)?;
-    // Before the network and before the prompt: an invalid file is the caller's
-    // to fix, and a template that would match nothing must not reach a publish
-    // that makes it authoritative.
+    let loaded = config::load(&ctx.config)?;
+    // The wipe guard first, and before the network: an empty declaration in a
+    // file that also names a table this build cannot read is a typo, not a
+    // decision, and this is the only command that would make it permanent.
+    // Nothing below catches it, which is why it is checked here and not left
+    // to look like somebody else's job: `validate` passes an empty set on
+    // purpose (`model.rs:772`), the read-before-write loop below bails only on
+    // live templates this build cannot parse, and `--yes` skips the prompt
+    // whose count was the last signal.
+    loaded.refuse_if_emptied_by_a_typo(&ctx.config)?;
+    let declared = loaded.templates;
+    // Then the file's own rules: an invalid file is the caller's to fix, and a
+    // template that would match nothing must not reach a publish that makes it
+    // authoritative.
     declared.validate()?;
 
     let targets = ctx.targets()?;

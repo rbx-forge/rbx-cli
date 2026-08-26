@@ -62,7 +62,7 @@ mod tests {
         };
 
         run(&ctx).expect("init");
-        assert!(config::load(&path).expect("parses").is_empty());
+        assert!(config::load(&path).expect("parses").templates.is_empty());
     }
 
     /// The second `init` must not eat the first one's work.
@@ -81,6 +81,6 @@ mod tests {
         let err = run(&ctx).unwrap_err().to_string();
         assert!(err.contains("already exists"), "{err}");
         // And the declaration is still there.
-        assert_eq!(config::load(&path).unwrap().keys.len(), 1);
+        assert_eq!(config::load(&path).unwrap().templates.keys.len(), 1);
     }
 }

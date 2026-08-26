@@ -314,7 +314,7 @@ Without `-o`, the completion script is printed to stdout (pipe into a file or yo
 
 One binary, so one completion file. The live-operations commands are in it like any other.
 
-`--env` and `--place` complete with the names in the `rbxplace.toml` of the directory you are in: the script calls `rbx env list --names` and `rbx env list --place-names` when you press TAB, so adding an env needs no regeneration. Outside a project, or with a file that does not parse, both complete to nothing and print nothing. `--no-dynamic` leaves that hook out. See [docs/env.md](docs/env.md#shell-completions-for---env-and---place-0120) for the per-shell install steps.
+`--env` and `--place` complete with the names in the `rbxplace.toml` of the directory you are in: the script calls `rbx env list --names` and `rbx env list --place-names` when you press TAB, so adding an env needs no regeneration. Outside a project, or with a file that does not parse, both complete to nothing and print nothing. `--no-dynamic` leaves that hook out. See [docs/env.md](docs/env.md#shell-completions-for---env-and---place) for the per-shell install steps.
 
 ## What this tool does not do
 
@@ -388,7 +388,7 @@ reversed (see the live-operations section above).
 
 **Core.** A bug here blocks a release: `place`, `shop`, `meta`, `config`,
 `apikey`, `env`, `init`, and every live-ops command (`data`, `ban`, `restart`,
-`servers`, `analytics`, `memorystore`, `publish`). These are the commands
+`servers`, `analytics`, `memorystore`, `message`). These are the commands
 people put in CI and point at production.
 
 **Tier 2.** A bug here never blocks a release: `open`, `download`, `ads`. Local

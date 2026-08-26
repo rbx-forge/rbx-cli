@@ -257,6 +257,65 @@ async fn a_miscased_token_never_reaches_the_network() {
     );
 }
 
+/// The one character typo, at the level where it would have cost data.
+///
+/// `[[keys]]` (the plural, which is what the Rust field is called) parses to an
+/// empty declaration, and every layer below reads that as legitimate: `validate`
+/// passes it on purpose, the read-before-write loop finds nothing it cannot
+/// parse, and `--yes` skips the prompt whose count was the last signal. What
+/// used to happen next was `user_data_templates: []` published over every
+/// deletion template the universe had, exit 0.
+#[tokio::test]
+async fn a_declaration_emptied_by_a_typo_never_reaches_the_network() {
+    let d = dir();
+    write_config(
+        d.path(),
+        "[[keys]]\nstore = \"PlayerInventory\"\npattern = \"User_{UserId}\"\n",
+    );
+    let server = MockServer::start().await;
+    // Mounted so the assertion below is about the refusal rather than about a
+    // missing mock: this is what the wipe would have replaced.
+    mount_published(
+        &server,
+        documented_payload()["entries"]["user_data_templates"].clone(),
+    )
+    .await;
+
+    let (rtbf, global) = cli(&["sync", "--env", "dev", "--yes"], &server, d.path());
+    let err = format!("{:#}", run(rtbf, &global).await.unwrap_err());
+    assert!(err.contains("keys"), "the misspelling must be named: {err}");
+    assert!(
+        err.contains("key, store"),
+        "and what it should have been: {err}"
+    );
+    assert!(
+        server.received_requests().await.unwrap().is_empty(),
+        "an empty declaration must not be published over a live template set"
+    );
+}
+
+/// `verify` publishes nothing, but it is the command that signs a declaration
+/// off: an empty set has no template naming a store that is gone, so a file a
+/// typo emptied would report `ok: true` and exit 0.
+#[tokio::test]
+async fn verify_refuses_a_declaration_emptied_by_a_typo_rather_than_passing_it() {
+    let d = dir();
+    write_config(
+        d.path(),
+        "[[keys]]\nstore = \"PlayerInventory\"\npattern = \"User_{UserId}\"\n",
+    );
+    let server = MockServer::start().await;
+    mount_stores(&server, &["PlayerInventory"]).await;
+
+    let (rtbf, global) = cli(&["verify", "--env", "dev"], &server, d.path());
+    let err = format!("{:#}", run(rtbf, &global).await.unwrap_err());
+    assert!(err.contains("keys"), "{err}");
+    assert!(
+        server.received_requests().await.unwrap().is_empty(),
+        "a file it refuses must cost no request"
+    );
+}
+
 #[tokio::test]
 async fn check_is_clean_when_the_file_and_the_published_set_agree() {
     let d = dir();
@@ -334,7 +393,9 @@ async fn pull_writes_the_published_templates_into_the_file() {
     let (rtbf, global) = cli(&["pull", "--env", "dev", "--yes"], &server, d.path());
     run(rtbf, &global).await.unwrap();
 
-    let written = rbx_rtbf::config::load(&config).expect("the pulled file parses");
+    let written = rbx_rtbf::config::load(&config)
+        .expect("the pulled file parses")
+        .templates;
     assert_eq!(written.keys.len(), 2);
     assert_eq!(written.stores.len(), 1);
     assert_eq!(written.keys[0].store, "PlayerInventory");

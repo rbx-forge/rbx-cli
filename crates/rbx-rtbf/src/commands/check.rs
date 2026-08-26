@@ -15,7 +15,13 @@ use crate::model::Templates;
 use crate::DEADLINE_DAYS;
 
 pub async fn run(ctx: &RtbfCtx<'_>) -> Result<()> {
-    let declared = config::load(&ctx.config)?;
+    // `.templates` and no wipe guard, deliberately. `check` publishes nothing,
+    // and it is the command somebody runs to find out why `sync` refused: a
+    // file emptied by a typo reports here either as drift (exit 2, naming what
+    // is published and not declared) or as the "declaring nothing" line below,
+    // with `load`'s stderr warning naming the misspelled table above both.
+    // Refusing would withhold the comparison the caller came for.
+    let declared = config::load(&ctx.config)?.templates;
     // Ahead of the network: an invalid file is not drift, it is a file to fix,
     // and finding that out should not cost a request.
     declared.validate()?;

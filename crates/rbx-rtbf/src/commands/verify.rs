@@ -23,7 +23,15 @@ use crate::DEADLINE_DAYS;
 
 pub async fn run(ctx: &RtbfCtx<'_>, uncovered: bool, json: bool) -> Result<()> {
     let format = OutputFormat::from_json_flag(json);
-    let declared = config::load(&ctx.config)?;
+    let loaded = config::load(&ctx.config)?;
+    // The same wipe guard `sync` applies, for a different reason. This command
+    // publishes nothing, but it is the one that signs a declaration off: an
+    // empty set has no template naming a store that is gone, so a file emptied
+    // by a typo reports `ok: true` with no findings and exit 0, which is the
+    // false green this command exists to prevent. When it fires there was
+    // nothing here to verify anyway.
+    loaded.refuse_if_emptied_by_a_typo(&ctx.config)?;
+    let declared = loaded.templates;
     declared.validate()?;
 
     let universe_id = ctx.single()?;

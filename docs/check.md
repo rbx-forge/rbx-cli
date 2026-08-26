@@ -71,9 +71,9 @@ files the import just wrote:
 | `rbxshop.toml` | `shop/lockfile`: declared passes/badges/products against the lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed shop modules still match | no |
 | `rbxmeta.toml` | `meta/lockfile`: declared universe/place metadata against the lockfile | no |
-| `rbxconfig.toml` | `config/live`: local entries against the live config on Roblox | **yes** |
 | `rbxrtbf.toml` | `rtbf/templates`: every deletion template could match something | no |
 | `rbxrtbf.toml` | `rtbf/live`: declared templates against the published ones | **yes** |
+| `rbxconfig.toml` | `config/live`: local entries against the live config on Roblox | **yes** |
 | `rbxapikey.toml` | `apikey/status`, not yet wired, see below | - |
 
 `rbx rtbf` contributes two rows rather than one because the halves fail
@@ -225,10 +225,13 @@ exit "$(jq -r '.exit_code' check.json)"
 `check` and `status`, `env list/get`, `servers list/versions/logs`,
 `analytics query/metrics`, `ads list/get/status`, `place versions/places` and
 the receipts from `place upload/promote/rollback`, `data get/list/revisions/diff`,
-`memorystore get/list`, `shop list/show`, `config list/get/versions`, `rtbf show/verify`, `secret list/public-key`,
+`data ordered list/get`, `memorystore get/list`, `shop list/show`,
+`config list/get/versions`, `rtbf show/verify`, `secret list/public-key`,
 `ban list/status`, `apikey list/status` and `apikey scopes show`, plus the
-receipt from `publish`. Per-command field names are documented alongside each
-command.
+receipts from `message` and `secret set/delete`. `data ordered` is named apart
+from `data` because it is its own subcommand tree: only its `list` and `get`
+carry the flag, and `data get --json` says nothing about them. Per-command
+field names are documented alongside each command.
 
 What every one of them shares is the helper: `rbx_core::output` is the only
 place in the tree that serializes to stdout, which is what keeps `--json`

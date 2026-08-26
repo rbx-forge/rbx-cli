@@ -312,3 +312,103 @@ fn a_failing_json_command_writes_no_partial_document() {
         );
     }
 }
+
+const RTBF_TEMPLATES: &str = r#"
+[[key]]
+store = "PlayerInventory"
+pattern = "User_{UserId}"
+scope = "Scope_{UserId}"
+
+[[key]]
+store = "PlayerLeaderboard"
+pattern = "User_{UserId}"
+ordered = true
+
+[[store]]
+pattern = "Player_{UserId}_Save"
+"#;
+
+fn rtbf_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
+    let path = dir.path().join("rbxrtbf.toml");
+    std::fs::write(&path, RTBF_TEMPLATES).unwrap();
+    path
+}
+
+/// `rtbf show` is declared state, read from the file with no network, so it
+/// belongs with the other declared-state documents rather than with the live
+/// ones.
+#[test]
+fn rtbf_show_writes_one_document_and_nothing_else() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = rtbf_file(&dir);
+
+    let (doc, stderr) = run_json(&["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"]);
+
+    assert_eq!(doc["schema_version"], 1);
+    assert_eq!(doc["count"], 3);
+    assert_eq!(doc["max_templates"], 100);
+    // A string, like every other id this suite emits.
+    assert_eq!(doc["sample_user_id"], "1234567890");
+    assert_eq!(doc["templates"].as_array().map(Vec::len), Some(3));
+    assert!(stderr.is_empty(), "stderr was:\n{stderr}");
+}
+
+/// One list with a `kind`, and the sample Roblox will actually look for, which
+/// is the field a reviewer holds against the Luau.
+#[test]
+fn rtbf_show_flattens_both_template_kinds_with_their_samples() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = rtbf_file(&dir);
+
+    let (doc, _) = run_json(&["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"]);
+    let list = doc["templates"].as_array().unwrap();
+
+    assert_eq!(list[0]["kind"], "key");
+    assert_eq!(
+        list[0]["sample"],
+        "PlayerInventory/Scope_1234567890/User_1234567890"
+    );
+    // An omitted scope reports as the default Roblox will match on, not as an
+    // absence: `global` is the answer, and the file's silence is not.
+    assert_eq!(list[1]["scope"], "global");
+    assert_eq!(list[1]["ordered"], true);
+
+    // A store template has no store name and no standard-versus-ordered
+    // choice, so both are absent rather than null.
+    assert_eq!(list[2]["kind"], "store");
+    assert!(list[2].get("store").is_none(), "{doc}");
+    assert!(list[2].get("ordered").is_none(), "{doc}");
+}
+
+/// The failure this whole crate exists to prevent, seen through the document:
+/// a miscased token is refused, so stdout carries nothing a consumer could
+/// mistake for a published state.
+#[test]
+fn rtbf_show_writes_no_document_for_a_file_it_refuses() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = dir.path().join("rbxrtbf.toml");
+    std::fs::write(
+        &rtbf,
+        "[[key]]\nstore = \"A\"\npattern = \"User_{userId}\"\n",
+    )
+    .unwrap();
+
+    let output = Command::cargo_bin("rbx")
+        .unwrap()
+        .args(["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+
+    assert!(
+        output.stdout.is_empty(),
+        "a refused file must leave stdout empty:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("case-sensitive"),
+        "stderr was:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

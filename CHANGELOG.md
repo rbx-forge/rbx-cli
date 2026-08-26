@@ -37,6 +37,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   checks. `rbx check` picks `rbxrtbf.toml` up as two rows, the local one
   running under `--offline`.
 
+  `show` and `verify` carry `--json`, keeping the contract the rest of the
+  suite does: one document, a `schema_version`, ids as strings, an optional
+  field absent rather than null. `verify`'s is the one nothing else produces,
+  so a CI step branches on `.ok` rather than grepping a listing for a red
+  cross, and its `verdict` has three values rather than being a boolean:
+  `unverifiable` is a limit of Open Cloud, not a broken template, and folding
+  it into a failure would break a build over an ordered store nothing can
+  list. `check` has none, deliberately: no per-tool check in this suite does,
+  because `rbx check --json` is the machine-readable drift document and two
+  shapes for one question is how a consumer reads the wrong one.
+
 ## [0.4.0]
 
 ### Added

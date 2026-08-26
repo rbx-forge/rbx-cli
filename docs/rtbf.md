@@ -89,11 +89,11 @@ For the reason `rbx config` has none: the published config is readable in full, 
 | Command | What it does | Exit codes |
 | --- | --- | --- |
 | `rbx rtbf init` | Write a commented `rbxrtbf.toml` to start from. Bails if the file exists | `0` written, `1` refused |
-| `rbx rtbf show` | Print every declared template with the sample key Roblox would look for, after validating them. Local only, no network | `0` valid, `1` a rule is broken |
+| `rbx rtbf show` | Print every declared template with the sample key Roblox would look for, after validating them. Local only, no network. `--json` | `0` valid, `1` a rule is broken |
 | `rbx rtbf check` | Compare `rbxrtbf.toml` against the published templates | `0` they match, **`2` they differ**, `1` the check could not answer |
 | `rbx rtbf sync` | Publish `rbxrtbf.toml` as the canonical set of templates | `0` published, `1` refused or failed |
 | `rbx rtbf pull` | Overwrite `rbxrtbf.toml` with the published templates | `0` written, `1` refused or failed |
-| `rbx rtbf verify` | Check every template against the data stores that actually exist | `0` every template names something real, **`2` at least one names nothing**, `1` the check could not answer |
+| `rbx rtbf verify` | Check every template against the data stores that actually exist. `--json` | `0` every template names something real, **`2` at least one names nothing**, `1` the check could not answer |
 
 Drift and unmatched templates sit on exit code `2` so a CI step can gate on the status alone, and tell "publish this" from "something broke".
 
@@ -105,6 +105,51 @@ The samples are the point. A pattern is read for what it was meant to say; a sub
 rbx rtbf show
 rbx rtbf show --user-id 1234567890
 ```
+
+#### `--json`
+
+```json
+{
+  "schema_version": 1,
+  "config_file": "rbxrtbf.toml",
+  "max_templates": 100,
+  "count": 2,
+  "sample_user_id": "1234567890",
+  "templates": [
+    {
+      "kind": "key",
+      "store": "PlayerInventory",
+      "pattern": "User_{UserId}",
+      "scope": "Scope_{UserId}",
+      "ordered": false,
+      "sample": "PlayerInventory/Scope_1234567890/User_1234567890"
+    },
+    {
+      "kind": "store",
+      "pattern": "Player_{UserId}_Save",
+      "sample": "Player_1234567890_Save"
+    }
+  ]
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schema_version` | integer | Document format, shared with every other `--json` here. `1` today |
+| `config_file` | string | The file this was read from, as given or defaulted, so a document captured out of a matrix job still says which one produced it |
+| `max_templates` | integer | Roblox's ceiling, carried so a consumer can warn before it is reached rather than hardcoding the number twice |
+| `count` | integer | Templates declared, both kinds |
+| `sample_user_id` | string | The id substituted into every `sample` |
+| `templates[].kind` | string | `key` or `store` |
+| `templates[].store` | string | The data store name. **Absent** for a `store` template, whose store *is* the pattern |
+| `templates[].pattern` | string | The key pattern, or the store name pattern |
+| `templates[].scope` | string | The scope Roblox will match on, **defaulted**: a key template naming none reports `global` rather than being absent, because `global` is the answer and the file's silence is not. **Absent** for a `store` template |
+| `templates[].ordered` | boolean | **Absent** for a `store` template: Roblox supports deleting a whole store only for standard stores, so there is no choice to report |
+| `templates[].sample` | string | What Roblox will look for once the token is substituted |
+
+Both kinds are one list discriminated by `kind`, rather than the file's two arrays: a consumer filters, and the two-array shape exists in the TOML for a human's sake. A file declaring nothing is `"count": 0` with an empty array, not an absent one.
+
+This is **declared state**, read from the file with no network, so there is no `env` and no `universe_id`. What any universe is actually serving is `rbx check --json`'s question.
 
 ### `rbx rtbf sync`
 
@@ -141,6 +186,50 @@ Two limits, both of them stated in the output rather than papered over:
 
 - **Ordered stores are invisible to it.** Roblox's `Cloud_ListDataStores` covers standard stores only, so a `[[key]]` marked `ordered = true` is reported as **unchecked**, not as missing. Reporting it as missing would be a false alarm, and a check that cries wolf is one people learn to ignore.
 - **A store pattern is matched by requiring digits where the token is.** `{UserId}` stands for a user id, so it matches a run of digits and nothing else. That is exact for the common single-token case and deliberately conservative otherwise: a looser wildcard would call `Player_{UserId}_Save` a match for `Player_Settings_Save` and report a template as verified when it is not. A verify that says yes too easily is worse than no verify at all.
+
+#### `--json`
+
+```json
+{
+  "schema_version": 1,
+  "config_file": "rbxrtbf.toml",
+  "env": "prod",
+  "universe_id": "109876543210987",
+  "ok": false,
+  "standard_store_count": 4,
+  "findings": [
+    {
+      "kind": "key",
+      "target": "PlayerInventoryV1",
+      "verdict": "missing",
+      "detail": "no such standard data store in this universe"
+    }
+  ]
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schema_version` | integer | `1` today |
+| `config_file` | string | The file the templates were read from |
+| `env` | string | The env asked for. **Absent** under a bare `--universe-id`, which is the case where no config named one |
+| `universe_id` | string | A string, like every id here: a 64-bit id handed over as a number is one a JSON parser may round |
+| `ok` | boolean | False when any template names nothing that exists, which is also the exit-2 condition. Both are present so a consumer that captured stdout does not have to reach for the status |
+| `standard_store_count` | integer | Standard data stores the universe holds. Ordered stores are not counted, which is the same limit `unverifiable` reports |
+| `findings[].kind` | string | `key` or `store` |
+| `findings[].target` | string | The store for a key template, the pattern for a store template |
+| `findings[].verdict` | string | `missing`, `unmatched`, or `unverifiable` |
+| `findings[].detail` | string | Why, in the same words the human form prints |
+| `uncovered` | array of strings | Live stores no template covers. **Absent** unless `--uncovered` asked, because an absent field and an empty array mean different things and a consumer should not have to guess which it got |
+
+**`verdict` has three values rather than being a boolean, and that matters.** `unverifiable` is a limit of Open Cloud, not a broken template, so it is excluded from `ok`. A consumer folding it into a failure would break a build over an ordered store nothing can list.
+
+The document is written **before** the process exits non-zero, so a failing run still emits it. `.ok` is the field to branch on:
+
+```sh
+rbx rtbf verify --env prod --json | jq -e '.ok' > /dev/null || echo "templates need attention"
+rbx rtbf verify --env prod --json | jq -r '.findings[] | select(.verdict != "unverifiable") | .target'
+```
 
 ## Environments
 

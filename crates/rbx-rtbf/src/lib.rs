@@ -30,6 +30,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod json;
 pub mod model;
 pub mod stores;
 
@@ -72,6 +73,13 @@ enum Command {
         /// User id to substitute into the samples.
         #[arg(long, default_value_t = 1234567890)]
         user_id: u64,
+
+        /// Write the declared templates to stdout as one JSON document.
+        ///
+        /// Declared state only: what this repository says, not what any
+        /// universe is serving. Field names are documented in docs/rtbf.md.
+        #[arg(long)]
+        json: bool,
     },
 
     /// Compare rbxrtbf.toml against the published templates
@@ -115,6 +123,15 @@ enum Command {
         /// Also list the live stores no template covers.
         #[arg(long)]
         uncovered: bool,
+
+        /// Write the findings to stdout as one JSON document.
+        ///
+        /// The only answer in this crate nothing else produces, which is why it
+        /// is worth a document: a CI step asking "do our templates still point
+        /// at real stores" reads `.ok` rather than grepping for a red cross.
+        /// Field names are documented in docs/rtbf.md.
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -127,7 +144,7 @@ pub async fn run(cli: RtbfCli, global: &GlobalFlags) -> Result<()> {
 
     match cli.command {
         Command::Init => commands::init::run(&ctx),
-        Command::Show { user_id } => commands::show::run(&ctx, user_id),
+        Command::Show { user_id, json } => commands::show::run(&ctx, user_id, json),
         Command::Check => commands::check::run(&ctx).await,
         Command::Sync {
             message,
@@ -136,6 +153,6 @@ pub async fn run(cli: RtbfCli, global: &GlobalFlags) -> Result<()> {
             yes,
         } => commands::sync::run(&ctx, message.as_deref(), no_message, dry_run, yes).await,
         Command::Pull { yes } => commands::pull::run(&ctx, yes).await,
-        Command::Verify { uncovered } => commands::verify::run(&ctx, uncovered).await,
+        Command::Verify { uncovered, json } => commands::verify::run(&ctx, uncovered, json).await,
     }
 }

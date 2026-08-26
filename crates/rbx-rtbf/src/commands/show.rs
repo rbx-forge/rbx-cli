@@ -7,14 +7,25 @@
 use anyhow::Result;
 use colored::Colorize;
 
+use rbx_core::output::{self, OutputFormat};
+
 use super::RtbfCtx;
 use crate::config;
+use crate::json::ShowDocument;
 use crate::model::{Templates, MAX_TEMPLATES};
 
-pub fn run(ctx: &RtbfCtx<'_>, user_id: u64) -> Result<()> {
+pub fn run(ctx: &RtbfCtx<'_>, user_id: u64, json: bool) -> Result<()> {
     let templates = config::load(&ctx.config)?;
+    // Ahead of the document: an invalid file has no declared state to report,
+    // and emitting one would put a template the tool refuses into a consumer's
+    // hands as though it were live.
     templates.validate()?;
-    print(&templates, user_id, &ctx.config.display().to_string());
+
+    let source = ctx.config.display().to_string();
+    if OutputFormat::from_json_flag(json).is_json() {
+        return output::emit(&ShowDocument::new(&source, &templates, user_id));
+    }
+    print(&templates, user_id, &source);
     Ok(())
 }
 

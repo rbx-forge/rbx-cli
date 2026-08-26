@@ -12,14 +12,17 @@ use colored::Colorize;
 
 use rbx_core::api::{build_client, require_api_key, ApiBase};
 use rbx_core::generated::Drift;
+use rbx_core::output::{self, OutputFormat};
 
 use super::RtbfCtx;
 use crate::config;
+use crate::json::{Finding, VerifyDocument};
 use crate::model::{Templates, USER_ID_TOKEN};
 use crate::stores;
 use crate::DEADLINE_DAYS;
 
-pub async fn run(ctx: &RtbfCtx<'_>, uncovered: bool) -> Result<()> {
+pub async fn run(ctx: &RtbfCtx<'_>, uncovered: bool, json: bool) -> Result<()> {
+    let format = OutputFormat::from_json_flag(json);
     let declared = config::load(&ctx.config)?;
     declared.validate()?;
 
@@ -30,27 +33,74 @@ pub async fn run(ctx: &RtbfCtx<'_>, uncovered: bool) -> Result<()> {
         None => ApiBase::default(),
     };
     let live = stores::list_standard(&build_client(), &base, api_key, universe_id).await?;
-
-    println!("{}", ctx.config.display().to_string().dimmed());
-    println!(
-        "  {} standard data store(s) in universe {}",
-        live.len(),
-        universe_id
-    );
-    println!();
-
     let report = examine(&declared, &live);
-    print_report(&report, uncovered);
+    let failed = report.missing.len() + report.unmatched_stores.len();
 
-    if report.missing.is_empty() && report.unmatched_stores.is_empty() {
+    if format.is_json() {
+        // The document goes out before the error, so a run that ends in exit 2
+        // still writes it: a consumer branching on `.ok` should not have to
+        // choose between the status and the findings.
+        output::emit(&VerifyDocument {
+            schema_version: output::SCHEMA_VERSION,
+            config_file: ctx.config.display().to_string(),
+            env: ctx.global.env.clone(),
+            universe_id: universe_id.to_string(),
+            ok: failed == 0,
+            standard_store_count: live.len(),
+            findings: findings(&report),
+            uncovered: uncovered.then(|| report.uncovered.iter().map(|s| s.to_string()).collect()),
+        })?;
+    } else {
+        println!("{}", ctx.config.display().to_string().dimmed());
+        println!(
+            "  {} standard data store(s) in universe {}",
+            live.len(),
+            universe_id
+        );
+        println!();
+        print_report(&report, uncovered);
+    }
+
+    if failed == 0 {
         return Ok(());
     }
     Err(Drift::new(format!(
-        "{} template(s) name nothing that exists. Roblox accepts them and deletes nothing, \
-         and a request you have not honoured within {DEADLINE_DAYS} days is what that costs.",
-        report.missing.len() + report.unmatched_stores.len()
+        "{failed} template(s) name nothing that exists. Roblox accepts them and deletes \
+         nothing, and a request you have not honoured within {DEADLINE_DAYS} days is what \
+         that costs."
     ))
     .into())
+}
+
+/// The report, flattened into the document's one list.
+///
+/// The verdicts are what keep `unverifiable` out of the failure count: it is a
+/// limit of Open Cloud rather than a broken template, and a consumer folding it
+/// into `ok` would fail a build over a store nothing can list.
+fn findings(report: &Report<'_>) -> Vec<Finding> {
+    report
+        .missing
+        .iter()
+        .map(|store| Finding {
+            kind: "key",
+            target: (*store).to_string(),
+            verdict: "missing",
+            detail: "no such standard data store in this universe".into(),
+        })
+        .chain(report.unmatched_stores.iter().map(|pattern| Finding {
+            kind: "store",
+            target: (*pattern).to_string(),
+            verdict: "unmatched",
+            detail: "matches none of the live store names".into(),
+        }))
+        .chain(report.unverifiable.iter().map(|store| Finding {
+            kind: "key",
+            target: (*store).to_string(),
+            verdict: "unverifiable",
+            detail:
+                "ordered store: Open Cloud does not list these, so this one is unchecked".into(),
+        }))
+        .collect()
 }
 
 /// What a verify found.

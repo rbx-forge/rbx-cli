@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`rbx apikey create` failed for any key declared without a `description`.**
+  Roblox refuses a key whose name or description carries a brand
+  (`Response.InvalidNameOrDescription`), and the auto-generated description read
+  `Managed by rbxapikey (...)`, which contains `rbx`. So the failure sat on the
+  path the documentation recommends: the field is optional. The fallback no
+  longer names the tool, and a test keeps the brand out, because the failure is
+  invisible in review and only appears against the live API.
+
+  The refusal itself names neither of the two fields it covers, which is what
+  made this cost a session to find. It is now answered with both values that
+  were sent, so which one carries a brand is visible at a glance. Nothing is
+  refused locally, and the rule is why: `testenv/rbxapikey.example.toml` already
+  recorded it as `rbx` or `roblox` glued to an API or commerce term, which is a
+  judgement rather than a substring. Every approximation of it rejects text
+  Roblox accepts, and nobody debugs a check that fires wrongly.
+
 ## [0.4.0]
 
 ### Added

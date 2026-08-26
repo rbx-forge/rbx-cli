@@ -14,11 +14,19 @@
 # Run from this directory:
 #   cd testenv && rbx apikey create readonly
 #
-# NOTE: Roblox moderation (Response.InvalidNameOrDescription) rejects key names
-# containing "rbx" or "roblox" glued to an API or commerce term. Neither the
-# prefix nor any key name below contains either, so no `name = ...` override is
-# needed here (unlike otherproject/rbxapikey.toml, where the keys are named
-# after the tools).
+# NOTE: Roblox moderation (Response.InvalidNameOrDescription) rejects a key
+# name or description containing "rbx" or "roblox" glued to an API or commerce
+# term. Neither the prefix nor any key name below contains either, so no
+# `name = ...` override is needed here (unlike otherproject/rbxapikey.toml,
+# where the keys are named after the tools).
+#
+# The `description` half was confirmed on 2026-08-22: a description reading
+# "Validate `rbx secret` against real Open Cloud" was refused, and the same
+# text without the brand was accepted with nothing else changed. Every
+# description below is already brand-free, which is why none of them has ever
+# hit it. `rbx apikey create` now explains the refusal when it arrives and its
+# auto-generated fallback names nothing, but it refuses nothing locally: "glued
+# to an API or commerce term" is a judgement, not a substring.
 
 [settings]
 # Must match the current public IP of the machine that will use the key.

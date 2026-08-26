@@ -42,7 +42,12 @@ pub async fn run(ctx: &RtbfCtx<'_>) -> Result<()> {
             );
         }
 
-        if published == declared {
+        // `render`, not `==`. Struct equality compares two `Vec`s and is
+        // therefore order-sensitive, and declared order carries no meaning
+        // here: deletion is a match, not a sequence. Comparing the structs
+        // reported drift on a file somebody had merely tidied, and told them
+        // to publish it, which would have been a no-op revision.
+        if render(&published) == render(&declared) {
             println!("  {} {} template(s) match", "✓".green(), declared.total());
             continue;
         }

@@ -485,7 +485,7 @@ costs a comparison on a response that was already arriving.
 
 When it does fire, it is a warning and not an error, because by the time there is an echo to read the write has already landed: failing then would report an error for something that succeeded. Keys Roblox *filled in* are reported too, more quietly: that is the normal completion of a partial document, and it is how you learn the full shape without guessing.
 
-`schemas/rbxavatar.schema.json` describes this document, so an editor completes the key names and shows what each numeric mode means on hover. Name the file `rbxavatar.toml` and the associations in the [README](../README.md#editor-support) match it without editing. The schema is **guidance, not a gate**: `additionalProperties` is open everywhere, so a key Roblox adds tomorrow is one your editor stays quiet about and `rbx meta` sends anyway: the same reason the document is not modelled in the first place.
+`schemas/rbxavatar.schema.json` describes this document, so an editor completes the key names and shows what each numeric mode means on hover. Name the file `rbxavatar.toml` and the associations in the [README](https://github.com/rbx-forge/rbx-cli/blob/main/README.md#editor-support) match it without editing. The schema is **guidance, not a gate**: `additionalProperties` is open everywhere, so a key Roblox adds tomorrow is one your editor stays quiet about and `rbx meta` sends anyway: the same reason the document is not modelled in the first place.
 
 Watch one trap the schema calls out on hover: `AvatarRules.AvatarType` here runs `0` = R6, `1` = R15, `2` = both, while `[game.avatar] type` is the older `universeAvatarType` and runs `1` = R6, `2` = player choice, `3` = R15. Same idea, two endpoints, different integers.
 

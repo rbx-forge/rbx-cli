@@ -45,7 +45,7 @@ site-url = "/rbx-cli/"
 # dense with tables (fields, flags, scopes, on nearly every page) and `rust`
 # puts them on a beige at 87% lightness, which costs the contrast a table's
 # borders and alternating rows depend on. And its dark brown sidebar is a large
-# block of colour next to 26 entries; `light`'s #fafafa lets the content lead.
+# block of colour next to 28 entries; `light`'s #fafafa lets the content lead.
 #
 # `ayu` stays for dark. Its link colour (#0096cf) is the brightest of the three
 # dark themes, and these pages cross-reference each other in every paragraph,
@@ -57,7 +57,7 @@ site-url = "/rbx-cli/"
 # keeps what they picked and never sees this line take effect.
 default-theme = "light"
 preferred-dark-theme = "ayu"
-# Collapsed to the section headings by default. Twenty-six pages across five
+# Collapsed to the section headings by default. Twenty-eight pages across six
 # sections is a long list to scroll past on every page, and the operational
 # section alone nests nine entries under one. `level = 1` keeps the sections
 # visible and folds their contents until you are in one.

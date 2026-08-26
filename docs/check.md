@@ -225,7 +225,7 @@ exit "$(jq -r '.exit_code' check.json)"
 `check` and `status`, `env list/get`, `servers list/versions/logs`,
 `analytics query/metrics`, `ads list/get/status`, `place versions/places` and
 the receipts from `place upload/promote/rollback`, `data get/list/revisions/diff`,
-`memorystore get/list`, `shop list/show`, `config list/get/versions`,
+`memorystore get/list`, `shop list/show`, `config list/get/versions`, `rtbf show/verify`, `secret list/public-key`,
 `ban list/status`, `apikey list/status` and `apikey scopes show`, plus the
 receipt from `publish`. Per-command field names are documented alongside each
 command.

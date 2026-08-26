@@ -148,7 +148,7 @@ Three things produce a `-` rather than a `✓` or a `✗`:
 
 ### 4. Scope coverage
 
-For each of `rbxplace.toml`, `rbxmeta.toml`, `rbxconfig.toml` and `rbxshop.toml` that is present, `doctor` lists that tool's operations and whether the key carries the scopes each one needs. The requirements are the "Required API scopes" tables from each tool's own doc.
+For each of `rbxplace.toml`, `rbxmeta.toml`, `rbxconfig.toml`, `rbxrtbf.toml` and `rbxshop.toml` that is present, `doctor` lists that tool's operations and whether the key carries the scopes each one needs. The requirements are the "Required API scopes" tables from each tool's own doc.
 
 Two limits worth knowing:
 

@@ -23,6 +23,7 @@ crates/
   rbx-meta       # universe & place metadata               -> rbx meta
   rbx-config     # in-experience live config               -> rbx config
   rbx-secret     # universe secrets store (sealed writes)  -> rbx secret
+  rbx-rtbf       # data store deletion templates (RTBF)     -> rbx rtbf
   rbx-shop       # passes / badges / developer products    -> rbx shop
   rbx-check      # every configured tool's check, one pass -> rbx check, rbx status
   rbx-doctor     # credentials, key validity, scope cover  -> rbx doctor

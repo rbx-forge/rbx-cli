@@ -39,7 +39,7 @@ you commit, and the tool reconciles Roblox to match it. Diffable, reviewable,
 safe to run on every push, idempotent by construction.
 
 **Operational: kubectl for Roblox.** `servers`, `analytics`, `ban`, `restart`,
-`data`, `memorystore`, `publish`. These act on state that only exists while the
+`data`, `memorystore`, `message`. These act on state that only exists while the
 game is running, and no TOML file can describe it. Banning a player is a
 consequence of what happened in your game last night, not a checked-in
 intention.
@@ -180,6 +180,7 @@ schema.path = "schemas/rbxapikey.schema.json"
     "rbxconfig(\\.example)?\\.toml$": "./schemas/rbxconfig.schema.json",
     "rbxapikey(\\.example)?\\.toml$": "./schemas/rbxapikey.schema.json",
     "rbxshop(\\.example)?\\.toml$": "./schemas/rbxshop.schema.json",
+    "rbxrtbf(\\.example)?\\.toml$": "./schemas/rbxrtbf.schema.json",
     "rbxavatar\\.toml$": "./schemas/rbxavatar.schema.json"
   }
 }

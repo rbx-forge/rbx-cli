@@ -181,17 +181,48 @@ impl Templates {
             if key.store.trim().is_empty() {
                 bail!("{at}: `store` is empty. Name the data store the key lives in.");
             }
-            check_token(&at, "pattern", &key.pattern)?;
-            // A scope may legitimately be a constant such as `global`, so the
-            // token is not required here. A *misspelled* token is still worth
-            // catching: it means the author intended a per-user scope.
+            if key.pattern.trim().is_empty() {
+                bail!("{at}: `pattern` is empty.");
+            }
+
+            // Both fields, and **regardless of whether a correct token is also
+            // present**. `User_{UserId}_{userid}` used to pass, because the
+            // first correct token short-circuited the scan; Roblox substitutes
+            // the first and leaves `{userid}` as literal text, so the key it
+            // looks for matches nothing real. That is the crate's whole failure
+            // mode, reached through a merge or a copy-paste.
+            check_no_near_miss(&at, "pattern", &key.pattern)?;
             if let Some(scope) = key.scope.as_deref() {
                 check_no_near_miss(&at, "scope", scope)?;
+            }
+
+            // **The token may live in either field.** Roblox's eligibility rule
+            // is that the user id must be part of the *name or the scope* of
+            // the key, so a store keyed by a constant under a per-user scope
+            // (`pattern = "Data"`, `scope = "User_{UserId}"`) is a documented,
+            // working configuration. Requiring it in `pattern` refused that,
+            // and told the author Roblox would delete nothing when Roblox
+            // would in fact delete: the scope carries the id.
+            let in_pattern = key.pattern.contains(USER_ID_TOKEN);
+            let in_scope = key
+                .scope
+                .as_deref()
+                .is_some_and(|scope| scope.contains(USER_ID_TOKEN));
+            if !in_pattern && !in_scope {
+                bail!(
+                    "{at}: neither `pattern` nor `scope` has a \"{USER_ID_TOKEN}\" token, so \
+                     this names one fixed key rather than a user's. Roblox needs the id in \
+                     the key name or the scope; as written it would accept this and delete \
+                     nothing."
+                );
             }
         }
 
         for (index, store) in self.stores.iter().enumerate() {
             let at = format!("[[store]] #{}", index + 1);
+            check_no_near_miss(&at, "pattern", &store.pattern)?;
+            // A store template has no scope, so the name is the only place the
+            // id can be.
             check_token(&at, "pattern", &store.pattern)?;
         }
 
@@ -284,9 +315,12 @@ fn string_at(value: &Json, field: &str) -> String {
 
 /// Refuse a pattern with no usable `{UserId}`.
 ///
-/// The whole point of the file. A pattern without the token is a constant, so
-/// Roblox stores it, matches at most one key belonging to nobody in particular,
-/// and reports nothing.
+/// A pattern without the token is a constant, so Roblox stores it, matches at
+/// most one key belonging to nobody in particular, and reports nothing.
+///
+/// The near-miss case is handled by [`check_no_near_miss`], which callers run
+/// **first** and unconditionally: this one only answers "is there a correct
+/// token at all".
 fn check_token(at: &str, field: &str, pattern: &str) -> Result<()> {
     if pattern.trim().is_empty() {
         bail!("{at}: `{field}` is empty.");
@@ -294,29 +328,26 @@ fn check_token(at: &str, field: &str, pattern: &str) -> Result<()> {
     if pattern.contains(USER_ID_TOKEN) {
         return Ok(());
     }
-    if let Some(found) = near_miss(pattern) {
-        bail!(
-            "{at}: `{field}` contains \"{found}\", and the token is \
-             case-sensitive: it must be exactly \"{USER_ID_TOKEN}\". As written, Roblox \
-             would store this template and it would match nothing."
-        );
-    }
     bail!(
         "{at}: `{field}` has no \"{USER_ID_TOKEN}\" token, so it names one fixed key \
          rather than a user's. Roblox would accept it and delete nothing."
     )
 }
 
-/// Catch a misspelled token in a field where one is not required.
+/// Refuse a miscased token anywhere in a value.
+///
+/// **Runs whether or not a correct token is also present.** It used to
+/// short-circuit on the first correct one, which let `User_{UserId}_{userid}`
+/// through: Roblox substitutes the first and leaves the second as literal text,
+/// so the key it looks for matches nothing real. That is the crate's own
+/// failure mode, and a merge or a copy-paste of a second identifier is how it
+/// arrives.
 fn check_no_near_miss(at: &str, field: &str, value: &str) -> Result<()> {
-    if value.contains(USER_ID_TOKEN) {
-        return Ok(());
-    }
     if let Some(found) = near_miss(value) {
         bail!(
-            "{at}: `{field}` contains \"{found}\", which is not the token. It is \
-             case-sensitive and must be exactly \"{USER_ID_TOKEN}\". Write a constant scope \
-             if that is what you meant."
+            "{at}: `{field}` contains \"{found}\", and the token is case-sensitive: it must \
+             be exactly \"{USER_ID_TOKEN}\". As written, Roblox would store this template \
+             and it would match nothing."
         );
     }
     Ok(())
@@ -328,19 +359,30 @@ fn check_no_near_miss(at: &str, field: &str, value: &str) -> Result<()> {
 /// `{USERID}` and `{userId}` are all caught while an unrelated `{version}` is
 /// left alone. This is the mistake Roblox's best-practices list puts first, and
 /// it is invisible: the wrong case is stored happily and matches nothing.
+///
+/// Each `}` is paired with the **nearest preceding** `{`. Pairing the first
+/// opener with the first closer let a stray brace swallow a real run:
+/// `Player{_{userId}` produced the inner text `_{userId`, which matches
+/// nothing, and the miscased token went out. `{{userId}}` hid the same way.
 fn near_miss(value: &str) -> Option<String> {
     let inner_token = USER_ID_TOKEN.trim_matches(|c| c == '{' || c == '}');
-    let mut rest = value;
-    while let Some(open) = rest.find('{') {
-        let after = &rest[open + 1..];
-        // No closer: nothing after this point can be a brace-delimited run, so
-        // the whole scan is done rather than just this iteration.
-        let close = after.find('}')?;
-        let inner = &after[..close];
-        if inner.eq_ignore_ascii_case(inner_token) && inner != inner_token {
-            return Some(format!("{{{inner}}}"));
+    let mut open: Option<usize> = None;
+    // `char_indices` rather than byte scanning: the braces are single-byte, but
+    // the text between them need not be, and the slice below is taken on those
+    // offsets.
+    for (at, character) in value.char_indices() {
+        match character {
+            '{' => open = Some(at),
+            '}' => {
+                if let Some(start) = open.take() {
+                    let inner = &value[start + 1..at];
+                    if inner.eq_ignore_ascii_case(inner_token) && inner != inner_token {
+                        return Some(format!("{{{inner}}}"));
+                    }
+                }
+            }
+            _ => {}
         }
-        rest = &after[close + 1..];
     }
     None
 }
@@ -465,14 +507,112 @@ mod tests {
     }
 
     #[test]
-    fn a_pattern_with_no_token_at_all_says_it_would_delete_nothing() {
+    fn a_key_with_the_token_in_neither_field_says_it_would_delete_nothing() {
         let templates = Templates {
             keys: vec![key("PlayerData")],
             stores: vec![],
         };
         let err = templates.validate().unwrap_err().to_string();
-        assert!(err.contains("no \"{UserId}\" token"), "{err}");
+        assert!(err.contains("neither `pattern` nor `scope`"), "{err}");
         assert!(err.contains("delete nothing"), "{err}");
+    }
+
+    /// Roblox's eligibility rule is that the user id must be part of the
+    /// **name or the scope**, so a store keyed by a constant under a per-user
+    /// scope is a documented, working configuration. Requiring the token in
+    /// `pattern` refused it and told the author Roblox would delete nothing,
+    /// which was wrong on its own terms: the scope carries the id.
+    #[test]
+    fn the_token_may_live_in_the_scope_instead_of_the_pattern() {
+        let mut template = key("Data");
+        template.scope = Some("User_{UserId}".into());
+        assert!(Templates {
+            keys: vec![template],
+            stores: vec![]
+        }
+        .validate()
+        .is_ok());
+    }
+
+    /// A store template has no scope, so its name is the only place the id can
+    /// be, and the rule stays strict there.
+    #[test]
+    fn a_store_pattern_still_needs_the_token_itself() {
+        let err = Templates {
+            keys: vec![],
+            stores: vec![StoreTemplate {
+                pattern: "PlayerSaves".into(),
+            }],
+        }
+        .validate()
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("no \"{UserId}\" token"), "{err}");
+    }
+
+    /// The scan used to stop at the first correct token, so this passed and was
+    /// published. Roblox substitutes the first and leaves `{userid}` as literal
+    /// text, so the key it looks for matches nothing: the crate's own failure
+    /// mode, reached by a merge or a copy-paste of a second identifier.
+    #[test]
+    fn a_miscased_token_beside_a_correct_one_is_still_refused() {
+        for wrong in [
+            "User_{UserId}_{userid}",
+            "{userId}_User_{UserId}",
+            "{UserId}{USERID}",
+        ] {
+            let err = Templates {
+                keys: vec![key(wrong)],
+                stores: vec![],
+            }
+            .validate()
+            .unwrap_err()
+            .to_string();
+            assert!(err.contains("case-sensitive"), "{wrong}: {err}");
+        }
+
+        // And the same in a scope, where there is no second rule to catch it.
+        let mut template = key("User_{UserId}");
+        template.scope = Some("{UserId}_{userId}".into());
+        let err = Templates {
+            keys: vec![template],
+            stores: vec![],
+        }
+        .validate()
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("case-sensitive"), "{err}");
+    }
+
+    /// Each `}` pairs with the nearest preceding `{`. Pairing the first opener
+    /// with the first closer let a stray brace swallow a real run, and on a
+    /// `scope` that was a silent pass.
+    #[test]
+    fn a_stray_brace_does_not_hide_a_miscased_token_behind_it() {
+        assert_eq!(near_miss("Player{_{userId}"), Some("{userId}".into()));
+        assert_eq!(near_miss("{{userId}}"), Some("{userId}".into()));
+
+        let mut template = key("User_{UserId}");
+        template.scope = Some("Player{_{userId}".into());
+        assert!(
+            Templates {
+                keys: vec![template],
+                stores: vec![]
+            }
+            .validate()
+            .is_err(),
+            "a stray brace must not launder a miscased token"
+        );
+    }
+
+    /// The braces are single-byte but the text between them need not be, and
+    /// the scan slices on those offsets. A panic on user input would be worse
+    /// than any rule this file enforces.
+    #[test]
+    fn a_multi_byte_character_inside_the_braces_does_not_panic() {
+        assert_eq!(near_miss("{UsérId}"), None);
+        assert_eq!(near_miss("héllo {userid} wörld"), Some("{userid}".into()));
+        assert_eq!(near_miss("{}"), None);
     }
 
     /// An unrelated placeholder is somebody's naming scheme, not a typo.

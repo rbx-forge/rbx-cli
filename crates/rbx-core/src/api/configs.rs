@@ -252,7 +252,7 @@ impl ConfigsClient {
     /// The staged draft, if there is one.
     ///
     /// Read before a write so the hash can be handed back as
-    /// `previousDraftHash`. 404 is "no draft", which is the ordinary state.
+    /// the concurrency hash. 404 is "no draft", which is the ordinary state.
     pub async fn get_draft(&self, universe_id: u64) -> Result<RepositoryDraft> {
         let url = format!("{}/draft", self.repo_url(universe_id));
         match self.get(url).await {
@@ -327,7 +327,7 @@ impl ConfigsClient {
     /// Stage the entries and publish them, guarding against a concurrent draft.
     ///
     /// Three requests rather than two, and the extra one is the point: the
-    /// draft is read first so its hash travels back as `previousDraftHash`.
+    /// draft is read first so its hash travels back as `draftHash`.
     /// Without it this call overwrote whatever was staged, in silence, which is
     /// the one outcome a human cannot recover from because the draft is gone
     /// before they learn it existed.
@@ -446,10 +446,24 @@ pub struct PublishResult {
     pub config_version: u64,
 }
 
+/// Body for `PUT /draft:overwrite` and `PATCH /draft`.
+///
+/// **The concurrency field is `draftHash`, not `previousDraftHash`.** Roblox's
+/// configs guide says the latter in prose; the vendored spec's
+/// `UpdateDraftRequest` defines `draftHash` ("The previous draft hash for
+/// concurrency control") and does not mention `previousDraftHash` anywhere.
+///
+/// The spec wins, and here the choice is not a coin flip: `UpdateDraftRequest`
+/// carries `additionalProperties: false`, so the guide's spelling would be
+/// **rejected** rather than ignored, and every `sync` against a repository with
+/// a staged draft would fail on an opaque 4xx. Sending the spec's name is also
+/// the safe side of the other branch: if the service happened to want the
+/// guide's name, the guard is merely inert, which is where this code was before
+/// it sent anything at all.
 #[derive(Debug, Serialize)]
 struct OverwriteBody<'a> {
     entries: &'a BTreeMap<String, Json>,
-    #[serde(rename = "previousDraftHash", skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "draftHash", skip_serializing_if = "Option::is_none")]
     previous_draft_hash: Option<&'a str>,
 }
 
@@ -587,5 +601,247 @@ mod tests {
         let err = validate_entries(&over).unwrap_err().to_string();
         assert!(err.contains("features.xxx"), "{err}");
         assert!(err.len() < 200, "the whole key must not be echoed: {err}");
+    }
+
+    // -----------------------------------------------------------------------
+    // Over HTTP.
+    //
+    // These three rules moved here with the client and lost their tests on the
+    // way: they lived in `rbx-config`'s own module, which this replaced. The
+    // middle one is the reason the move is worth testing at all, and it is
+    // restated in `get_config`'s doc comment because nothing else says it.
+    // -----------------------------------------------------------------------
+
+    mod over_http {
+        use super::super::*;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        const UNIVERSE: u64 = 109876543210987;
+
+        fn repo_path(repository: Repository) -> String {
+            format!(
+                "/creator-configs-public-api/v1/configs/universes/{UNIVERSE}/repositories/{repository}"
+            )
+        }
+
+        fn client(server: &MockServer, repository: Repository) -> ConfigsClient {
+            ConfigsClient::new("test-key".into(), repository).with_base_url(server.uri())
+        }
+
+        /// The starting state, not a failure: a universe that has never
+        /// published answers 404, and `sync` builds its first draft from that.
+        #[tokio::test]
+        async fn a_universe_with_no_config_yet_reads_as_empty() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(repo_path(Repository::InExperienceConfig)))
+                .respond_with(ResponseTemplate::new(404).set_body_string(""))
+                .mount(&server)
+                .await;
+
+            let snapshot = client(&server, Repository::InExperienceConfig)
+                .get_config(UNIVERSE)
+                .await
+                .expect("404 means no config published, not a failure");
+            assert!(snapshot.entries.is_empty());
+            assert_eq!(snapshot.metadata.config_version, 0);
+        }
+
+        /// **The dangerous confusion.** Folding a refusal into "nothing
+        /// published" would make `sync` diff against an empty remote and offer
+        /// to overwrite a live config with everything in the file. A key
+        /// missing one scope would silently become a config wipe.
+        #[tokio::test]
+        async fn a_refusal_is_not_mistaken_for_an_empty_config() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(repo_path(Repository::InExperienceConfig)))
+                .respond_with(ResponseTemplate::new(403).set_body_string("no access"))
+                .mount(&server)
+                .await;
+
+            let error = client(&server, Repository::InExperienceConfig)
+                .get_config(UNIVERSE)
+                .await
+                .expect_err("403 is a failure")
+                .to_string();
+            assert!(error.contains("403"), "got: {error}");
+        }
+
+        /// Same rule, one level down. A draft nobody can read must not be
+        /// reported as "no draft", or the concurrency guard silently sends no
+        /// hash and the overwrite it was protecting goes through.
+        #[tokio::test]
+        async fn a_refused_draft_read_is_not_mistaken_for_an_absent_draft() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "{}/draft",
+                    repo_path(Repository::InExperienceConfig)
+                )))
+                .respond_with(ResponseTemplate::new(403).set_body_string("no access"))
+                .mount(&server)
+                .await;
+
+            let error = client(&server, Repository::InExperienceConfig)
+                .get_draft(UNIVERSE)
+                .await
+                .expect_err("403 is a failure")
+                .to_string();
+            assert!(error.contains("403"), "got: {error}");
+        }
+
+        #[tokio::test]
+        async fn a_universe_with_no_draft_reads_as_an_absent_one() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "{}/draft",
+                    repo_path(Repository::InExperienceConfig)
+                )))
+                .respond_with(ResponseTemplate::new(404))
+                .mount(&server)
+                .await;
+
+            let draft = client(&server, Repository::InExperienceConfig)
+                .get_draft(UNIVERSE)
+                .await
+                .expect("no draft is the ordinary state");
+            assert!(draft.draft_hash.is_none());
+            assert!(draft.entries.is_empty());
+        }
+
+        #[tokio::test]
+        async fn the_api_key_is_sent_on_reads() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(repo_path(Repository::InExperienceConfig)))
+                .and(header("x-api-key", "test-key"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            client(&server, Repository::InExperienceConfig)
+                .get_config(UNIVERSE)
+                .await
+                .unwrap();
+        }
+
+        /// The whole point of the move: the repository is a path segment, so a
+        /// client built for one must not reach another's. Asserted by mounting
+        /// only `DataStoresConfig` and letting a wrong path 404 into an empty
+        /// snapshot, which would pass silently, so the request count is what
+        /// actually proves it.
+        #[tokio::test]
+        async fn the_repository_is_the_path_segment_it_was_built_with() {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path(repo_path(Repository::DataStoresConfig)))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            client(&server, Repository::DataStoresConfig)
+                .get_config(UNIVERSE)
+                .await
+                .unwrap();
+
+            let asked: Vec<String> = server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .map(|r| r.url.path().to_string())
+                .collect();
+            assert_eq!(asked.len(), 1, "one read, at one path: {asked:?}");
+            assert!(
+                asked[0].ends_with("/repositories/DataStoresConfig"),
+                "got: {asked:?}"
+            );
+        }
+
+        /// The guard, end to end: the draft is read first and its hash travels
+        /// back as `draftHash`. Without this the overwrite discarded
+        /// whatever was staged, in silence.
+        #[tokio::test]
+        async fn overwrite_and_publish_hands_back_the_hash_of_the_draft_it_read() {
+            let server = MockServer::start().await;
+            let base = repo_path(Repository::InExperienceConfig);
+
+            Mock::given(method("GET"))
+                .and(path(format!("{base}/draft")))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "draftHash": "staged-elsewhere",
+                    "entries": { "someone.else": { "value": 1 } }
+                })))
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("PUT"))
+                .and(path(format!("{base}/draft:overwrite")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "entries": { "mine": true },
+                    "draftHash": "staged-elsewhere"
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"draftHash": "new"})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            Mock::given(method("POST"))
+                .and(path(format!("{base}/publish")))
+                .and(wiremock::matchers::body_json(serde_json::json!({
+                    "message": "m",
+                    "deploymentStrategy": "Immediate",
+                    "draftHash": "new"
+                })))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"configVersion": 7})),
+                )
+                .expect(1)
+                .mount(&server)
+                .await;
+
+            let entries = BTreeMap::from([("mine".to_string(), Json::Bool(true))]);
+            let (published, replaced) = client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .unwrap();
+
+            assert_eq!(published.config_version, 7);
+            // Named so a caller can say what it replaced, since the draft is
+            // gone by the time anyone could ask.
+            assert_eq!(replaced.keys, ["someone.else"]);
+        }
+
+        /// An entry set the limits refuse must cost no request at all: the
+        /// validation is the first thing `overwrite_and_publish` does, ahead of
+        /// even the draft read.
+        #[tokio::test]
+        async fn an_entry_set_over_the_limit_never_reaches_the_network() {
+            let server = MockServer::start().await;
+            let entries: BTreeMap<String, Json> = (0..=MAX_KEYS_PER_REPOSITORY)
+                .map(|i| (format!("key{i}"), Json::from(i)))
+                .collect();
+
+            let error = client(&server, Repository::InExperienceConfig)
+                .overwrite_and_publish(UNIVERSE, &entries, "m", "Immediate")
+                .await
+                .expect_err("over the limit")
+                .to_string();
+            assert!(error.contains("101 entries"), "got: {error}");
+            assert!(
+                server.received_requests().await.unwrap().is_empty(),
+                "a payload the tool refuses must not cost a request"
+            );
+        }
     }
 }

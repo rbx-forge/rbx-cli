@@ -62,7 +62,52 @@ pub fn load(path: &Path) -> Result<Templates> {
     })?;
     let templates: Templates =
         toml::from_str(&text).with_context(|| format!("Failed to parse {}", path.display()))?;
+    warn_unknown_root_keys(path, &text);
     Ok(templates)
+}
+
+/// The two tables this file gives meaning to.
+const ROOT_KEYS: &[&str] = &["key", "store"];
+
+/// Name a root table this build does not read, on stderr, without refusing.
+///
+/// **Warned, not rejected**, which is the position stated in `rbx-schema`'s
+/// module docs and held by a test: a key from a newer release has to stay
+/// loadable, or adopting a field would mean upgrading every machine in the same
+/// instant. `deny_unknown_fields` here would also make the generated schema
+/// stricter than the tool, which trains people to stop reading the squiggles.
+///
+/// Saying it out loud is not optional courtesy, though. `[[keys]]` (the plural,
+/// which is what the Rust field is called and what anyone reading the `--json`
+/// output would guess) parses to an empty `Templates`, an empty declaration is
+/// legitimate by design, and `sync --yes` would then publish
+/// `user_data_templates: []` and clear every template the universe had. Without
+/// this line the only signal was a `0 templates` count in a prompt `--yes`
+/// skips.
+fn warn_unknown_root_keys(path: &Path, content: &str) {
+    let Ok(toml::Value::Table(root)) = content.parse::<toml::Value>() else {
+        // The typed parse above already failed or will; it owns that message,
+        // and it can give a line number this cannot.
+        return;
+    };
+    let mut unknown: Vec<&str> = root
+        .keys()
+        .map(String::as_str)
+        .filter(|key| !ROOT_KEYS.contains(key))
+        .collect();
+    if unknown.is_empty() {
+        return;
+    }
+    unknown.sort_unstable();
+    eprintln!(
+        "warning: {} has {} key(s) this release gives no meaning to: {}.\n  \
+         known tables: {}. Either one is misspelled, or it comes from a newer \
+         `rbx`. Nothing in it is published.",
+        path.display(),
+        unknown.len(),
+        unknown.join(", "),
+        ROOT_KEYS.join(", ")
+    );
 }
 
 /// Write the file, replacing it whole.
@@ -145,8 +190,29 @@ mod tests {
         assert!(err.contains("rbx rtbf init"), "{err}");
     }
 
+    /// Named on stderr, not refused: a key from a newer release has to stay
+    /// loadable. What matters is that it is not silent, because `[[keys]]`
+    /// parses to an empty declaration and `sync --yes` would publish that as a
+    /// wipe.
     #[test]
-    fn an_unknown_field_is_refused_rather_than_ignored() {
+    fn an_unknown_root_key_is_named_and_the_file_still_loads() {
+        let d = dir();
+        let path = d.path().join(FILE);
+        std::fs::write(
+            &path,
+            "[[keys]]\nstore = \"A\"\npattern = \"User_{UserId}\"\n",
+        )
+        .unwrap();
+
+        let templates = load(&path).expect("a newer release's key must not break the load");
+        assert!(
+            templates.is_empty(),
+            "the misspelled table declares nothing, which is why the warning matters"
+        );
+    }
+
+    #[test]
+    fn an_unknown_field_inside_a_template_is_refused() {
         let d = dir();
         let path = d.path().join(FILE);
         // `deny_unknown_fields` on the template structs: a misspelled

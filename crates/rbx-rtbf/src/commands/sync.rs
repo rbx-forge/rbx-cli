@@ -7,6 +7,7 @@ use rbx_core::confirm::confirm_always;
 
 use super::{print_env_header, RtbfCtx};
 use crate::config;
+use crate::model::Templates;
 
 /// Roblox's two rollout strategies, and this one is not a choice.
 ///
@@ -51,6 +52,31 @@ pub async fn run(
         return Ok(());
     }
 
+    // The client before the question, not after: `require_api_key` performs no
+    // request, and a publish prompt nothing can act on is a question asked
+    // before it was refused. `rbx place upload` states the same rule.
+    let client = ctx.client()?;
+
+    // Read before writing. `overwrite_draft` replaces the whole entry, so a
+    // template this build cannot parse (a newer release's, or one written in
+    // the Creator Hub) would be published over and gone, and Roblox's only
+    // undo is restoring a previous revision, which this crate has no command
+    // for. `pull` already refuses to lose one from a text file; losing one
+    // from the live compliance artefact is strictly worse.
+    for target in &targets {
+        let live = client.get_config(target.universe_id).await?;
+        let (_, unrecognised) = Templates::from_entries(&live.entries);
+        if unrecognised > 0 {
+            anyhow::bail!(
+                "[{}] publishes over {unrecognised} template(s) this release cannot read, and \
+                 they would be gone: a publish replaces the whole set and Roblox's only undo \
+                 is restoring a revision. Upgrade `rbx`, or remove them in the Creator Hub \
+                 first.",
+                target.name
+            );
+        }
+    }
+
     // One confirmation for the whole run, for the reason `rbx shop sync`
     // records: a prompt inside the loop is reached after the earlier envs have
     // already been published, which is no longer a question anyone can answer
@@ -58,7 +84,6 @@ pub async fn run(
     let names: Vec<&str> = targets.iter().map(|t| t.name.as_str()).collect();
     confirm_always(&prompt(&names, declared.total()), yes)?;
 
-    let client = ctx.client()?;
     let entries = declared.to_entries();
     let effective_message = resolve_message(message, no_message, declared.total());
 

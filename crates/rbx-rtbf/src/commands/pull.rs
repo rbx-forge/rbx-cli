@@ -52,5 +52,24 @@ pub async fn run(ctx: &RtbfCtx<'_>, yes: bool) -> Result<()> {
         "Updated".green().bold(),
         ctx.config.display().to_string().cyan()
     );
+
+    // Validated **after** the write, and reported rather than refused. The
+    // published set can be invalid: a universe onboarded in the Creator Hub
+    // with `User_{userId}` holds a template that deletes nothing, and this is
+    // the command that brings it into version control so it can be fixed, so
+    // refusing to write would leave nowhere to fix it. But blessing it with a
+    // green `Updated` and exit 0 was worse: every other command here validates
+    // first, so they all then hard-errored on a file `pull` had just written,
+    // and the message read as though the user's file were at fault rather than
+    // their live config.
+    if let Err(problem) = published.validate() {
+        println!();
+        return Err(problem.context(format!(
+            "{} was written, and the templates it came from are not valid. That is a fact \
+             about your published set, not about this file: as published, they delete \
+             nothing. Fix the file and `rbx rtbf sync`.",
+            ctx.config.display()
+        )));
+    }
     Ok(())
 }

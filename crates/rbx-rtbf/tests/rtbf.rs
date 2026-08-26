@@ -182,7 +182,7 @@ async fn sync_sends_the_documented_payload_to_the_datastores_repository() {
     run(rtbf, &global).await.unwrap();
 }
 
-/// `previousDraftHash` is Roblox's concurrency check, and the reason a sync
+/// `draftHash` is Roblox's concurrency check, and the reason a sync
 /// reads before it writes. Without it a draft staged in the Creator Hub is
 /// discarded in silence.
 #[tokio::test]
@@ -215,7 +215,7 @@ async fn sync_hands_back_the_hash_of_the_draft_it_is_replacing() {
                     "scope_pattern": "global"
                 }}
             ]},
-            "previousDraftHash": "staged-by-somebody-else"
+            "draftHash": "staged-by-somebody-else"
         })))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(serde_json::json!({"draftHash": "h2"})),

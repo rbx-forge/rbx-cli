@@ -73,6 +73,31 @@ pub async fn run(ctx: &ConfigCtx, yes: bool) -> Result<()> {
     // default and the file does not already name one, so a plain `pull`
     // produces the bytes it always did.
     if file.repository.is_none() && repository != Repository::default() {
+        // But `repository` governs the **whole file**, and this pull refreshed
+        // one env. Stamping it here on the strength of a `--repository` flag
+        // would silently move every other env's entries to that repository on
+        // their next sync, and since an overwrite treats an omitted key as
+        // removed, `sync --env prod` would replace the named repository's whole
+        // contents with prod's flags. Against `DataStoresConfig` that deletes
+        // the universe's right-to-be-forgotten templates, and nothing reports
+        // it. The prompt above even promises the other envs are untouched.
+        let untouched: Vec<&str> = file
+            .environments
+            .keys()
+            .map(String::as_str)
+            .filter(|other| *other != env)
+            .collect();
+        if !untouched.is_empty() {
+            anyhow::bail!(
+                "{} describes {} other env(s) ({}) and names no repository, so recording \
+                 {repository} here would send their entries there on the next sync. Pull into \
+                 a file of its own with --config, or set the `repository` field by hand once \
+                 every env in this file belongs to it.",
+                out.display(),
+                untouched.len(),
+                untouched.join(", ")
+            );
+        }
         file.repository = Some(repository.to_string());
     }
     file.save(out)?;

@@ -59,6 +59,7 @@ pub async fn list_standard(
 ) -> Result<Vec<String>> {
     let mut names = Vec::new();
     let mut token: Option<String> = None;
+    let mut complete = false;
 
     for _ in 0..MAX_PAGES {
         let mut url = base.join(&format!(
@@ -88,8 +89,27 @@ pub async fn list_standard(
         // to fetch is how a walk spins.
         match response.next_page_token {
             Some(next) if !next.is_empty() => token = Some(next),
-            _ => break,
+            _ => {
+                complete = true;
+                break;
+            }
         }
+    }
+
+    // **Refuse rather than return a short list.** `verify` reads this as the
+    // set of stores that exist, so a truncated walk makes every template whose
+    // store sorted onto the next page report as `missing`: an accusation that a
+    // compliance template is inert, manufactured by this function giving up.
+    // The whole crate is careful elsewhere not to cry wolf (an ordered store is
+    // `unverifiable`, not missing), and this would have undone that quietly.
+    if !complete {
+        anyhow::bail!(
+            "this universe has more than {} standard data stores, which is more than this \
+             command walks. It cannot say which templates match, and reporting the ones it \
+             did not reach as missing would be an accusation it cannot support. Check the \
+             patterns in the Creator Hub's Data Stores Manager instead.",
+            MAX_PAGES * PAGE_SIZE
+        );
     }
 
     names.sort();

@@ -29,8 +29,8 @@ impl Tool {
         Tool::Env,
         Tool::Shop,
         Tool::Meta,
-        Tool::Config,
         Tool::Rtbf,
+        Tool::Config,
         Tool::Apikey,
     ];
 
@@ -151,20 +151,56 @@ mod tests {
         assert!(discover(dir.path(), &dir.path().join("rbxplace.toml")).is_empty());
     }
 
+    /// The rule `Tool::ALL` states, asserted as a rule.
+    ///
+    /// It used to pin the literal file-name sequence, which meant inserting a
+    /// tool in the wrong place was fixed by editing the expectation: the test
+    /// then asserted an order its own name contradicted, and waved the next
+    /// insertion through. What the rule actually says is that no tool needing
+    /// the network runs before one that does not.
     #[test]
     fn tools_run_local_work_before_remote_work() {
-        let files: Vec<&str> = Tool::ALL.iter().map(|t| t.config_file()).collect();
-        assert_eq!(
-            files,
-            vec![
-                "rbxplace.toml",
-                "rbxshop.toml",
-                "rbxmeta.toml",
-                "rbxconfig.toml",
-                "rbxrtbf.toml",
-                "rbxapikey.toml"
-            ]
-        );
+        /// What a tool costs to run, which is what the ordering rule is about.
+        #[derive(PartialEq, Eq)]
+        enum Cost {
+            /// Decidable from the files on disk.
+            Local,
+            /// Needs at least one request.
+            Remote,
+            /// Produces a fixed row and does no work at all, so it is exempt:
+            /// `tools::apikey` is a documented gap that reports itself, and it
+            /// sits last for that reason rather than for this rule's.
+            None,
+        }
+
+        fn cost(tool: Tool) -> Cost {
+            match tool {
+                Tool::Env | Tool::Shop | Tool::Meta => Cost::Local,
+                // `rtbf/templates` validates the file with no network at all,
+                // which is why it belongs on the local side of the line even
+                // though `rtbf/live` is remote.
+                Tool::Rtbf => Cost::Local,
+                // `config/live` is a Configs API read per env and nothing else.
+                Tool::Config => Cost::Remote,
+                Tool::Apikey => Cost::None,
+            }
+        }
+
+        if let Some(boundary) = Tool::ALL.iter().position(|t| cost(*t) == Cost::Remote) {
+            let late_local: Vec<&str> = Tool::ALL[boundary..]
+                .iter()
+                .filter(|t| cost(**t) == Cost::Local)
+                .map(|t| t.config_file())
+                .collect();
+            assert!(
+                late_local.is_empty(),
+                "these do local-only work after a tool that needs the network: {late_local:?}"
+            );
+        }
+
+        // And the whole set is covered, so a tool cannot escape the rule by
+        // being left out of `cost`.
+        assert_eq!(Tool::ALL.len(), 6);
     }
 
     /// A tool added to the enum and forgotten in `ALL` is a check that never

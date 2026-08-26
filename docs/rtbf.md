@@ -63,6 +63,27 @@ ordered = true
 pattern = "Player_{UserId}_Save"
 ```
 
+### Where the id has to be
+
+Roblox's eligibility rule: **the user id must be part of the name or the scope** of the data store or key. So both of these are valid, and this tool accepts both:
+
+```toml
+# the id in the key name, the usual shape
+[[key]]
+store = "PlayerInventory"
+pattern = "User_{UserId}"
+
+# the id in the scope, with a constant key name
+[[key]]
+store = "PlayerData"
+pattern = "Data"
+scope = "User_{UserId}"
+```
+
+A `[[store]]` template has no scope, so its `pattern` is the only place the id can be and the token is required there.
+
+The token is refused wherever it appears **miscased**, whether or not a correct one is also present. `User_{UserId}_{userid}` is the case worth stating: Roblox substitutes the first and leaves the second as literal text, so the key it looks for is `User_123_{userid}`, which matches nothing.
+
 ### `[[key]]`
 
 | Field | Required | Meaning |

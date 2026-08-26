@@ -34,9 +34,10 @@ pub async fn run(ctx: &RtbfCtx<'_>) -> Result<()> {
             println!(
                 "{}",
                 format!(
-                    "  {unrecognised} published template(s) in a shape this release does not \
-                     know. They are left alone by `sync` reporting below, and a newer `rbx` \
-                     may understand them."
+                    "  {unrecognised} published template(s) are in a shape this release \
+                     does not understand, so they are not compared below. `sync` refuses to \
+                     publish over them, because a publish replaces the whole set: upgrade \
+                     `rbx`, or remove them in the Creator Hub."
                 )
                 .yellow()
             );

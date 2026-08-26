@@ -199,8 +199,8 @@ changing meaning or disappearing bumps `schema_version`.
 | `totals.total` | integer | How many checks ran, including skipped ones. |
 | `totals.clean` / `.drift` / `.error` / `.skipped` | integer | Counts by outcome. |
 | `checks` | array of objects | One entry per check, in run order. |
-| `checks[].tool` | string | `env`, `shop`, `meta`, `config`, `apikey`. |
-| `checks[].check` | string | Which check within the tool: `gen-module`, `lockfile`, `codegen`, `live`, `status`. |
+| `checks[].tool` | string | `env`, `shop`, `meta`, `rtbf`, `config`, `apikey`. |
+| `checks[].check` | string | Which check within the tool: `gen-module`, `lockfile`, `codegen`, `templates`, `live`, `status`. |
 | `checks[].env` | string | The env. **Absent** on checks that are not per-env. |
 | `checks[].outcome` | string | `clean`, `drift`, `error`, `skipped`. |
 | `checks[].summary` | string | One line, the same text the human renderer shows. |

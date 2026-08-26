@@ -8,7 +8,7 @@ pub mod json;
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 
 use rbx_core::GlobalFlags;
@@ -30,7 +30,11 @@ pub struct PlaceCli {
 pub enum PlaceCommands {
     /// Upload a .rbxl file to a place.
     Upload {
-        /// Environment name (e.g. prod, staging, dev).
+        /// Environment name (e.g. prod, staging, dev), a `[groups]` name, or
+        /// `all`.
+        ///
+        /// A plural selector uploads the same file to every env it names, in
+        /// turn, under one confirmation covering the lot.
         #[arg(long, short)]
         env: String,
 
@@ -62,6 +66,10 @@ pub enum PlaceCommands {
         /// carries the document and nothing else; diagnostics stay on stderr.
         /// Cannot prompt, so an env with `confirm = true` needs `--yes`. Field
         /// names are documented in docs/place.md.
+        ///
+        /// A plural `--env` emits one envelope holding a receipt per env; a
+        /// single env emits the receipt itself, in the shape it has always
+        /// had.
         #[arg(long)]
         json: bool,
     },
@@ -282,13 +290,41 @@ fn refuse_place_id_for_writes(global: &GlobalFlags, verb: &str) -> Result<()> {
     Ok(())
 }
 
+/// Refuse a plural `--env` on a command that acts on one env.
+///
+/// Five commands here resolve their env through `PlacesConfig::get_env`, which
+/// knows nothing about groups and answers `Environment 'nonprod' not found`,
+/// naming the one thing that is not wrong: the group exists, it just names
+/// several. Routed through [`GlobalFlags::env_selector`] so `all` and a group
+/// are refused identically, which is the whole point of the selector being a
+/// type.
+///
+/// `upload` does not call this: it fans out. `download` and `promote` refuse
+/// with wordings of their own, because the alternative they point at is a flag
+/// rather than an env name.
+fn refuse_plural_env(global: &GlobalFlags, verb: &str) -> Result<()> {
+    if let Some(selector) = global.env_selector()? {
+        selector
+            .single("envs")
+            .with_context(|| format!("`rbx place {verb}` acts on one env"))?;
+    }
+    Ok(())
+}
+
 pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
     let PlaceCli { command, base_url } = cli;
     let base_url = base_url.as_deref();
 
     match command {
         PlaceCommands::Upload {
-            env,
+            // Not read here, and not dead either: it is what makes a missing
+            // `--env` a parse error instead of a runtime one. clap propagates
+            // the global `--env` and fills this subcommand's own required copy
+            // from the same occurrence, so the two always hold one value, and
+            // the resolution goes through `GlobalFlags` because that is where
+            // `all` and group expansion already live. A second expansion here
+            // would be a second answer to one question.
+            env: _,
             place,
             all_places,
             file,
@@ -300,7 +336,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             commands::upload::run(
                 global,
                 base_url,
-                &env,
+                &global.resolve_envs()?,
                 place.as_deref(),
                 all_places,
                 &file,
@@ -373,6 +409,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             json,
         } => {
             refuse_place_id_for_writes(global, "rollback")?;
+            refuse_plural_env(global, "rollback")?;
             commands::rollback::run(
                 global,
                 base_url,
@@ -393,6 +430,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             filter,
             json,
         } => {
+            refuse_plural_env(global, "versions")?;
             commands::versions::run(
                 global,
                 base_url,
@@ -409,13 +447,19 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             env,
             universe_id,
             json,
-        } => commands::places::run(global, base_url, env.as_deref(), universe_id, json).await,
+        } => {
+            refuse_plural_env(global, "places")?;
+            commands::places::run(global, base_url, env.as_deref(), universe_id, json).await
+        }
 
         PlaceCommands::Fetch {
             env,
             universe_id,
             write,
-        } => commands::fetch::run(global, base_url, &env, universe_id, write).await,
+        } => {
+            refuse_plural_env(global, "fetch")?;
+            commands::fetch::run(global, base_url, &env, universe_id, write).await
+        }
 
         PlaceCommands::GenEnvModule { out } => {
             let replacement = match out.as_deref() {

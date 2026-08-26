@@ -166,7 +166,7 @@ The file's own snake_case spellings are accepted as aliases (`universe_id`, `pla
 
 Without `--place`, `place-id` follows the same defaulting rule as every other subcommand: `main` if it exists, otherwise the only entry, otherwise an error listing the available names.
 
-With `--env all`, output is tab-separated so it pipes cleanly:
+With `--env all`, output is tab-separated so it pipes cleanly. A group behaves the same way, over its members in declared order rather than every env in name order:
 
 ```sh
 rbx env get universe-id --env all | cut -f2
@@ -350,7 +350,7 @@ An env that is not in `rbxplace.toml` is refused, and the error names the ones t
 
 ## Every field, and where it goes
 
-`rbxplace.toml` has exactly two reserved top-level tables. **Every other top-level table is an env**, named by its key.
+`rbxplace.toml` has exactly three reserved top-level tables. **Every other top-level table is an env**, named by its key.
 
 ```toml
 # ── reserved ────────────────────────────────────────────────
@@ -360,6 +360,9 @@ id = 1234567
 
 [codegen]                            # where `rbx env gen-module` writes
 output = "src/shared/Envs.luau"      # relative to this file
+
+[groups]                             # named subsets of the envs below
+nonprod = ["dev", "staging"]
 
 # ── everything below is an env ──────────────────────────────
 [prod]
@@ -383,6 +386,7 @@ codegen = false                      # tooling env: keep it out of the module
 | `[owner]` | `type` | `"user"` \| `"group"` | - | Who owns the project. Tools without their own owner field fall back to this |
 | `[owner]` | `id` | integer | - | The user or group id |
 | `[codegen]` | `output` | path | - | Where `rbx env gen-module` writes, relative to this file. Omit and `--out` becomes required |
+| `[groups]` | *(any name)* | array of env names | - | A named subset of the envs, usable anywhere `--env` is. See [Groups](#groups) |
 
 ### Env fields
 
@@ -404,6 +408,63 @@ For an env that exists for tooling and never ships: a universe you upload to fro
 The trade is real and worth stating: nothing then maps that universe back to an env at runtime. If the game boots there and your code resolves its env from `game.GameId`, it will not find one, and `rbx shop`'s dispatcher errors outright rather than guessing. Correct for a universe that only ever receives uploads; wrong for one that runs gameplay.
 
 Marking every env `codegen = false` is refused rather than emitting a module whose type union has nothing in it.
+
+### Groups
+
+A group is a **name for a set of envs, and nothing more**.
+
+```toml
+[groups]
+nonprod = ["dev", "staging", "qa"]
+live    = ["prod"]
+
+[dev]
+universe_id = 109876543210987
+[staging]
+universe_id = 109876543210988
+[qa]
+universe_id = 109876543210989
+[prod]
+universe_id = 209876543210987
+```
+
+`--env nonprod` then runs what `--env all` would run, over those three envs instead of every env:
+
+```sh
+rbx shop sync --env nonprod          # three envs, not four
+rbx check --env nonprod
+rbx meta sync --env nonprod
+rbx place upload --env nonprod --file place.rbxl
+```
+
+That is the whole feature. `--env all` becomes the group nobody has to declare rather than the only grouping that exists.
+
+**A group is expanded before anything else happens.** No lockfile, no overlay and no generated module ever sees the name `nonprod`. That is not a convention, it is what keeps the feature to one idea: every lockfile in the suite keys on `(env name → universe_id)`, and a group has no universe of its own to record. `[envs.nonprod]` in `rbxmeta.toml` or `rbxshop.toml` is **not** a thing, and will not become one: an overlay shared by several envs is what the base table is for, with the exception written as the one env that diverges.
+
+A group name is refused wherever `--env all` is refused, and with the same reasoning. `rbx ban`, `rbx restart`, `rbx data` and the rest act on one universe, so they name what you gave them and what to do instead:
+
+```text
+$ rbx restart launch --env nonprod
+Error: `--env nonprod` is a group of 3 envs (dev, staging, qa); this command acts on one universe. Name one of them.
+```
+
+#### What is refused at load
+
+All four fail the file for every command, not just the one you ran, so a bad group cannot be discovered halfway through a deploy:
+
+| Written | Refused because |
+| --- | --- |
+| `nonprod = ["dev", "qa"]` with no `[qa]` | A member must be a declared env, or the group silently targets fewer envs than it reads as. The error lists the envs that do exist |
+| `outer = ["inner"]` where `inner` is a group | Groups are flat. Nesting invites cycles and buys nothing a second line does not |
+| `staging = ["dev"]` beside `[staging]` | `--env staging` cannot mean both, and picking either silently is worse than refusing |
+| `all = [...]`, `owner`, `codegen`, `groups` | Reserved names. A group called `all` would shadow the selector every command already has |
+| `nonprod = []` | A declaration that targets nothing is never what was meant |
+
+#### Groups and `codegen`
+
+A group is not an env, so it never reaches `EnvironmentType` in the generated module. Game code branches on the env it is running in, and no universe maps to `nonprod`; putting it in the union would hand the game a runtime env that resolves to nothing.
+
+`rbx env list` prints the `[groups]` table with the file, under the same heading it has in the TOML, and `rbx env list --names` prints envs only. A group is not a value `--env` resolves to at runtime, it is a way of naming several.
 
 ### Unrecognised keys
 

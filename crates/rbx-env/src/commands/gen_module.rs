@@ -627,6 +627,40 @@ codegen = false
         assert!(!out.contains("555"));
     }
 
+    /// A group is not an env, and `EnvironmentType` is a contract with game
+    /// code: a group name in that union would give the game a runtime env no
+    /// universe maps to, and `Envs[env]` would be nil for it. The exclusion is
+    /// free (groups live in their own field, not in `environments`), which is
+    /// exactly why it needs a test: nothing would fail if that stopped being
+    /// true.
+    #[test]
+    fn a_group_never_reaches_the_generated_module() {
+        let parsed = config(
+            "[groups]
+nonprod = [\"dev\"]
+
+[dev]
+universe_id = 100
+[prod]
+universe_id = 200
+",
+        );
+        let envs = render_envs(&parsed);
+        assert_eq!(envs.len(), 2, "two envs, and the group is not a third");
+
+        let out = generate_luau(&envs);
+        assert!(
+            out.contains("export type EnvironmentType = \"dev\" | \"prod\""),
+            "got:
+{out}"
+        );
+        assert!(
+            !out.contains("nonprod"),
+            "got:
+{out}"
+        );
+    }
+
     #[test]
     fn check_warns_that_regenerating_is_wrong_when_a_key_was_ignored() {
         // The reported failure, reproduced with a key no release will have:

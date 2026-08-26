@@ -19,82 +19,100 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     let lockfile_path = config_dir.join(LOCKFILE_NAME);
     let mut lockfile = Lockfile::load(&lockfile_path)?;
 
-    let (env, universe_id, place_id) = ctx.resolve_target(&config)?;
-    let (game, media) = config.resolve_env(Some(&env));
-    Config::validate_invariants(&game)?;
-    Config::validate_media_paths(&media, &config_dir)?;
+    let targets = ctx.resolve_targets(&config)?;
+    // The header appears only when there is more than one env to separate, so
+    // a single-env run prints exactly what it always has.
+    let many = targets.len() > 1;
 
-    let env_lock = lockfile.env_view(&env);
-
-    // Safety: refuse to re-point this section silently, at either level.
-    // `sync` diffs against it to decide what to send, so nothing about the
-    // section may describe a different target. See `commands::ensure_not_repointed`.
-    super::ensure_not_repointed(
-        &env,
-        &env_lock,
-        universe_id,
-        place_id,
-        super::Repoint::Nothing,
-    )?;
-
-    let plan = build_plan(&game, &media, &env_lock.game, &env_lock.media, &config_dir)?;
-    print_plan(&plan, &env);
-
-    // Lockfile bookkeeping, before the "nothing to do" exit and outside the
-    // confirmation gate below.
-    //
-    // A thumbnail entry with no `image_id` produces no remote work (nothing to
-    // delete, nothing to reorder) so it never appears in a plan, and a
-    // lockfile holding only these yields an empty plan. Pruned after that exit,
-    // it would never be pruned at all, which is how these came to survive every
-    // sync forever. It is a local write and touches nothing on Roblox, so it
-    // does not belong behind a prompt about applying remote changes either.
-    let stale_thumbnails = imageless_thumbnails(&lockfile.env_view(&env).media.thumbnails);
-    if stale_thumbnails > 0 {
-        println!(
-            "\n{} {} stale thumbnail lock entr{} with no image_id",
-            if dry_run { "Would drop" } else { "Dropping" }
-                .cyan()
-                .bold(),
-            stale_thumbnails,
-            if stale_thumbnails == 1 { "y" } else { "ies" }
-        );
-        if !dry_run {
-            prune_imageless_thumbnails(&mut lockfile.env_mut(&env).media.thumbnails);
-            lockfile.save(&lockfile_path)?;
+    // Planning pass. Entirely offline: `build_plan` reads the config, the
+    // lockfile and the media files, and sends nothing. That is what lets one
+    // confirmation cover the whole run, below.
+    let mut pending: Vec<PendingEnv> = Vec::new();
+    for (env, universe_id, place_id) in &targets {
+        if many {
+            println!("\n{} {}", "env:".bold(), env.bold());
         }
-    }
 
-    if plan.is_empty() {
-        if stale_thumbnails == 0 {
-            println!("{}", "Nothing to do, everything is in sync.".green());
+        let (game, media) = config.resolve_env(Some(env));
+        Config::validate_invariants(&game)?;
+        Config::validate_media_paths(&media, &config_dir)?;
+
+        let env_lock = lockfile.env_view(env);
+
+        // Safety: refuse to re-point this section silently, at either level.
+        // `sync` diffs against it to decide what to send, so nothing about the
+        // section may describe a different target. See `commands::ensure_not_repointed`.
+        super::ensure_not_repointed(
+            env,
+            &env_lock,
+            *universe_id,
+            *place_id,
+            super::Repoint::Nothing,
+        )?;
+
+        let plan = build_plan(&game, &media, &env_lock.game, &env_lock.media, &config_dir)?;
+        print_plan(&plan, env);
+
+        // Lockfile bookkeeping, before the "nothing to do" exit and outside the
+        // confirmation gate below.
+        //
+        // A thumbnail entry with no `image_id` produces no remote work (nothing
+        // to delete, nothing to reorder) so it never appears in a plan, and a
+        // lockfile holding only these yields an empty plan. Pruned after that
+        // exit, it would never be pruned at all, which is how these came to
+        // survive every sync forever. It is a local write and touches nothing
+        // on Roblox, so it does not belong behind a prompt about applying
+        // remote changes either.
+        let stale_thumbnails = imageless_thumbnails(&lockfile.env_view(env).media.thumbnails);
+        if stale_thumbnails > 0 {
+            println!(
+                "\n{} {} stale thumbnail lock entr{} with no image_id",
+                if dry_run { "Would drop" } else { "Dropping" }
+                    .cyan()
+                    .bold(),
+                stale_thumbnails,
+                if stale_thumbnails == 1 { "y" } else { "ies" }
+            );
+            if !dry_run {
+                prune_imageless_thumbnails(&mut lockfile.env_mut(env).media.thumbnails);
+                lockfile.save(&lockfile_path)?;
+            }
         }
-        return Ok(());
+
+        if plan.is_empty() {
+            if stale_thumbnails == 0 {
+                println!("{}", "Nothing to do, everything is in sync.".green());
+            }
+            continue;
+        }
+
+        pending.push(PendingEnv {
+            env: env.clone(),
+            universe_id: *universe_id,
+            place_id: *place_id,
+            game,
+            media,
+            plan,
+        });
     }
 
     if dry_run {
-        println!("\n{}", "(dry-run: no changes applied)".dimmed());
+        if !pending.is_empty() {
+            println!("\n{}", "(dry-run: no changes applied)".dimmed());
+        }
         return Ok(());
     }
 
-    // env_requires_confirm is sourced from rbxplace.toml's `confirm = true` on
-    // the targeted env. When `--env` isn't passed we fell back to
-    // `[experience]` in rbxmeta.toml (standalone mode) and there's no env to
-    // gate against, so we leave the gate off.
-    let env_requires_confirm = if ctx.env().is_some() {
-        PlacesFile::load(ctx.places_path())
-            .ok()
-            .and_then(|pf| pf.get(&env).ok().map(|e| e.confirm()))
-            .unwrap_or(false)
-    } else {
-        false
-    };
+    if pending.is_empty() {
+        return Ok(());
+    }
+
     // Both credential checks happen before the prompt, and before anything is
     // sent. A cookie problem is the user's to fix either way, and finding out
     // after typing "yes" (or worse, after half the plan has landed) is the
     // failure this ordering exists to prevent.
     let cookie = ctx.resolve_cookie();
-    if plan.needs_cookie() && cookie.is_none() {
+    if pending.iter().any(|p| p.plan.needs_cookie()) && cookie.is_none() {
         bail!(
             "Cannot apply legacy / cookie-only fields (server_fill / allow_copying / visibility / \
              studio_access_to_apis_allowed / beta_mode / genre / avatar / \
@@ -103,51 +121,107 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
         );
     }
 
-    let client = RbxClient::new(
-        ctx.api_key(),
-        cookie,
-        universe_id,
-        place_id,
-        media.bleed,
-        media.language_code.clone(),
-    );
+    let clients: Vec<RbxClient> = pending
+        .iter()
+        .map(|p| {
+            RbxClient::new(
+                ctx.api_key(),
+                cookie.clone(),
+                p.universe_id,
+                p.place_id,
+                p.media.bleed,
+                p.media.language_code.clone(),
+            )
+        })
+        .collect();
 
     // Asked here so a dead session is a refusal the user meets before the
     // prompt rather than after it. `apply_plan` asks again, and gets the same
     // answer for free: the verdict is cached for the process, so this is one
-    // round trip, not two.
-    if plan.needs_cookie() {
-        client.require_valid_session().await?;
+    // round trip however many envs the run covers.
+    for (p, client) in pending.iter().zip(&clients) {
+        if p.plan.needs_cookie() {
+            client.require_valid_session().await?;
+        }
     }
 
     // The cookie-only half of a plan is written as whichever account the
     // cookie signs in as, and an env name does not say which one that is. The
     // check above has already identified it when the plan needs a cookie, so
     // naming it here costs nothing; a key-only plan names no account, because
-    // none was established.
-    let account = client.known_account().await;
+    // none was established. One cookie serves the whole run, so the account
+    // the first client knows is the account every env is written as.
+    let account = clients[0].known_account().await;
+    let envs: Vec<&str> = pending.iter().map(|p| p.env.as_str()).collect();
     confirm_destructive(
-        &rbx_core::session::as_account(
-            account.as_ref(),
-            &format!("Apply planned changes to [{}]?", env),
-        ),
-        env_requires_confirm,
+        &rbx_core::session::as_account(account.as_ref(), &apply_prompt(&envs)),
+        ctx.env().is_some() && any_env_requires_confirm(ctx.places_path(), &envs),
         yes,
     )?;
 
-    apply_plan(
-        &client,
-        &plan,
-        &game,
-        ApplyTarget {
-            env: &env,
-            universe_id,
-            place_id,
-        },
-        &mut lockfile,
-        &lockfile_path,
-    )
-    .await
+    for (p, client) in pending.iter().zip(&clients) {
+        if many {
+            println!("\n{} {}", "env:".bold(), p.env.bold());
+        }
+        apply_plan(
+            client,
+            &p.plan,
+            &p.game,
+            ApplyTarget {
+                env: &p.env,
+                universe_id: p.universe_id,
+                place_id: p.place_id,
+            },
+            &mut lockfile,
+            &lockfile_path,
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+/// One env whose plan has work in it, carried from the planning pass to the
+/// apply pass.
+///
+/// The two passes are why this type exists. A confirmation asked inside a
+/// single loop is reached after earlier envs have already been written, which
+/// is no longer a question the user can answer no to; planning every env first
+/// costs nothing (it is offline) and leaves one prompt covering the run.
+struct PendingEnv {
+    env: String,
+    universe_id: u64,
+    place_id: u64,
+    game: crate::config::Game,
+    media: crate::config::MediaConfig,
+    plan: SyncPlan,
+}
+
+/// The question a sync asks once, covering every env it is about to write.
+///
+/// One env renders as it always did (`[dev]`), and several are listed in the
+/// same slot: what is being asked is a single question about the whole run, so
+/// it names the whole run.
+fn apply_prompt(envs: &[&str]) -> String {
+    format!("Apply planned changes to [{}]?", envs.join(", "))
+}
+
+/// Whether any env this run writes to carries `confirm = true` in
+/// rbxplace.toml.
+///
+/// Any, not all: the gate exists for the env that asked for it, and a run that
+/// also touches an env that did not is still touching that one. A file that
+/// will not load gates nothing, which is also the standalone case: with no
+/// `--env` the target came from `[experience]` in rbxmeta.toml and there is no
+/// env to gate against.
+fn any_env_requires_confirm(places_path: &std::path::Path, envs: &[&str]) -> bool {
+    PlacesFile::load(places_path)
+        .ok()
+        .map(|pf| {
+            envs.iter()
+                .any(|env| pf.get(env).map(|e| e.confirm()).unwrap_or(false))
+        })
+        .unwrap_or(false)
 }
 
 /// Which env the applied changes are recorded against.
@@ -584,6 +658,163 @@ mod tests {
 
         assert_eq!(imageless_thumbnails(&thumbnails), 1);
         assert_eq!(thumbnails.len(), 2, "counting must not prune");
+    }
+}
+
+/// Running against several envs at once: what is visited, and what is asked.
+#[cfg(test)]
+mod fan_out_tests {
+    use super::*;
+    use crate::lockfile::{EnvLock, GameLock, LOCKFILE_VERSION};
+    use rbx_core::GlobalFlags;
+    use tempfile::TempDir;
+
+    const PLACES: &str = r#"
+[dev]
+universe_id = 100
+[dev.places]
+main = 200
+
+[staging]
+universe_id = 150
+confirm = true
+[staging.places]
+main = 250
+"#;
+
+    /// Two envs declaring one name, recorded in the lockfile under whatever
+    /// `staging_universe` says: pass the real id for a consistent repo, another
+    /// one to make `staging` refuse.
+    fn two_env_repo(staging_universe: u64) -> TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("rbxplace.toml"), PLACES).expect("write places");
+        std::fs::write(
+            dir.path().join("rbxmeta.toml"),
+            "[game]\nname = \"Declared\"\n",
+        )
+        .expect("write config");
+
+        let mut lockfile = Lockfile {
+            version: LOCKFILE_VERSION,
+            ..Default::default()
+        };
+        for (env, universe_id, place_id) in [("dev", 100, 200), ("staging", staging_universe, 250)]
+        {
+            lockfile.envs.insert(
+                env.to_string(),
+                EnvLock {
+                    universe_id,
+                    place_id,
+                    game: GameLock {
+                        // Not "Declared": every env has a plan, so a dry run
+                        // reaches the end rather than exiting early.
+                        name: Some("Synced".to_string()),
+                        ..Default::default()
+                    },
+                    media: Default::default(),
+                },
+            );
+        }
+        lockfile
+            .save(&dir.path().join(LOCKFILE_NAME))
+            .expect("save the lockfile");
+        dir
+    }
+
+    async fn dry_run(dir: &TempDir, env: &str) -> Result<()> {
+        let global = GlobalFlags {
+            api_key: None,
+            cookie: None,
+            no_auto_cookie: true,
+            auto_cookie: false,
+            env: Some(env.to_string()),
+            place: None,
+            places: dir.path().join("rbxplace.toml"),
+            universe_id: None,
+            place_id: Vec::new(),
+        };
+        let ctx = MetaCtx {
+            config: dir.path().join("rbxmeta.toml"),
+            global: &global,
+        };
+        run(&ctx, true, true).await
+    }
+
+    #[tokio::test]
+    async fn every_env_is_planned() {
+        let dir = two_env_repo(150);
+        dry_run(&dir, "all").await.expect("both envs plan cleanly");
+    }
+
+    /// The last env is reached, not just the first: `staging` sorts second and
+    /// its lockfile section describes another universe, which the planning pass
+    /// refuses. A loop that stopped after `dev` would report success here.
+    #[tokio::test]
+    async fn the_planning_pass_reaches_the_last_env() {
+        let dir = two_env_repo(999);
+
+        let err = dry_run(&dir, "all")
+            .await
+            .expect_err("staging's section points elsewhere");
+        let text = format!("{err:#}");
+        assert!(text.contains("env 'staging'"), "names the env: {text}");
+        assert!(text.contains("999"), "and what it tracks: {text}");
+    }
+
+    /// A single-env run is untouched by any of this: it plans one env, writes
+    /// nothing on a dry run, and never looks at the other env's section (which
+    /// here describes another universe and would refuse if it did).
+    #[tokio::test]
+    async fn a_single_env_dry_run_touches_one_env_and_writes_nothing() {
+        let dir = two_env_repo(999);
+        let lockfile_path = dir.path().join(LOCKFILE_NAME);
+        let before = std::fs::read(&lockfile_path).expect("read the lockfile");
+
+        dry_run(&dir, "dev").await.expect("dev plans cleanly");
+
+        assert_eq!(
+            std::fs::read(&lockfile_path).expect("read the lockfile"),
+            before,
+            "a dry run writes nothing"
+        );
+    }
+
+    /// One question for the whole run. The single-env rendering is the wording
+    /// this command has always used, which is what keeps a one-env sync
+    /// unchanged; several envs go in the same slot rather than becoming one
+    /// prompt each, because a second prompt is only reached once the first env
+    /// has already been written.
+    #[test]
+    fn the_prompt_names_every_env_it_will_write() {
+        assert_eq!(apply_prompt(&["dev"]), "Apply planned changes to [dev]?");
+        assert_eq!(
+            apply_prompt(&["dev", "staging"]),
+            "Apply planned changes to [dev, staging]?"
+        );
+    }
+
+    /// The gate is on if any env asked for it: the env that set `confirm` is
+    /// still being written, whatever else the run covers.
+    #[test]
+    fn one_env_asking_for_confirmation_gates_the_whole_run() {
+        let dir = two_env_repo(150);
+        let places = dir.path().join("rbxplace.toml");
+
+        assert!(!any_env_requires_confirm(&places, &["dev"]));
+        assert!(any_env_requires_confirm(&places, &["staging"]));
+        assert!(any_env_requires_confirm(&places, &["dev", "staging"]));
+    }
+
+    /// Standalone mode reaches this with a path that does not exist, and an
+    /// absent rbxplace.toml is not a reason to refuse to sync `[experience]`.
+    #[test]
+    fn a_missing_places_file_gates_nothing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+
+        assert!(!any_env_requires_confirm(
+            &dir.path().join("rbxplace.toml"),
+            &["dev"]
+        ));
     }
 }
 

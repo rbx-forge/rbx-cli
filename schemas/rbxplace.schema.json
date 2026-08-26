@@ -16,6 +16,17 @@
         }
       ]
     },
+    "groups": {
+      "description": "Named subsets of the envs below, usable anywhere `--env` is.\n\n```toml [groups] nonprod = [\"dev\", \"staging\", \"qa\"] ```\n\nA group is an **alias and nothing more**: `--env nonprod` runs what `--env all` would run, over three envs instead of every env. It is expanded to its members before anything else happens, so no lockfile, no overlay and no generated module ever sees a group name. That is what keeps the feature to one concept: every one of those three keys `(env name -> universe_id)`, and a group has no universe of its own to record.\n\nFlat by construction: a member must be a declared env, never another group. Nesting invites cycles and buys nothing that a second line does not. `PlacesFile::validate_groups` is where that is enforced, along with the name collisions.",
+      "default": {},
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
     "owner": {
       "description": "Default owner for every env. Per-env `[<env>.owner]` overrides win when set. See `PlacesFile::resolve_owner`.",
       "default": null,

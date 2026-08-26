@@ -7,13 +7,13 @@ Upload, download, and rollback Roblox place files via the Open Cloud API.
 ## Features
 
 - **Multi-environment** - Define prod, staging, dev (and any others) in a single `rbxplace.toml`
-- **Upload** - Push a `.rbxl` to one place or all places in an environment at once
+- **Upload** - Push a `.rbxl` to one place, every place in an environment, or every environment at once with `--env all`
 - **Download** - Fetch the latest or a specific version of a place file
 - **Promote** - Copy a place from one environment to another, optionally broadcasting to all target places
 - **Rollback** - Revert a place to a previous version with an interactive selector
 - **Version history** - List recent versions with published status and timestamps
 - **Team Create detection** - Clear error when a place is locked by an active Studio session
-- **Confirmation guard** - Per-environment `confirm = true` prompts before write operations
+- **Confirmation guard** - Per-environment `confirm = true` prompts before write operations, once per run rather than once per environment
 - **Fetch** - Auto-populate `rbxplace.toml` from live Roblox universe
 - **JSON** - `--json` on `versions`, `places`, `upload`, `promote` and `rollback` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
 
@@ -56,11 +56,12 @@ Upload a `.rbxl` file to one or all places in an environment. By default, upload
 rbx place upload --env staging --file build.rbxl           # save as draft
 rbx place upload --env prod --place lobby --file build.rbxl --published  # publish live
 rbx place upload --env prod --all-places --file build.rbxl
+rbx place upload --env all --file build.rbxl --yes          # every env in the file
 ```
 
 | Flag | Description |
 | --- | --- |
-| `--env` | Target environment (required) |
+| `--env` | Target environment (required). `all` for every env in `rbxplace.toml`, or a `[groups]` name for the envs it lists |
 | `--file` | Path to the `.rbxl` file (required) |
 | `--place` | Place name to upload to (defaults to the only place if unambiguous) |
 | `--all-places` | Upload to every place defined in the environment |
@@ -72,6 +73,44 @@ By default, uploads are saved as drafts. Use `--published` to publish live.
 If the target place has an active Team Create session, the upload fails immediately with a clear message rather than returning a generic error.
 
 If the environment has `confirm = true`, a confirmation prompt is shown before uploading.
+
+### `--env all` and groups
+
+A plural `--env` uploads the same file to every env it names, one after another: `all` walks the file's envs in alphabetical order, a group walks its members in the order they were declared. `--place` and `--all-places` are resolved inside each env, so `--all-places` over `--env all` is every place of every env.
+
+Four things follow from that, and all four are deliberate:
+
+**Everything is resolved before the first byte goes out.** A `--place` name one env does not declare fails the whole run rather than failing it after the first two envs are already written.
+
+**The file is read once.** One buffer is shared by every upload, so `--env all` costs one read of a multi-megabyte `.rbxl`, not one per env.
+
+**One confirmation covers the lot**, and it appears if *any* target env has `confirm = true`. A prompt per env would be reached mid-walk, after writes had already landed somewhere else, which is too late for an answer to mean anything. The prompt names every env it is about to write to. Under `--json`, which cannot prompt, the run is refused before anything is written and stdout stays empty.
+
+**The walk stops where it failed.** The envs before it keep the versions they were given, the env that failed reports why, and the envs after it are never asked. The process exits non-zero.
+
+```
+$ rbx place upload --env nonprod --file build.rbxl --yes
+
+env: dev
+Uploading build.rbxl (2481.3 KB) → main [dev]
+  Universe: 9876543210
+  Version type: saved
+
+  main (123456789012345) ... v41
+
+env: staging
+Uploading build.rbxl (2481.3 KB) → main [staging]
+  Universe: 9876543211
+  Version type: saved
+
+  main (234567890123456) ... v174
+
+Upload complete.
+```
+
+The `env:` header only appears when there is more than one target, so a single-env run's output is exactly what it has always been.
+
+The other commands here act on one env by construction and refuse a plural selector rather than accepting it and ignoring it: `download` writes to one `--out` path, and `promote` names its two envs itself with `--from` and `--to`.
 
 ### `--json`
 
@@ -95,6 +134,8 @@ rbx place upload --env staging --file build.rbxl --json
 
 The fields are shared with `promote` and `rollback` and are described once in [Write documents](#write-documents).
 
+A plural `--env` emits a different envelope, described in [Write documents](#write-documents): the document above, one per env, under a `results` array. A single env emits the document above unchanged, whatever else is in `rbxplace.toml`.
+
 `--json` cannot prompt, so an environment with `confirm = true` needs `--yes`; without it the command fails with a message on stderr naming the flag and writes nothing to stdout.
 
 ```sh
@@ -117,7 +158,7 @@ rbx place download --env staging --saved
 
 | Flag | Description |
 | --- | --- |
-| `--env` | Target environment (required unless `--place-id` is given) |
+| `--env` | Target environment (required unless `--place-id` is given). One env: `all` and a group name are refused, because every download would land on the one path `--out` names |
 | `--place` | Place name (defaults to the only place if unambiguous) |
 | `--place-id` | A place id instead of an env and a name. Skips `rbxplace.toml`; global flag |
 | `--version` | Specific version number to download (default: latest) |
@@ -154,6 +195,8 @@ rbx place promote --from staging --to prod --log deploy.json       # write trace
 | `--json` | Write the result to stdout as one JSON document instead of the progress lines |
 
 If the target environment has `confirm = true`, a confirmation prompt is shown before uploading.
+
+`--env` is not how promote names an env: `--from` and `--to` are, one each. A plural `--env` (`all`, or a group) selects nothing here and is refused rather than silently ignored. Run promote once per pair of envs.
 
 ### `--all-places` is a broadcast, not a plural
 
@@ -406,7 +449,7 @@ rbx place fetch --env prod --universe-id 9876543210 --write  # override universe
 
 ## Write documents
 
-`upload`, `promote`, and `rollback` share one `--json` envelope. It is a receipt: it reports what was written, in the order it was written, with the version number Roblox assigned to each place.
+`upload`, `promote`, and `rollback` share one `--json` envelope. It is a receipt: it reports what was written, in the order it was written, with the version number Roblox assigned to each place. An `upload` that named several envs emits one receipt per env, wrapped: see [One document per env](#one-document-per-env-under---env-all).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -442,6 +485,38 @@ rbx servers list --env prod --version "$VERSION" --json
 ```
 
 `--json` never prompts. Every write here has a point where it would stop and ask, and under `--json` that question fails instead, with a message on stderr naming the flag that answers it: `--yes` for a `confirm = true` environment, `--version` for the rollback selector.
+
+### One document per env, under `--env all`
+
+`upload` is the only write here that fans out, and a plural `--env` gives it several receipts to report. They go out under their own envelope rather than as a widened `WriteDocument`: `promote` and `rollback` act on one env by construction, and every consumer already reads `env` and `universe_id` as single values. Widening them would break those readers in order to describe a case they never asked about.
+
+So the rule above holds here too, at one level up: **the shape follows the invocation.** One env emits the receipt itself, unchanged, whatever else `rbxplace.toml` holds. `all` or a group emits this:
+
+```json
+{
+  "schema_version": 1,
+  "command": "upload",
+  "ok": true,
+  "results": [
+    { "schema_version": 1, "command": "upload", "ok": true, "env": "dev", "...": "..." },
+    { "schema_version": 1, "command": "upload", "ok": true, "env": "staging", "...": "..." }
+  ]
+}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `schema_version` | integer | The same version the receipts carry |
+| `command` | string | `upload`. Present so this document is dispatched on the same field as the receipts inside it |
+| `ok` | boolean | False when any env failed, which is the answer the exit code gives too |
+| `results` | array of objects | One receipt per env, in the order they were written: `all` alphabetically, a group in declared order. Each entry is exactly the document described above, so an existing consumer reads any element of this array without changes |
+
+`results` stops where the walk stopped. The envs that landed keep their versions, the env that failed carries its own `ok: false` and `error`, and the envs after it are absent rather than reported as anything: nothing was asked of them.
+
+```sh
+rbx place upload --env all --file build.rbxl --published --yes --json \
+  | jq -r '.results[] | "\(.env) v\(.version)"'
+```
 
 ## Configuration
 

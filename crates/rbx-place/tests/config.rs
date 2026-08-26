@@ -248,3 +248,35 @@ fn a_codegen_section_survives_a_save_round_trip() {
         .environments
         .contains_key("dev"));
 }
+
+#[test]
+fn a_groups_section_loads_rather_than_being_read_as_an_env() {
+    // `environments` is a flattened catch-all, so an unclaimed `[groups]`
+    // table is parsed as an env and fails the file on a missing `universe_id`.
+    // That made `--env <group>` unusable in this crate while rbx-core resolved
+    // the group perfectly well.
+    let (_d, path) = write_config(
+        "[groups]\nnonprod = [\"dev\", \"qa\"]\n\n\
+         [dev]\nuniverse_id = 100\n\n[qa]\nuniverse_id = 101\n",
+    );
+
+    let config = PlacesConfig::load(&path).unwrap();
+
+    assert_eq!(config.groups["nonprod"], vec!["dev", "qa"]);
+    assert_eq!(config.environments.len(), 2);
+    assert!(!config.environments.contains_key("groups"));
+}
+
+#[test]
+fn a_groups_section_survives_a_save_round_trip() {
+    // Same reasoning as the `[codegen]` case above: `rbx place fetch --write`
+    // rewrites the file wholesale, and a reserved key this crate does not
+    // model would be deleted along the way.
+    let (_d, path) = write_config("[groups]\nnonprod = [\"dev\"]\n\n[dev]\nuniverse_id = 100\n");
+
+    PlacesConfig::load(&path).unwrap().save(&path).unwrap();
+
+    let reloaded = PlacesConfig::load(&path).unwrap();
+    assert_eq!(reloaded.groups["nonprod"], vec!["dev"]);
+    assert!(reloaded.environments.contains_key("dev"));
+}

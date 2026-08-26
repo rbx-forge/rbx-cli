@@ -56,36 +56,34 @@ impl<'a> ShopCtx<'a> {
     }
 
     /// Resolve env targets for this invocation. Three modes:
-    /// - `--env all`: expand to every env in `rbxplace.toml`.
+    /// - `--env all` or `--env <group>`: expand to every env, or the group's
+    ///   members in declared order. Both go through `rbx_core`'s selector, so
+    ///   a group is understood here without this function knowing what one is.
     /// - `--env <name>`: resolve that single env from `rbxplace.toml`.
     /// - No `--env`: fall back to `[experience]` in `rbxshop.toml` and
     ///   return a single target under the sentinel env name `default`.
     pub fn resolve_envs(&self, config: &Config) -> Result<Vec<EnvTarget>> {
         match self.env() {
-            Some("all") => {
+            Some(value) => {
                 let places = places::PlacesFile::load(self.places_path())?;
-                let mut targets = Vec::new();
-                for name in places.env_names() {
-                    let env = places.get(&name)?;
-                    targets.push(EnvTarget {
-                        name,
-                        universe_id: env.universe_id,
-                    });
-                }
-                if targets.is_empty() {
+                let names = match places.selector(value)? {
+                    places::EnvSelector::One(name) => vec![name],
+                    places::EnvSelector::Every => places.env_names(),
+                    places::EnvSelector::Group { members, .. } => members,
+                };
+                if names.is_empty() {
                     bail!(
                         "rbxplace.toml has no envs defined. \
                          Add at least one [<env>] section with universe_id."
                     );
                 }
-                Ok(targets)
-            }
-            Some(name) => {
-                let universe_id = places::resolve_universe_id(self.places_path(), name)?;
-                Ok(vec![EnvTarget {
-                    name: name.to_string(),
-                    universe_id,
-                }])
+                names
+                    .into_iter()
+                    .map(|name| {
+                        let universe_id = places.get(&name)?.universe_id;
+                        Ok(EnvTarget { name, universe_id })
+                    })
+                    .collect()
             }
             None => {
                 let Some(exp) = &config.experience else {
@@ -102,16 +100,24 @@ impl<'a> ShopCtx<'a> {
         }
     }
 
-    /// Resolve a single env. Errors if `--env all` was used.
+    /// Resolve a single env. Errors on a plural selector.
+    ///
+    /// The wording comes from [`places::EnvSelector::single`] rather than being
+    /// spelled here: this used to differ from `rbx_core`'s copy by a full stop
+    /// and the word "subcommand", for no reason a reader could act on.
     pub fn resolve_single_env(&self, config: &Config) -> Result<EnvTarget> {
-        if matches!(self.env(), Some("all")) {
-            bail!("--env all is not supported for this command. Pass --env <name> instead.");
+        if let Some(value) = self.env() {
+            if value == places::ALL_ENVS {
+                places::EnvSelector::Every.single("envs")?;
+            }
+            let places = places::PlacesFile::load(self.places_path())?;
+            places.selector(value)?.single("envs")?;
         }
         let targets = self.resolve_envs(config)?;
         Ok(targets
             .into_iter()
             .next()
-            .expect("resolve_envs returns at least one target when --env != 'all'"))
+            .expect("resolve_envs returns at least one target for a singular selector"))
     }
 
     /// Who owns this project, which is also who pays for a badge.

@@ -30,6 +30,102 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   at 60. Both are right about their own endpoint, and the 240 this tool checks
   was already correct.
 
+- **`[groups]` in `rbxplace.toml`**: named subsets of your envs, usable anywhere
+  `--env` is.
+
+  ```toml
+  [groups]
+  nonprod = ["dev", "staging", "qa"]
+  ```
+
+  `rbx shop sync --env nonprod` runs what `--env all` would run, over those
+  three envs instead of every env. Until now the only grouping was `all`, which
+  reaches production, so "every env except the live one" meant three invocations
+  or nothing.
+
+  **A group is an alias and nothing more.** It is expanded to its members before
+  anything else happens, so no lockfile, no overlay and no generated module ever
+  sees the name: every lockfile in the suite keys on `(env name, universe_id)`,
+  and a group has no universe of its own to record. `[envs.nonprod]` in
+  `rbxmeta.toml` is deliberately not a thing, and will not become one: an
+  overlay shared by several envs is what the base table is for, with the
+  exception written as the one env that diverges.
+
+  A group is refused wherever `--env all` is, and now says so usefully:
+  `` `--env nonprod` is a group of 3 envs (dev, staging, qa); this command acts
+  on one universe. Name one of them.`` Four sites used to spell that refusal out
+  separately, two of them differing only in punctuation, and `all` was compared
+  as a bare string in nine places across six crates. It is one type now,
+  `EnvSelector`, which is what let a group be refused everywhere without a tenth
+  site being forgotten.
+
+  Refused at load, so a bad group fails the file for every command rather than
+  halfway through a deploy: a member that is not a declared env, a group naming
+  another group (they are flat), a group sharing a name with an env, a reserved
+  name, an empty group, and one env named twice.
+
+  `[groups]` had to be claimed in **three** parsers, not one: `rbx place` and
+  `rbx config` each keep a narrower parse of `rbxplace.toml` with a flattened
+  catch-all, so a top-level table neither claims is read as an env and fails the
+  whole file on a missing `universe_id`. That is why `[owner]` and `[codegen]`
+  are claimed there too. `rbx place` also keeps the table across
+  `place fetch --write` rather than deleting somebody's groups on the way
+  through.
+
+- **`rbx place upload --env all`, and `--env <group>` with it.** `place` was one
+  of the last two commands with no fan-out, so shipping one build to three envs
+  meant three invocations and three chances to forget one. `all` walks the
+  file's envs alphabetically, a group walks its members in declared order, and
+  `--place` / `--all-places` are resolved inside each env.
+
+  The four decisions are the ones `rbx shop sync` already made, because a
+  fan-out that answers them differently is a second model to learn. Everything
+  is resolved before the first byte goes out, so a `--place` name one env does
+  not declare fails the run rather than failing it after two envs are written.
+  The `.rbxl` is read once and the buffer shared, so `--env all` costs one read
+  of a multi-megabyte file. The confirmation is asked once for the whole run,
+  gated on whether *any* target env sets `confirm = true`, and it names every
+  env: per env it would be reached mid-walk, after writes had landed elsewhere,
+  which is too late for a "no" to mean anything. The `env: <name>` header
+  appears only when there is more than one target, so a single-env run's output
+  is byte for byte what it was.
+
+  Under `--json`, a plural `--env` emits a new envelope holding one receipt per
+  env; a single env emits exactly the `WriteDocument` it always has.
+  `WriteDocument` is untouched, deliberately: `promote` and `rollback` share it
+  and every consumer reads its `env` and `universe_id` as scalars. Fields are in
+  `docs/place.md`.
+
+  `download` and `promote` refuse a plural selector rather than ignoring it: N
+  downloads would land on the one path `--out` names, and promote names its two
+  envs itself with `--from` and `--to`. `rollback`, `versions`, `places` and
+  `fetch` refuse one too, through a single guard rather than five, because they
+  resolve their env through a config model that knows nothing about groups and
+  would have answered `Environment 'nonprod' not found`: the one thing that is
+  not wrong.
+
+- **`rbx meta check`, `sync` and `pull` take `--env all`, and `--env <group>`
+  with it.** `meta` was the other command with no fan-out, so holding three
+  envs' metadata in step meant nine invocations and a mental note about which
+  one was skipped.
+
+  `check` fails on drift in *any* env rather than in the last one it looked at,
+  which is the question a CI step is asking. `sync` plans every env before it
+  sends anything: planning is offline, so the whole run's pending changes are on
+  screen before the one prompt, and a config error in the last env stops the run
+  before the first one is touched. `pull` reads every env first and writes
+  `rbxmeta.toml` once at the end.
+
+  Each env's lockfile entry is derived from the snapshot **that env's own read**
+  produced, before any later env had a turn. That is the only correct instant,
+  and it is equivalent to a sequential `pull --env dev` then
+  `pull --env prod`. Reading the config back after the whole loop would hand one
+  env a value another env's remote supplied: the differential promotes a field
+  to the base `[game]` the first time an env has one, so a post-loop read
+  records `prod`'s private-server price as `dev`'s *confirmed remote state*,
+  `check --env dev` then reports agreement, and `sync --env dev` sends nothing
+  forever over a universe that has no private servers.
+
 ### Fixed
 
 - **`rbx apikey create` failed for any key declared without a `description`.**
@@ -47,6 +143,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   recorded it as `rbx` or `roblox` glued to an API or commerce term, which is a
   judgement rather than a substring. Every approximation of it rejects text
   Roblox accepts, and nobody debugs a check that fires wrongly.
+
+- **`rbx check --env <typo>` reported drift on an env that does not exist.**
+  A named env was taken at its word without ever reading `rbxplace.toml`, so
+  `--env prd` answered `! shop/lockfile [prd] 1 to create, 0 to update: run
+  \`rbx shop sync\``: a confident, actionable-looking row about nothing, naming
+  a `sync` that could not work. In CI that is indistinguishable from real drift.
+  The name is now checked against the file and refused with the available envs
+  listed, the same wording every other command uses.
+
+  Only when the file loads. A project with no `rbxplace.toml` is one `check`
+  still has useful things to say about, and a file that does not parse is one
+  failing row from `tools::env` beside every other tool's findings rather than
+  an abort that collapses the whole run to a raw TOML message.
 
 ## [0.4.0]
 

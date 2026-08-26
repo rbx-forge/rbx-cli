@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use colored::Colorize;
 
 use rbx_core::output::{self, OutputFormat};
-use rbx_core::places::{Environment, PlacesFile};
+use rbx_core::places::{self, Environment, PlacesFile};
 use rbx_core::GlobalFlags;
 
 use crate::json::ListDocument;
@@ -45,20 +45,17 @@ pub fn run(global: &GlobalFlags, mode: Mode) -> Result<()> {
     let format = OutputFormat::from_json_flag(mode == Mode::Json);
 
     // `--env all` means "every env", which is already the default here, so it
-    // is treated as no filter rather than rejected.
-    let filter = match global.env.as_deref() {
-        Some("all") | None => None,
-        Some(name) => Some(name),
-    };
-
-    let names = match filter {
-        // Resolve through `get` so an unknown name produces the shared
-        // "Available: ..." error instead of an empty listing.
-        Some(name) => {
-            places.get(name)?;
-            vec![name.to_string()]
-        }
-        None => places.env_names(),
+    // is treated as no filter rather than rejected. A group is a narrower
+    // version of the same thing, so it filters to its members.
+    let names = match global.env.as_deref() {
+        Some(places::ALL_ENVS) | None => places.env_names(),
+        Some(value) => match places.selector(value)? {
+            // `selector` resolves through `get`, so an unknown name produces
+            // the shared "Available: ..." error instead of an empty listing.
+            places::EnvSelector::One(name) => vec![name],
+            places::EnvSelector::Every => places.env_names(),
+            places::EnvSelector::Group { members, .. } => members,
+        },
     };
 
     if format.is_json() {
@@ -105,6 +102,18 @@ pub fn run(global: &GlobalFlags, mode: Mode) -> Result<()> {
     println!("{}", global.places.display().to_string().dimmed());
     if let Some(owner) = places.owner {
         println!("owner = {} {}", owner.kind, owner.id.to_string().cyan());
+    }
+    // Printed with the file rather than beside an env, because a group is not
+    // one: it names envs, and showing it as a section would invite reading it
+    // as a fourth env with no `universe_id`. Only under the unfiltered
+    // listing: `--env dev` was a question about `dev`.
+    if global.env.is_none() && !places.groups.is_empty() {
+        println!();
+        println!("{}", "[groups]".bold());
+        for group in places.group_names() {
+            let members = places.group(&group).unwrap_or_default();
+            println!("  {} = {}", group, members.join(", ").cyan());
+        }
     }
 
     for name in &names {

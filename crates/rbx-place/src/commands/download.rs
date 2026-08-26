@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::Colorize;
 
 use crate::config::PlacesConfig;
@@ -27,6 +27,16 @@ pub async fn run(
     // heard of. The place has no name then, and the progress lines say the id.
     let (place_name, place_id) = match global.place_id.as_slice() {
         [] => {
+            // `--env all` (or a group) would resolve several places onto the
+            // one path `--out` names, so every download but the last would be
+            // overwritten by the next. Refused rather than silently kept, and
+            // refused through `EnvSelector` so a group is turned away wherever
+            // `all` is.
+            if let Some(selector) = global.env_selector()? {
+                selector
+                    .single("places")
+                    .context("`rbx place download` writes one file, and --out names one path")?;
+            }
             let config = PlacesConfig::load(&global.places)?;
             let env_config = config.get_env(env)?;
             env_config.resolve_place(place)?

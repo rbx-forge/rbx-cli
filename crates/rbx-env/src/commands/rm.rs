@@ -166,6 +166,49 @@ fn drop_from_array(arr: &mut toml_edit::Array, env: &str) -> bool {
     true
 }
 
+/// Take `env` out of every `[groups]` array in `rbxplace.toml` that names it.
+///
+/// Returns the groups that were touched, so the plan can name them: a removal
+/// that silently narrows what `--env <group>` covers is a change to every
+/// fan-out in the project, and the reader should see it in the same list as the
+/// env definition.
+///
+/// **A group left empty is deleted, not left empty.** An empty group is refused
+/// at load (a declaration targeting nothing is never what was meant), so
+/// leaving `nonprod = []` behind would trade one unloadable file for another.
+/// The name is reported either way, because a group that used to cover three
+/// envs and now covers one is still a fan-out that changed silently.
+fn strip_group_refs(doc: &mut DocumentMut, env: &str) -> Vec<String> {
+    let Some(groups) = doc.get_mut("groups").and_then(|g| g.as_table_like_mut()) else {
+        return Vec::new();
+    };
+
+    let mut touched = Vec::new();
+    let mut emptied = Vec::new();
+    for (name, value) in groups.iter_mut() {
+        let Some(arr) = value.as_array_mut() else {
+            continue;
+        };
+        if drop_from_array(arr, env) {
+            touched.push(name.get().to_string());
+            if arr.is_empty() {
+                emptied.push(name.get().to_string());
+            }
+        }
+    }
+    for name in &emptied {
+        groups.remove(name);
+    }
+    // And if that was the last group, the table itself goes: an empty
+    // `[groups]` is legal but says nothing, and `rbx env rm` leaving one behind
+    // would be litter in the file it just edited.
+    if groups.is_empty() {
+        doc.remove("groups");
+    }
+    touched.sort_unstable();
+    touched
+}
+
 /// Take `env` out of every array in `rbxapikey.toml` that names it.
 ///
 /// Both shapes of `envs` are walked: the array form (`envs = ["dev", "prod"]`,
@@ -331,11 +374,28 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
 
     let mut places_doc = load(places_path)?
         .with_context(|| format!("{} disappeared while reading it", places_path.display()))?;
+    let mut places_touched = false;
     if strip(&mut places_doc, &Location::TopLevel, env) {
         removals.push(Removal {
             path: places_path.to_path_buf(),
             what: "env definition".to_string(),
         });
+        places_touched = true;
+    }
+    // `[groups]` names envs *inside arrays*, like `rbxapikey.toml` and unlike
+    // every table this walks, so it needs the same treatment for the same
+    // reason the module header gives: a group still naming a removed env is
+    // **refused at load**, so the next command of any kind fails outright on a
+    // file the user never edited. Worse than the apikey case, because this is
+    // the file every tool in the suite reads first.
+    let emptied_groups = strip_group_refs(&mut places_doc, env);
+    if !emptied_groups.is_empty() || places_touched {
+        if !emptied_groups.is_empty() {
+            removals.push(Removal {
+                path: places_path.to_path_buf(),
+                what: format!("[groups] membership ({})", emptied_groups.join(", ")),
+            });
+        }
         edits.push((places_path.to_path_buf(), places_doc));
     }
 

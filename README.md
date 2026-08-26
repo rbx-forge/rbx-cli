@@ -228,11 +228,14 @@ rbx place upload --env prod --file game.rbxl
 rbx meta sync --env prod
 ```
 
-Some subcommands also support `--env all` to act on every env defined in `rbxplace.toml` in one shot:
+Some subcommands also support a plural `--env`: `all` for every env defined in `rbxplace.toml`, or a `[groups]` name for a subset of them, in one shot:
 
 ```sh
 rbx shop sync --env all          # sync passes/badges/products to every env
 rbx meta check --env all         # show diff against every env
+rbx meta sync --env all          # apply metadata to every env
+rbx meta sync --env nonprod      # or to the envs a group names
+rbx place upload --env all --file build.rbxl --yes   # one build to every env
 ```
 
 To read the file back rather than edit it, use `rbx env`:

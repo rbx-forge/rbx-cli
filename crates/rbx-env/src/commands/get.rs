@@ -12,9 +12,23 @@ use crate::Field;
 pub fn run(global: &GlobalFlags, field: Field, json: bool) -> Result<()> {
     let format = OutputFormat::from_json_flag(json);
 
-    match global.env.as_deref() {
-        Some("all") => {
-            let names = PlacesFile::load(&global.places)?.env_names();
+    // `all` and a group are the same shape here: several envs, one line each.
+    // A single env is the third case, and keeps printing a bare value, because
+    // that is what a shell substitution reads.
+    let plural = match global.env.as_deref() {
+        None => None,
+        Some(value) => {
+            let places = PlacesFile::load(&global.places)?;
+            match places.selector(value)? {
+                places::EnvSelector::One(_) => None,
+                places::EnvSelector::Every => Some(places.env_names()),
+                places::EnvSelector::Group { members, .. } => Some(members),
+            }
+        }
+    };
+
+    match (plural, global.env.as_deref()) {
+        (Some(names), _) => {
             if names.is_empty() {
                 bail!(
                     "{} has no envs defined. Add at least one [<env>] section with universe_id.",
@@ -43,7 +57,7 @@ pub fn run(global: &GlobalFlags, field: Field, json: bool) -> Result<()> {
             }
         }
 
-        Some(name) => {
+        (None, Some(name)) => {
             let value = resolve_field(&global.places, name, global.place.as_deref(), field)?;
             if format.is_json() {
                 return output::emit(&GetDocument::single(field.as_str(), Some(name), value));
@@ -53,14 +67,14 @@ pub fn run(global: &GlobalFlags, field: Field, json: bool) -> Result<()> {
 
         // No `--env`: only the owner fields have an env-independent answer,
         // via the top-level `[owner]` block.
-        None if field.needs_env() => {
+        (None, None) if field.needs_env() => {
             bail!(
                 "`rbx env get {}` needs a target env. Pass --env <name>, or --env all \
                  to print one line per env.",
                 field
             );
         }
-        None => {
+        (None, None) => {
             let places = PlacesFile::load(&global.places)?;
             let owner = places.owner.ok_or_else(|| {
                 anyhow!(

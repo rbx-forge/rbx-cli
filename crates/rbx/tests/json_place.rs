@@ -507,3 +507,147 @@ fn upload_to_a_confirming_env_names_the_flag_that_answers_the_prompt() {
     );
     assert!(stderr.contains("--yes"), "stderr was:\n{stderr}");
 }
+
+/// A plural `--env` puts a different document on stdout: one receipt per env,
+/// wrapped. Worth running through the binary rather than only through the
+/// struct, because the fan-out prints an `env:` header per env and that header
+/// must not reach stdout under `--json`.
+#[tokio::test(flavor = "multi_thread")]
+async fn upload_to_every_env_emits_one_receipt_per_env() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/universes/v1/{DEV_UNIVERSE}/places/{DEV_MAIN}/versions"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "versionNumber": 42 })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/universes/v1/{PROD_UNIVERSE}/places/{PROD_MAIN}/versions"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "versionNumber": 8 })),
+        )
+        .mount(&server)
+        .await;
+
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(&dir);
+    let file = rbxl_file(&dir);
+    let uri = server.uri();
+
+    // `--place main` because dev declares two places and `--env all` resolves
+    // the name inside each env. `--yes` because prod has `confirm = true`, and
+    // one gated env gates the whole run.
+    let (doc, stderr) = run_json(&[
+        "--places",
+        places.to_str().unwrap(),
+        "--api-key",
+        "test-key",
+        "place",
+        "upload",
+        "--env",
+        "all",
+        "--place",
+        "main",
+        "--file",
+        file.to_str().unwrap(),
+        "--base-url",
+        &uri,
+        "--yes",
+        "--json",
+    ]);
+
+    assert_eq!(doc["schema_version"], 1);
+    assert_eq!(doc["command"], "upload");
+    assert_eq!(doc["ok"], true);
+    // Alphabetical, which is the order `--env all` expands in.
+    assert_eq!(doc["results"].as_array().map(Vec::len), Some(2));
+    assert_eq!(doc["results"][0]["env"], "dev");
+    assert_eq!(doc["results"][0]["universe_id"], "100");
+    assert_eq!(doc["results"][0]["version"], "42");
+    assert_eq!(doc["results"][1]["env"], "prod");
+    assert_eq!(doc["results"][1]["universe_id"], "5544332211");
+    assert_eq!(doc["results"][1]["version"], "8");
+    // Each entry is a whole receipt, so an existing consumer reads any element
+    // of the array without changes.
+    assert_eq!(doc["results"][0]["command"], "upload");
+    assert_eq!(doc["results"][0]["place_id"], "1001");
+    assert_eq!(doc["results"][0]["results"][0]["place"], "main");
+    // The envelope itself carries no `env`: there is no single one to name.
+    assert!(doc.get("env").is_none(), "{doc}");
+    assert!(stderr.contains("notakey"), "stderr was:\n{stderr}");
+}
+
+/// The fan-out case of the rule the write envelope is shaped around. `dev`
+/// landed and `prod` is locked, so the run fails with `dev`'s version intact
+/// rather than losing a write that happened.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_fan_out_that_fails_on_the_second_env_still_reports_the_first() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/universes/v1/{DEV_UNIVERSE}/places/{DEV_MAIN}/versions"
+        )))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "versionNumber": 42 })),
+        )
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/universes/v1/{PROD_UNIVERSE}/places/{PROD_MAIN}/versions"
+        )))
+        .respond_with(ResponseTemplate::new(409).set_body_string("conflict"))
+        .mount(&server)
+        .await;
+
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(&dir);
+    let file = rbxl_file(&dir);
+    let uri = server.uri();
+
+    let (stdout, stderr) = run_failing(&[
+        "--places",
+        places.to_str().unwrap(),
+        "--api-key",
+        "test-key",
+        "place",
+        "upload",
+        "--env",
+        "all",
+        "--place",
+        "main",
+        "--file",
+        file.to_str().unwrap(),
+        "--base-url",
+        &uri,
+        "--yes",
+        "--json",
+    ]);
+
+    let doc = parse(&stdout);
+    assert_eq!(doc["ok"], false);
+    assert_eq!(doc["results"].as_array().map(Vec::len), Some(2));
+    // The env that landed keeps its version and its own verdict.
+    assert_eq!(doc["results"][0]["env"], "dev");
+    assert_eq!(doc["results"][0]["ok"], true);
+    assert_eq!(doc["results"][0]["version"], "42");
+    // The env that failed says why, and has nothing to show.
+    assert_eq!(doc["results"][1]["env"], "prod");
+    assert_eq!(doc["results"][1]["ok"], false);
+    assert!(
+        doc["results"][1]["error"]
+            .as_str()
+            .is_some_and(|e| e.contains("Team Create")),
+        "{doc}"
+    );
+    assert_eq!(
+        doc["results"][1]["results"].as_array().map(Vec::len),
+        Some(0)
+    );
+    assert!(stderr.contains("Team Create"), "stderr was:\n{stderr}");
+}

@@ -3,7 +3,9 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+
+use rbx_core::api::Repository;
 
 use crate::places_config::PlacesConfig;
 
@@ -26,6 +28,15 @@ pub struct ConfigCtx {
     /// lookup; `env` is still required to name a section in rbxconfig.toml
     /// for sync/pull/check.
     pub universe_id: Option<u64>,
+
+    /// The repository named by `--repository`, already parsed.
+    ///
+    /// `Option` rather than a `Repository` defaulted at parse time, because
+    /// `resolve_repository` has to tell "not passed" from "passed the
+    /// default": `--repository DataStoresConfig` against a silent file is a
+    /// plain instruction, while the same flag against a file naming
+    /// `InExperienceConfig` is two people disagreeing.
+    pub repository: Option<Repository>,
 
     /// Redirects every client this context builds at one host.
     ///
@@ -80,6 +91,39 @@ impl ConfigCtx {
         })?;
         let places = PlacesConfig::load(&self.places)?;
         places.universe_id(env)
+    }
+
+    /// The repository a command that reads `rbxconfig.toml` addresses.
+    ///
+    /// `declared` is what the file named, `None` when it said nothing. Three
+    /// of the four cases are an `unwrap_or`; the fourth is why this function
+    /// exists. When the flag and the file name different repositories one of
+    /// the two is a mistake, and there is no way to tell which from here, so
+    /// picking either would publish a file's entries into a repository nobody
+    /// asked for. That write replaces a live config wholesale and cannot be
+    /// undone by this command, so the invocation is refused and both names are
+    /// printed with the file that holds one of them.
+    pub fn resolve_repository(&self, declared: Option<Repository>) -> Result<Repository> {
+        match (self.repository, declared) {
+            (Some(flag), Some(file)) if flag != file => bail!(
+                "--repository {flag} contradicts {}, which names {file}.\n\
+                 Publishing into the wrong repository cannot be undone, so this is not \
+                 resolved by picking one: drop the flag, or change the `repository` field.",
+                self.config.display()
+            ),
+            (Some(repository), _) | (None, Some(repository)) => Ok(repository),
+            (None, None) => Ok(Repository::default()),
+        }
+    }
+
+    /// The repository a command that never opens `rbxconfig.toml` addresses.
+    ///
+    /// `get`, `list` and `versions` read the published side of one universe,
+    /// which a bare `--universe-id` names on its own, so there is no local file
+    /// in play to take a repository from: the flag, or the repository this
+    /// command addressed before the flag existed.
+    pub fn flag_repository(&self) -> Repository {
+        self.repository.unwrap_or_default()
     }
 
     /// Display label for the env (used in user-facing output).

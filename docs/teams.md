@@ -155,7 +155,7 @@ and `rbxplace.toml`. See
 
 ## `check` is offline for shop and meta, and that changes what green means
 
-Of the checks `rbx check` runs, only `config/live` talks to Roblox. `shop/lockfile`,
+Of the checks `rbx check` runs, only `config/live` and `rtbf/live` talk to Roblox. `shop/lockfile`,
 `shop/codegen` and `meta/lockfile` compare committed files against committed
 files, and `rbx shop check` and `rbx meta check` do the same on their own.
 
@@ -167,7 +167,7 @@ create`), but a lockfile that lost *both* the lock entry and the config entry
 reports perfectly clean while the resource sits unmanaged in the universe.
 
 The commands that compare against Roblox are `rbx shop pull --dry-run`,
-`rbx meta pull --dry-run` and `rbx config check`. Treat the first two as the
+`rbx meta pull --dry-run`, `rbx config check`, `rbx rtbf check` and `rbx rtbf verify`. Treat the first two as the
 audit step after any lockfile merge you were not certain about.
 
 ## Is concurrent sync safe?

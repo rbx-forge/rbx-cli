@@ -16,6 +16,8 @@ pub enum Tool {
     Shop,
     Meta,
     Config,
+    /// `rbxrtbf.toml`: the right-to-be-forgotten deletion templates.
+    Rtbf,
     Apikey,
 }
 
@@ -23,10 +25,11 @@ impl Tool {
     /// Every tool, in the order `rbx check` runs them: local-only work first,
     /// so a repo that is going to fail on a byte comparison fails before
     /// spending a round trip on a remote diff.
-    pub const ALL: [Tool; 5] = [
+    pub const ALL: [Tool; 6] = [
         Tool::Env,
         Tool::Shop,
         Tool::Meta,
+        Tool::Rtbf,
         Tool::Config,
         Tool::Apikey,
     ];
@@ -42,6 +45,7 @@ impl Tool {
             Tool::Shop => "rbxshop.toml",
             Tool::Meta => "rbxmeta.toml",
             Tool::Config => "rbxconfig.toml",
+            Tool::Rtbf => rbx_rtbf::config::FILE,
             Tool::Apikey => "rbxapikey.toml",
         }
     }
@@ -182,19 +186,85 @@ mod tests {
         assert!(discover(dir.path(), &dir.path().join("rbxplace.toml")).is_empty());
     }
 
+    /// The rule `Tool::ALL` states, asserted as a rule.
+    ///
+    /// It used to pin the literal file-name sequence, which meant inserting a
+    /// tool in the wrong place was fixed by editing the expectation: the test
+    /// then asserted an order its own name contradicted, and waved the next
+    /// insertion through. What the rule actually says is that no tool needing
+    /// the network runs before one that does not.
     #[test]
     fn tools_run_local_work_before_remote_work() {
-        let files: Vec<&str> = Tool::ALL.iter().map(|t| t.config_file()).collect();
-        assert_eq!(
-            files,
-            vec![
-                "rbxplace.toml",
-                "rbxshop.toml",
-                "rbxmeta.toml",
-                "rbxconfig.toml",
-                "rbxapikey.toml"
-            ]
-        );
+        /// What a tool costs to run, which is what the ordering rule is about.
+        #[derive(PartialEq, Eq)]
+        enum Cost {
+            /// Decidable from the files on disk.
+            Local,
+            /// Needs at least one request.
+            Remote,
+            /// Produces a fixed row and does no work at all, so it is exempt:
+            /// `tools::apikey` is a documented gap that reports itself, and it
+            /// sits last for that reason rather than for this rule's.
+            None,
+        }
+
+        fn cost(tool: Tool) -> Cost {
+            match tool {
+                Tool::Env | Tool::Shop | Tool::Meta => Cost::Local,
+                // `rtbf/templates` validates the file with no network at all,
+                // which is why it belongs on the local side of the line even
+                // though `rtbf/live` is remote.
+                Tool::Rtbf => Cost::Local,
+                // `config/live` is a Configs API read per env and nothing else.
+                Tool::Config => Cost::Remote,
+                Tool::Apikey => Cost::None,
+            }
+        }
+
+        if let Some(boundary) = Tool::ALL.iter().position(|t| cost(*t) == Cost::Remote) {
+            let late_local: Vec<&str> = Tool::ALL[boundary..]
+                .iter()
+                .filter(|t| cost(**t) == Cost::Local)
+                .map(|t| t.config_file())
+                .collect();
+            assert!(
+                late_local.is_empty(),
+                "these do local-only work after a tool that needs the network: {late_local:?}"
+            );
+        }
+
+        // And the whole set is covered, so a tool cannot escape the rule by
+        // being left out of `cost`.
+        assert_eq!(Tool::ALL.len(), 6);
+    }
+
+    /// A tool added to the enum and forgotten in `ALL` is a check that never
+    /// runs and never says it did not, which is the one failure `rbx check`
+    /// cannot have. Named per tool rather than counted, so the assertion says
+    /// which one went missing.
+    #[test]
+    fn rtbf_is_both_listed_and_named() {
+        assert!(Tool::ALL.contains(&Tool::Rtbf));
+        assert_eq!(Tool::Rtbf.config_file(), rbx_rtbf::config::FILE);
+    }
+
+    /// The file name comes from the crate that owns it rather than a literal
+    /// here, so renaming it there cannot leave `rbx check` looking for the old
+    /// one. Pinned anyway, because the name is a user-facing contract.
+    #[test]
+    fn the_rtbf_file_is_the_one_the_crate_writes() {
+        assert_eq!(rbx_rtbf::config::FILE, "rbxrtbf.toml");
+    }
+
+    #[test]
+    fn the_rtbf_file_is_discovered_on_its_own() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        touch(dir.path(), "rbxrtbf.toml");
+
+        let found = discover(dir.path(), &dir.path().join("rbxplace.toml"));
+
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].tool, Tool::Rtbf);
     }
 
     #[test]

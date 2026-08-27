@@ -24,6 +24,7 @@ rbx-env = { path = "../rbx-env" }
 rbx-shop = { path = "../rbx-shop" }
 rbx-meta = { path = "../rbx-meta" }
 rbx-config = { path = "../rbx-config" }
+rbx-rtbf = { path = "../rbx-rtbf" }
 
 [dev-dependencies]
 serde_json.workspace = true

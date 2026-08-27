@@ -1,6 +1,5 @@
 //! Manage Roblox in-experience live configs via the Open Cloud Configs API.
 
-pub mod api;
 mod commands;
 pub mod config;
 mod ctx;
@@ -15,6 +14,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Args, Subcommand, ValueEnum};
 
+use rbx_core::api::Repository;
 use rbx_core::GlobalFlags;
 
 use crate::ctx::ConfigCtx;
@@ -27,6 +27,20 @@ pub struct ConfigCli {
     /// Path to rbxconfig.toml.
     #[arg(long, default_value = "rbxconfig.toml")]
     pub config: PathBuf,
+
+    /// Configs repository to address.
+    ///
+    /// Defaults to `InExperienceConfig`, the live config `ConfigService`
+    /// reads, which is the only repository this command addressed before the
+    /// flag existed. `rbxconfig.toml` may name one in its `repository` field,
+    /// and it is the source of truth for the commands that read it: a flag
+    /// naming a different one is refused rather than allowed to win, because
+    /// a publish into the wrong repository replaces a live config wholesale
+    /// and cannot be undone from here.
+    ///
+    /// Case-insensitive. An unknown name lists the eight the API exposes.
+    #[arg(long)]
+    pub repository: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -152,6 +166,17 @@ impl Strategy {
     }
 }
 
+/// The `--repository` flag, parsed.
+///
+/// Parsed here rather than by a clap `value_parser` because
+/// `Repository::from_str` answers with an `anyhow::Error` carrying the list of
+/// available names, and clap's parser wants a `std::error::Error`, which
+/// `anyhow::Error` is not. It runs before any request, so a typo costs one
+/// error and no HTTP.
+fn parse_repository(flag: Option<&str>) -> Result<Option<Repository>> {
+    flag.map(|name| name.parse::<Repository>()).transpose()
+}
+
 pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
     let ctx = ConfigCtx {
         config: cli.config,
@@ -163,6 +188,7 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
         // parent and stopped it propagating into the subcommands, so the flag
         // worked before the subcommand name and was rejected after it.
         universe_id: global.universe_id,
+        repository: parse_repository(cli.repository.as_deref())?,
         #[cfg(test)]
         base_url: None,
     };
@@ -196,5 +222,59 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
         ConfigCommands::Rollback { revision_id, count } => {
             commands::rollback::run(&ctx, revision_id, count).await
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    /// `ConfigCli` is an `Args`, so it reaches clap through the binary's
+    /// parser. This is that parser, minus everything else the binary has.
+    #[derive(Parser, Debug)]
+    struct Harness {
+        #[command(flatten)]
+        cli: ConfigCli,
+    }
+
+    fn parse(args: &[&str]) -> ConfigCli {
+        Harness::try_parse_from(args).expect("parse").cli
+    }
+
+    /// The default is the absence of a flag, not a spelling of the default:
+    /// `resolve_repository` has to be able to tell the two apart.
+    #[test]
+    fn without_the_flag_no_repository_is_named() {
+        let cli = parse(&["rbx-config", "init"]);
+
+        assert_eq!(cli.repository, None);
+        assert_eq!(parse_repository(cli.repository.as_deref()).unwrap(), None);
+    }
+
+    #[test]
+    fn the_flag_is_parsed_case_insensitively_into_the_canonical_spelling() {
+        let cli = parse(&["rbx-config", "--repository", "datastoresconfig", "init"]);
+
+        assert_eq!(
+            parse_repository(cli.repository.as_deref()).unwrap(),
+            Some(Repository::DataStoresConfig)
+        );
+    }
+
+    /// A name that is not one of the eight is only actionable next to the
+    /// eight, and it costs nothing to say so: the parse runs before any
+    /// request.
+    #[test]
+    fn an_unknown_repository_lists_the_eight() {
+        let cli = parse(&["rbx-config", "--repository", "InExperience", "init"]);
+
+        let err = parse_repository(cli.repository.as_deref())
+            .expect_err("'InExperience' is not a repository")
+            .to_string();
+        for repository in Repository::ALL {
+            assert!(err.contains(repository.as_str()), "{err}");
+        }
+        assert_eq!(Repository::ALL.len(), 8);
     }
 }

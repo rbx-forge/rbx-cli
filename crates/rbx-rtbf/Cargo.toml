@@ -1,0 +1,38 @@
+[package]
+name = "rbx-rtbf"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "rbx subcommand: declare which data store keys hold a user's data, for right-to-be-forgotten deletion"
+# Never published to crates.io. This workspace ships one binary through GitHub
+# releases, and these crates exist to structure it: they carry path
+# dependencies with no version requirement, which crates.io rejects outright,
+# so the marker records a fact rather than making a decision.
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+clap.workspace = true
+colored.workspace = true
+reqwest.workspace = true
+schemars = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+toml.workspace = true
+
+rbx-core = { path = "../rbx-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+wiremock.workspace = true
+
+[features]
+# Derives the JSON Schema for `rbxrtbf.toml`, built only by `rbx-schema` so
+# `schemars` stays out of the shipped binary.
+schema = ["dep:schemars"]
+
+[lints]
+workspace = true

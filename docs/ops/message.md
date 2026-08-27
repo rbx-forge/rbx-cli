@@ -39,7 +39,7 @@ rbx message --topic cache --payload '{"key":"rotation"}' --apply --env prod
 
 `--payload` parses the value here and sends its serialisation, so a malformed payload fails before the publish rather than inside `HttpService:JSONDecode` on a live server, where it is a runtime error in game code with no obvious origin. `--message` sends whatever you give it, untouched.
 
-`--json` is not this flag. On this command as on every other, `--json` writes the result as a document, and a payload flag that also took a value would have kept that name occupied: leaving `publish` the one command that cannot report what it did.
+`--json` is not this flag. On this command as on every other, `--json` writes the result as a document, and a payload flag that also took a value would have kept that name occupied: leaving `message` the one command that cannot report what it did.
 
 ## The size limit is 1114 bytes, not 1 KB
 

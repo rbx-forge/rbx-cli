@@ -57,7 +57,8 @@ impl Outcome {
 /// Field names are the `--json` contract; see `docs/check.md`.
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolReport {
-    /// Stable tool identifier: `env`, `shop`, `meta`, `config`, `apikey`.
+    /// Stable tool identifier: `env`, `shop`, `meta`, `config`, `rtbf`,
+    /// `apikey`.
     pub tool: &'static str,
     /// Which check within the tool, when a tool contributes more than one
     /// (`shop` runs both a lockfile diff and a codegen comparison).

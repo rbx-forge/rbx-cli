@@ -16,7 +16,7 @@ a spine. The spine is the environment model: one `rbxplace.toml` maps env names
 to universes and places, and every command resolves `--env` through it.
 
 **Declarative, Terraform for Roblox.** `init`, `env`, `apikey`, `place`,
-`meta`, `config`, `shop`. You write the desired state into a TOML file you
+`meta`, `config`, `rtbf`, `shop`. You write the desired state into a TOML file you
 commit, and the tool reconciles Roblox to match it. Diffable, reviewable, safe
 to run on every push, idempotent by construction.
 
@@ -51,6 +51,7 @@ on purpose rather than by accretion.
 | [`meta`](meta.md) | Universe and place metadata: name, icon, thumbnails, devices, visibility |
 | [`config`](config.md) | The live in-experience config, with revisions and rollback |
 | [`secret`](secret.md) | Credentials the game reads through `HttpService:GetSecret`, written encrypted |
+| [`rtbf`](rtbf.md) | Which data store keys hold a user's data, so a right-to-be-forgotten request can delete them |
 | [`shop`](shop.md) | Game passes, badges and developer products, with typed Luau codegen |
 | [`servers`](ops/servers.md) | **Live.** Servers up now, how the stopped ones ended, and what a crashed one logged |
 | [`analytics`](ops/analytics.md) | **Live.** Players, retention, revenue per payer. CSV for charting elsewhere |
@@ -117,6 +118,10 @@ From there:
   and place metadata, [`rbx config`](config.md) for in-experience live configs,
   [`rbx shop`](shop.md) for passes, badges and developer products with typed
   Luau codegen.
+- **Answering a deletion request.** [`rbx rtbf`](rtbf.md) declares which data
+  store keys hold a user's data, and checks the declaration against the stores
+  you actually have. A template that matches nothing is accepted by Roblox and
+  deletes nothing, which is the failure worth catching before somebody asks.
 - **Acting on a running game.** [Live operations](ops.md) is the entry point
   and the safety model: dry run by default, `--apply` to write, `--env all`
   refused.

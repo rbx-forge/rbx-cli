@@ -9,6 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx rtbf`**: the failure this prevents is a deletion template that
+  matches nothing. Roblox accepts one, stores it, reports it as configured,
+  and deletes nothing, so a right-to-be-forgotten request goes unfulfilled and
+  nothing says so until somebody asks why. Roblox's own advice is to compare
+  the patterns against your live Luau by hand in the Creator Hub and then to
+  confirm within 30 days that the data went, which is an admission that
+  nothing verifies it for you.
+
+  `rbxrtbf.toml` declares which data store keys and stores hold a user's data,
+  reconciled against the `DataStoresConfig` repository of the Configs API:
+  `init`, `show`, `check`, `sync`, `pull` and `verify`. No lockfile, for the
+  reason `rbx config` has none: the published set is readable in full, so the
+  remote state is a fetch.
+
+  `{UserId}` is case-sensitive, and `{userId}` is the mistake Roblox's own
+  best-practices list puts first: it is stored happily and matches nothing.
+  That, a pattern carrying no token at all, and a near-miss token in a `scope`
+  are all refused locally, before a publish makes them authoritative. So is a
+  file that declares nothing while naming a root table this release does not
+  read: `[[keys]]` for `[[key]]` parses to an empty declaration, and `sync`
+  publishing that would replace every template the universe had.
+  `rbx rtbf verify` then goes further and lists the stores the universe really
+  has, so a template naming one you renamed last year is caught before a legal
+  request depends on it.
+
+  `rbx config --repository DataStoresConfig` reaches the same place and will
+  keep working. What it cannot do is check any of the above, because its entry
+  model holds an opaque value, and this command exists for exactly those
+  checks. `rbx check` picks `rbxrtbf.toml` up as two rows, the local one
+  running under `--offline`.
+
+  `show` and `verify` carry `--json`, keeping the contract the rest of the
+  suite does: one document, a `schema_version`, ids as strings, an optional
+  field absent rather than null. `verify`'s is the one nothing else produces,
+  so a CI step branches on `.ok` rather than grepping a listing for a red
+  cross, and its `verdict` has three values rather than being a boolean:
+  `unverifiable` is a limit of Open Cloud, not a broken template, and folding
+  it into a failure would break a build over an ordered store nothing can
+  list. `check` has none, deliberately: no per-tool check in this suite does,
+  because `rbx check --json` is the machine-readable drift document and two
+  shapes for one question is how a consumer reads the wrong one.
+
 - **`rbx restart launch --attribute k=v` and `--payload <json>`**: the free
   dictionary servers scheduled to close receive as the third argument of
   `game.ServerRestartScheduled(restartTime, source, attributes)`. Until now that
@@ -156,6 +198,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still has useful things to say about, and a file that does not parse is one
   failing row from `tools::env` beside every other tool's findings rather than
   an abort that collapses the whole run to a raw TOML message.
+
+- **A config publish no longer clears the repository's conditional rules.**
+  The Configs API's `draft:overwrite` treats an omitted `conditionalRules` as
+  an instruction: "when omitted on overwrite, all published conditional rules
+  are cleared". This tool never sent the property, so the first `rbx config
+  sync` against a repository carrying conditional rules deleted every one of
+  them, silently, with nothing about it in the replaced-draft report the
+  command prints. An entry still referencing a deleted conditional then made
+  the request fail with an opaque 4xx, which reads as a bad payload rather
+  than as a rule that is gone.
+
+  The rules are now restated from the draft when it stages any, and from the
+  published configuration when it does not. That layering is the API's own,
+  stated on the `PATCH` side of the same field, and the second half is what
+  matters in practice: a first sync usually meets a repository with published
+  rules and no draft at all, so echoing the draft alone would have left the
+  loss exactly where it was. Rules travel as opaque JSON, because on overwrite
+  a property this tool cannot name is a rule it would delete.
+
+- **`rbx config rollback` addresses the documented path.** It built
+  `.../revisions/{id}:restore`, a custom-method form that appears nowhere
+  under `creator-configs` in Roblox's OpenAPI document, which describes
+  `POST .../revisions/{revisionId}/restore`. The only `:restore` in the whole
+  document belongs to the Assets API. The test asserted the tool's own
+  spelling straight back at it, which is why a wrong URL stayed green.
 
 ## [0.4.0]
 

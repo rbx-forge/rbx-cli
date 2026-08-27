@@ -34,12 +34,12 @@ a spine. The spine is the environment model: one `rbxplace.toml` maps env names
 to universes and places, and every command below resolves `--env` through it.
 
 **Declarative: Terraform for Roblox.** `init`, `env`, `apikey`, `place`,
-`meta`, `config`, `shop`. You write the desired state into a TOML file you
-commit, and the tool reconciles Roblox to match it. Diffable, reviewable, safe
-to run on every push, idempotent by construction.
+`meta`, `config`, `rtbf`, `shop`. You write the desired state into a TOML file
+you commit, and the tool reconciles Roblox to match it. Diffable, reviewable,
+safe to run on every push, idempotent by construction.
 
 **Operational: kubectl for Roblox.** `servers`, `analytics`, `ban`, `restart`,
-`data`, `memorystore`, `publish`. These act on state that only exists while the
+`data`, `memorystore`, `message`. These act on state that only exists while the
 game is running, and no TOML file can describe it. Banning a player is a
 consequence of what happened in your game last night, not a checked-in
 intention.
@@ -75,6 +75,7 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | `rbx meta` | Universe and place metadata (name, description, devices, social links, server fill, avatar rules, third-party permissions, paid access, ...). | [docs/meta.md](./docs/meta.md) |
 | `rbx config` | In-experience live configs via the Open Cloud Configs API. | [docs/config.md](./docs/config.md) |
 | `rbx secret` | Credentials the game reads through `HttpService:GetSecret`, sealed before they leave your machine. | [docs/secret.md](./docs/secret.md) |
+| `rbx rtbf` | Which data store keys hold a user's data, so Roblox can delete them on a right-to-be-forgotten request, checked against the stores you actually have. | [docs/rtbf.md](./docs/rtbf.md) |
 | `rbx shop` | Game passes, badges, developer products. Typed Luau codegen with runtime env dispatch, regenerable offline. | [docs/shop.md](./docs/shop.md) |
 | `rbx open` | Launch Roblox Studio at a specific place by env name. | [docs/open.md](./docs/open.md) |
 | `rbx download` | Download assets by id (public endpoint or Open Cloud). | [docs/download.md](./docs/download.md) |
@@ -122,9 +123,14 @@ Each subcommand owns its TOML config; the cross-tool file is `rbxplace.toml`. No
 | `rbxshop.toml` | `rbx shop` | Game passes, badges, developer products. Multi-env overlays. |
 | `rbxmeta.toml` | `rbx meta` | Universe and place metadata. Multi-env overlays. |
 | `rbxconfig.toml` | `rbx config` | In-experience configs. Multi-env overlays. |
+| `rbxrtbf.toml` | `rbx rtbf` | Right-to-be-forgotten deletion templates. Declared once, published to any env. |
 | `rbxapikey.toml` | `rbx apikey` | API key declarations (scopes, IP allowlist, expiry). |
 
-Each subcommand also writes a lockfile (`<config>.lock.toml`) tracking remote IDs and content hashes for diff/sync.
+Most of these have a lockfile beside them (`<config>.lock.toml`) tracking
+remote IDs and content hashes for diff/sync. `rbxrtbf.toml` does not, for the
+reason `rbxconfig.toml` needs no entry snapshot to compare against: the
+published templates are readable in full, so the remote state is a fetch rather
+than something that has to be remembered.
 
 Those lockfiles are committed (all but `rbxapikey.lock.toml`, which holds secrets and **you** must gitignore: `rbx apikey create` refuses to create a key whose secret would land in a file git is not ignoring), so more than one person syncing means git will eventually hand you a conflict in one. [docs/teams.md](./docs/teams.md) is the procedure: which side to keep per file, why a dropped `rbxshop.lock.toml` entry becomes a duplicate paid resource on the next sync, and what concurrent syncs do per tool.
 
@@ -174,6 +180,7 @@ schema.path = "schemas/rbxapikey.schema.json"
     "rbxconfig(\\.example)?\\.toml$": "./schemas/rbxconfig.schema.json",
     "rbxapikey(\\.example)?\\.toml$": "./schemas/rbxapikey.schema.json",
     "rbxshop(\\.example)?\\.toml$": "./schemas/rbxshop.schema.json",
+    "rbxrtbf(\\.example)?\\.toml$": "./schemas/rbxrtbf.schema.json",
     "rbxavatar\\.toml$": "./schemas/rbxavatar.schema.json"
   }
 }
@@ -310,7 +317,7 @@ Without `-o`, the completion script is printed to stdout (pipe into a file or yo
 
 One binary, so one completion file. The live-operations commands are in it like any other.
 
-`--env` and `--place` complete with the names in the `rbxplace.toml` of the directory you are in: the script calls `rbx env list --names` and `rbx env list --place-names` when you press TAB, so adding an env needs no regeneration. Outside a project, or with a file that does not parse, both complete to nothing and print nothing. `--no-dynamic` leaves that hook out. See [docs/env.md](docs/env.md#shell-completions-for---env-and---place-0120) for the per-shell install steps.
+`--env` and `--place` complete with the names in the `rbxplace.toml` of the directory you are in: the script calls `rbx env list --names` and `rbx env list --place-names` when you press TAB, so adding an env needs no regeneration. Outside a project, or with a file that does not parse, both complete to nothing and print nothing. `--no-dynamic` leaves that hook out. See [docs/env.md](docs/env.md#shell-completions-for---env-and---place) for the per-shell install steps.
 
 ## What this tool does not do
 
@@ -384,7 +391,7 @@ reversed (see the live-operations section above).
 
 **Core.** A bug here blocks a release: `place`, `shop`, `meta`, `config`,
 `apikey`, `env`, `init`, and every live-ops command (`data`, `ban`, `restart`,
-`servers`, `analytics`, `memorystore`, `publish`). These are the commands
+`servers`, `analytics`, `memorystore`, `message`). These are the commands
 people put in CI and point at production.
 
 **Tier 2.** A bug here never blocks a release: `open`, `download`, `ads`. Local

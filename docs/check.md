@@ -71,16 +71,34 @@ files the import just wrote:
 | `rbxshop.toml` | `shop/lockfile`: declared passes/badges/products against the lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed shop modules still match | no |
 | `rbxmeta.toml` | `meta/lockfile`: declared universe/place metadata against the lockfile | no |
+| `rbxrtbf.toml` | `rtbf/templates`: every deletion template could match something | no |
+| `rbxrtbf.toml` | `rtbf/live`: declared templates against the published ones | **yes** |
 | `rbxconfig.toml` | `config/live`: local entries against the live config on Roblox | **yes** |
 | `rbxapikey.toml` | `apikey/status`, not yet wired, see below | - |
 
-Only `config/live` needs credentials, so `--offline` is a small cut: everything
-else compares committed files against committed files. That makes the offline
-mode usable from a pre-commit hook, which is the point of having it.
+`rbx rtbf` contributes two rows rather than one because the halves fail
+differently. Every rule in `rbxrtbf.toml` (the case of `{UserId}`, a pattern
+carrying no token at all, the hundred-template ceiling) is decidable from the
+file alone, and the mistakes it catches are exactly the ones Roblox accepts,
+stores, and then silently never matches. That row therefore runs under
+`--offline` like any other local comparison; only the comparison against the
+published set is cut.
 
-The key is only demanded once `config/live` has something to compare. With no
-`--env`, or with an env `rbxconfig.toml` never declares, the row is skipped and
-a keyless run still exits 0 without `--offline`.
+So `config/live` and `rtbf/live` are the only rows that need credentials, and
+`--offline` is a small cut: everything else compares committed files against
+committed files. That makes the offline mode usable from a pre-commit hook,
+which is the point of having it.
+
+The key is only demanded once one of those rows has something to compare. With
+no `--env`, or with an env `rbxconfig.toml` never declares, the `config/live`
+row is skipped; with no `--env` and no `--universe-id`, `rtbf/live` is skipped.
+A keyless run still exits 0 without `--offline`.
+
+`rbxrtbf.toml` is not env-keyed, so `rtbf/live` takes a bare `--universe-id`
+with no `--env` (there is no section for an env name to select) and its row
+carries no env label in that case. Under `--env all` it compares the one
+declaration against each universe in turn, which is what a codebase running in
+several envs wants.
 
 Rows are named `tool/check [env]`. Per-env checks produce one row per env; with
 no `--env`, each tool falls back to its standalone block and the row is labelled
@@ -88,7 +106,7 @@ no `--env`, each tool falls back to its standalone block and the row is labelled
 
 ## Why this is not a wrapper around the per-tool checks
 
-All five per-tool checks now agree on the contract (`0` clean, `2` drift, `1`
+Every per-tool check agrees on the contract (`0` clean, `2` drift, `1`
 error) so **`rbx check` and `rbx shop check` no longer disagree on exit code
 for the same repo**. Either can be trusted in CI; `rbx check` runs all of them
 at once, which is the only difference.
@@ -181,8 +199,8 @@ changing meaning or disappearing bumps `schema_version`.
 | `totals.total` | integer | How many checks ran, including skipped ones. |
 | `totals.clean` / `.drift` / `.error` / `.skipped` | integer | Counts by outcome. |
 | `checks` | array of objects | One entry per check, in run order. |
-| `checks[].tool` | string | `env`, `shop`, `meta`, `config`, `apikey`. |
-| `checks[].check` | string | Which check within the tool: `gen-module`, `lockfile`, `codegen`, `live`, `status`. |
+| `checks[].tool` | string | `env`, `shop`, `meta`, `rtbf`, `config`, `apikey`. |
+| `checks[].check` | string | Which check within the tool: `gen-module`, `lockfile`, `codegen`, `templates`, `live`, `status`. |
 | `checks[].env` | string | The env. **Absent** on checks that are not per-env. |
 | `checks[].outcome` | string | `clean`, `drift`, `error`, `skipped`. |
 | `checks[].summary` | string | One line, the same text the human renderer shows. |
@@ -207,10 +225,13 @@ exit "$(jq -r '.exit_code' check.json)"
 `check` and `status`, `env list/get`, `servers list/versions/logs`,
 `analytics query/metrics`, `ads list/get/status`, `place versions/places` and
 the receipts from `place upload/promote/rollback`, `data get/list/revisions/diff`,
-`memorystore get/list`, `shop list/show`, `config list/get/versions`,
+`data ordered list/get`, `memorystore get/list`, `shop list/show`,
+`config list/get/versions`, `rtbf show/verify`, `secret list/public-key`,
 `ban list/status`, `apikey list/status` and `apikey scopes show`, plus the
-receipt from `publish`. Per-command field names are documented alongside each
-command.
+receipts from `message` and `secret set/delete`. `data ordered` is named apart
+from `data` because it is its own subcommand tree: only its `list` and `get`
+carry the flag, and `data get --json` says nothing about them. Per-command
+field names are documented alongside each command.
 
 What every one of them shares is the helper: `rbx_core::output` is the only
 place in the tree that serializes to stdout, which is what keeps `--json`

@@ -23,6 +23,8 @@ use rbx_core::env::DEFAULT_ENV;
 use rbx_core::generated::{compare, GeneratedFile, Verdict};
 use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
+use rbx_rtbf::config::Loaded;
+use rbx_rtbf::model::Templates;
 
 use crate::report::{Outcome, ToolReport};
 
@@ -479,9 +481,9 @@ pub async fn config(
     global: &GlobalFlags,
     offline: bool,
 ) -> Vec<ToolReport> {
-    use rbx_config::api::RbxConfigClient;
     use rbx_config::config::ConfigsFile;
     use rbx_config::diff::Diff;
+    use rbx_core::api::ConfigsClient;
 
     if offline {
         return vec![ToolReport::new(
@@ -504,9 +506,28 @@ pub async fn config(
         }
     };
 
+    // The repository comes from the file, which is the only source there is
+    // here: `rbx check` takes no `--repository`, and reading the wrong
+    // repository would report drift against a config these entries never
+    // described.
+    let repository = match local.declared_repository() {
+        Ok(declared) => declared.unwrap_or_default(),
+        Err(err) => {
+            return vec![ToolReport::new(
+                "config",
+                "live",
+                Outcome::Error,
+                one_line(&err),
+            )]
+        }
+    };
+
     // Built up front so the key is read once, but not *demanded* until an env
     // has something to compare: see the gates below.
-    let client = global.api_key.clone().map(RbxConfigClient::new);
+    let client = global
+        .api_key
+        .clone()
+        .map(|key| ConfigsClient::new(key, repository));
 
     let mut reports = Vec::new();
     for env in envs {
@@ -613,6 +634,259 @@ fn resolve_universe(global: &GlobalFlags, env: &str) -> Result<u64> {
         return Ok(id);
     }
     rbx_core::places::resolve_universe_id(&global.places, env)
+}
+
+// ---------------------------------------------------------------------------
+// rtbf / rbxrtbf.toml
+// ---------------------------------------------------------------------------
+
+/// Two rows, because the two halves of this tool fail differently.
+///
+/// Every rule in `rbxrtbf.toml` (the case of `{UserId}`, a pattern carrying no
+/// token at all, the template ceiling) is decidable from the file alone, and
+/// the mistakes it catches are precisely the ones Roblox accepts, stores, and
+/// then silently never matches. A check that needs no credential must not ask
+/// for one, so that half is its own row and it runs under `--offline`. The
+/// comparison against the published set is the half that needs the network.
+pub async fn rtbf(config_path: &Path, global: &GlobalFlags, offline: bool) -> Vec<ToolReport> {
+    // Loaded once for both rows: the local row reports the parse failure, and
+    // the live row has nothing to compare without the file either.
+    let declared = rbx_rtbf::config::load(config_path);
+
+    let mut reports = vec![rtbf_templates(config_path, declared.as_ref())];
+    reports.extend(rtbf_live(declared.as_ref(), global, offline).await);
+    reports
+}
+
+/// A row for the local half. The tool and check names are written once here
+/// rather than at each of the ten `ToolReport::new` calls below, because they
+/// are the `--json` contract and a typo in one of them is a row a filter
+/// silently stops matching.
+fn templates_row(outcome: Outcome, summary: impl Into<String>) -> ToolReport {
+    ToolReport::new("rtbf", "templates", outcome, summary)
+}
+
+/// A row for the remote half.
+fn live_row(outcome: Outcome, summary: impl Into<String>) -> ToolReport {
+    ToolReport::new("rtbf", "live", outcome, summary)
+}
+
+/// The local half: does the file declare templates that could ever match.
+fn rtbf_templates(path: &Path, declared: Result<&Loaded, &anyhow::Error>) -> ToolReport {
+    let loaded = match declared {
+        Ok(loaded) => loaded,
+        Err(err) => return templates_row(Outcome::Error, one_line(err)),
+    };
+    let templates = &loaded.templates;
+
+    if let Err(err) = templates.validate() {
+        return templates_row(Outcome::Error, one_line(&err));
+    }
+
+    // Before the clean row below, because it is the one case where an empty
+    // declaration is not a decision: `[[keys]]` (the plural) parses to nothing
+    // and `sync --yes` would publish that over every template the universe
+    // had. `Error` rather than `Drift`: nothing here disagrees with Roblox,
+    // the tool simply cannot answer what this file meant to declare.
+    if let Err(err) = loaded.refuse_if_emptied_by_a_typo(path) {
+        return templates_row(Outcome::Error, one_line(&err));
+    }
+
+    // Not drift. A universe that stores no user data has nothing to declare,
+    // and an empty file is how you say so: `sync` publishes it and clears
+    // whatever was there. Named out loud so it is not read as a file that was
+    // never filled in.
+    if templates.is_empty() {
+        return templates_row(
+            Outcome::Clean,
+            "no templates declared: nothing here claims to hold user data",
+        );
+    }
+
+    templates_row(
+        Outcome::Clean,
+        format!(
+            "{} template{} valid",
+            templates.total(),
+            if templates.total() == 1 { "" } else { "s" }
+        ),
+    )
+}
+
+/// The remote half: does the file match what Roblox is serving.
+async fn rtbf_live(
+    declared: Result<&Loaded, &anyhow::Error>,
+    global: &GlobalFlags,
+    offline: bool,
+) -> Vec<ToolReport> {
+    use rbx_core::api::{ConfigsClient, Repository};
+
+    if offline {
+        return vec![live_row(
+            Outcome::Skipped,
+            "--offline: comparing against Roblox needs an API key",
+        )];
+    }
+
+    // The parse failure is already the local row's verdict. Repeating it here
+    // would count one broken file as two failures, and the second copy says
+    // nothing the first did not.
+    let Ok(loaded) = declared else {
+        return vec![live_row(
+            Outcome::Skipped,
+            "rbxrtbf.toml did not load: see the rtbf/templates row",
+        )];
+    };
+    // The comparison is against what this build can read. A declaration a typo
+    // emptied still drifts loudly here, which is the answer this row owes: the
+    // refusal is the local row's job.
+    let declared = &loaded.templates;
+
+    // `rbxrtbf.toml` is not env-keyed, so unlike `rbxconfig.toml` a bare
+    // `--universe-id` is already a complete target: there is no section for an
+    // env name to select. `--env all` compares the one declaration against
+    // each universe, which is the shape a codebase running in several envs
+    // wants, and `--universe-id` still wins per target the way
+    // `resolve_universe` lets it win for `config`.
+    let mut targets: Vec<(Option<String>, u64)> = match global.resolve_envs() {
+        Ok(found) => found
+            .into_iter()
+            .map(|target| {
+                (
+                    Some(target.name),
+                    global.universe_id.unwrap_or(target.universe_id),
+                )
+            })
+            .collect(),
+        Err(err) => return vec![live_row(Outcome::Error, one_line(&err))],
+    };
+    if targets.is_empty() {
+        match global.universe_id {
+            Some(universe_id) => targets.push((None, universe_id)),
+            None => {
+                return vec![live_row(
+                    Outcome::Skipped,
+                    "no target universe: pass --env <name>, --env all, or --universe-id <id>",
+                )]
+            }
+        }
+    }
+
+    // Built up front so the key is read once, but not *demanded* until a target
+    // has something to compare: the gate above is reached whether or not a key
+    // was passed, and asking for one there would turn a run that had nothing to
+    // do into an exit 1, which pushes a keyless pre-commit hook onto `--offline`
+    // for a check that never runs.
+    let client = global
+        .api_key
+        .clone()
+        .map(|key| ConfigsClient::new(key, Repository::DataStoresConfig));
+
+    let local = rtbf_fingerprints(declared);
+    let mut reports = Vec::with_capacity(targets.len());
+    for (env, universe_id) in targets {
+        let env = env.as_deref();
+
+        let Some(client) = client.as_ref() else {
+            reports.push(at_env(
+                live_row(
+                    Outcome::Error,
+                    "no API key: pass --api-key, set RBX_API_KEY, or run with --offline",
+                ),
+                env,
+            ));
+            continue;
+        };
+
+        let snapshot = match client.get_config(universe_id).await {
+            Ok(snapshot) => snapshot,
+            Err(err) => {
+                reports.push(at_env(live_row(Outcome::Error, one_line(&err)), env));
+                continue;
+            }
+        };
+
+        let (published, unrecognised) = Templates::from_entries(&snapshot.entries);
+        let live = rtbf_fingerprints(&published);
+
+        let mut details: Vec<String> = local
+            .iter()
+            .filter(|line| !live.contains(line))
+            .map(|line| format!("only local: {line}"))
+            .chain(
+                live.iter()
+                    .filter(|line| !local.contains(line))
+                    .map(|line| format!("only published: {line}")),
+            )
+            .collect();
+        let differences = details.len();
+
+        // Not drift, and not droppable either. `from_entries` skips a shape
+        // this build does not know, so a universe configured by a newer release
+        // must not fail CI here; staying silent about it would report a
+        // published set smaller than the one Roblox holds.
+        if unrecognised > 0 {
+            details.push(format!(
+                "{unrecognised} published entr{} left out: this build does not recognise the shape",
+                if unrecognised == 1 { "y" } else { "ies" }
+            ));
+        }
+
+        let report = if differences == 0 {
+            live_row(Outcome::Clean, "local matches live")
+        } else {
+            live_row(
+                Outcome::Drift,
+                format!(
+                    "{differences} template{} differ{}: run `rbx rtbf sync{}`",
+                    if differences == 1 { "" } else { "s" },
+                    if differences == 1 { "s" } else { "" },
+                    match env {
+                        Some(name) => format!(" --env {name}"),
+                        None => format!(" --universe-id {universe_id}"),
+                    }
+                ),
+            )
+        };
+        reports.push(at_env(report.details(details), env));
+    }
+    reports
+}
+
+/// A row labelled with its env, when there is one.
+///
+/// A bare `--universe-id` run has no env name to put here, because this file
+/// has no env sections: a label invented for the column would read as a section
+/// of `rbxrtbf.toml` that does not exist.
+fn at_env(report: ToolReport, env: Option<&str>) -> ToolReport {
+    match env {
+        Some(name) => report.env(name),
+        None => report,
+    }
+}
+
+/// One stable line per template, sorted, so a reordered file is not drift.
+///
+/// Declared order carries no meaning (deletion is a match, not a sequence), and
+/// the scope goes through `effective_scope` so an omitted `scope` and a
+/// published `global` read as the same declaration rather than as a difference
+/// nobody could act on.
+fn rtbf_fingerprints(templates: &Templates) -> Vec<String> {
+    let mut lines = Vec::with_capacity(templates.total());
+    for key in &templates.keys {
+        lines.push(format!(
+            "key {}/{}/{}{}",
+            key.store,
+            key.effective_scope(),
+            key.pattern,
+            if key.ordered { " [ordered]" } else { "" }
+        ));
+    }
+    for store in &templates.stores {
+        lines.push(format!("store {}", store.pattern));
+    }
+    lines.sort();
+    lines
 }
 
 // ---------------------------------------------------------------------------
@@ -808,5 +1082,194 @@ mod tests {
         assert_eq!(reports[0].outcome, Outcome::Error);
         assert!(reports[0].summary.contains("no API key"), "{reports:?}");
         assert_eq!(reports[0].env.as_deref(), Some("dev"));
+    }
+
+    // -----------------------------------------------------------------------
+    // rtbf: the local row, and when the live row demands a key
+    // -----------------------------------------------------------------------
+
+    /// A `rbxrtbf.toml` at `path`, with no `rbxplace.toml` beside it: the
+    /// directory `rbx check` finds when rtbf is the only tool configured.
+    fn rtbf_file(dir: &Path, body: &str) -> std::path::PathBuf {
+        let path = dir.join("rbxrtbf.toml");
+        std::fs::write(&path, body).expect("write");
+        path
+    }
+
+    fn rtbf_global(dir: &Path) -> GlobalFlags {
+        GlobalFlags {
+            api_key: None,
+            cookie: None,
+            no_auto_cookie: true,
+            auto_cookie: false,
+            env: None,
+            place: None,
+            places: dir.join("rbxplace.toml"),
+            universe_id: None,
+            place_id: Vec::new(),
+        }
+    }
+
+    const ONE_TEMPLATE: &str = "[[key]]\nstore = \"Inventory\"\npattern = \"User_{UserId}\"\n";
+
+    /// The two rows, and only those two: a repo holding this file alone gets a
+    /// verdict on it and nothing else.
+    #[tokio::test]
+    async fn a_valid_file_is_clean_locally_and_names_its_count() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), ONE_TEMPLATE);
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), false).await;
+
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0].check, "templates");
+        assert_eq!(reports[0].outcome, Outcome::Clean);
+        assert!(reports[0].summary.contains("1 template"), "{reports:?}");
+        assert_eq!(reports[1].check, "live");
+    }
+
+    /// The whole reason the local row exists. A miscased token is stored
+    /// happily by Roblox and matches nothing, so the only place it can be
+    /// caught is here, from the file alone.
+    #[tokio::test]
+    async fn a_miscased_token_is_an_error_on_the_local_row() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(
+            dir.path(),
+            "[[key]]\nstore = \"Inventory\"\npattern = \"User_{userId}\"\n",
+        );
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), true).await;
+
+        assert_eq!(reports[0].check, "templates");
+        assert_eq!(reports[0].outcome, Outcome::Error);
+    }
+
+    /// An empty declaration is a legitimate state: a universe that stores no
+    /// user data has nothing to declare, and reporting drift on it would leave
+    /// a repo no way to say so.
+    #[tokio::test]
+    async fn a_file_declaring_nothing_is_clean_and_says_so() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), "");
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), true).await;
+
+        assert_eq!(reports[0].outcome, Outcome::Clean);
+        assert!(reports[0].summary.contains("no templates"), "{reports:?}");
+    }
+
+    /// Every rule the local row checks is local, so `--offline` must not take
+    /// it away: that is the difference between a keyless pre-commit hook that
+    /// catches a dead template and one that checks nothing.
+    #[tokio::test]
+    async fn offline_keeps_the_local_row_and_skips_only_the_live_one() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), ONE_TEMPLATE);
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), true).await;
+
+        assert_eq!(reports.len(), 2);
+        assert_eq!(reports[0].outcome, Outcome::Clean);
+        assert_eq!(reports[1].outcome, Outcome::Skipped);
+        assert!(reports[1].summary.contains("--offline"), "{reports:?}");
+    }
+
+    /// The same rule `config` follows: with no target there is nothing to
+    /// compare, so a missing key must not turn a run that would have skipped
+    /// into an exit 1.
+    #[tokio::test]
+    async fn no_target_is_skipped_rather_than_failing_for_a_key_it_would_not_have_used() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), ONE_TEMPLATE);
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), false).await;
+
+        assert_eq!(reports[1].check, "live");
+        assert_eq!(reports[1].outcome, Outcome::Skipped);
+        assert!(
+            reports[1].summary.contains("no target universe"),
+            "{reports:?}"
+        );
+    }
+
+    /// The other half of that rule: once a universe is named, there really is
+    /// something to compare, and a missing key is a failure rather than a
+    /// quiet skip.
+    #[tokio::test]
+    async fn a_named_universe_with_no_key_is_an_error() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), ONE_TEMPLATE);
+        let global = GlobalFlags {
+            universe_id: Some(109876543210987),
+            ..rtbf_global(dir.path())
+        };
+
+        let reports = rtbf(&path, &global, false).await;
+
+        assert_eq!(reports[1].outcome, Outcome::Error);
+        assert!(reports[1].summary.contains("no API key"), "{reports:?}");
+        // No env section exists in this file, so no label is invented for one.
+        assert_eq!(reports[1].env, None);
+    }
+
+    /// A file that does not parse is one failure, not two: the local row owns
+    /// the message and the live row points at it.
+    #[tokio::test]
+    async fn an_unparseable_file_fails_once_and_defers_the_live_row() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = rtbf_file(dir.path(), "[[key]]\nstore =\n");
+
+        let reports = rtbf(&path, &rtbf_global(dir.path()), false).await;
+
+        assert_eq!(reports[0].outcome, Outcome::Error);
+        assert_eq!(reports[1].outcome, Outcome::Skipped);
+        assert!(reports[1].summary.contains("rtbf/templates"), "{reports:?}");
+    }
+
+    /// A key template, built rather than parsed: these two tests are about the
+    /// comparison rule, not about the file format, and `rbx-rtbf` already owns
+    /// tests for the parse.
+    fn key(store: &str, scope: Option<&str>) -> rbx_rtbf::model::KeyTemplate {
+        rbx_rtbf::model::KeyTemplate {
+            store: store.to_string(),
+            pattern: "U_{UserId}".to_string(),
+            scope: scope.map(str::to_string),
+            ordered: false,
+        }
+    }
+
+    /// Declared order carries no meaning, so a reordered file must not read as
+    /// drift. Asserted on the fingerprints rather than through a mock server,
+    /// because the ordering rule *is* the comparison.
+    #[test]
+    fn a_reordered_file_fingerprints_the_same() {
+        let one = Templates {
+            keys: vec![key("A", None), key("B", None)],
+            stores: Vec::new(),
+        };
+        let other = Templates {
+            keys: vec![key("B", None), key("A", None)],
+            stores: Vec::new(),
+        };
+
+        assert_eq!(rtbf_fingerprints(&one), rtbf_fingerprints(&other));
+    }
+
+    /// An omitted `scope` and a published `global` are the same declaration:
+    /// Roblox's own default, and `from_entries` drops it on the way in.
+    /// Fingerprinting them apart would report drift nobody could ever clear.
+    #[test]
+    fn an_omitted_scope_and_an_explicit_global_fingerprint_the_same() {
+        let omitted = Templates {
+            keys: vec![key("A", None)],
+            stores: Vec::new(),
+        };
+        let explicit = Templates {
+            keys: vec![key("A", Some("global"))],
+            stores: Vec::new(),
+        };
+
+        assert_eq!(rtbf_fingerprints(&omitted), rtbf_fingerprints(&explicit));
     }
 }

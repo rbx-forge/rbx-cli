@@ -16,7 +16,7 @@ use super::make_client;
 
 pub async fn run(ctx: &ConfigCtx, json: bool) -> Result<()> {
     let universe_id = ctx.resolve_universe_only()?;
-    let client = make_client(ctx)?;
+    let client = make_client(ctx, ctx.flag_repository())?;
     let format = OutputFormat::from_json_flag(json);
 
     let snapshot = client.get_config(universe_id).await?;

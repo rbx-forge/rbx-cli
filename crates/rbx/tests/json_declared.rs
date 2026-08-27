@@ -6,11 +6,13 @@
 //! into a buffer, and a stray `println!` is exactly the failure that breaks
 //! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
-//! The fixture is arranged to have two things to say on stderr: an unrecognised
+//! Every fixture here is arranged to have something to say on stderr, because a
+//! warning with nowhere safe to go is how stdout gets polluted: an unrecognised
 //! top-level key in `rbxshop.toml`, which `Config::load` warns about on every
-//! command that reads the file, and the per-env overlay hint `shop show` prints
-//! under its tables. A warning that has nowhere safe to go is how stdout gets
-//! polluted.
+//! command that reads the file, the per-env overlay hint `shop show` prints
+//! under its tables, and the same unrecognised key in `rbxrtbf.toml`, whose
+//! warning is the one thing standing between a misspelled `[[keys]]` and a
+//! published set of no deletion templates at all.
 //!
 //! `shop list` and the three `config` commands talk to Roblox and the binary
 //! exposes no base-url override for them, so what is asserted here is the half
@@ -311,4 +313,116 @@ fn a_failing_json_command_writes_no_partial_document() {
             "{args:?} failed without saying why"
         );
     }
+}
+
+/// An `rbxrtbf.toml` with an unknown top-level key in it, so `config::load`
+/// has a warning to emit here too.
+///
+/// Not decoration. In this crate the warning is load-bearing: `[[keys]]` (the
+/// plural) parses to an empty declaration, and the only reason a reader ever
+/// learns that is a line on stderr. A line that landed on stdout instead would
+/// break the document and be silenced by the first pipeline that redirected it.
+const RTBF_WITH_UNKNOWN_KEY: &str = r#"
+notatable = "warn about me"
+
+[[key]]
+store = "PlayerInventory"
+pattern = "User_{UserId}"
+scope = "Scope_{UserId}"
+
+[[key]]
+store = "PlayerLeaderboard"
+pattern = "User_{UserId}"
+ordered = true
+
+[[store]]
+pattern = "Player_{UserId}_Save"
+"#;
+
+fn rtbf_file(dir: &tempfile::TempDir) -> std::path::PathBuf {
+    let path = dir.path().join("rbxrtbf.toml");
+    std::fs::write(&path, RTBF_WITH_UNKNOWN_KEY).unwrap();
+    path
+}
+
+/// `rtbf show` is declared state, read from the file with no network, so it
+/// belongs with the other declared-state documents rather than with the live
+/// ones.
+#[test]
+fn rtbf_show_emits_a_document_on_stdout_and_its_warning_on_stderr() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = rtbf_file(&dir);
+
+    let (doc, stderr) = run_json(&["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"]);
+
+    assert_eq!(doc["schema_version"], 1);
+    assert_eq!(doc["count"], 3);
+    assert_eq!(doc["max_templates"], 100);
+    // A string, like every other id this suite emits.
+    assert_eq!(doc["sample_user_id"], "1234567890");
+    assert_eq!(doc["templates"].as_array().map(Vec::len), Some(3));
+    // The unrecognised key was reported, and reported where it cannot corrupt
+    // the document. If this moved to stdout the parse in `run_json` would have
+    // failed, and the plural-typo wipe would have had no signal left at all.
+    assert!(stderr.contains("notatable"), "stderr was:\n{stderr}");
+}
+
+/// One list with a `kind`, and the sample Roblox will actually look for, which
+/// is the field a reviewer holds against the Luau.
+#[test]
+fn rtbf_show_flattens_both_template_kinds_with_their_samples() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = rtbf_file(&dir);
+
+    let (doc, _) = run_json(&["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"]);
+    let list = doc["templates"].as_array().unwrap();
+
+    assert_eq!(list[0]["kind"], "key");
+    assert_eq!(
+        list[0]["sample"],
+        "PlayerInventory/Scope_1234567890/User_1234567890"
+    );
+    // An omitted scope reports as the default Roblox will match on, not as an
+    // absence: `global` is the answer, and the file's silence is not.
+    assert_eq!(list[1]["scope"], "global");
+    assert_eq!(list[1]["ordered"], true);
+
+    // A store template has no store name and no standard-versus-ordered
+    // choice, so both are absent rather than null.
+    assert_eq!(list[2]["kind"], "store");
+    assert!(list[2].get("store").is_none(), "{doc}");
+    assert!(list[2].get("ordered").is_none(), "{doc}");
+}
+
+/// The failure this whole crate exists to prevent, seen through the document:
+/// a miscased token is refused, so stdout carries nothing a consumer could
+/// mistake for a published state.
+#[test]
+fn rtbf_show_writes_no_document_for_a_file_it_refuses() {
+    let dir = tempfile::tempdir().unwrap();
+    let rtbf = dir.path().join("rbxrtbf.toml");
+    std::fs::write(
+        &rtbf,
+        "[[key]]\nstore = \"A\"\npattern = \"User_{userId}\"\n",
+    )
+    .unwrap();
+
+    let output = Command::cargo_bin("rbx")
+        .unwrap()
+        .args(["rtbf", "--config", rtbf.to_str().unwrap(), "show", "--json"])
+        .assert()
+        .failure()
+        .get_output()
+        .clone();
+
+    assert!(
+        output.stdout.is_empty(),
+        "a refused file must leave stdout empty:\n{}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("case-sensitive"),
+        "stderr was:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

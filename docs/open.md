@@ -173,4 +173,4 @@ That dispatch is older than either of us. [rojo-rbx/edit-roblox-place](https://g
 
 What `rbx open` adds to either is the part that belongs to this tool: the place is named rather than numbered. `rbx open prod main` resolves through `rbxplace.toml`, so the id nobody remembers stays in the file that already holds it.
 
-No code from either project is reused, and none is owed: see [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
+No code from either project is reused, and none is owed: see [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-cli/blob/main/THIRD-PARTY-NOTICES.md).

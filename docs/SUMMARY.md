@@ -16,6 +16,7 @@
 - [rbx place](place.md)
 - [rbx meta](meta.md)
 - [rbx config](config.md)
+- [rbx rtbf](rtbf.md)
 - [rbx shop](shop.md)
 
 # Credentials the repository cannot hold

@@ -18,6 +18,7 @@ rbx-core = { path = "../rbx-core", features = ["schema"] }
 rbx-apikey = { path = "../rbx-apikey", features = ["schema"] }
 rbx-config = { path = "../rbx-config", features = ["schema"] }
 rbx-meta = { path = "../rbx-meta", features = ["schema"] }
+rbx-rtbf = { path = "../rbx-rtbf", features = ["schema"] }
 rbx-shop = { path = "../rbx-shop", features = ["schema"] }
 
 [dev-dependencies]

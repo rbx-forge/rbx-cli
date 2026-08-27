@@ -19,6 +19,7 @@ members = [
     "crates/rbx-place",
     "crates/rbx-meta",
     "crates/rbx-config",
+    "crates/rbx-rtbf",
     "crates/rbx-secret",
     "crates/rbx-env",
     "crates/rbx-apikey",

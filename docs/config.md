@@ -13,6 +13,7 @@ Manage Roblox in-experience live configs via the Open Cloud Configs API.
 - **Revision history** - `versions` and `rollback` to inspect and revert past publishes
 - **Gradual rollout** - Optional `GradualRollout` deployment strategy (~15 min propagation)
 - **Multi-environment** - Targets environments defined in `rbxplace.toml` (shared with `rbx place`)
+- **Repositories** - Any of the eight configs repositories via `--repository` or a `repository` field in the file, which is the source of truth for the commands that read it
 - **JSON** - `--json` on `get`, `list` and `versions` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
 
 ## Quick start
@@ -41,6 +42,12 @@ Write a commented template `rbxconfig.toml` in the current directory. Bails if t
 ```sh
 rbx config init
 rbx config --config configs/rbxconfig.toml init
+```
+
+With `--repository <name>` the template gains a `repository` line naming it. Without one it does not: `InExperienceConfig` is the default, and a line restating the default is one more thing to keep in step with it.
+
+```sh
+rbx config --repository DataStoresConfig init
 ```
 
 </details>
@@ -189,6 +196,10 @@ Off a terminal with none of the three, the run refuses and names them. It used t
 | `--dry-run` | Show diff without publishing |
 | `--yes` | Skip confirmation prompt |
 
+A publish stages the entries as the draft and then publishes that draft, handing Roblox the hash of whatever draft was already there. If somebody had staged edits in the Creator Hub, they are replaced, and the run says so and names the keys the discarded draft held. It is a line of output rather than a refusal: a pipeline that publishes on every merge legitimately overwrites a staged draft, and stopping it would be the wrong end of the trade.
+
+Both the [documented limits](#limits) are checked before the write, `--dry-run` included.
+
 </details>
 
 <details>
@@ -304,6 +315,7 @@ rbx config rollback --env dev --count 30        # picker with more entries
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--config` | `rbxconfig.toml` | Path to the local config file |
+| `--repository` | `InExperienceConfig` | Configs repository to address. See [Repositories](#repositories) |
 | `--universe-id` | _none_ | Bypass `rbxplace.toml` lookup. `--env` is still required to name the section in `rbxconfig.toml` for commands that read/write it |
 
 ## Configuration
@@ -344,6 +356,17 @@ value = true
 description = "Testing new popup - remove in v2"
 ```
 
+An optional top-level `repository` field names the configs repository these entries belong to. Absent means `InExperienceConfig`, so a file written before the field existed keeps meaning what it meant. It has to sit **above** the first `[<env>...]` header, since a bare key after a table header belongs to that table:
+
+```toml
+repository = "DataStoresConfig"
+
+[prod.entries."..."]
+# entries as above; their keys are the repository's business, not this tool's
+```
+
+The file is the source of truth: see [Repositories](#repositories) for what happens when `--repository` names a different one.
+
 Dotted key names (e.g. `"features.new_xp_popup"`) are preserved verbatim as the Roblox config key. In-game, read them with:
 
 ```lua
@@ -373,6 +396,51 @@ synced_at = "2024-01-15T14:30:00Z"
 | --- | --- |
 | Read live config (`get`, `list`, `check`, `pull`, `sync` diff) | `universe:read` |
 | Write config (`sync`, `rollback`) | `universe:write` |
+
+## Repositories
+
+The Configs API takes the repository as a path parameter, and every verb under it is identical whichever one is named: stage a draft, read it, publish it, list revisions, restore one. `rbx config` addresses `InExperienceConfig` unless told otherwise, which is the live config `ConfigService` reads in-experience.
+
+| Repository | Documented schema |
+| --- | --- |
+| `InExperienceConfig` | Yes, the in-experience tunables this tool was built around |
+| `DataStoresConfig` | Yes, the data store right-to-be-forgotten deletion templates |
+| `RecommendationServicesConfig` | No |
+| `ExtendedServicesConfig` | No |
+| `LeaderboardsConfig` | No |
+| `ExperienceUserConfig` | No |
+| `JourneysConfig` | No |
+| `AntiCheatConfig` | No |
+
+`InExperienceConfig` and `DataStoresConfig` are the only two with a documented entry schema, and they are documented on different pages. The other six are in Roblox's `Repository` enum and documented nowhere: the enum's own description says only values exposed by the public API are included, so they are forward declarations of products that are not out yet. They are reachable here because they are reachable in the API, and anyone who knows their keys can use them.
+
+This command carries the transport and takes no view on what any repository's entries mean. It reads, diffs, stages and publishes JSON values under string keys, whichever repository holds them.
+
+### Which repository an invocation addresses
+
+`--repository` is a flag on `rbx config` itself, so it goes **before** the subcommand: `rbx config --repository DataStoresConfig list`. Names are matched case-insensitively, and an unknown one is refused with the eight above. `rbxconfig.toml` may name one in its `repository` field, and for the commands that read the file it is the source of truth.
+
+| `--repository` | `repository` in the file | Addressed |
+| --- | --- | --- |
+| absent | absent | `InExperienceConfig`. Every invocation that predates the flag |
+| absent | named | the file's |
+| named | absent | the flag's |
+| named | a **different** one | refused, naming both and the file |
+
+The last row is the point of the design. A `sync` that pushed `rbxconfig.toml`'s entries into a repository the file does not describe overwrites a live config wholesale, and this command cannot undo it, so a contradiction is not resolved by picking a winner. Drop the flag, or change the field.
+
+`get`, `list` and `versions` never open `rbxconfig.toml` (a bare `--universe-id` is enough to name what they read), so they take the flag or the default and nothing else. `check`, `sync`, `pull` and `rollback` resolve against the file by the table above. `pull` records the repository it pulled from when it is not the default, so the next `sync` from that file publishes back where the entries came from.
+
+### Limits
+
+Two documented ceilings, checked locally before a publish rather than left to a 400 that names neither the key nor the limit:
+
+| Limit | Value |
+| --- | --- |
+| Entries per repository | 100 |
+| Key length | 256 characters |
+
+`sync` and `sync --dry-run` both enforce them, so a dry run refuses the entry set a publish would refuse instead of reporting a clean plan for it. The key length is counted in characters, not bytes, so a key of accented characters is not refused for a limit Roblox would not have applied.
 
 ## Deployment strategies
 

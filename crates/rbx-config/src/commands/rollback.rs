@@ -2,6 +2,7 @@ use anyhow::{bail, Result};
 use colored::Colorize;
 use dialoguer::Select;
 
+use crate::config::ConfigsFile;
 use crate::ctx::ConfigCtx;
 use crate::lock;
 
@@ -10,7 +11,17 @@ use rbx_core::confirm::confirm_destructive;
 
 pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> Result<()> {
     let (env, universe_id, confirm) = ctx.resolve_target()?;
-    let client = make_client(ctx)?;
+    // A rollback publishes, so the file gets to name the repository it
+    // publishes into: restoring a revision of the wrong one replaces a live
+    // config nobody touched. It reads no entries though, so a directory with
+    // no `rbxconfig.toml` rolls back on the flag or the default, as it always
+    // did.
+    let declared = if ctx.config.exists() {
+        ConfigsFile::load(&ctx.config)?.declared_repository()?
+    } else {
+        None
+    };
+    let client = make_client(ctx, ctx.resolve_repository(declared)?)?;
 
     lock::check_drift_beside(&ctx.config, &env, universe_id)?;
 

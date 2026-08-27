@@ -7,19 +7,29 @@ pub mod rollback;
 pub mod sync;
 pub mod versions;
 
+#[cfg(test)]
+mod repository;
+
 use anyhow::Result;
 
-use crate::api::RbxConfigClient;
+use rbx_core::api::{ConfigsClient, Repository};
+
 use crate::ctx::ConfigCtx;
 
-pub fn make_client(ctx: &ConfigCtx) -> Result<RbxConfigClient> {
+/// A client aimed at one repository.
+///
+/// The repository is a parameter rather than read off the context, because
+/// which one an invocation addresses depends on whether the command reads
+/// `rbxconfig.toml`: see `ConfigCtx::resolve_repository` for the commands that
+/// do and `ConfigCtx::flag_repository` for the three that do not.
+pub fn make_client(ctx: &ConfigCtx, repository: Repository) -> Result<ConfigsClient> {
     let key = ctx.api_key.clone().ok_or_else(|| {
         anyhow::anyhow!(
             "--api-key or RBX_API_KEY env var is required.\n\
              Create a key at: https://create.roblox.com/dashboard/credentials"
         )
     })?;
-    let client = RbxConfigClient::new(key);
+    let client = ConfigsClient::new(key, repository);
     #[cfg(test)]
     if let Some(url) = &ctx.base_url {
         return Ok(client.with_base_url(url.clone()));

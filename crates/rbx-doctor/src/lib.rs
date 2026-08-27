@@ -556,9 +556,16 @@ fn coverage_section(facts: &Facts, dir: &std::path::Path) -> Section {
 
     let present = coverage::present_in(dir);
     if present.is_empty() {
+        // Named from the table rather than restated here: a config file added
+        // to `REQUIREMENTS` and forgotten in this sentence would be a tool
+        // `doctor` looks for and then denies knowing about.
+        let known: Vec<&str> = coverage::REQUIREMENTS
+            .iter()
+            .map(|r| r.config_file)
+            .collect();
         s.push(Line::info(
             "config files",
-            "none of rbxplace.toml, rbxmeta.toml, rbxconfig.toml, rbxshop.toml are here",
+            format!("none of {} are here", known.join(", ")),
         ));
         return s;
     }

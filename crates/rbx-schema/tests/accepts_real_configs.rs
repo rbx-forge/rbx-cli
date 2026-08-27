@@ -206,6 +206,34 @@ value = false
     );
 }
 
+/// The worked example `docs/rtbf.md` prints, which is the file a newcomer
+/// copies: both template kinds, an explicit scope, and an ordered store.
+#[test]
+fn an_rtbf_file_with_both_template_kinds_validates() {
+    assert_valid(
+        "rbxrtbf.toml",
+        "an rbxrtbf.toml using [[key]], a scope, an ordered store and [[store]]",
+        r#"
+[[key]]
+store = "PlayerInventory"
+pattern = "User_{UserId}"
+
+[[key]]
+store = "PlayerSettings"
+pattern = "Settings_{UserId}"
+scope = "Player_{UserId}"
+
+[[key]]
+store = "PlayerLeaderboard"
+pattern = "User_{UserId}"
+ordered = true
+
+[[store]]
+pattern = "Player_{UserId}_Save"
+"#,
+    );
+}
+
 /// One shop config exercising all three resource kinds, the tables around
 /// them, and a per-env overlay: the shape `docs/shop.md` documents.
 #[test]

@@ -50,8 +50,8 @@ body:
     attributes:
       label: Which part of the tool
       options:
-        - Declarative reconciliation (place, shop, meta, config, env, init, apikey, import, check)
-        - Live operations (data, ban, restart, servers, analytics, memorystore, publish)
+        - Declarative reconciliation (place, shop, meta, config, rtbf, env, init, apikey, import, check)
+        - Live operations (data, ban, restart, servers, analytics, memorystore, message)
         - Secrets (secret)
         - Local utilities (open, download, ads, doctor)
         - Something new, none of the above

@@ -63,7 +63,7 @@ publish, the answer is to change the name, not to withhold a credential.
 
 ## What it is never used for
 
-**No live operation.** `servers`, `analytics`, `ban`, `restart`, `data`, `memorystore`, `publish`, `ads` and `probe` take an API key and nothing else. There is no cookie path in any of them to fall back to. Those are the commands that act on players and player data, and keeping them key-only is what makes the scope list on the key the audit trail: a read key cannot ban anybody, whatever calls it. See [the safety model](./ops.md#safety-model).
+**No live operation.** `servers`, `analytics`, `ban`, `restart`, `data`, `memorystore`, `message`, `ads` and `probe` take an API key and nothing else. There is no cookie path in any of them to fall back to. Those are the commands that act on players and player data, and keeping them key-only is what makes the scope list on the key the audit trail: a read key cannot ban anybody, whatever calls it. See [the safety model](./ops.md#safety-model).
 
 **Never as a fallback for a missing key.** `place`, `config`, `shop`, `check`, `env` and `open` are key-only or fully offline. No Open Cloud call in the toolkit is retried with the cookie when the key is rejected: a `403` from Open Cloud means the key is wrong, and answering it by escalating to a full account session would defeat the point of having scoped the key at all.
 

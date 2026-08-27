@@ -12,7 +12,7 @@ These are subcommands of `rbx`, listed last in `rbx --help` and prefixed `Live:`
 | `restart` | Forecast and launch a rolling server restart. | [ops/restart.md](./ops/restart.md) |
 | `data` | Read, overwrite, copy and recover a data store entry; `data ordered` for leaderboards. | [ops/data.md](./ops/data.md) |
 | `memorystore` | Write cache values servers read through `MemoryStoreService`. | [ops/memorystore.md](./ops/memorystore.md) |
-| `publish` | Push a MessagingService message to every running server. | [ops/message.md](./ops/message.md) |
+| `message` | Push a MessagingService message to every running server. | [ops/message.md](./ops/message.md) |
 | `ads` | Launch and steer ad campaigns. Spends money, reads no results. | [ops/ads.md](./ops/ads.md) |
 | `probe` | Raw authenticated request to any Open Cloud path. Hidden from `--help`. | [ops/probe.md](./ops/probe.md) |
 
@@ -93,7 +93,7 @@ Scopes by subcommand:
 | `data ordered` writes | `universe.ordered-data-store.scope.entry:write` | **write** |
 | `memorystore get` / `list` | `memory-store.sorted-map:read` | read |
 | `memorystore set` / `delete` | `memory-store.sorted-map:write` | **write** |
-| `publish` | `universe-messaging-service:publish` | **write** |
+| `message` | `universe-messaging-service:publish` | **write** |
 | `probe` | whatever the path you probe needs | depends |
 
 **Keep read and write in separate keys.** The read key is the one that ends up in a shell history during a debugging session, and it should be the one that cannot ban anybody.
@@ -110,7 +110,7 @@ Three rules, all structural rather than conventions to remember.
 
 ## The Studio cookie
 
-The `.ROBLOSECURITY` cookie is the one credential in this tool that the section above does not cover, and **no live-ops command accepts it**. `servers`, `analytics`, `ban`, `restart`, `data`, `memorystore`, `publish`, `ads` and `probe` take an API key and nothing else, with no cookie path to fall back to. That is on purpose: these are the operations that act on players, so they stay behind scoped keys where the scope list is the audit trail.
+The `.ROBLOSECURITY` cookie is the one credential in this tool that the section above does not cover, and **no live-ops command accepts it**. `servers`, `analytics`, `ban`, `restart`, `data`, `memorystore`, `message`, `ads` and `probe` take an API key and nothing else, with no cookie path to fall back to. That is on purpose: these are the operations that act on players, so they stay behind scoped keys where the scope list is the audit trail.
 
 A session cookie is a complete account identity. It is not scoped to a universe, not scoped to an operation, and not revocable per tool, so it is strictly more powerful than any key `rbx` will ever ask you for. A handful of commands outside this page do need one, because Open Cloud publishes no equivalent endpoint.
 

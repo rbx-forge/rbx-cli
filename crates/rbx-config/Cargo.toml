@@ -16,7 +16,6 @@ publish = false
 anyhow.workspace = true
 clap.workspace = true
 tokio.workspace = true
-reqwest.workspace = true
 serde.workspace = true
 schemars = { workspace = true, optional = true }
 serde_json.workspace = true

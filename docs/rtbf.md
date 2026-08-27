@@ -4,6 +4,8 @@ Declare which data store keys hold a user's data, so Roblox can delete them when
 
 `rbx rtbf` keeps a local `rbxrtbf.toml` as the canonical source of truth for those declarations and publishes it through the `DataStoresConfig` repository of the Open Cloud Configs API. It targets environments defined in a shared `rbxplace.toml`, shows the difference before publishing, and can check a template against the data stores that actually exist.
 
+**(0.5.0+)** This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
+
 ## Why this needs a command of its own
 
 When Roblox processes a deletion request for one of your players, it does not know where that player's data lives. A template tells it: a data store name and a key pattern holding a `{UserId}` token, which Roblox substitutes with the requester's id and then deletes what matches.

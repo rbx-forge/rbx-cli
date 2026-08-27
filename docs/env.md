@@ -412,7 +412,7 @@ Marking every env `codegen = false` is refused rather than emitting a module who
 
 ### Groups
 
-A group is a **name for a set of envs, and nothing more**.
+**(0.5.0+)** A group is a **name for a set of envs, and nothing more**.
 
 ```toml
 [groups]

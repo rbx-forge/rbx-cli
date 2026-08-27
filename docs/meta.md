@@ -75,7 +75,7 @@ Three concepts:
 
 `sync --env dev` applies `[game] + [envs.dev]` to dev. `sync --env prod` applies `[game] + [envs.prod]` to prod. Same `rbxmeta.toml`, different effective state.
 
-### `--env all` and groups
+### `--env all` and groups **(0.5.0+)**
 
 `check`, `sync` and `pull` all take a plural `--env`: `all` walks every env in `rbxplace.toml` in alphabetical order, a group walks its members in the order `[groups]` declared them. `--place` is resolved inside each env, against that env's own `[<env>.places]` map.
 

@@ -399,7 +399,7 @@ synced_at = "2024-01-15T14:30:00Z"
 
 ## Repositories
 
-The Configs API takes the repository as a path parameter, and every verb under it is identical whichever one is named: stage a draft, read it, publish it, list revisions, restore one. `rbx config` addresses `InExperienceConfig` unless told otherwise, which is the live config `ConfigService` reads in-experience.
+**(0.5.0+)** The Configs API takes the repository as a path parameter, and every verb under it is identical whichever one is named: stage a draft, read it, publish it, list revisions, restore one. `rbx config` addresses `InExperienceConfig` unless told otherwise, which is the live config `ConfigService` reads in-experience.
 
 | Repository | Documented schema |
 | --- | --- |

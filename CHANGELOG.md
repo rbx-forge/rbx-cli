@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`rbx apikey create` reported false scope drift on any target Roblox does
+  not return under `universeIds`** (#37). The post-create check announced
+  that a scope had not been stored on its universe *and* that the same scope
+  had appeared unasked on `*`, the two warnings mirroring each other, for a
+  key Roblox had stored exactly as requested.
+
+  The target is not always in one field. `universe-datastores.objects` and
+  `.versions` come back under `universeDatastores: [{universeId}]`, and a
+  creator-targeted scope such as `asset` under `groupIds`, while
+  `universe-datastores.control` uses `universeIds` like everything else. That
+  is why one key could contain both the bug and its counter-example. The
+  reader took only `universeIds`, and a scope whose target it did not find
+  fell through to the `*` that means "no target at all", which is what
+  produced the second warning.
+
+  Cosmetic in effect and not in consequence: the check exists to catch a key
+  that cannot do its job, and a warning that cries wolf on a correct key is
+  how a real one gets ignored.
+
+  A target under a field this build does not know is now **reported** rather
+  than read as a wildcard, so a fourth shape shows up as "this build cannot
+  read the answer" instead of as confident, wrong drift. That includes a data
+  store named inside the target, which a key scoped to one store is sent
+  with: no capture shows how it comes back, and quietly dropping it would
+  verify a narrow key against a wide request and call it a match. Ids are
+  read whether they arrive as strings or numbers, since that is the same
+  target written differently rather than a shape nobody understands.
+
 ## [0.5.0]
 
 ### Added

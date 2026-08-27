@@ -544,4 +544,56 @@ mod tests {
             vec!["universe:write on 1"]
         );
     }
+
+    /// Issue #37, end to end: the request of the repro against the response
+    /// Roblox actually returns for it. The two warnings used to mirror each
+    /// other, which is the signature of a target that was not read rather
+    /// than a permission that was not stored.
+    #[test]
+    fn the_response_of_issue_37_is_not_drift() {
+        let sent = vec![
+            def(
+                "universe-datastores.control",
+                &["109876543210987"],
+                &["list"],
+            ),
+            def(
+                "universe-datastores.objects",
+                &["109876543210987"],
+                &["read"],
+            ),
+            def("asset", &["G1234567890"], &["read"]),
+        ];
+        let response = serde_json::json!({
+            "scopes": [
+                {
+                    "name": "universe-datastores.control",
+                    "operations": ["list"],
+                    "universeIds": ["109876543210987"]
+                },
+                {
+                    "name": "universe-datastores.objects",
+                    "operations": ["read"],
+                    "universeDatastores": [{ "universeId": "109876543210987" }]
+                },
+                {
+                    "name": "asset",
+                    "operations": ["read"],
+                    "groupIds": ["1234567890"]
+                }
+            ]
+        });
+
+        let stored = crate::introspect::scopes_from_response(&response)
+            .expect("an introspect response")
+            .expect("readable scopes");
+
+        let asked = permissions(&sent);
+        let got = permissions(&stored);
+        let missing: Vec<String> = asked.difference(&got).map(spell_permission).collect();
+        let extra: Vec<String> = got.difference(&asked).map(spell_permission).collect();
+
+        assert!(missing.is_empty(), "reported missing: {missing:?}");
+        assert!(extra.is_empty(), "reported unasked: {extra:?}");
+    }
 }

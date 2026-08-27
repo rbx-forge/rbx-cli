@@ -46,7 +46,7 @@ rbx restart launch --env prod --bleed-off 30 --apply
 
 Nothing to restart short-circuits: if every server is already on the newest version, the command says so and does not prompt.
 
-## Telling the game why
+## Telling the game why **(0.5.0+)**
 
 A server scheduled to close fires:
 

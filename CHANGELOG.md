@@ -7,7 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0]
+
 ### Added
+
+- **`rbx config --repository <name>`, and a `repository` field in
+  `rbxconfig.toml`.** The Configs API takes the repository as a path parameter
+  and its `Repository` enum holds eight values; this tool had it as
+  `const REPOSITORY: &str = "InExperienceConfig"`. So the whole
+  draft/publish/revisions/restore lifecycle was already repository-agnostic
+  underneath a parameter modelled as a constant.
+
+  `InExperienceConfig` and `DataStoresConfig` are the only two with a
+  documented entry schema, and the other six are forward declarations of
+  products that are not out yet. That is why there is no bespoke command per
+  repository: a generic flag works the day Roblox documents
+  `LeaderboardsConfig`, with no release of this tool. `rbx config` carries the
+  transport and takes no view on what any repository's entries mean.
+
+  A flag contradicting the file is **refused**, naming both and the file that
+  holds one of them, because a `sync` into a repository the file does not
+  describe overwrites a live config wholesale and this command cannot undo it.
+  Every existing invocation is unchanged: no flag and no field is still
+  `InExperienceConfig`.
 
 - **`rbx rtbf`**: the failure this prevents is a deletion template that
   matches nothing. Roblox accepts one, stores it, reports it as configured,
@@ -198,6 +220,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   still has useful things to say about, and a file that does not parse is one
   failing row from `tools::env` beside every other tool's findings rather than
   an abort that collapses the whole run to a raw TOML message.
+
+- **`rbx config sync` no longer discards a draft somebody staged in the
+  Creator Hub.** Roblox documents `previousDraftHash` on `draft:overwrite` as
+  optimistic concurrency: the request fails when the hash does not match the
+  server's current draft. `overwrite_draft` took the parameter and
+  `sync_and_publish` passed `None`, so the check was threaded through the code
+  and hardcoded off. A staged draft was overwritten in silence, and it was gone
+  before its author could learn it had existed.
+
+  The draft is now read first, its hash travels back with the write, and what
+  was replaced is named on the way past. Not a refusal: pipelines legitimately
+  overwrite, and a hard stop would break them. The extra request is the point
+  of the change rather than a cost of it.
+
+- **The documented Configs limits are checked before the publish, not by
+  Roblox.** 100 entries per repository and 256 characters per key. The 101st
+  key failed as a 400 from inside a deploy, naming neither the key nor the
+  limit. `sync --dry-run` enforces them too, because a dry run reporting a
+  clean plan for a publish that cannot happen is the wrong answer. Key length
+  counts characters rather than bytes, since the guide says "256 characters"
+  and a byte count would refuse 200 accented characters Roblox accepts.
 
 - **A config publish no longer clears the repository's conditional rules.**
   The Configs API's `draft:overwrite` treats an omitted `conditionalRules` as
@@ -443,7 +486,8 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rbx-forge/rbx-cli/releases/tag/v0.2.0

@@ -74,7 +74,7 @@ If the target place has an active Team Create session, the upload fails immediat
 
 If the environment has `confirm = true`, a confirmation prompt is shown before uploading.
 
-### `--env all` and groups
+### `--env all` and groups **(0.5.0+)**
 
 A plural `--env` uploads the same file to every env it names, one after another: `all` walks the file's envs in alphabetical order, a group walks its members in the order they were declared. `--place` and `--all-places` are resolved inside each env, so `--all-places` over `--env all` is every place of every env.
 
@@ -488,7 +488,7 @@ rbx servers list --env prod --version "$VERSION" --json
 
 ### One document per env, under `--env all`
 
-`upload` is the only write here that fans out, and a plural `--env` gives it several receipts to report. They go out under their own envelope rather than as a widened `WriteDocument`: `promote` and `rollback` act on one env by construction, and every consumer already reads `env` and `universe_id` as single values. Widening them would break those readers in order to describe a case they never asked about.
+**(0.5.0+)** `upload` is the only write here that fans out, and a plural `--env` gives it several receipts to report. They go out under their own envelope rather than as a widened `WriteDocument`: `promote` and `rollback` act on one env by construction, and every consumer already reads `env` and `universe_id` as single values. Widening them would break those readers in order to describe a case they never asked about.
 
 So the rule above holds here too, at one level up: **the shape follows the invocation.** One env emits the receipt itself, unchanged, whatever else `rbxplace.toml` holds. `all` or a group emits this:
 

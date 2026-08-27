@@ -273,8 +273,8 @@ impl ConfigsClient {
     ///
     /// `conditional_rules` is the full intended rule set after publish, and
     /// `None` means "clear every rule there is". It is a required decision
-    /// rather than an optional extra: see [`OverwriteBody`] and
-    /// [`ConfigsClient::conditional_rules_to_restate`].
+    /// rather than an optional extra: see `OverwriteBody` and
+    /// `ConfigsClient::conditional_rules_to_restate`.
     pub async fn overwrite_draft(
         &self,
         universe_id: u64,
@@ -341,7 +341,7 @@ impl ConfigsClient {
     ///
     /// A fourth request happens when the draft stages no conditional rules,
     /// because then the published ones are what has to be restated; see
-    /// [`ConfigsClient::conditional_rules_to_restate`] for why omitting them
+    /// `ConfigsClient::conditional_rules_to_restate` for why omitting them
     /// is destructive rather than neutral.
     ///
     /// Returns the publish result alongside the entries the discarded draft
@@ -470,7 +470,7 @@ pub struct ConfigSnapshot {
     pub entries: BTreeMap<String, Json>,
     /// The published rule set. Read for one reason only: an overwrite that
     /// does not restate it deletes it, and the draft does not always carry it.
-    /// See [`ConfigsClient::conditional_rules_to_restate`].
+    /// See `ConfigsClient::conditional_rules_to_restate`.
     #[serde(rename = "conditionalRules", default)]
     pub conditional_rules: Option<ConditionalRules>,
 }

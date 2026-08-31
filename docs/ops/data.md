@@ -301,6 +301,26 @@ They read real player data, so they say no more than the human form already says
 
 No `datastore` or `scope` key: this is the document you read before you have either. `id` is what every other subcommand takes as `--datastore`. `create_time` is **absent** when the response omitted it. `deleted` is only ever true with `--show-deleted`, since nothing else returns a soft-deleted store.
 
+### `data set --json`, and `reset`, `restore`, `delete`
+
+```json
+{
+  "schema_version": 1,
+  "datastore": "PlayerData",
+  "scope": "global",
+  "entry": "Player_156",
+  "action": "set",
+  "applied": true,
+  "existed": true,
+  "revision_id": "08DF077D....01",
+  "backup": ".rbx/backups/prod/Player_156-20260831T163538Z.json"
+}
+```
+
+**Requires `--yes`.** `--json` refuses to prompt and every write asks for a confirmation, so the pair would either draw a prompt into a pipe or quietly skip a confirmation. Clap refuses the combination rather than either.
+
+`action` is the verb you asked for, not the one they share internally: `set`, `reset`, `restore`, `copy` or `delete`. `applied` is false for a dry run, which is a success that changed nothing, and telling those apart from the exit code alone is impossible. `existed` says whether the key was there before, so `set` reports whether it created one and `delete` reports whether it found anything to remove. `revision_id` is **absent** on a dry run and on a delete, and it is the field this document exists for: it is what `data revisions --revision` takes. `backup` is **absent** under `--no-backup` and when there was no previous value to copy.
+
 ### `data list --json`
 
 ```json

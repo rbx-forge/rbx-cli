@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`--json` on `set`, `reset`, `restore` and `delete`.** These four said what
+  they did in prose on stdout, so anything driving them had two ways to know
+  and both were poor: parse that sentence, or read the exit code and learn
+  only that it worked. The document carries the action, whether it was applied
+  or was a dry run, whether the entry existed, where the backup went, and the
+  revision the entry is at now, which is the one fact a caller wants afterwards
+  because it is what `data revisions --revision` takes.
+
+  This overturns a decision the crate had pinned with a test: `--json` was
+  confined to the subcommands that never prompt, because `OutputFormat::Json`
+  refuses to prompt and a write asks through `confirm_always`. That reasoning
+  was right, so the flag now **requires `--yes`**, and clap refuses the pair
+  without it. The guarantee stays where it was, at parse time, rather than
+  moving into a check at run time that somebody has to remember.
+
+  `copy`, `increment` and `snapshot` still carry no document.
+
 - **`rbx data delete`**: removes an entry the way `RemoveAsync` does, which
   until now had no equivalent here. `set` and `reset` were the only ways to
   change an entry from outside the game, and neither leaves the experience in

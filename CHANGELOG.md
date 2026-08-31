@@ -64,6 +64,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`rbx place versions` and `rbx place download` refused `--place-id` without
+  `--env`.** Both commands declared `--env` as required, so clap turned the
+  invocation away before anything looked at the id. `--place-id` is documented
+  as skipping `rbxplace.toml` and reaching the reads, its own help says it wins
+  over `--env` when both are given, and the resolver behind it already answered
+  from the id alone: only the parse rule disagreed.
+
+  `--env` is now required *unless* `--place-id` is present, on those two reads
+  only. The writes still refuse an id on its own, which is deliberate and
+  unchanged: `confirm = true` is declared on an env, and a write with no env
+  would walk past a guard somebody set.
+
+  One consequence for consumers: `place versions --json` **omits** `env` under
+  a bare `--place-id`, rather than inventing one. That is the rule `place
+  places --json` already follows under a bare `--universe-id`, and no document
+  that carried the field before loses it, since the combination that omits it
+  could not be parsed until now.
+
+  Found by a new test that hands every `rbx …` line in `docs/` to clap without
+  running it. The pages described the behaviour that was designed and the CLI
+  had the other one.
+
 - **`rbx apikey create` reported false scope drift on any target Roblox does
   not return under `universeIds`** (#37). The post-create check announced
   that a scope had not been stored on its universe *and* that the same scope

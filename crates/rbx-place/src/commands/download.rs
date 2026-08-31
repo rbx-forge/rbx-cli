@@ -13,7 +13,7 @@ use super::make_client;
 pub async fn run(
     global: &GlobalFlags,
     base_url: Option<&str>,
-    env: &str,
+    env: Option<&str>,
     place: Option<&str>,
     version: Option<u64>,
     published: bool,
@@ -37,6 +37,13 @@ pub async fn run(
                     .single("places")
                     .context("`rbx place download` writes one file, and --out names one path")?;
             }
+            // clap makes this unreachable: `--env` is required unless
+            // `--place-id` is present, and this is the branch where it is not.
+            let Some(env) = env else {
+                anyhow::bail!(
+                    "no target. Pass --env <name>, or --place-id <id> to name the place directly."
+                )
+            };
             let config = PlacesConfig::load(&global.places)?;
             let env_config = config.get_env(env)?;
             env_config.resolve_place(place)?
@@ -73,13 +80,15 @@ pub async fn run(
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| PathBuf::from(format!("{}.rbxl", place_id)));
 
-    println!(
-        "Downloading {}/{} ({}) @ {}",
-        env.bold(),
-        place_name.bold(),
-        place_id,
-        version_label
-    );
+    // `env/place (id)` when an env resolved one. Under `--place-id` there is
+    // no env and the name *is* the id, so the same shape would print the
+    // number twice: the id alone says everything the pair would have.
+    let target = match env {
+        Some(name) => format!("{}/{} ({})", name.bold(), place_name.bold(), place_id),
+        None => place_id.to_string().bold().to_string(),
+    };
+
+    println!("Downloading {target} @ {version_label}");
 
     print!("  Getting download URL ... ");
     let url = client.get_download_url(place_id, resolved_version).await?;

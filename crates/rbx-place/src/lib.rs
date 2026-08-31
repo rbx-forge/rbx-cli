@@ -76,9 +76,15 @@ pub enum PlaceCommands {
 
     /// Download a place file.
     Download {
-        /// Environment name.
-        #[arg(long, short)]
-        env: String,
+        /// Environment name. Not needed when `--place-id` names the place.
+        ///
+        /// Required, like every other subcommand's copy, so a missing target
+        /// is a parse error rather than a runtime one. Conditionally so here,
+        /// because this is a read and `--place-id` is documented as reaching
+        /// the reads without a `rbxplace.toml`: `single_place` already answers
+        /// from the id alone, and only this made clap refuse first.
+        #[arg(long, short, required_unless_present = "place_id")]
+        env: Option<String>,
 
         /// Place name (defaults to the only place if unambiguous).
         #[arg(long, short)]
@@ -136,9 +142,12 @@ pub enum PlaceCommands {
 
     /// List recent versions of a place.
     Versions {
-        /// Environment name.
-        #[arg(long, short)]
-        env: String,
+        /// Environment name. Not needed when `--place-id` names the place.
+        ///
+        /// See `Download`: required so a missing target is a parse error,
+        /// conditionally so because this is a read.
+        #[arg(long, short, required_unless_present = "place_id")]
+        env: Option<String>,
 
         /// Place name (defaults to the only place if unambiguous).
         #[arg(long, short)]
@@ -358,7 +367,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             commands::download::run(
                 global,
                 base_url,
-                &env,
+                env.as_deref(),
                 place.as_deref(),
                 version,
                 published,
@@ -434,7 +443,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             commands::versions::run(
                 global,
                 base_url,
-                &env,
+                env.as_deref(),
                 place.as_deref(),
                 count,
                 &filter,

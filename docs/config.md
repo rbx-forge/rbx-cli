@@ -34,7 +34,7 @@ rbx config sync  --env dev --api-key YOUR_API_KEY
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx config init</code></summary>
 
 Write a commented template `rbxconfig.toml` in the current directory. Bails if the file already exists. Override the target path with `--config <path>`, which belongs to `rbx config` itself and so goes **before** the subcommand.
@@ -52,7 +52,7 @@ rbx config --repository DataStoresConfig init
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config get [&lt;key&gt;]</code></summary>
 
 Print the live published config. If a key is provided, prints only that key's value.
@@ -111,7 +111,7 @@ rbx config get --env dev --json | jq -r '.entries | to_entries[] | select(.value
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config list</code></summary>
 
 List all published config keys with their type and a compact value preview.
@@ -160,7 +160,7 @@ rbx config list --env prod --json | jq -r .config_version
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config check</code></summary>
 
 Show the diff between local `rbxconfig.toml` and the live published config. Read-only - no draft, no publish, no confirmation prompt.
@@ -173,7 +173,7 @@ rbx config check --env dev
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config sync</code></summary>
 
 Push `rbxconfig.toml` as the canonical state for the target env. Uses `PUT /draft:overwrite` so keys absent from the file are removed from live. Always shows the diff first. Writes the published `configVersion` and entries to `rbxconfig.lock.toml` on success.
@@ -202,7 +202,7 @@ Both the [documented limits](#limits) are checked before the write, `--dry-run` 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config pull</code></summary>
 
 Fetch the live published config and write it to `rbxconfig.toml` under the target env. Preserves any local `description` annotations on keys that still exist. Other envs in the file are left untouched. The published `configVersion` and timestamp are recorded in `rbxconfig.lock.toml`.
@@ -219,7 +219,7 @@ rbx config --config staging.toml pull --env dev   # write to a different file
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config versions</code></summary>
 
 List the revision history for the target env's universe. The current revision is tagged `[published]`.
@@ -293,7 +293,7 @@ rbx config versions --env prod --count 50 --json | jq -r '.revisions[].changed_k
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx config rollback [&lt;revision_id&gt;]</code></summary>
 
 Roll back to a previous revision. Restores the chosen revision into the draft and publishes it as a new version. If `revision_id` is omitted, an interactive picker lists recent revisions (current tagged `[published]`).

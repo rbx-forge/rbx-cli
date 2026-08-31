@@ -130,7 +130,7 @@ If you genuinely manage metadata on two places, give them an env each in `rbxpla
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx meta init</code></summary>
 
 Initialize a new config file. Without flags, writes a commented template.
@@ -145,7 +145,7 @@ With `--from-remote` and `--env <name>` instead of `--universe-id`/`--place-id`,
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx meta sync</code></summary>
 
 Apply the config (base + env overlay) to Roblox. Diffs against the lockfile's `[envs.<name>]` section to only send changed fields, then updates that section after each successful API call.
@@ -159,7 +159,7 @@ Apply the config (base + env overlay) to Roblox. Diffs against the lockfile's `[
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx meta check</code></summary>
 
 Validate the config and print the diff against the lockfile for the targeted env. Read-only.
@@ -168,7 +168,7 @@ Exit codes: `0` nothing pending, `2` the config no longer matches the lockfile, 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx meta pull</code></summary>
 
 Pull remote state for the targeted env into the config and lockfile. Differential: writes only what diverges (see [Multi-environment](#multi-environment) above for the algorithm). Comments are preserved via [`toml_edit`](https://docs.rs/toml_edit).
@@ -293,7 +293,7 @@ language_code = "en_us"
 visibility = "private"
 ```
 
-<details>
+<details markdown="1">
 <summary><code>[experience]</code></summary>
 
 | Field | Type | Required | Description |
@@ -303,7 +303,7 @@ visibility = "private"
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game]</code></summary>
 
 Scalar fields live directly under `[game]`. Grouped multi-field settings (devices, social links, etc.) have their own sub-tables below.
@@ -323,7 +323,7 @@ Scalar fields live directly under `[game]`. Grouped multi-field settings (device
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.private_server]</code></summary>
 
 Omit this table entirely to disable private servers.
@@ -334,7 +334,7 @@ Omit this table entirely to disable private servers.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.devices]</code></summary>
 
 Omit a field to leave that device unchanged on Roblox.
@@ -349,7 +349,7 @@ Omit a field to leave that device unchanged on Roblox.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.server_fill]</code></summary>
 
 Server fill mode. **Requires cookie**: not exposed by Open Cloud.
@@ -361,7 +361,7 @@ Server fill mode. **Requires cookie**: not exposed by Open Cloud.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.permissions]</code></summary>
 
 What the experience lets other experiences and the client do to it. **Requires cookie.**
@@ -379,7 +379,7 @@ The same absence means **`pull` and `init` cannot adopt these**. The lockfile re
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.avatar]</code></summary>
 
 Avatar rules. **Requires cookie.** The four mode fields are read back by `pull`; the two scale tables are not (see below).
@@ -393,7 +393,7 @@ Avatar rules. **Requires cookie.** The four mode fields are read back by `pull`;
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.avatar.min_scale]</code> / <code>[game.avatar.max_scale]</code></summary>
 
 The scale range players are held to. **Requires cookie**, and **write-only**: Roblox returns neither table from any endpoint, so `pull` leaves whatever the config says rather than inventing a range.
@@ -412,7 +412,7 @@ Roblox's model declares a sixth field, `depth`, and this sends five. That is on 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.avatar.asset_overrides]</code></summary>
 
 Forces what players wear in each of the ten slots Roblox exposes. **Requires cookie**, and **write-only**.
@@ -442,7 +442,7 @@ Anything other than an id or `"player_choice"` is a load error naming the valid 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>game.engine_avatar_settings</code></summary>
 
 Path to a file holding the modern avatar rules: animation rules, clothing rules, accessory rules, collision rules, body rules. **Requires cookie**, and **write-only**.
@@ -542,7 +542,7 @@ To get a starting document, the most complete public example is [Phoenix-CLI's `
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.paid_access]</code></summary>
 
 Whether players pay to enter. **Requires cookie.**
@@ -558,7 +558,7 @@ Omitting the table leaves paid access unmanaged; `mode = "free"` actively turns 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[game.social_links.&lt;platform&gt;]</code></summary>
 
 Omit a section to remove that link from Roblox. Available platforms: `facebook`, `twitter`, `youtube`, `twitch`, `discord`, `roblox_group`, `guilded`.
@@ -570,7 +570,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[media]</code></summary>
 
 | Field | Type | Default | Description |

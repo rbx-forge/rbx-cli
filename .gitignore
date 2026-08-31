@@ -1,8 +1,8 @@
 /target
 
-# `mdbook build` output. The site is built by CI from docs/ on every push to
+# `mkdocs build` output. The site is built by CI from docs/ on every push to
 # main and served from GitHub Pages; nothing rendered is ever committed.
-/book
+/site
 
 # Editor/tool configs
 .idea/

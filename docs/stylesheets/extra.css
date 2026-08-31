@@ -1,67 +1,137 @@
 /* Palette for rbx-cli's documentation site.
  *
- * Material ships a fixed set of named primaries; `primary: custom` in
- * mkdocs.yml hands the choice here instead, which is what lets these keep the
- * pairs the previous theme measured rather than picking the nearest preset.
+ * These are VitePress's own default values, read off the stylesheet of a site
+ * built with it rather than eyeballed: `#3451b2` indigo on pure white, text at
+ * `#3c3c43` rather than black, and the dark side at `#1b1b1f`. Material ships
+ * a fixed set of named primaries, so `primary: custom` in mkdocs.yml hands the
+ * choice here.
  *
- * Every pair below is at least 4.5:1 (WCAG AA), including the two cases a
- * palette usually misses: a link sitting on a code background, and table
- * borders on a page that is mostly tables.
+ * Every pair is measured, not assumed. On white: text 10.94:1, secondary text
+ * 5.62:1, the indigo 7.08:1, and 6.56:1 where it sits on the code background,
+ * which is the pair a palette usually misses. On `#1b1b1f`: 12.81, 5.99, 8.50
+ * and 7.95. All above the 4.5:1 that WCAG AA asks for.
  *
- * Three decisions worth stating, because they are the ones somebody would
+ * Two decisions worth stating, because they are the ones somebody would
  * otherwise "fix":
  *
- * 1. Links stay blue. Every paragraph on this site carries two or three
- *    cross-references, so link colour is read more often than anything else
- *    here and a learned affordance is worth more than novelty. Identity does
- *    not go here.
- * 2. The identity is one copper accent, and it is spent on the header, the
- *    active nav entry and the search mark. Anywhere else it becomes a second
- *    link colour and the first stops meaning anything.
- * 3. Inline code is terracotta rather than the body colour, so `--place-id`
- *    and a link are told apart without clicking. On pages where the two sit in
- *    the same sentence constantly, that is the difference worth paying for.
+ * 1. The header is not painted with the brand. Material's default is a solid
+ *    bar of the primary colour; VitePress leaves it the page colour and spends
+ *    the brand on links and the active entry. That is most of why one reads as
+ *    a document and the other as an application chrome.
+ * 2. Inline code keeps the brand colour rather than the body colour, which is
+ *    also what VitePress does, so `--place-id` and a link are told apart
+ *    without clicking. On pages where the two sit in the same sentence
+ *    constantly, that is the difference worth paying for.
  */
-
-:root {
-  --md-primary-fg-color: #8f4410;
-  --md-primary-fg-color--light: #a75718;
-  --md-primary-fg-color--dark: #6f340b;
-  --md-accent-fg-color: #a34e12;
-}
 
 /* ── Light ─────────────────────────────────────────────────────────────── */
 [data-md-color-scheme="default"] {
-  /* Off-white and near-black rather than #fff on #000: the pair still measures
-   * 15.5:1, without the glare that makes long prose tiring. */
-  --md-default-bg-color: #fdfdfc;
-  --md-default-fg-color: #1f2328;
-  --md-default-fg-color--light: #5c6370;
-  --md-default-fg-color--lighter: #9aa0a6;
+  --brand: #3451b2;
+  --brand-strong: #3a5ccc;
+  --brand-soft: rgb(100 108 255 / 14%);
 
-  --md-typeset-a-color: #0b5fa5; /* 6.46:1 on the page, 5.80:1 on code */
-  --md-code-fg-color: #8a3a1e; /* 6.85:1 on the code background */
-  --md-code-bg-color: #f2f3f0;
+  --md-primary-fg-color: #ffffff;
+  --md-primary-fg-color--light: #ffffff;
+  --md-primary-fg-color--dark: #f6f6f7;
+  /* What sits *on* the header. Neutral, because the header is not painted. */
+  --md-primary-bg-color: #3c3c43;
+  --md-primary-bg-color--light: #67676c;
 
-  --md-typeset-table-color: #d5d8d2; /* visible in a dense table, not noise */
-  --md-footer-bg-color: #24282d;
+  --md-accent-fg-color: var(--brand-strong);
+
+  --md-default-bg-color: #ffffff;
+  --md-default-fg-color: #3c3c43;
+  --md-default-fg-color--light: #67676c;
+  --md-default-fg-color--lighter: #8e8e95;
+  --md-default-fg-color--lightest: #e2e2e3;
+
+  --md-typeset-a-color: var(--brand);
+  --md-code-fg-color: var(--brand);
+  --md-code-bg-color: #f6f6f7;
+
+  --md-typeset-table-color: #e2e2e3;
+  --md-footer-bg-color: #1b1b1f;
+  --md-footer-bg-color--dark: #161618;
 }
 
 /* ── Dark ──────────────────────────────────────────────────────────────── */
 [data-md-color-scheme="slate"] {
-  --md-hue: 215;
-  --md-default-bg-color: #14171a;
-  --md-default-fg-color: #c9d1d9; /* 11.66:1 */
-  --md-default-fg-color--light: #8b949e;
-  --md-default-fg-color--lighter: #5b636b;
+  --brand: #a8b1ff;
+  --brand-strong: #5c73e7;
+  --brand-soft: rgb(100 108 255 / 16%);
 
-  --md-typeset-a-color: #6cb6ff; /* 8.37:1 on the page, 7.55:1 on code */
-  --md-code-fg-color: #e8a87c; /* 7.97:1 on the code background */
-  --md-code-bg-color: #1c2126;
+  --md-primary-fg-color: #1b1b1f;
+  --md-primary-fg-color--light: #202127;
+  --md-primary-fg-color--dark: #161618;
+  --md-primary-bg-color: #dfdfd6;
+  --md-primary-bg-color--light: #98989f;
 
-  --md-typeset-table-color: #2a3038;
-  --md-primary-fg-color: #1a1e23;
-  --md-accent-fg-color: #d98b4a;
+  --md-accent-fg-color: var(--brand);
+
+  --md-default-bg-color: #1b1b1f;
+  --md-default-fg-color: #dfdfd6;
+  --md-default-fg-color--light: #98989f;
+  --md-default-fg-color--lighter: #6a6a71;
+  --md-default-fg-color--lightest: #2e2e32;
+
+  --md-typeset-a-color: var(--brand);
+  --md-code-fg-color: var(--brand);
+  --md-code-bg-color: #202127;
+
+  --md-typeset-table-color: #2e2e32;
+  --md-footer-bg-color: #161618;
+  --md-footer-bg-color--dark: #131316;
+}
+
+/* ── Header and tabs ───────────────────────────────────────────────────── */
+
+/* A hairline instead of a coloured slab. Without it the header and the page
+ * are the same colour with nothing between them. */
+.md-header {
+  box-shadow: none;
+  border-bottom: 1px solid var(--md-typeset-table-color);
+}
+
+.md-header--shadow {
+  box-shadow: 0 0 0.2rem rgb(0 0 0 / 6%);
+}
+
+.md-tabs {
+  border-bottom: 1px solid var(--md-typeset-table-color);
+}
+
+.md-tabs__link {
+  opacity: 0.72;
+  font-weight: 500;
+}
+
+.md-tabs__link:hover,
+.md-tabs__link--active {
+  opacity: 1;
+  color: var(--brand);
+}
+
+.md-search__form {
+  background: var(--md-code-bg-color);
+  border: 1px solid var(--md-typeset-table-color);
+  border-radius: 8px;
+}
+
+.md-search__form:hover {
+  background: var(--md-code-bg-color);
+  border-color: var(--brand);
+}
+
+/* ── Navigation ────────────────────────────────────────────────────────── */
+
+.md-nav__link--active,
+.md-nav__link--active code {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.md-nav__item .md-nav__link:hover {
+  color: var(--brand);
 }
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
@@ -102,10 +172,26 @@
   border-radius: 8px;
 }
 
-/* ── Search mark, the accent's third and last use ──────────────────────── */
+/* ── Details, of which these pages have sixty-five ─────────────────────── */
+
+.md-typeset details {
+  border-radius: 8px;
+  border-color: var(--md-typeset-table-color);
+  box-shadow: none;
+}
+
+.md-typeset details > summary {
+  background: var(--md-code-bg-color);
+}
+
+.md-typeset details > summary::before {
+  background-color: var(--brand);
+}
+
+/* ── Search mark ───────────────────────────────────────────────────────── */
 
 .md-search-result__teaser mark,
 .md-typeset mark {
-  background: color-mix(in srgb, var(--md-accent-fg-color) 26%, transparent);
+  background: var(--brand-soft);
   color: inherit;
 }

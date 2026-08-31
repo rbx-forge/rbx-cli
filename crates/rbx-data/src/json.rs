@@ -118,6 +118,58 @@ impl ListDocument {
     }
 }
 
+/// One invocation of a command that changes an entry: `set`, `reset`,
+/// `restore`, `copy` or `delete`.
+///
+/// The point of it is `revision_id`. Without a document these commands say
+/// what happened in prose on stdout, so a caller driving them had two ways to
+/// know and both were bad: parse that sentence, or read the exit code and
+/// learn nothing beyond success. A revision id is the one fact a caller wants
+/// afterwards, because it is what `data revisions --revision` takes.
+///
+/// `applied` is false for a dry run, which is a success that changed nothing.
+/// Reading it wrong is the mistake this field exists to prevent: exit code 0
+/// covers both.
+#[derive(Debug, Serialize)]
+pub struct WriteDocument {
+    pub schema_version: u32,
+    pub datastore: String,
+    pub scope: String,
+    /// The key that was acted on, as given.
+    pub entry: String,
+    /// `set`, `reset`, `restore`, `copy` or `delete`.
+    pub action: String,
+    /// False without `--apply`: nothing was sent.
+    pub applied: bool,
+    /// Whether the entry was there before this ran. False means `set` created
+    /// it, and means `delete` found nothing to do.
+    pub existed: bool,
+    /// The revision the entry is at now. **Absent** on a dry run, on a delete,
+    /// and when Roblox did not say.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision_id: Option<String>,
+    /// Where the previous value was copied. **Absent** under `--no-backup`,
+    /// and when there was no previous value to copy.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backup: Option<String>,
+}
+
+impl WriteDocument {
+    pub fn new(store: &Store, entry: &str, action: &str) -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            datastore: store.datastore.clone(),
+            scope: store.scope.clone(),
+            entry: entry.to_string(),
+            action: action.to_string(),
+            applied: false,
+            existed: false,
+            revision_id: None,
+            backup: None,
+        }
+    }
+}
+
 /// One `data stores` invocation.
 ///
 /// Experience-wide, so it names neither a store nor a scope: this is the

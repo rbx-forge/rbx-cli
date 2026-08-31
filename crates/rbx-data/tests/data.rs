@@ -641,6 +641,59 @@ const SNAPSHOT_PATH: &str = "/cloud/v2/universes/66778899001/data-stores:snapsho
 
 const STORES_PATH: &str = "/cloud/v2/universes/66778899001/data-stores";
 
+/// The document is the reason `--json` exists on a write: a caller driving
+/// these commands had a sentence on stdout and an exit code, and neither says
+/// which revision the entry is at now.
+#[tokio::test]
+async fn a_write_reports_the_revision_it_landed_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(&server, serde_json::json!({ "value": { "coins": 10 } })).await;
+    Mock::given(method("PATCH"))
+        .and(path(ENTRY_PATH))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(serde_json::json!({ "revisionId": "r9" })),
+        )
+        .mount(&server)
+        .await;
+
+    run(
+        cli(
+            &[
+                "set",
+                "Player_156",
+                "--value",
+                "1",
+                "--apply",
+                "--yes",
+                "--json",
+            ],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_dry_run_says_it_was_not_applied_rather_than_looking_like_a_write() {
+    // Exit code 0 covers both, which is the mistake `applied` prevents.
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(&server, serde_json::json!({ "value": 1 })).await;
+
+    run(
+        cli(&["delete", "Player_156", "--json", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+
+    let sent = server.received_requests().await.unwrap();
+    assert!(sent.iter().all(|request| request.method != "DELETE"));
+}
+
 #[tokio::test]
 async fn delete_without_apply_reads_the_entry_and_removes_nothing() {
     let dir = tempfile::tempdir().unwrap();

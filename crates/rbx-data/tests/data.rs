@@ -639,6 +639,131 @@ async fn reset_without_apply_writes_nothing() {
 
 const SNAPSHOT_PATH: &str = "/cloud/v2/universes/66778899001/data-stores:snapshot";
 
+const STORES_PATH: &str = "/cloud/v2/universes/66778899001/data-stores";
+
+/// `stores` is the command you run *because* you have no store name, so like
+/// `snapshot` it must parse and run with no `--datastore`.
+fn stores_cli(args: &[&str], server: &MockServer) -> DataCli {
+    let mut argv = vec!["data", "stores"];
+    argv.extend_from_slice(args);
+    <Wrapper as clap::Parser>::parse_from(argv)
+        .data
+        .with_base_url(server.uri())
+}
+
+#[tokio::test]
+async fn stores_needs_no_datastore() {
+    // The regression this guards: `data` bails without `--datastore`, which
+    // would make the discovery command need the answer it exists to find.
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataStores": [{ "id": "PlayerData-v1", "createTime": "2026-08-27T16:41:02Z" }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(stores_cli(&[], &server), &flags(&places_file(dir.path())))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn stores_leaves_soft_deleted_ones_out_unless_asked() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .and(query_param("showDeleted", "true"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataStores": [{ "id": "Old", "state": "DELETED" }]
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        stores_cli(&["--show-deleted"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn stores_follows_the_page_token_until_the_listing_ends() {
+    // The trap `EntryList::next_token` already documents: cloud/v2 ends a
+    // listing with an empty string rather than by omitting the field, so
+    // sending it back would ask for the same page forever.
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .and(query_param("pageToken", "second"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataStores": [{ "id": "Tickets" }],
+            "nextPageToken": ""
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataStores": [{ "id": "PlayerData-v1" }],
+            "nextPageToken": "second"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(stores_cli(&[], &server), &flags(&places_file(dir.path())))
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn stores_stops_asking_once_the_limit_is_reached() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "dataStores": [{ "id": "A" }, { "id": "B" }],
+            "nextPageToken": "more"
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        stores_cli(&["--limit", "2"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn an_experience_with_no_stores_is_reported_rather_than_treated_as_an_error() {
+    // A store exists from its first write, so an empty listing is the honest
+    // answer for an experience nothing has written to yet.
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(STORES_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+        .mount(&server)
+        .await;
+
+    run(stores_cli(&[], &server), &flags(&places_file(dir.path())))
+        .await
+        .expect("an empty experience is a success, not a failure");
+}
+
 /// `snapshot` is experience-wide, so unlike every other subcommand it must
 /// parse and run with no `--datastore`.
 fn snapshot_cli(args: &[&str], server: &MockServer) -> DataCli {

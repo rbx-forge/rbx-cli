@@ -17,6 +17,69 @@ pub struct SnapshotResult {
     pub latest_snapshot_time: Option<String>,
 }
 
+/// A data store as Roblox returns it from `ListDataStores`.
+///
+/// `id` is the name the game passes to `GetDataStore`, so it is the value every
+/// other subcommand here wants for `--datastore`. It is the last segment of
+/// `path`, and Roblox marks it read-only.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DataStore {
+    #[serde(default)]
+    pub path: Option<String>,
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub create_time: Option<String>,
+    /// Set only on a soft-deleted store, and it says when the purge lands.
+    #[serde(default)]
+    pub expire_time: Option<String>,
+    /// `STATE_UNSPECIFIED`, `ACTIVE` or `DELETED`. Absent on older responses,
+    /// which is why nothing here treats a missing state as deleted.
+    #[serde(default)]
+    pub state: Option<String>,
+}
+
+impl DataStore {
+    pub fn is_deleted(&self) -> bool {
+        self.state.as_deref() == Some("DELETED")
+    }
+
+    /// The store name, falling back to the last segment of `path`.
+    ///
+    /// `id` is documented as always present, but it costs one line to survive a
+    /// response that omits it, and a listing that silently drops rows is worse
+    /// than one that names them from the path.
+    pub fn name(&self) -> Option<&str> {
+        if let Some(id) = self.id.as_deref() {
+            return Some(id);
+        }
+
+        self.path.as_deref()?.rsplit('/').next()
+    }
+}
+
+/// A page of data stores.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreList {
+    #[serde(default)]
+    pub data_stores: Vec<DataStore>,
+    #[serde(default)]
+    pub next_page_token: Option<String>,
+}
+
+impl StoreList {
+    /// Same trap as `EntryList::next_token`: `cloud/v2` ends a listing with an
+    /// empty string rather than by omitting the field, and sending `""` back
+    /// asks for the same page forever.
+    pub fn next_token(&self) -> Option<&str> {
+        self.next_page_token
+            .as_deref()
+            .filter(|token| !token.is_empty())
+    }
+}
+
 /// An entry as Roblox returns it.
 ///
 /// `value` is whatever the game stored, so it stays a raw JSON value: this tool
@@ -238,6 +301,41 @@ mod list_tests {
         let list: EntryList =
             serde_json::from_str(r#"{"dataStoreEntries":[],"nextPageToken":""}"#).unwrap();
         assert_eq!(list.next_token(), None);
+    }
+
+    #[test]
+    fn a_store_listing_ends_on_an_empty_token_too() {
+        let list: StoreList =
+            serde_json::from_str(r#"{"dataStores":[],"nextPageToken":""}"#).unwrap();
+        assert_eq!(list.next_token(), None);
+    }
+
+    #[test]
+    fn a_store_is_named_by_its_id() {
+        let store: DataStore = serde_json::from_str(
+            r#"{"id":"PlayerData-v1","path":"universes/1/data-stores/PlayerData-v1"}"#,
+        )
+        .unwrap();
+        assert_eq!(store.name(), Some("PlayerData-v1"));
+    }
+
+    #[test]
+    fn a_store_without_an_id_falls_back_to_the_last_segment_of_its_path() {
+        let store: DataStore =
+            serde_json::from_str(r#"{"path":"universes/1/data-stores/PlayerData-v1"}"#).unwrap();
+        assert_eq!(store.name(), Some("PlayerData-v1"));
+    }
+
+    #[test]
+    fn a_store_with_no_state_is_not_read_as_deleted() {
+        // The field is absent on older responses, and defaulting it to deleted
+        // would hide every store from a listing that does not ask for them.
+        assert!(!serde_json::from_str::<DataStore>("{}")
+            .unwrap()
+            .is_deleted());
+        assert!(serde_json::from_str::<DataStore>(r#"{"state":"DELETED"}"#)
+            .unwrap()
+            .is_deleted());
     }
 
     #[test]

@@ -38,7 +38,7 @@ Starting from an existing group with universes already created? `rbx init list-u
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx init create-group</code></summary>
 
 Create a new Roblox group. An icon is required by Roblox (PNG or JPEG).
@@ -55,7 +55,7 @@ Create a new Roblox group. An icon is required by Roblox (PNG or JPEG).
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init create-universe</code></summary>
 
 Create a new universe with a root place. The default template is Roblox's empty baseplate; override with `--template-place-id` to clone from a specific place you own.
@@ -116,7 +116,7 @@ Every question is asked *before* the universe is created. Creating one is irreve
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init create-place</code></summary>
 
 Add a new place inside an existing universe.
@@ -146,7 +146,7 @@ Same skip rules as `create-universe`. If no env points at `--universe-id`, recor
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init rename-place</code></summary>
 
 Rename a place by id.
@@ -161,7 +161,7 @@ Rename a place by id.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init rename-universe</code></summary>
 
 Rename a universe by id. Roblox stores the display name on the root place; this resolves the universe's root place and renames it.
@@ -174,14 +174,14 @@ Rename a universe by id. Roblox stores the display name on the root place; this 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init list-groups</code></summary>
 
 List every group the authenticated user belongs to, with role and rank. **Cookie required.**
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init list-universes</code></summary>
 
 List the universes owned by a group, published or not. No credential is required and a cookie adds nothing to the result: see [the listings need no credential](#the-listings-need-no-credential).
@@ -192,7 +192,7 @@ List the universes owned by a group, published or not. No credential is required
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx init list-places</code></summary>
 
 List every place inside a universe.

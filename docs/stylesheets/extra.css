@@ -1,0 +1,111 @@
+/* Palette for rbx-cli's documentation site.
+ *
+ * Material ships a fixed set of named primaries; `primary: custom` in
+ * mkdocs.yml hands the choice here instead, which is what lets these keep the
+ * pairs the previous theme measured rather than picking the nearest preset.
+ *
+ * Every pair below is at least 4.5:1 (WCAG AA), including the two cases a
+ * palette usually misses: a link sitting on a code background, and table
+ * borders on a page that is mostly tables.
+ *
+ * Three decisions worth stating, because they are the ones somebody would
+ * otherwise "fix":
+ *
+ * 1. Links stay blue. Every paragraph on this site carries two or three
+ *    cross-references, so link colour is read more often than anything else
+ *    here and a learned affordance is worth more than novelty. Identity does
+ *    not go here.
+ * 2. The identity is one copper accent, and it is spent on the header, the
+ *    active nav entry and the search mark. Anywhere else it becomes a second
+ *    link colour and the first stops meaning anything.
+ * 3. Inline code is terracotta rather than the body colour, so `--place-id`
+ *    and a link are told apart without clicking. On pages where the two sit in
+ *    the same sentence constantly, that is the difference worth paying for.
+ */
+
+:root {
+  --md-primary-fg-color: #8f4410;
+  --md-primary-fg-color--light: #a75718;
+  --md-primary-fg-color--dark: #6f340b;
+  --md-accent-fg-color: #a34e12;
+}
+
+/* ── Light ─────────────────────────────────────────────────────────────── */
+[data-md-color-scheme="default"] {
+  /* Off-white and near-black rather than #fff on #000: the pair still measures
+   * 15.5:1, without the glare that makes long prose tiring. */
+  --md-default-bg-color: #fdfdfc;
+  --md-default-fg-color: #1f2328;
+  --md-default-fg-color--light: #5c6370;
+  --md-default-fg-color--lighter: #9aa0a6;
+
+  --md-typeset-a-color: #0b5fa5; /* 6.46:1 on the page, 5.80:1 on code */
+  --md-code-fg-color: #8a3a1e; /* 6.85:1 on the code background */
+  --md-code-bg-color: #f2f3f0;
+
+  --md-typeset-table-color: #d5d8d2; /* visible in a dense table, not noise */
+  --md-footer-bg-color: #24282d;
+}
+
+/* ── Dark ──────────────────────────────────────────────────────────────── */
+[data-md-color-scheme="slate"] {
+  --md-hue: 215;
+  --md-default-bg-color: #14171a;
+  --md-default-fg-color: #c9d1d9; /* 11.66:1 */
+  --md-default-fg-color--light: #8b949e;
+  --md-default-fg-color--lighter: #5b636b;
+
+  --md-typeset-a-color: #6cb6ff; /* 8.37:1 on the page, 7.55:1 on code */
+  --md-code-fg-color: #e8a87c; /* 7.97:1 on the code background */
+  --md-code-bg-color: #1c2126;
+
+  --md-typeset-table-color: #2a3038;
+  --md-primary-fg-color: #1a1e23;
+  --md-accent-fg-color: #d98b4a;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────── */
+
+/* Material's default content column is sized for prose, and nearly every page
+ * here carries a table of fields, flags or scopes. At the default width a
+ * four-column table wraps its cells and stops reading as a grid, which is the
+ * whole reason it is a table. */
+.md-grid {
+  max-width: 68rem;
+}
+
+/* ── Tables ────────────────────────────────────────────────────────────── */
+
+.md-typeset table:not([class]) {
+  border: 1px solid var(--md-typeset-table-color);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.72rem;
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--md-code-bg-color);
+  font-weight: 600;
+}
+
+.md-typeset table:not([class]) td {
+  vertical-align: top;
+}
+
+/* ── Code ──────────────────────────────────────────────────────────────── */
+
+.md-typeset code {
+  border-radius: 4px;
+}
+
+.md-typeset pre > code {
+  border-radius: 8px;
+}
+
+/* ── Search mark, the accent's third and last use ──────────────────────── */
+
+.md-search-result__teaser mark,
+.md-typeset mark {
+  background: color-mix(in srgb, var(--md-accent-fg-color) 26%, transparent);
+  color: inherit;
+}

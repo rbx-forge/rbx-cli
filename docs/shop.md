@@ -227,7 +227,7 @@ Details worth knowing:
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop init</code></summary>
 
 Initialize a new config file.
@@ -243,7 +243,7 @@ With `--from-remote --env <name>`, init resolves universe_id from `rbxplace.toml
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop sync</code></summary>
 
 Apply the resolved (base + overlay) config to Roblox.
@@ -262,7 +262,7 @@ Use `--env <name>` for a specific env, `--env all` for every env in `rbxplace.to
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop pull</code></summary>
 
 Pull remote state into the config and lockfile. Differential overlay writes (see [Multi-environment](#multi-environment)).
@@ -275,7 +275,7 @@ Pull remote state into the config and lockfile. Differential overlay writes (see
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop check</code></summary>
 
 Validate the config and report sync state for the targeted env(s). Read-only.
@@ -284,7 +284,7 @@ Exit codes: `0` every env is in sync, `2` at least one env has resources to crea
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop codegen</code></summary>
 
 Regenerate the codegen folder from `rbxshop.toml` + `rbxshop.lock.toml`. Offline: no API key, no network.
@@ -306,7 +306,7 @@ See [Guarding generated files](#guarding-generated-files).
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop rename &lt;resource&gt; &lt;old_key&gt; &lt;new_key&gt;</code></summary>
 
 Rename a resource key across the base, every env overlay, and every env lockfile section. The display name is preserved automatically.
@@ -317,7 +317,7 @@ rbx shop rename passes VIP vip_pass
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop list &lt;resource&gt;</code></summary>
 
 List remote resources for a single env (does not support `--env all`).
@@ -376,7 +376,7 @@ rbx shop list badges --env prod --json | jq '[.resources[] | select(.enabled | n
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx shop show</code></summary>
 
 Pretty-print the local `rbxshop.toml` with defaults filled in, so you see what `sync` would actually resolve rather than what you typed. Read-only, touches nothing remote.
@@ -526,7 +526,7 @@ description = "Beta tester pass"
 icon = "icons/beta.png"
 ```
 
-<details>
+<details markdown="1">
 <summary><code>[experience]</code></summary>
 
 | Field | Type | Required | Description |
@@ -537,7 +537,7 @@ The whole section is optional in multi-env mode: with `--env <name>`, `universe_
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[owner]</code></summary>
 
 **The one thing it decides is the payment source for badge creation.** It is sent as `paymentSourceType` on the badge-create call, beside `expectedCost`; the scope Roblox wants there is named `legacy-universe.badge:manage-and-spend-robux`. Nothing else in `rbx shop` reads it.
@@ -557,7 +557,7 @@ Same shape as `[owner]` in `rbxplace.toml`, because it is the same fact.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[codegen]</code></summary>
 
 | Field | Type | Default | Description |
@@ -568,7 +568,7 @@ Same shape as `[owner]` in `rbxplace.toml`, because it is the same fact.
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[codegen.paths]</code></summary>
 
 Override the default section name for each resource type. Dot-separated segments become either a prefix (flat) or nested tables (nested).
@@ -581,7 +581,7 @@ Override the default section name for each resource type. Dot-separated segments
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[codegen.extra]</code></summary>
 
 Inject asset IDs into every env's generated module. Useful for manually managed assets or assets from other universes.
@@ -594,7 +594,7 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[icons]</code></summary>
 
 | Field | Type | Default | Description |
@@ -604,7 +604,7 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[passes.&lt;name&gt;]</code></summary>
 
 | Field | Type | Required | Description |
@@ -620,7 +620,7 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[badges.&lt;name&gt;]</code></summary>
 
 | Field | Type | Required | Description |
@@ -633,7 +633,7 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[products.&lt;name&gt;]</code></summary>
 
 | Field | Type | Required | Description |
@@ -650,7 +650,7 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[gifts]</code></summary>
 
 | Field | Type | Default | Description |
@@ -663,7 +663,7 @@ Note the three are independent: `label` controls the name shown on Roblox, `key_
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[include]</code></summary>
 
 Split `passes`/`badges`/`products` across extra files, merged in at load time - only useful if a single `rbxshop.toml` becomes unwieldy. Optional; a single file is the default and requires nothing here.
@@ -687,7 +687,7 @@ Rules:
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>[envs.&lt;name&gt;.*]</code></summary>
 
 Per-env overlays. Each section mirrors a base resource section (`[envs.dev.passes.VIP]` overrides fields of `[passes.VIP]` for env `dev`). All fields are optional - unset fields inherit from the base.

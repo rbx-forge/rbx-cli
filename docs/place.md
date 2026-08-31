@@ -47,7 +47,7 @@ rbx place upload --env prod --file build.rbxl   # prompts for confirmation
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx place upload</code></summary>
 
 Upload a `.rbxl` file to one or all places in an environment. By default, uploads are saved as drafts (not published live).
@@ -144,7 +144,7 @@ VERSION=$(rbx place upload --env staging --file build.rbxl --json | jq -r .versi
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place download</code></summary>
 
 Download a place file from Roblox.
@@ -168,7 +168,7 @@ rbx place download --env staging --saved
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place promote</code></summary>
 
 Promote a place from one environment to another. Downloads the source place in-memory and uploads it to the target. Without `--all-places`, the same-named place is targeted in the destination environment.
@@ -262,7 +262,7 @@ rbx place promote --from staging --to prod --from-published --published --yes --
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place rollback</code></summary>
 
 Roll back a place to a previous version. Without `--version`, shows an interactive selector with recent versions.
@@ -312,7 +312,7 @@ Both versions are reported: `source_version` is the one restored, `version` is t
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place versions</code></summary>
 
 List recent versions of a place.
@@ -374,7 +374,7 @@ rbx place versions --env prod --json | jq -r '.versions[] | select(.published) |
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place places</code></summary>
 
 List all places in a universe. Shows which places are configured vs missing from `rbxplace.toml` if using `--env`.
@@ -428,7 +428,7 @@ rbx place places --env prod --json | jq -r '.places[] | select(.configured | not
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx place fetch</code></summary>
 
 Fetch all places from a universe and update `rbxplace.toml`. Existing place keys are preserved where the ID already matches. New places get keys generated from their Roblox display names.
@@ -449,7 +449,7 @@ rbx place fetch --env prod --universe-id 9876543210 --write  # override universe
 
 ## Write documents
 
-`upload`, `promote`, and `rollback` share one `--json` envelope. It is a receipt: it reports what was written, in the order it was written, with the version number Roblox assigned to each place. An `upload` that named several envs emits one receipt per env, wrapped: see [One document per env](#one-document-per-env-under---env-all).
+`upload`, `promote`, and `rollback` share one `--json` envelope. It is a receipt: it reports what was written, in the order it was written, with the version number Roblox assigned to each place. An `upload` that named several envs emits one receipt per env, wrapped: see [One document per env](#one-document-per-env-under-env-all).
 
 | Field | Type | Meaning |
 | --- | --- | --- |
@@ -538,7 +538,7 @@ universe_id = 9876543212
 places.main = 345678901234567
 ```
 
-<details>
+<details markdown="1">
 <summary>Environment fields</summary>
 
 | Field | Type | Required | Description |

@@ -82,7 +82,7 @@ Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the
 
 Outside those, it throws away the only way back. The command says so on every run rather than only in this page, and the two flags cannot be combined: one names where the copy goes, the other says there is none.
 
-## Removing an entry
+## Removing an entry **(0.6.0+)**
 
 `RemoveAsync`, from outside the game.
 
@@ -114,7 +114,7 @@ rbx data --datastore PlayerData increment Coins_156 --by 500 --env prod --apply
 
 An overwrite **keeps the entry's `users` and `attributes`** unless you pass `--drop-metadata`. `users` is the association Roblox uses to answer a player's data request, and sending only `value` would sever it silently.
 
-## Finding stores
+## Finding stores **(0.6.0+)**
 
 The command to run when you do not yet know what to put in `--datastore`.
 
@@ -283,7 +283,7 @@ They read real player data, so they say no more than the human form already says
 | `value` | any | The stored value, nested. **Absent** under `--out` and when there is no entry. A present `null` is a real answer: a stored `null` and an entry with no value cannot be told apart, and the game cannot tell either |
 | `out` | string | Where `--out` wrote the value. **Absent** without `--out` |
 
-### `data stores --json`
+### `data stores --json` **(0.6.0+)**
 
 ```json
 {
@@ -301,7 +301,7 @@ They read real player data, so they say no more than the human form already says
 
 No `datastore` or `scope` key: this is the document you read before you have either. `id` is what every other subcommand takes as `--datastore`. `create_time` is **absent** when the response omitted it. `deleted` is only ever true with `--show-deleted`, since nothing else returns a soft-deleted store.
 
-### `data set --json`, and `reset`, `restore`, `delete`
+### `data set --json`, and `reset`, `restore`, `delete` **(0.6.0+)**
 
 ```json
 {

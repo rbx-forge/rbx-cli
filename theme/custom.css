@@ -24,6 +24,31 @@
  *    the same sentence constantly, that is the difference worth paying for.
  */
 
+/* ── Layout ────────────────────────────────────────────────────────────── */
+/* Three of mdBook's own layout variables, retuned for what these pages are
+ * rather than for prose. Same additive rule as the palette below: variables
+ * only, so an upgrade that changes how they are applied still applies.
+ *
+ * `--content-max-width` is the one that matters. mdBook's 750px is sized for
+ * paragraphs, and nearly every page here is carrying a table of fields, flags
+ * or scopes. At 750px a four-column table wraps its cells and stops being
+ * readable as a grid, which is the whole reason it is a table. 880px fits them
+ * and still lands near 90 characters of prose, inside the 45-90 that
+ * legibility research keeps landing on.
+ *
+ * `--page-padding` doubles because 15px puts a code block's border almost
+ * against the viewport edge on a laptop, where these pages are read.
+ *
+ * `--sidebar-target-width` gains 40px for one concrete reason: `rbx data`,
+ * `rbx apikey` and `rbx place` sit under folded sections, and at 300px the
+ * longer entries wrap onto a second line, which reads as a second entry.
+ */
+:root {
+  --content-max-width: 880px;
+  --page-padding: 30px;
+  --sidebar-target-width: 340px;
+}
+
 /* ── Light ─────────────────────────────────────────────────────────────── */
 .light,
 html:not(.js) {

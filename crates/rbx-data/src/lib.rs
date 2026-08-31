@@ -58,9 +58,9 @@ use rbx_core::GlobalFlags;
 use crate::backup::{sanitise_filename, BackupTarget};
 use crate::json::{
     DiffDocument, DiffSide, DiffSource, GetDocument, ListDocument, RevisionDocument,
-    RevisionsDocument, Store,
+    RevisionsDocument, Store, StoresDocument,
 };
-use crate::model::{DataStoreEntry, EntryList, EntryUpdate, SnapshotResult};
+use crate::model::{DataStore, DataStoreEntry, EntryList, EntryUpdate, SnapshotResult, StoreList};
 
 /// Roblox's own default scope. Every game that has never set one is here.
 const DEFAULT_SCOPE: &str = "global";
@@ -194,6 +194,41 @@ enum Command {
         /// Actually take it.
         #[arg(long)]
         apply: bool,
+    },
+
+    /// List the data stores in the experience
+    ///
+    /// The one subcommand you can run without knowing a store name, which is
+    /// what makes it the entry point to every other one: its output is what
+    /// `--datastore` takes.
+    ///
+    /// Expect stores nobody wrote by hand. A game running in Studio writes to
+    /// whatever name its own wrapper builds, so a `-studio` twin of the live
+    /// store is normal, and a wrapper library keeps its bookkeeping in a store
+    /// of its own next to the data it manages.
+    ///
+    /// A store exists from its first write, not from the first `GetDataStore`,
+    /// so a name absent here is a store the game has never written to.
+    ///
+    /// Experience-wide, so it needs neither `--datastore` nor `--scope`.
+    /// Needs `universe-datastores.control:list`.
+    Stores {
+        /// Include stores that have been deleted but not yet purged.
+        #[arg(long)]
+        show_deleted: bool,
+
+        /// Maximum stores to fetch.
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+
+        /// Write the stores to stdout as one JSON document.
+        ///
+        /// The names, plus what the human form prints around them: the count,
+        /// and whether the run stopped at --limit rather than at the end of
+        /// the experience. stdout carries the document and nothing else. Field
+        /// names are documented in docs/ops/data.md.
+        #[arg(long)]
+        json: bool,
     },
 
     /// List entry keys
@@ -517,6 +552,31 @@ impl Api {
         }
     }
 
+    /// One page of data store names.
+    ///
+    /// Experience-wide, so it uses neither `self.datastore` nor `self.scope`:
+    /// this is the call that tells you what to put in the first of them.
+    async fn stores(&self, show_deleted: bool, page_token: Option<&str>) -> Result<StoreList> {
+        let mut url = self.base.join(&format!(
+            "/cloud/v2/universes/{}/data-stores?maxPageSize=100",
+            self.universe_id,
+        ));
+        if show_deleted {
+            url.push_str("&showDeleted=true");
+        }
+        if let Some(token) = page_token {
+            url.push_str("&pageToken=");
+            url.push_str(&encode_query_value(token));
+        }
+
+        execute_json(|| {
+            let request = self.client.get(&url).header("x-api-key", &self.api_key);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map_err(explain_missing_scope)
+    }
+
     /// One page of entry ids. Only `id` and `path` come back; reading a value
     /// takes a second call, which is why listing is cheap and dumping is not.
     async fn list(
@@ -653,6 +713,9 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
     // value the call does not use.
     let datastore = match (&cli.command, cli.datastore.clone()) {
         (Command::Snapshot { .. }, store) => store.unwrap_or_default(),
+        // `stores` is what you run *because* you do not know a store name.
+        // Demanding one would make the discovery command need its own answer.
+        (Command::Stores { .. }, store) => store.unwrap_or_default(),
         // `ordered` raises its own error, naming `GetOrderedDataStore` rather
         // than `GetDataStore`. Sending somebody to the wrong Luau function is
         // a small thing that costs a real detour.
@@ -779,6 +842,54 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     }
                 }
             }
+            Ok(())
+        }
+
+        Command::Stores {
+            show_deleted,
+            limit,
+            json,
+        } => {
+            let format = OutputFormat::from_json_flag(json);
+            let mut stores: Vec<DataStore> = Vec::new();
+            let mut token: Option<String> = None;
+            while (stores.len() as u32) < limit {
+                let page = api.stores(show_deleted, token.as_deref()).await?;
+                let next = page.next_token().map(str::to_string);
+                for store in page.data_stores {
+                    if store.name().is_some() {
+                        stores.push(store);
+                    }
+                }
+                match next {
+                    Some(value) => token = Some(value),
+                    None => break,
+                }
+            }
+            stores.truncate(limit as usize);
+
+            if stores.is_empty() {
+                // Not an error, and worth saying plainly: a store exists from
+                // its first write, so an experience nothing has written to yet
+                // really does have none.
+                format.note("No data stores. One exists from its first write.".dimmed());
+            }
+            if format.is_json() {
+                return output::emit(&StoresDocument::new(show_deleted, limit, &stores));
+            }
+            if stores.is_empty() {
+                return Ok(());
+            }
+            for store in &stores {
+                let name = store.name().unwrap_or_default();
+                if store.is_deleted() {
+                    println!("{name} {}", "(deleted)".dimmed());
+                } else {
+                    println!("{name}");
+                }
+            }
+            eprintln!();
+            eprintln!("{}", format!("{} data store(s)", stores.len()).dimmed());
             Ok(())
         }
 

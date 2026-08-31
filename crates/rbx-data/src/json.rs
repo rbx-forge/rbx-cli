@@ -45,7 +45,7 @@ use serde::Serialize;
 
 use rbx_core::output::SCHEMA_VERSION;
 
-use crate::model::DataStoreEntry;
+use crate::model::{DataStore, DataStoreEntry};
 
 /// The store a document is about.
 ///
@@ -114,6 +114,62 @@ impl ListDocument {
             limit_reached: ids.len() as u32 >= limit,
             count: ids.len(),
             entries: ids.iter().map(|id| ListEntry { id: id.clone() }).collect(),
+        }
+    }
+}
+
+/// One `data stores` invocation.
+///
+/// Experience-wide, so it names neither a store nor a scope: this is the
+/// document you read *before* you know what to put in `--datastore`.
+#[derive(Debug, Serialize)]
+pub struct StoresDocument {
+    pub schema_version: u32,
+    /// Whether soft-deleted stores were included.
+    pub show_deleted: bool,
+    /// The `--limit` in force for this run.
+    pub limit: u32,
+    /// True when the run stopped because it hit `--limit` rather than because
+    /// it ran out of stores. Raise `--limit` to see the rest.
+    pub limit_reached: bool,
+    /// Rows in `stores`.
+    pub count: usize,
+    /// One object per store, in the order Roblox returned them.
+    pub stores: Vec<StoresEntry>,
+}
+
+/// One store in a listing.
+#[derive(Debug, Serialize)]
+pub struct StoresEntry {
+    /// The store name, which is what every other subcommand takes as
+    /// `--datastore`.
+    pub id: String,
+    /// When Roblox created the store. **Absent** when the response omitted it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub create_time: Option<String>,
+    /// True for a store soft-deleted and not yet purged. Only ever true with
+    /// `--show-deleted`, since nothing else returns one.
+    pub deleted: bool,
+}
+
+impl StoresDocument {
+    /// Build the document from the stores the listing gathered, already
+    /// truncated to `limit`.
+    pub fn new(show_deleted: bool, limit: u32, stores: &[DataStore]) -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            show_deleted,
+            limit,
+            limit_reached: stores.len() as u32 >= limit,
+            count: stores.len(),
+            stores: stores
+                .iter()
+                .map(|store| StoresEntry {
+                    id: store.name().unwrap_or_default().to_string(),
+                    create_time: store.create_time.clone(),
+                    deleted: store.is_deleted(),
+                })
+                .collect(),
         }
     }
 }

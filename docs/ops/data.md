@@ -97,6 +97,19 @@ rbx data --datastore PlayerData increment Coins_156 --by 500 --env prod --apply
 
 An overwrite **keeps the entry's `users` and `attributes`** unless you pass `--drop-metadata`. `users` is the association Roblox uses to answer a player's data request, and sending only `value` would sever it silently.
 
+## Finding stores
+
+The command to run when you do not yet know what to put in `--datastore`.
+
+```sh
+rbx data stores --env prod
+rbx data stores --show-deleted --env prod
+```
+
+Experience-wide, so it takes neither `--datastore` nor `--scope`. Needs `universe-datastores.control:list`.
+
+A store exists **from its first write**, not from the first `GetDataStore`, so a name that is absent here is a store the game has never written to. That also explains the names you did not choose: a game running in Studio writes wherever its own wrapper points, so a `-studio` twin of the live store is normal, and a wrapper library keeps its bookkeeping in a store of its own next to the data it manages.
+
 ## Finding keys
 
 ```sh
@@ -252,6 +265,24 @@ They read real player data, so they say no more than the human form already says
 | `revision_id` | string | The revision the value came from. **Absent** when Roblox did not say, and when there is no entry |
 | `value` | any | The stored value, nested. **Absent** under `--out` and when there is no entry. A present `null` is a real answer: a stored `null` and an entry with no value cannot be told apart, and the game cannot tell either |
 | `out` | string | Where `--out` wrote the value. **Absent** without `--out` |
+
+### `data stores --json`
+
+```json
+{
+  "schema_version": 1,
+  "show_deleted": false,
+  "limit": 100,
+  "count": 2,
+  "limit_reached": false,
+  "stores": [
+    { "id": "PlayerData-v1", "create_time": "2026-08-27T16:41:02Z", "deleted": false },
+    { "id": "Tickets-prod", "create_time": "2026-08-27T16:41:01Z", "deleted": false }
+  ]
+}
+```
+
+No `datastore` or `scope` key: this is the document you read before you have either. `id` is what every other subcommand takes as `--datastore`. `create_time` is **absent** when the response omitted it. `deleted` is only ever true with `--show-deleted`, since nothing else returns a soft-deleted store.
 
 ### `data list --json`
 

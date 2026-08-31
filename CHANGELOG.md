@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx data stores`**: lists the data stores in an experience. Every other
+  `data` subcommand takes `--datastore <name>`, and nothing told you what the
+  names were, so the one question you have before all the others was the one
+  question the tool could not answer. `Cloud_ListDataStores` was already in the
+  bundled spec and already covered by the `universe-datastores.control:list`
+  scope the `data` key carries; only the wiring was missing.
+
+  Experience-wide, so it takes neither `--datastore` nor `--scope`, and it
+  paginates on `pageToken` up to `--limit`. `--show-deleted` includes stores
+  soft-deleted and not yet purged, and marks them in both output formats.
+
+  Expect names nobody chose. A store exists from its first write rather than
+  from the first `GetDataStore`, and a game running in Studio writes wherever
+  its own wrapper points, so a `-studio` twin of the live store and a wrapper
+  library's bookkeeping store both show up next to the data you meant to find.
+
 ### Fixed
 
 - **`rbx apikey create` reported false scope drift on any target Roblox does

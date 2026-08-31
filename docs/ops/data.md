@@ -82,6 +82,23 @@ Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the
 
 Outside those, it throws away the only way back. The command says so on every run rather than only in this page, and the two flags cannot be combined: one names where the copy goes, the other says there is none.
 
+## Removing an entry
+
+`RemoveAsync`, from outside the game.
+
+```sh
+rbx data --datastore PlayerData delete Player_156 --env prod          # dry run
+rbx data --datastore PlayerData delete Player_156 --env prod --apply
+```
+
+Despite the name it is the **gentler** of the two ways to start a player over. A normal read then answers nothing, so a game that builds a fresh profile when it finds none builds one, from its own template rather than from a copy of that template you have to keep in step. And the value survives: the entry stays in a listing with `--show-deleted`, and its last value stays readable through `data revisions` for thirty days. `set` and `reset` destroy it the moment they land.
+
+The local copy is written first anyway, because thirty days is a deadline and a file is not. A key that does not exist is reported and nothing is sent.
+
+Needs `universe-datastores.objects:delete`.
+
+**One ordering matters.** A live session holding that profile in memory writes it back when it ends, undoing this. Delete while nobody is in the experience, or end the session from inside the game first. Resetting yourself mid-playtest is the in-game job, not this one.
+
 ## Reading and writing
 
 ```sh
@@ -96,6 +113,19 @@ rbx data --datastore PlayerData increment Coins_156 --by 500 --env prod --apply
 ```
 
 An overwrite **keeps the entry's `users` and `attributes`** unless you pass `--drop-metadata`. `users` is the association Roblox uses to answer a player's data request, and sending only `value` would sever it silently.
+
+## Finding stores
+
+The command to run when you do not yet know what to put in `--datastore`.
+
+```sh
+rbx data stores --env prod
+rbx data stores --show-deleted --env prod
+```
+
+Experience-wide, so it takes neither `--datastore` nor `--scope`. Needs `universe-datastores.control:list`.
+
+A store exists **from its first write**, not from the first `GetDataStore`, so a name that is absent here is a store the game has never written to. That also explains the names you did not choose: a game running in Studio writes wherever its own wrapper points, so a `-studio` twin of the live store is normal, and a wrapper library keeps its bookkeeping in a store of its own next to the data it manages.
 
 ## Finding keys
 
@@ -252,6 +282,44 @@ They read real player data, so they say no more than the human form already says
 | `revision_id` | string | The revision the value came from. **Absent** when Roblox did not say, and when there is no entry |
 | `value` | any | The stored value, nested. **Absent** under `--out` and when there is no entry. A present `null` is a real answer: a stored `null` and an entry with no value cannot be told apart, and the game cannot tell either |
 | `out` | string | Where `--out` wrote the value. **Absent** without `--out` |
+
+### `data stores --json`
+
+```json
+{
+  "schema_version": 1,
+  "show_deleted": false,
+  "limit": 100,
+  "count": 2,
+  "limit_reached": false,
+  "stores": [
+    { "id": "PlayerData-v1", "create_time": "2026-08-27T16:41:02Z", "deleted": false },
+    { "id": "Tickets-prod", "create_time": "2026-08-27T16:41:01Z", "deleted": false }
+  ]
+}
+```
+
+No `datastore` or `scope` key: this is the document you read before you have either. `id` is what every other subcommand takes as `--datastore`. `create_time` is **absent** when the response omitted it. `deleted` is only ever true with `--show-deleted`, since nothing else returns a soft-deleted store.
+
+### `data set --json`, and `reset`, `restore`, `delete`
+
+```json
+{
+  "schema_version": 1,
+  "datastore": "PlayerData",
+  "scope": "global",
+  "entry": "Player_156",
+  "action": "set",
+  "applied": true,
+  "existed": true,
+  "revision_id": "08DF077D....01",
+  "backup": ".rbx/backups/prod/Player_156-20260831T163538Z.json"
+}
+```
+
+**Requires `--yes`.** `--json` refuses to prompt and every write asks for a confirmation, so the pair would either draw a prompt into a pipe or quietly skip a confirmation. Clap refuses the combination rather than either.
+
+`action` is the verb you asked for, not the one they share internally: `set`, `reset`, `restore`, `copy` or `delete`. `applied` is false for a dry run, which is a success that changed nothing, and telling those apart from the exit code alone is impossible. `existed` says whether the key was there before, so `set` reports whether it created one and `delete` reports whether it found anything to remove. `revision_id` is **absent** on a dry run and on a delete, and it is the field this document exists for: it is what `data revisions --revision` takes. `backup` is **absent** under `--no-backup` and when there was no previous value to copy.
 
 ### `data list --json`
 

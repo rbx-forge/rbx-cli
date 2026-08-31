@@ -449,8 +449,8 @@ crates/
 │
 ├─ rbx-spec-drift/   # test-only: asserts our endpoints still exist in spec/openapi.json
 └─ rbx-schema/       # dev-only: writes schemas/*.json from the serde config models
-docs/                # per-subcommand detailed docs (one file per tool); also the mdBook
-                     # source: SUMMARY.md is the reading order, index.md the landing page
+docs/                # per-subcommand detailed docs (one file per tool); also the
+                     # site source: mkdocs.yml holds the reading order, index.md the landing page
 schemas/             # generated JSON Schemas for the config files (see "Editor support")
 spec/                # vendored Roblox OpenAPI document + provenance (see "API drift check")
 ```
@@ -484,7 +484,7 @@ every version bump is a deliberate act.
 | `.github/workflows/supply-chain.yml` | PR touching the dependency graph, **and weekly** | `cargo deny check` for advisories, licenses, bans and sources |
 | `.github/workflows/release.yml` | pushing a `v*` tag | builds four targets (Linux x86-64 gnu and musl, Windows x86-64, macOS aarch64), zips them, generates `SHA256SUMS`, creates the GitHub Release |
 | `.github/workflows/update-openapi.yml` | daily, 06:17 UTC | refreshes the vendored Roblox OpenAPI document and opens a PR if it changed |
-| `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` | builds the mdBook site from `docs/`; deploys to GitHub Pages on `main` only |
+| `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` | builds the MkDocs site from `docs/`; deploys to GitHub Pages on `main` only |
 | Dependabot | monthly, 06:00 Paris | one grouped PR bumping GitHub Actions versions |
 
 The heavy jobs run on Linux, where runners bill at 1x; macOS is a

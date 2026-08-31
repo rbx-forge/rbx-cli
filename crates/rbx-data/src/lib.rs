@@ -58,9 +58,9 @@ use rbx_core::GlobalFlags;
 use crate::backup::{sanitise_filename, BackupTarget};
 use crate::json::{
     DiffDocument, DiffSide, DiffSource, GetDocument, ListDocument, RevisionDocument,
-    RevisionsDocument, Store,
+    RevisionsDocument, Store, StoresDocument, WriteDocument,
 };
-use crate::model::{DataStoreEntry, EntryList, EntryUpdate, SnapshotResult};
+use crate::model::{DataStore, DataStoreEntry, EntryList, EntryUpdate, SnapshotResult, StoreList};
 
 /// Roblox's own default scope. Every game that has never set one is here.
 const DEFAULT_SCOPE: &str = "global";
@@ -166,6 +166,22 @@ enum Command {
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// What happened rather than what it looks like: the action, whether
+        /// it was applied or was a dry run, whether the entry existed, the
+        /// revision it is at now, and where the backup went. stdout carries
+        /// the document and nothing else. Field names are documented in
+        /// docs/ops/data.md.
+        ///
+        /// Requires `--yes`. `OutputFormat::Json` refuses to prompt and every
+        /// write here asks through `confirm_always`, so the pair would either
+        /// draw a prompt into a pipe or quietly skip a confirmation. Clap
+        /// refuses the combination instead, which keeps that guarantee
+        /// structural rather than moving it into a check at run time.
+        #[arg(long, requires = "yes")]
+        json: bool,
     },
 
     /// Force the next write to every key to keep a backup
@@ -194,6 +210,102 @@ enum Command {
         /// Actually take it.
         #[arg(long)]
         apply: bool,
+    },
+
+    /// Remove an entry, the way `RemoveAsync` does
+    ///
+    /// The counterpart to `reset`, and the gentler of the two despite the
+    /// name. A normal read then answers 404, so a game that builds a fresh
+    /// profile when it finds nothing builds one, from its own template rather
+    /// than from a copy of it that has to be kept in step.
+    ///
+    /// And the value survives: Roblox soft-deletes, so the entry stays in a
+    /// listing with `--show-deleted` and its last value stays readable through
+    /// `data revisions` for thirty days. `set` and `reset` destroy it at once.
+    ///
+    /// The local copy is still written first, because thirty days is a window
+    /// and a file is not.
+    ///
+    /// One ordering matters: a live session that holds this profile in memory
+    /// writes it back when it ends, undoing this. Delete while nobody is in
+    /// the experience, or end the session first from inside the game.
+    Delete {
+        /// Entry key.
+        entry: String,
+
+        /// Write the current value here first. Defaults to a timestamped file
+        /// in `.rbx/backups/<env>/`, beside `rbxplace.toml`.
+        #[arg(long)]
+        backup: Option<PathBuf>,
+
+        /// How many backups of this entry to keep in the default directory.
+        #[arg(long, default_value_t = backup::DEFAULT_KEEP,
+              value_parser = clap::value_parser!(u32).range(1..),
+              conflicts_with_all = ["backup", "no_backup"])]
+        keep: u32,
+
+        /// Do not write the local copy at all.
+        #[arg(long, conflicts_with = "backup")]
+        no_backup: bool,
+
+        /// Actually remove it.
+        #[arg(long)]
+        apply: bool,
+
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// What happened rather than what it looks like: the action, whether
+        /// it was applied or was a dry run, whether the entry existed, the
+        /// revision it is at now, and where the backup went. stdout carries
+        /// the document and nothing else. Field names are documented in
+        /// docs/ops/data.md.
+        ///
+        /// Requires `--yes`. `OutputFormat::Json` refuses to prompt and every
+        /// write here asks through `confirm_always`, so the pair would either
+        /// draw a prompt into a pipe or quietly skip a confirmation. Clap
+        /// refuses the combination instead, which keeps that guarantee
+        /// structural rather than moving it into a check at run time.
+        #[arg(long, requires = "yes")]
+        json: bool,
+    },
+
+    /// List the data stores in the experience
+    ///
+    /// The one subcommand you can run without knowing a store name, which is
+    /// what makes it the entry point to every other one: its output is what
+    /// `--datastore` takes.
+    ///
+    /// Expect stores nobody wrote by hand. A game running in Studio writes to
+    /// whatever name its own wrapper builds, so a `-studio` twin of the live
+    /// store is normal, and a wrapper library keeps its bookkeeping in a store
+    /// of its own next to the data it manages.
+    ///
+    /// A store exists from its first write, not from the first `GetDataStore`,
+    /// so a name absent here is a store the game has never written to.
+    ///
+    /// Experience-wide, so it needs neither `--datastore` nor `--scope`.
+    /// Needs `universe-datastores.control:list`.
+    Stores {
+        /// Include stores that have been deleted but not yet purged.
+        #[arg(long)]
+        show_deleted: bool,
+
+        /// Maximum stores to fetch.
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+
+        /// Write the stores to stdout as one JSON document.
+        ///
+        /// The names, plus what the human form prints around them: the count,
+        /// and whether the run stopped at --limit rather than at the end of
+        /// the experience. stdout carries the document and nothing else. Field
+        /// names are documented in docs/ops/data.md.
+        #[arg(long)]
+        json: bool,
     },
 
     /// List entry keys
@@ -288,6 +400,22 @@ enum Command {
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// What happened rather than what it looks like: the action, whether
+        /// it was applied or was a dry run, whether the entry existed, the
+        /// revision it is at now, and where the backup went. stdout carries
+        /// the document and nothing else. Field names are documented in
+        /// docs/ops/data.md.
+        ///
+        /// Requires `--yes`. `OutputFormat::Json` refuses to prompt and every
+        /// write here asks through `confirm_always`, so the pair would either
+        /// draw a prompt into a pipe or quietly skip a confirmation. Clap
+        /// refuses the combination instead, which keeps that guarantee
+        /// structural rather than moving it into a check at run time.
+        #[arg(long, requires = "yes")]
+        json: bool,
     },
 
     /// Copy an entry to another env, another key, or both
@@ -458,6 +586,22 @@ enum Command {
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// What happened rather than what it looks like: the action, whether
+        /// it was applied or was a dry run, whether the entry existed, the
+        /// revision it is at now, and where the backup went. stdout carries
+        /// the document and nothing else. Field names are documented in
+        /// docs/ops/data.md.
+        ///
+        /// Requires `--yes`. `OutputFormat::Json` refuses to prompt and every
+        /// write here asks through `confirm_always`, so the pair would either
+        /// draw a prompt into a pipe or quietly skip a confirmation. Clap
+        /// refuses the combination instead, which keeps that guarantee
+        /// structural rather than moving it into a check at run time.
+        #[arg(long, requires = "yes")]
+        json: bool,
     },
 
     /// Ordered data stores: the leaderboard resource.
@@ -515,6 +659,43 @@ impl Api {
             Err(error) if is_api_status(&error, StatusCode::NOT_FOUND) => Ok(None),
             Err(error) => Err(explain_missing_scope(error)),
         }
+    }
+
+    async fn delete(&self, entry: &str) -> Result<()> {
+        let url = self.entry_url(entry);
+
+        execute_with_retry(|| {
+            let request = self.client.delete(&url).header("x-api-key", &self.api_key);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map(|_| ())
+        .map_err(explain_missing_scope)
+    }
+
+    /// One page of data store names.
+    ///
+    /// Experience-wide, so it uses neither `self.datastore` nor `self.scope`:
+    /// this is the call that tells you what to put in the first of them.
+    async fn stores(&self, show_deleted: bool, page_token: Option<&str>) -> Result<StoreList> {
+        let mut url = self.base.join(&format!(
+            "/cloud/v2/universes/{}/data-stores?maxPageSize=100",
+            self.universe_id,
+        ));
+        if show_deleted {
+            url.push_str("&showDeleted=true");
+        }
+        if let Some(token) = page_token {
+            url.push_str("&pageToken=");
+            url.push_str(&encode_query_value(token));
+        }
+
+        execute_json(|| {
+            let request = self.client.get(&url).header("x-api-key", &self.api_key);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map_err(explain_missing_scope)
     }
 
     /// One page of entry ids. Only `id` and `path` come back; reading a value
@@ -653,6 +834,9 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
     // value the call does not use.
     let datastore = match (&cli.command, cli.datastore.clone()) {
         (Command::Snapshot { .. }, store) => store.unwrap_or_default(),
+        // `stores` is what you run *because* you do not know a store name.
+        // Demanding one would make the discovery command need its own answer.
+        (Command::Stores { .. }, store) => store.unwrap_or_default(),
         // `ordered` raises its own error, naming `GetOrderedDataStore` rather
         // than `GetDataStore`. Sending somebody to the wrong Luau function is
         // a small thing that costs a real detour.
@@ -779,6 +963,54 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     }
                 }
             }
+            Ok(())
+        }
+
+        Command::Stores {
+            show_deleted,
+            limit,
+            json,
+        } => {
+            let format = OutputFormat::from_json_flag(json);
+            let mut stores: Vec<DataStore> = Vec::new();
+            let mut token: Option<String> = None;
+            while (stores.len() as u32) < limit {
+                let page = api.stores(show_deleted, token.as_deref()).await?;
+                let next = page.next_token().map(str::to_string);
+                for store in page.data_stores {
+                    if store.name().is_some() {
+                        stores.push(store);
+                    }
+                }
+                match next {
+                    Some(value) => token = Some(value),
+                    None => break,
+                }
+            }
+            stores.truncate(limit as usize);
+
+            if stores.is_empty() {
+                // Not an error, and worth saying plainly: a store exists from
+                // its first write, so an experience nothing has written to yet
+                // really does have none.
+                format.note("No data stores. One exists from its first write.".dimmed());
+            }
+            if format.is_json() {
+                return output::emit(&StoresDocument::new(show_deleted, limit, &stores));
+            }
+            if stores.is_empty() {
+                return Ok(());
+            }
+            for store in &stores {
+                let name = store.name().unwrap_or_default();
+                if store.is_deleted() {
+                    println!("{name} {}", "(deleted)".dimmed());
+                } else {
+                    println!("{name}");
+                }
+            }
+            eprintln!();
+            eprintln!("{}", format!("{} data store(s)", stores.len()).dimmed());
             Ok(())
         }
 
@@ -918,13 +1150,12 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             no_backup,
             apply,
             yes,
+            json,
         } => {
+            let format = OutputFormat::from_json_flag(json);
             let found = api.get_revision(&entry, &revision).await?;
             let raw = serde_json::to_string(&found.value.unwrap_or(serde_json::Value::Null))?;
-            println!(
-                "{}",
-                format!("restoring `{entry}` from revision {revision}").dimmed()
-            );
+            format.note(format!("restoring `{entry}` from revision {revision}").dimmed());
             write_entry(
                 &api,
                 &entry,
@@ -943,8 +1174,11 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     drop_metadata: false,
                     apply,
                     yes,
+                    action: "restore",
+                    format,
                 },
                 universe_id,
+                &store,
             )
             .await
         }
@@ -1009,8 +1243,14 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     drop_metadata: false,
                     apply,
                     yes,
+                    action: "copy",
+                    format: OutputFormat::Human,
                 },
                 target_universe,
+                &Store {
+                    datastore: datastore.clone(),
+                    scope: cli.scope.clone(),
+                },
             )
             .await
         }
@@ -1147,7 +1387,9 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             no_backup,
             apply,
             yes,
+            json,
         } => {
+            let format = OutputFormat::from_json_flag(json);
             let path = template.unwrap_or_else(|| PathBuf::from(DEFAULT_TEMPLATE));
             if !path.exists() {
                 bail!(
@@ -1157,7 +1399,7 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             }
             let raw = std::fs::read_to_string(&path)
                 .with_context(|| format!("reading {}", path.display()))?;
-            println!("{}", format!("resetting from {}", path.display()).dimmed());
+            format.note(format!("resetting from {}", path.display()).dimmed());
             write_entry(
                 &api,
                 &entry,
@@ -1176,10 +1418,116 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     drop_metadata: false,
                     apply,
                     yes,
+                    action: "reset",
+                    format,
                 },
                 universe_id,
+                &store,
             )
             .await
+        }
+
+        Command::Delete {
+            entry,
+            backup,
+            keep,
+            no_backup,
+            apply,
+            yes,
+            json,
+        } => {
+            let format = OutputFormat::from_json_flag(json);
+            let mut document = WriteDocument::new(&store, &entry, "delete");
+            let target = backup_target(
+                BackupFlags {
+                    backup,
+                    no_backup,
+                    keep,
+                },
+                global,
+                global.env.as_deref(),
+                universe_id,
+            );
+            let existing = api.get(&entry).await?;
+
+            document.existed = existing.is_some();
+            format.note(format!("entry {entry}").bold());
+
+            let found = match &existing {
+                Some(found) => found,
+                None => {
+                    format.note("  no such entry, nothing to remove".dimmed());
+
+                    if format.is_json() {
+                        return output::emit(&document);
+                    }
+
+                    return Ok(());
+                }
+            };
+
+            let current = found.value.clone().unwrap_or(serde_json::Value::Null);
+            format.note("  current".dimmed());
+            format.note(indent(&serde_json::to_string_pretty(&current)?));
+            format.note("");
+
+            if !apply {
+                format.note("Nothing removed. Re-run with --apply to delete.".yellow());
+
+                if format.is_json() {
+                    return output::emit(&document);
+                }
+
+                return Ok(());
+            }
+
+            match &target {
+                BackupTarget::Path(_) | BackupTarget::Managed { .. } => {
+                    let written =
+                        backup::write(&target, &entry, &serde_json::to_string_pretty(&current)?)?;
+                    document.backup = Some(written.path.display().to_string());
+                    format.note(format!("backup written to {}", written.path.display()));
+                    if written.pruned > 0 {
+                        format.note(
+                            format!(
+                                "  {} older backup(s) of {entry} removed by --keep",
+                                written.pruned
+                            )
+                            .dimmed(),
+                        );
+                    }
+                }
+                // Unlike an overwrite, a delete leaves the value readable for
+                // thirty days, so skipping the copy is not the same cliff. It
+                // is still a deadline rather than a keepsake.
+                BackupTarget::Skip => {
+                    format.note(
+                        "--no-backup: no local copy. The value stays readable through \
+                         `data revisions` for thirty days, and then it does not."
+                            .yellow(),
+                    );
+                }
+            }
+
+            confirm_always(
+                &format!("Remove `{entry}` from universe {universe_id}?"),
+                yes,
+            )?;
+
+            api.delete(&entry).await?;
+            document.applied = true;
+
+            format.note(format!(
+                "{} {entry} is gone. A read answers nothing; `data revisions {entry}` still has it \
+                 for thirty days.",
+                "done".green().bold()
+            ));
+
+            if format.is_json() {
+                return output::emit(&document);
+            }
+
+            Ok(())
         }
 
         Command::Set {
@@ -1192,6 +1540,7 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             drop_metadata,
             apply,
             yes,
+            json,
         } => {
             let raw = match (&value, &file) {
                 (Some(inline), _) => inline.clone(),
@@ -1217,8 +1566,11 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                     drop_metadata,
                     apply,
                     yes,
+                    action: "set",
+                    format: OutputFormat::from_json_flag(json),
                 },
                 universe_id,
+                &store,
             )
             .await
         }
@@ -1246,6 +1598,11 @@ struct WriteOptions {
     drop_metadata: bool,
     apply: bool,
     yes: bool,
+    /// What the document calls this: `set`, `reset`, `restore` or `copy`.
+    /// One code path, four names, and a caller reading the document wants the
+    /// one it asked for rather than the one they share.
+    action: &'static str,
+    format: OutputFormat,
 }
 
 /// The three backup flags, resolved against the env the write lands in.
@@ -1299,32 +1656,39 @@ async fn write_entry(
     raw: &str,
     options: WriteOptions,
     universe_id: u64,
+    store: &Store,
 ) -> Result<()> {
     let WriteOptions {
         backup,
         drop_metadata,
         apply,
         yes,
+        action,
+        format,
     } = options;
+
+    let mut document = WriteDocument::new(store, entry, action);
     let new_value: serde_json::Value =
         serde_json::from_str(raw).context("the new value must be valid JSON")?;
 
     let existing = api.get(entry).await?;
 
-    println!("{}", format!("entry {entry}").bold());
+    document.existed = existing.is_some();
+
+    format.note(format!("entry {entry}").bold());
     match &existing {
         Some(found) => {
             let current = found.value.clone().unwrap_or(serde_json::Value::Null);
-            println!("{}", "  current".dimmed());
-            println!("{}", indent(&serde_json::to_string_pretty(&current)?));
+            format.note("  current".dimmed());
+            format.note(indent(&serde_json::to_string_pretty(&current)?));
             if let Some(users) = &found.users {
-                println!("  users      {}", users.join(", ").dimmed());
+                format.note(format!("  users      {}", users.join(", ").dimmed()));
             }
         }
-        None => println!("{}", "  does not exist yet, it will be created".dimmed()),
+        None => format.note("  does not exist yet, it will be created".dimmed()),
     }
-    println!("{}", "  new".dimmed());
-    println!("{}", indent(&serde_json::to_string_pretty(&new_value)?));
+    format.note("  new".dimmed());
+    format.note(indent(&serde_json::to_string_pretty(&new_value)?));
 
     let update = if drop_metadata {
         EntryUpdate::bare(new_value)
@@ -1332,18 +1696,17 @@ async fn write_entry(
         EntryUpdate::preserving(new_value, existing.as_ref())
     };
     if drop_metadata && existing.as_ref().and_then(|e| e.users.as_ref()).is_some() {
-        println!(
-            "{}",
-            "  --drop-metadata: the user association will be removed".yellow()
-        );
+        format.note("  --drop-metadata: the user association will be removed".yellow());
     }
-    println!();
+    format.note("");
 
     if !apply {
-        println!(
-            "{}",
-            "Nothing written. Re-run with --apply to overwrite.".yellow()
-        );
+        format.note("Nothing written. Re-run with --apply to overwrite.".yellow());
+
+        if format.is_json() {
+            return output::emit(&document);
+        }
+
         return Ok(());
     }
 
@@ -1356,15 +1719,15 @@ async fn write_entry(
                 &found.value.clone().unwrap_or(serde_json::Value::Null),
             )?;
             let written = backup::write(&backup, entry, &contents)?;
-            println!("backup written to {}", written.path.display());
+            document.backup = Some(written.path.display().to_string());
+            format.note(format!("backup written to {}", written.path.display()));
             if written.pruned > 0 {
-                println!(
-                    "{}",
+                format.note(
                     format!(
                         "  {} older backup(s) of {entry} removed by --keep",
                         written.pruned
                     )
-                    .dimmed()
+                    .dimmed(),
                 );
             }
         }
@@ -1372,11 +1735,10 @@ async fn write_entry(
         // stop, and it should not be the first place you learn that the value
         // about to be replaced is not being kept anywhere.
         (Some(_), BackupTarget::Skip) => {
-            println!(
-                "{}",
+            format.note(
                 "--no-backup: no local copy. Unless this experience has been snapshotted today, \
                  the current value is gone the moment this write lands."
-                    .yellow()
+                    .yellow(),
             );
         }
         // Nothing to copy: the entry does not exist yet, so the write creates
@@ -1390,11 +1752,20 @@ async fn write_entry(
     )?;
 
     let written = api.set(entry, &update).await?;
-    println!(
+
+    document.applied = true;
+    document.revision_id = written.revision_id.clone();
+
+    format.note(format!(
         "{} {entry} is now revision {}",
         "done".green().bold(),
         written.revision_id.as_deref().unwrap_or("(unknown)")
-    );
+    ));
+
+    if format.is_json() {
+        return output::emit(&document);
+    }
+
     Ok(())
 }
 
@@ -1454,15 +1825,43 @@ mod json_flag_tests {
             assert!(parses(&reading), "{reading:?} should take --json");
         }
 
+        // A write may report what it did, but only where no prompt can happen.
+        // `--yes` is what makes that true, so clap requires it rather than
+        // `confirm_always` learning to keep quiet: the guarantee stays at parse
+        // time, which is where it was.
         for writing in [
             vec!["set", "Player_156", "--value", "1", "--json"],
             vec!["reset", "Player_156", "--json"],
             vec!["restore", "Player_156", "--revision", "r1", "--json"],
-            vec!["copy", "Player_156", "--from", "a", "--to", "b", "--json"],
-            vec!["increment", "Player_156", "--by", "1", "--json"],
+            vec!["delete", "Player_156", "--json"],
+        ] {
+            assert!(
+                !parses(&writing),
+                "{writing:?} must not take --json without --yes"
+            );
+
+            let mut allowed = writing.clone();
+            allowed.push("--yes");
+            assert!(parses(&allowed), "{allowed:?} should be accepted");
+        }
+
+        // These three still carry no document at all, so the flag does not
+        // exist on them and no amount of --yes conjures it.
+        for never in [
+            vec![
+                "copy",
+                "Player_156",
+                "--from",
+                "a",
+                "--to",
+                "b",
+                "--json",
+                "--yes",
+            ],
+            vec!["increment", "Player_156", "--by", "1", "--json", "--yes"],
             vec!["snapshot", "--json"],
         ] {
-            assert!(!parses(&writing), "{writing:?} must not take --json");
+            assert!(!parses(&never), "{never:?} must not take --json");
         }
     }
 

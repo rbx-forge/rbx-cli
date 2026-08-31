@@ -1,0 +1,165 @@
+# The documentation site published at https://rbx-forge.github.io/rbx-cli/
+# by .github/workflows/docs.yml.
+#
+# `docs_dir` points straight at the existing `docs/` directory. Nothing is
+# copied and nothing is generated into it: the site is a rendering of the same
+# files GitHub already serves at /blob/main/docs/, so `docs/*.md` stays the
+# single source of truth and the two surfaces cannot drift.
+#
+# ## Why this replaced mdBook
+#
+# mdBook was chosen because it is a single Rust binary and this repository has
+# no Node toolchain, which is still true and still a good reason to avoid a
+# JavaScript site generator. What it cannot do is the layout these pages want:
+# a top bar with the six sections as tabs, so the operational commands are one
+# click from the declarative ones rather than a scroll apart in a sidebar of
+# twenty-eight entries.
+#
+# Material for MkDocs gets that from one Python package. That is a toolchain,
+# and it is the cost of the change, but it is a `pip install` of a pure-Python
+# wheel rather than a lockfile and a dependency tree.
+#
+# The reading order that lived in `docs/SUMMARY.md` is the `nav` below. It is
+# the one thing markdown alone cannot express, and it moved rather than being
+# duplicated: `SUMMARY.md` is gone.
+
+site_name: rbx-cli
+site_description: Unified Roblox Open Cloud CLI. One binary, one install, every tool as a subcommand.
+site_url: https://rbx-forge.github.io/rbx-cli/
+repo_url: https://github.com/rbx-forge/rbx-cli
+repo_name: rbx-forge/rbx-cli
+# Every page gets an "edit this page" link pointing at the real file in
+# `docs/`, which is the same reason `docs_dir` is not a copy: there is exactly
+# one place to fix a typo, and the site says where it is.
+edit_uri: edit/main/docs/
+copyright: MPL-2.0
+
+docs_dir: docs
+site_dir: site
+
+# A page in `nav` whose file is missing is a build failure rather than a
+# silently absent entry, which is the guarantee `create-missing = false` gave
+# under mdBook.
+strict: true
+
+theme:
+  name: material
+  language: en
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Inter
+    code: JetBrains Mono
+  features:
+    # The reason for the move. Six sections across the top rather than
+    # twenty-eight entries down the side.
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - navigation.instant
+    - navigation.instant.progress
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - search.share
+    # These pages are dense with `rbx …` invocations, and the thing a reader
+    # does with one is run it.
+    - content.code.copy
+    - content.action.edit
+    - content.tooltips
+
+  palette:
+    # Follows the reader's own setting first, and the two explicit choices are
+    # reachable from there. Material stores the pick, so anyone who has touched
+    # the toggle keeps what they chose.
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Follow the system
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Follow the system
+
+extra_css:
+  - stylesheets/extra.css
+
+markdown_extensions:
+  # The tables on nearly every page.
+  - tables
+  - toc:
+      permalink: true
+      permalink_title: Link to this section
+  - admonition
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+
+plugins:
+  - search
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rbx-forge/rbx-cli
+      name: rbx-cli on GitHub
+
+nav:
+  - Introduction: index.md
+
+  - Getting started:
+      - rbx init: init.md
+      - rbx import: import.md
+      - rbx env: env.md
+      - rbx apikey: apikey.md
+      - rbx doctor: doctor.md
+      - rbx check and rbx status: check.md
+
+  - Declarative:
+      - rbx place: place.md
+      - rbx meta: meta.md
+      - rbx config: config.md
+      - rbx rtbf: rtbf.md
+      - rbx shop: shop.md
+      - rbx secret: secret.md
+
+  - Operational:
+      - Live operations: ops.md
+      - rbx servers: ops/servers.md
+      - rbx analytics: ops/analytics.md
+      - rbx ban: ops/ban.md
+      - rbx restart: ops/restart.md
+      - rbx data: ops/data.md
+      - rbx memorystore: ops/memorystore.md
+      - rbx message: ops/message.md
+      - rbx ads: ops/ads.md
+      - rbx probe: ops/probe.md
+
+  - Local utilities:
+      - rbx open: open.md
+      - rbx download: download.md
+      - rbx completions: completions.md
+
+  - Guides:
+      - Working in a team: teams.md
+      - The Studio cookie: cookie.md

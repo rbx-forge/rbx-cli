@@ -77,8 +77,22 @@ fn flags(places: &std::path::Path, env: &str) -> GlobalFlags {
 /// `PlaceCli` is an `Args` group, not a parser in its own right, so the tests
 /// wrap it the way the `rbx` binary does. Building it from a real argv means
 /// these tests also cover the flag definitions.
+///
+/// `GlobalFlags` is flattened here for the same reason, and it is not
+/// decorative: its arguments are `global = true`, so clap propagates them into
+/// every subcommand, and a subcommand flag that refers to one of them (`--env`
+/// on the reads is `required_unless_present = "place_id"`) only resolves once
+/// they are in the same parser. Without this the wrapper is a different
+/// command from the one the binary builds, and clap's debug assertions say so.
+///
+/// The parsed value is dropped: these tests hand `run` a `GlobalFlags` they
+/// construct themselves, so what is wanted from it is the argument
+/// definitions.
 #[derive(clap::Parser)]
 struct Wrapper {
+    #[command(flatten)]
+    global: GlobalFlags,
+
     #[command(flatten)]
     place: PlaceCli,
 }
@@ -89,6 +103,55 @@ fn cli(args: &[&str], server: &MockServer) -> PlaceCli {
     argv.push("--base-url".to_string());
     argv.push(server.uri());
     <Wrapper as clap::Parser>::parse_from(argv).place
+}
+
+/// Parse without a mock server behind it, for the cases that never get as far
+/// as a request.
+fn parses(args: &[&str]) -> Result<(), clap::Error> {
+    let mut argv: Vec<String> = vec!["place".to_string()];
+    argv.extend(args.iter().map(|arg| (*arg).to_string()));
+    <Wrapper as clap::Parser>::try_parse_from(argv).map(|_| ())
+}
+
+/// `--place-id` is documented as skipping `rbxplace.toml` and reaching the
+/// reads, and `single_place` has always answered from the id alone. Only the
+/// parse rule disagreed: `--env` was required outright, so clap turned these
+/// away before anything consulted the id. Both lines below are copied from
+/// docs/place.md, "Working without rbxplace.toml".
+#[test]
+fn a_place_id_stands_in_for_an_env_on_the_reads() {
+    assert!(parses(&["versions", "--place-id", "123456789012345"]).is_ok());
+    assert!(parses(&[
+        "download",
+        "--place-id",
+        "123456789012345",
+        "--out",
+        "backup.rbxl"
+    ])
+    .is_ok());
+}
+
+/// The other half of the rule, and the reason `--env` stays required rather
+/// than becoming optional: naming neither is still a parse error, not a
+/// failure halfway through a command that has already printed a header.
+#[test]
+fn naming_neither_an_env_nor_a_place_is_refused_at_parse_time() {
+    assert!(parses(&["versions"]).is_err());
+    assert!(parses(&["download", "--out", "backup.rbxl"]).is_err());
+}
+
+/// The writes are deliberately not part of that: `confirm = true` is declared
+/// on an env, so an env-less write would walk past a guard somebody set.
+#[test]
+fn a_place_id_does_not_stand_in_for_an_env_on_a_write() {
+    assert!(parses(&[
+        "upload",
+        "--place-id",
+        "123456789012345",
+        "--file",
+        "place.rbxl"
+    ])
+    .is_err());
 }
 
 fn rbxl(dir: &std::path::Path) -> std::path::PathBuf {

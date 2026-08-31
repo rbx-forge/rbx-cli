@@ -23,7 +23,7 @@ rbx env get universe-id --env prod      # 9876543211
 
 ## Commands
 
-<details>
+<details markdown="1">
 <summary><code>rbx env list</code></summary>
 
 Show the envs defined in `rbxplace.toml`. Pass the global `--env <name>` to show a single one.
@@ -142,7 +142,7 @@ Both listings fail with an empty stdout when `rbxplace.toml` is missing or does 
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx env get</code></summary>
 
 Print a single value. The value goes to stdout bare (no label, no color, no trailing decoration) so it can be captured directly.
@@ -226,7 +226,7 @@ rbx env get place-id --env all --json | jq -r '.results[] | "\(.env)=\(.value)"'
 
 </details>
 
-<details>
+<details markdown="1">
 <summary><code>rbx env gen-module</code></summary>
 
 Export the env map as a module your game code can import, so runtime code branches on the env it's running in instead of hardcoding ids.
@@ -300,7 +300,7 @@ Envs and places are emitted in name order, so regenerating from an unchanged `rb
 </details>
 
 
-<details>
+<details markdown="1">
 <summary><code>rbx env rm</code></summary>
 
 Remove an env from `rbxplace.toml` and from every file keyed by it.

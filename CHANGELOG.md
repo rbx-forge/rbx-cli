@@ -7,7 +7,84 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`--json` on `set`, `reset`, `restore` and `delete`.** These four said what
+  they did in prose on stdout, so anything driving them had two ways to know
+  and both were poor: parse that sentence, or read the exit code and learn
+  only that it worked. The document carries the action, whether it was applied
+  or was a dry run, whether the entry existed, where the backup went, and the
+  revision the entry is at now, which is the one fact a caller wants afterwards
+  because it is what `data revisions --revision` takes.
+
+  This overturns a decision the crate had pinned with a test: `--json` was
+  confined to the subcommands that never prompt, because `OutputFormat::Json`
+  refuses to prompt and a write asks through `confirm_always`. That reasoning
+  was right, so the flag now **requires `--yes`**, and clap refuses the pair
+  without it. The guarantee stays where it was, at parse time, rather than
+  moving into a check at run time that somebody has to remember.
+
+  `copy`, `increment` and `snapshot` still carry no document.
+
+- **`rbx data delete`**: removes an entry the way `RemoveAsync` does, which
+  until now had no equivalent here. `set` and `reset` were the only ways to
+  change an entry from outside the game, and neither leaves the experience in
+  the state a removed key does.
+
+  It is the gentler of the two despite the name. A read then answers nothing,
+  so a game that builds a fresh profile when it finds none builds one from its
+  own template instead of from a JSON copy that has to be kept in step. And
+  the value survives: soft-deleted, listed under `--show-deleted`, readable
+  through `data revisions` for thirty days, where an overwrite destroys it on
+  landing.
+
+  The local copy is written first regardless, since thirty days is a deadline.
+  A key that is not there is reported rather than treated as a failure, and
+  nothing is sent.
+
+  A live session holding the profile writes it back when it ends, so this is
+  for a key nobody is currently playing. The `--help` and the docs both say
+  so, because the failure it produces looks like the command doing nothing.
+
+- **`rbx data stores`**: lists the data stores in an experience. Every other
+  `data` subcommand takes `--datastore <name>`, and nothing told you what the
+  names were, so the one question you have before all the others was the one
+  question the tool could not answer. `Cloud_ListDataStores` was already in the
+  bundled spec and already covered by the `universe-datastores.control:list`
+  scope the `data` key carries; only the wiring was missing.
+
+  Experience-wide, so it takes neither `--datastore` nor `--scope`, and it
+  paginates on `pageToken` up to `--limit`. `--show-deleted` includes stores
+  soft-deleted and not yet purged, and marks them in both output formats.
+
+  Expect names nobody chose. A store exists from its first write rather than
+  from the first `GetDataStore`, and a game running in Studio writes wherever
+  its own wrapper points, so a `-studio` twin of the live store and a wrapper
+  library's bookkeeping store both show up next to the data you meant to find.
+
 ### Fixed
+
+- **`rbx place versions` and `rbx place download` refused `--place-id` without
+  `--env`.** Both commands declared `--env` as required, so clap turned the
+  invocation away before anything looked at the id. `--place-id` is documented
+  as skipping `rbxplace.toml` and reaching the reads, its own help says it wins
+  over `--env` when both are given, and the resolver behind it already answered
+  from the id alone: only the parse rule disagreed.
+
+  `--env` is now required *unless* `--place-id` is present, on those two reads
+  only. The writes still refuse an id on its own, which is deliberate and
+  unchanged: `confirm = true` is declared on an env, and a write with no env
+  would walk past a guard somebody set.
+
+  One consequence for consumers: `place versions --json` **omits** `env` under
+  a bare `--place-id`, rather than inventing one. That is the rule `place
+  places --json` already follows under a bare `--universe-id`, and no document
+  that carried the field before loses it, since the combination that omits it
+  could not be parsed until now.
+
+  Found by a new test that hands every `rbx …` line in `docs/` to clap without
+  running it. The pages described the behaviour that was designed and the CLI
+  had the other one.
 
 - **`rbx apikey create` reported false scope drift on any target Roblox does
   not return under `universeIds`** (#37). The post-create check announced

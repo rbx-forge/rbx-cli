@@ -82,6 +82,23 @@ Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the
 
 Outside those, it throws away the only way back. The command says so on every run rather than only in this page, and the two flags cannot be combined: one names where the copy goes, the other says there is none.
 
+## Removing an entry
+
+`RemoveAsync`, from outside the game.
+
+```sh
+rbx data --datastore PlayerData delete Player_156 --env prod          # dry run
+rbx data --datastore PlayerData delete Player_156 --env prod --apply
+```
+
+Despite the name it is the **gentler** of the two ways to start a player over. A normal read then answers nothing, so a game that builds a fresh profile when it finds none builds one, from its own template rather than from a copy of that template you have to keep in step. And the value survives: the entry stays in a listing with `--show-deleted`, and its last value stays readable through `data revisions` for thirty days. `set` and `reset` destroy it the moment they land.
+
+The local copy is written first anyway, because thirty days is a deadline and a file is not. A key that does not exist is reported and nothing is sent.
+
+Needs `universe-datastores.objects:delete`.
+
+**One ordering matters.** A live session holding that profile in memory writes it back when it ends, undoing this. Delete while nobody is in the experience, or end the session from inside the game first. Resetting yourself mid-playtest is the in-game job, not this one.
+
 ## Reading and writing
 
 ```sh

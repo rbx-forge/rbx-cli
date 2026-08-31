@@ -196,6 +196,51 @@ enum Command {
         apply: bool,
     },
 
+    /// Remove an entry, the way `RemoveAsync` does
+    ///
+    /// The counterpart to `reset`, and the gentler of the two despite the
+    /// name. A normal read then answers 404, so a game that builds a fresh
+    /// profile when it finds nothing builds one, from its own template rather
+    /// than from a copy of it that has to be kept in step.
+    ///
+    /// And the value survives: Roblox soft-deletes, so the entry stays in a
+    /// listing with `--show-deleted` and its last value stays readable through
+    /// `data revisions` for thirty days. `set` and `reset` destroy it at once.
+    ///
+    /// The local copy is still written first, because thirty days is a window
+    /// and a file is not.
+    ///
+    /// One ordering matters: a live session that holds this profile in memory
+    /// writes it back when it ends, undoing this. Delete while nobody is in
+    /// the experience, or end the session first from inside the game.
+    Delete {
+        /// Entry key.
+        entry: String,
+
+        /// Write the current value here first. Defaults to a timestamped file
+        /// in `.rbx/backups/<env>/`, beside `rbxplace.toml`.
+        #[arg(long)]
+        backup: Option<PathBuf>,
+
+        /// How many backups of this entry to keep in the default directory.
+        #[arg(long, default_value_t = backup::DEFAULT_KEEP,
+              value_parser = clap::value_parser!(u32).range(1..),
+              conflicts_with_all = ["backup", "no_backup"])]
+        keep: u32,
+
+        /// Do not write the local copy at all.
+        #[arg(long, conflicts_with = "backup")]
+        no_backup: bool,
+
+        /// Actually remove it.
+        #[arg(long)]
+        apply: bool,
+
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+    },
+
     /// List the data stores in the experience
     ///
     /// The one subcommand you can run without knowing a store name, which is
@@ -550,6 +595,18 @@ impl Api {
             Err(error) if is_api_status(&error, StatusCode::NOT_FOUND) => Ok(None),
             Err(error) => Err(explain_missing_scope(error)),
         }
+    }
+
+    async fn delete(&self, entry: &str) -> Result<()> {
+        let url = self.entry_url(entry);
+
+        execute_with_retry(|| {
+            let request = self.client.delete(&url).header("x-api-key", &self.api_key);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map(|_| ())
+        .map_err(explain_missing_scope)
     }
 
     /// One page of data store names.
@@ -1291,6 +1348,92 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
                 universe_id,
             )
             .await
+        }
+
+        Command::Delete {
+            entry,
+            backup,
+            keep,
+            no_backup,
+            apply,
+            yes,
+        } => {
+            let target = backup_target(
+                BackupFlags {
+                    backup,
+                    no_backup,
+                    keep,
+                },
+                global,
+                global.env.as_deref(),
+                universe_id,
+            );
+            let existing = api.get(&entry).await?;
+
+            println!("{}", format!("entry {entry}").bold());
+
+            let found = match &existing {
+                Some(found) => found,
+                None => {
+                    println!("{}", "  no such entry, nothing to remove".dimmed());
+                    return Ok(());
+                }
+            };
+
+            let current = found.value.clone().unwrap_or(serde_json::Value::Null);
+            println!("{}", "  current".dimmed());
+            println!("{}", indent(&serde_json::to_string_pretty(&current)?));
+            println!();
+
+            if !apply {
+                println!(
+                    "{}",
+                    "Nothing removed. Re-run with --apply to delete.".yellow()
+                );
+                return Ok(());
+            }
+
+            match &target {
+                BackupTarget::Path(_) | BackupTarget::Managed { .. } => {
+                    let written =
+                        backup::write(&target, &entry, &serde_json::to_string_pretty(&current)?)?;
+                    println!("backup written to {}", written.path.display());
+                    if written.pruned > 0 {
+                        println!(
+                            "{}",
+                            format!(
+                                "  {} older backup(s) of {entry} removed by --keep",
+                                written.pruned
+                            )
+                            .dimmed()
+                        );
+                    }
+                }
+                // Unlike an overwrite, a delete leaves the value readable for
+                // thirty days, so skipping the copy is not the same cliff. It
+                // is still a deadline rather than a keepsake.
+                BackupTarget::Skip => {
+                    println!(
+                        "{}",
+                        "--no-backup: no local copy. The value stays readable through \
+                         `data revisions` for thirty days, and then it does not."
+                            .yellow()
+                    );
+                }
+            }
+
+            confirm_always(
+                &format!("Remove `{entry}` from universe {universe_id}?"),
+                yes,
+            )?;
+
+            api.delete(&entry).await?;
+            println!(
+                "{} {entry} is gone. A read answers nothing; `data revisions {entry}` still has it \
+                 for thirty days.",
+                "done".green().bold()
+            );
+            Ok(())
         }
 
         Command::Set {

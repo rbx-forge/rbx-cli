@@ -641,6 +641,80 @@ const SNAPSHOT_PATH: &str = "/cloud/v2/universes/66778899001/data-stores:snapsho
 
 const STORES_PATH: &str = "/cloud/v2/universes/66778899001/data-stores";
 
+#[tokio::test]
+async fn delete_without_apply_reads_the_entry_and_removes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(&server, serde_json::json!({ "value": { "coins": 10 } })).await;
+
+    run(
+        cli(&["delete", "Player_156"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+
+    let sent = server.received_requests().await.unwrap();
+    assert!(
+        sent.iter().all(|request| request.method != "DELETE"),
+        "a dry run must not remove anything"
+    );
+}
+
+#[tokio::test]
+async fn deleting_writes_the_backup_before_the_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(&server, serde_json::json!({ "value": { "coins": 10 } })).await;
+    Mock::given(method("DELETE"))
+        .and(path(ENTRY_PATH))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["delete", "Player_156", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap();
+
+    let backups = dir.path().join(".rbx").join("backups").join("ops");
+    let kept: Vec<_> = std::fs::read_dir(&backups)
+        .expect("the backup directory should exist")
+        .filter_map(Result::ok)
+        .collect();
+
+    assert_eq!(kept.len(), 1, "the value should have been copied first");
+    let contents = std::fs::read_to_string(kept[0].path()).unwrap();
+    assert!(contents.contains("coins"), "got: {contents}");
+}
+
+#[tokio::test]
+async fn deleting_a_key_that_is_not_there_is_a_no_op_rather_than_a_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(ENTRY_PATH))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["delete", "Player_156", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .expect("a missing entry is nothing to remove, not an error");
+
+    let sent = server.received_requests().await.unwrap();
+    assert!(
+        sent.iter().all(|request| request.method != "DELETE"),
+        "nothing should have been sent for a key that does not exist"
+    );
+}
+
 /// `stores` is the command you run *because* you have no store name, so like
 /// `snapshot` it must parse and run with no `--datastore`.
 fn stores_cli(args: &[&str], server: &MockServer) -> DataCli {

@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx data delete`**: removes an entry the way `RemoveAsync` does, which
+  until now had no equivalent here. `set` and `reset` were the only ways to
+  change an entry from outside the game, and neither leaves the experience in
+  the state a removed key does.
+
+  It is the gentler of the two despite the name. A read then answers nothing,
+  so a game that builds a fresh profile when it finds none builds one from its
+  own template instead of from a JSON copy that has to be kept in step. And
+  the value survives: soft-deleted, listed under `--show-deleted`, readable
+  through `data revisions` for thirty days, where an overwrite destroys it on
+  landing.
+
+  The local copy is written first regardless, since thirty days is a deadline.
+  A key that is not there is reported rather than treated as a failure, and
+  nothing is sent.
+
+  A live session holding the profile writes it back when it ends, so this is
+  for a key nobody is currently playing. The `--help` and the docs both say
+  so, because the failure it produces looks like the command doing nothing.
+
 - **`rbx data stores`**: lists the data stores in an experience. Every other
   `data` subcommand takes `--datastore <name>`, and nothing told you what the
   names were, so the one question you have before all the others was the one

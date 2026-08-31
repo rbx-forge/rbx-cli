@@ -1,5 +1,11 @@
 mod completions;
 
+// Lives in the binary crate because `Cli` is private to it, and the point is
+// to parse without running: an integration test could only reach the built
+// executable, and a documented command that parses would then execute.
+#[cfg(test)]
+mod docs_drift;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 

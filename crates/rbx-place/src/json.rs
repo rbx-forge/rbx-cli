@@ -51,8 +51,11 @@ use crate::api::models::{PlaceEntry, VersionInfo};
 pub struct VersionsDocument {
     pub schema_version: u32,
     /// The env asked for, so a document captured out of a matrix job still
-    /// says which leg produced it.
-    pub env: String,
+    /// says which leg produced it. **Absent** under a bare `--place-id`, the
+    /// same rule `PlacesDocument` follows under a bare `--universe-id`: there
+    /// is no config in play, so there is no env to name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<String>,
     /// The `rbxplace.toml` place name, after the `--place` defaulting rule.
     pub place: String,
     pub place_id: String,
@@ -86,7 +89,7 @@ impl VersionsDocument {
     // `pub(crate)`, unlike the type: `VersionInfo` lives in the crate-private
     // `api` module, and a public constructor taking one would leak it.
     pub(crate) fn new(
-        env: &str,
+        env: Option<&str>,
         place: &str,
         place_id: u64,
         filter: &str,
@@ -95,7 +98,7 @@ impl VersionsDocument {
     ) -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
-            env: env.to_string(),
+            env: env.map(str::to_string),
             place: place.to_string(),
             place_id: place_id.to_string(),
             filter: filter.to_string(),
@@ -421,7 +424,7 @@ mod tests {
     #[test]
     fn the_versions_envelope_carries_the_documented_fields() {
         let doc = parsed(&VersionsDocument::new(
-            "prod",
+            Some("prod"),
             "main",
             123_456_789_012_345,
             "all",
@@ -441,12 +444,31 @@ mod tests {
         assert_eq!(doc["versions"][1]["published"], false);
     }
 
+    /// `--place-id` names the place without consulting `rbxplace.toml`, so
+    /// there is no env in play. Absent rather than empty: a consumer keying a
+    /// matrix leg off it can tell "no env" from an env literally named "".
+    #[test]
+    fn a_place_id_listing_names_no_env_at_all() {
+        let doc = parsed(&VersionsDocument::new(
+            None,
+            "123456789012345",
+            123_456_789_012_345,
+            "all",
+            20,
+            &[version(5, true)],
+        ));
+
+        assert!(doc.get("env").is_none());
+        assert_eq!(doc["place"], "123456789012345");
+        assert_eq!(doc["place_id"], "123456789012345");
+    }
+
     /// The human listing prints `2024-01-05 00:00 UTC`. That is a layout; the
     /// document keeps what Roblox sent so a consumer parses a timestamp.
     #[test]
     fn a_create_time_is_the_api_timestamp_and_not_the_human_rendering() {
         let doc = parsed(&VersionsDocument::new(
-            "prod",
+            Some("prod"),
             "main",
             1,
             "all",
@@ -460,15 +482,22 @@ mod tests {
     #[test]
     fn hitting_the_count_is_reported_rather_than_left_to_be_inferred() {
         let rows = [version(5, true), version(4, true)];
-        assert!(VersionsDocument::new("prod", "main", 1, "all", 2, &rows).count_reached);
-        assert!(!VersionsDocument::new("prod", "main", 1, "all", 3, &rows).count_reached);
+        assert!(VersionsDocument::new(Some("prod"), "main", 1, "all", 2, &rows).count_reached);
+        assert!(!VersionsDocument::new(Some("prod"), "main", 1, "all", 3, &rows).count_reached);
     }
 
     /// A place with no versions is a fact, not a failure: an empty array a
     /// consumer reads a zero off.
     #[test]
     fn no_versions_is_an_empty_list_not_an_absent_one() {
-        let doc = parsed(&VersionsDocument::new("dev", "main", 1, "saved", 3, &[]));
+        let doc = parsed(&VersionsDocument::new(
+            Some("dev"),
+            "main",
+            1,
+            "saved",
+            3,
+            &[],
+        ));
 
         assert_eq!(doc["versions"].as_array().map(Vec::len), Some(0));
         assert_eq!(doc["count_reached"], false);

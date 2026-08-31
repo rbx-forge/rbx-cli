@@ -11,7 +11,7 @@ use super::make_client;
 pub async fn run(
     global: &GlobalFlags,
     base_url: Option<&str>,
-    env: &str,
+    env: Option<&str>,
     place: Option<&str>,
     count: usize,
     filter: &str,
@@ -24,6 +24,13 @@ pub async fn run(
     // then, so the id stands in for one in the header and in the document.
     let (place_name, place_id) = match global.place_id.as_slice() {
         [] => {
+            // clap makes this unreachable: `--env` is required unless
+            // `--place-id` is present, and this is the branch where it is not.
+            let Some(env) = env else {
+                anyhow::bail!(
+                    "no target. Pass --env <name>, or --place-id <id> to name the place directly."
+                )
+            };
             let config = PlacesConfig::load(&global.places)?;
             let env_config = config.get_env(env)?;
             env_config.resolve_place(place)?
@@ -38,12 +45,13 @@ pub async fn run(
     // after the call. Under `--json` neither half is printed, because the
     // document is what stdout carries.
     if !format.is_json() {
-        print!(
-            "Versions for {}/{} ({}) ... ",
-            env.bold(),
-            place_name.bold(),
-            place_id
-        );
+        // `env/place (id)` when an env resolved one, the id alone when
+        // `--place-id` did: see download.rs, same reason.
+        let target = match env {
+            Some(name) => format!("{}/{} ({})", name.bold(), place_name.bold(), place_id),
+            None => place_id.to_string().bold().to_string(),
+        };
+        print!("Versions for {target} ... ");
     }
     let versions = match filter {
         "published" => client.list_versions_filtered(place_id, count, true).await?,

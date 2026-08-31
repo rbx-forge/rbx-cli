@@ -43,27 +43,16 @@ const SHELL_FENCES: &[&str] = &["sh", "bash", "shell", "zsh", "console"];
 /// behaviour the CLI does not have belongs here only until one of the two is
 /// fixed, and saying which is which is the whole point of writing the reason
 /// down: an unexplained allowlist is how a known bug becomes a forgotten one.
-const KNOWN_MISMATCHES: &[(&str, &str)] = &[
-    // Found by this test on its first run. The section is titled "Working
-    // without rbxplace.toml" and says `--place-id` skips the config file,
-    // which is also what the flag's own help says: it "wins over --env /
-    // --place when both are given". But `place versions` and `place download`
-    // both declare `--env` as required, so clap refuses these before either
-    // intention is consulted.
-    //
-    // The docs describe the behaviour that was designed; the CLI has the
-    // other one. Fixing the CLI (`required_unless_present`) is the likelier
-    // resolution, and until somebody decides, this records the disagreement
-    // rather than hiding it.
-    (
-        "rbx place versions --place-id 123456789012345",
-        "documents --place-id replacing --env, which place versions does not allow",
-    ),
-    (
-        "rbx place download --place-id 123456789012345 --out backup.rbxl",
-        "documents --place-id replacing --env, which place download does not allow",
-    ),
-];
+/// Empty, and it has been non-empty exactly once. The first run of this test
+/// caught `place versions --place-id` and `place download --place-id`, both
+/// documented under "Working without rbxplace.toml" and both refused by clap
+/// for a missing `--env`. The docs described the behaviour that was designed
+/// and the CLI had the other one, so the CLI was fixed
+/// (`required_unless_present = "place_id"` on those two reads) and the entries
+/// came out in the same commit. Keeping the list is the point: the next
+/// disagreement gets written down here with its reason rather than quietly
+/// deleted from a page.
+const KNOWN_MISMATCHES: &[(&str, &str)] = &[];
 
 fn known_mismatch(line: &str) -> Option<&'static str> {
     KNOWN_MISMATCHES

@@ -326,7 +326,7 @@ rbx place versions --env prod --filter saved
 
 | Flag | Description |
 | --- | --- |
-| `--env` | Target environment (required) |
+| `--env` | Target environment (required unless `--place-id` is given) |
 | `--place` | Place name (defaults to the only place if unambiguous) |
 | `--count` | Number of versions to show (default: `20`, or `3` when `--filter` is `published`/`saved`) |
 | `--filter` | Filter by version type: `all` (default), `published`, or `saved` |
@@ -355,8 +355,8 @@ One JSON document on stdout, nothing else. Diagnostics, the unknown-key warning 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `schema_version` | integer | Document format, shared with `rbx check --json`. `1` today. Refuse a version you do not understand |
-| `env` | string | The environment asked for |
-| `place` | string | The `rbxplace.toml` place name, after the `--place` defaulting rule |
+| `env` | string | The environment asked for. **Absent** under a bare `--place-id`, which names a place without an env, the same rule `places` follows under `--universe-id` |
+| `place` | string | The `rbxplace.toml` place name, after the `--place` defaulting rule. The place id under `--place-id`, which has no name to give |
 | `place_id` | string | The place id, as a string |
 | `filter` | string | `all`, `published`, or `saved`: the `--filter` in force |
 | `count` | integer | The `--count` in force. A maximum, not a promise |

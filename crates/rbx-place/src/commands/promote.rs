@@ -12,7 +12,7 @@ use rbx_core::confirm::confirm_destructive;
 use rbx_core::output::{self, OutputFormat};
 use rbx_core::GlobalFlags;
 
-use super::{cannot_ask, make_client};
+use super::{cannot_ask, make_client, upload_and_classify};
 
 // promote has 10 user-facing flags (source env, target env, place, all_places,
 // pinned version, from_published, from_saved, published, log path, etc.).
@@ -179,16 +179,25 @@ pub async fn run(
         if !format.is_json() {
             print!("  {} ({}) ... ", target_name.bold(), target_id);
         }
-        match client
-            .upload_place(to_env.universe_id, *target_id, data.clone(), published)
-            .await
+        match upload_and_classify(
+            &client,
+            to_env.universe_id,
+            *target_id,
+            data.clone(),
+            published,
+        )
+        .await
         {
-            Ok(new_version) => {
+            Ok((new_version, landing)) => {
                 if !format.is_json() {
-                    println!("{}", format!("v{}", new_version).green());
+                    println!(
+                        "{}{}",
+                        format!("v{}", new_version).green(),
+                        landing.note().unwrap_or_default()
+                    );
                 }
                 results.push((target_name.clone(), *target_id, new_version));
-                receipt.landed(target_name, *target_id, new_version);
+                receipt.landed(target_name, *target_id, new_version, landing.created());
             }
             Err(e) => {
                 // Whatever already landed stays landed, so the receipt reports

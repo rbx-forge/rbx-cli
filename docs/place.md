@@ -128,7 +128,10 @@ rbx place upload --env staging --file build.rbxl --json
   "published": false,
   "place_id": "234567890123456",
   "version": "173",
-  "results": [{ "place": "main", "place_id": "234567890123456", "version": "173" }]
+  "created": true,
+  "results": [
+    { "place": "main", "place_id": "234567890123456", "version": "173", "created": true }
+  ]
 }
 ```
 
@@ -463,13 +466,21 @@ rbx place fetch --env prod --universe-id 9876543210 --write  # override universe
 | `source_place` / `source_place_id` | string | Where a `promote` read its bytes, after `--place` defaulting. **Absent** otherwise |
 | `source_version` | string | The version the new one was made from: the promoted source version, or the version rolled back to. **Absent** for `upload`, whose source is a local file |
 | `place_id` / `version` | string | The single-target shortcut: the place written and the version it received. **Absent** under `--all-places`, and absent when nothing was written |
+| `created` **(0.7.0+)** | boolean | Whether `version` is a version this run made, rather than one the place already had. See the first rule below. **Absent** when the run could not tell |
 | `results` | array of objects | One entry per place that got a new version, in write order. Empty when the first target failed |
 | `results[].place` | string | The `rbxplace.toml` key |
 | `results[].place_id` | string | The place id |
 | `results[].version` | string | The version Roblox assigned to this write |
+| `results[].created` **(0.7.0+)** | boolean | The same question, per place |
 | `error` | string | Why the run stopped. **Absent** when `ok` is true. The same text is on stderr, where it is the process's error message |
 
-Three rules are worth stating outright, because scripts depend on them:
+Four rules are worth stating outright, because scripts depend on them:
+
+**An upload that changes nothing still reports a version.** Roblox creates no version for a file a place already holds, and answers with the number the place is already at. So `version` is a real version number either way, and `created` is what separates the two: `true` for a version this run made, `false` for one that was already there. The human form marks the same thing with `(unchanged)` after the version number, and closes with `Nothing to upload: every place already holds this file.` instead of `Upload complete.`
+
+This matters most when it is not expected. A build step that failed quietly, or a `--file` pointing at yesterday's artifact, produces exactly this: an upload that reports a version and changed nothing. Reading `created` is how a deploy log tells a release from a repeat.
+
+Answering it costs one extra read per place, before the write. A key that may upload but may not list versions cannot answer it, and then `created` is **absent** rather than guessed, the upload goes ahead as it always did, and the human form says nothing after the version number. `rollback` also leaves it absent: it goes through a different endpoint whose behaviour here has not been measured.
 
 **A run that fails partway still emits a document.** `place upload --all-places` can write two places and then hit a Team Create lock on the third. Those two versions exist and cannot be taken back, so `results` reports them, `ok` is false, `error` says what stopped it, and the process still exits non-zero. A deploy log that loses a write that happened is worse than no log.
 

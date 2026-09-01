@@ -112,7 +112,12 @@ pub async fn run(
     }
     match client.rollback_place(place_id, target_version).await {
         Ok(new_version) => {
-            receipt.landed(&place_name, place_id, new_version);
+            // `None`, not `Some(true)`: rolling back goes through a different
+            // endpoint from an upload, and whether it too declines to make a
+            // version when the target is already the current one has not been
+            // measured. An unmeasured `true` here would be the same claim this
+            // field exists to stop.
+            receipt.landed(&place_name, place_id, new_version, None);
             if format.is_json() {
                 return output::emit(&receipt);
             }

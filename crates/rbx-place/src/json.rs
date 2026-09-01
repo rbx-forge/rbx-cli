@@ -257,6 +257,12 @@ pub struct WriteDocument {
     /// the field a promote log wants and the reason these documents exist.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    /// Whether that version is one this run made, for the same single-target
+    /// form. See [`WriteResult::created`]: a promote log that reads `version`
+    /// wants this next to it, because the two together are what say a deploy
+    /// moved rather than repeated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created: Option<bool>,
     /// One entry per place that got a new version, in the order they were
     /// written. Empty when the first target failed.
     pub results: Vec<WriteResult>,
@@ -281,6 +287,17 @@ pub struct WriteResult {
     pub place_id: String,
     /// The version Roblox assigned to this write.
     pub version: String,
+    /// Whether `version` is a version this run made. **False** when the place
+    /// already held these exact bytes: Roblox creates no version for content it
+    /// already has and answers with the number the place was already at, so
+    /// `version` is real either way and only this says whether anything moved.
+    ///
+    /// **Absent** when the run could not tell, which is when the place's
+    /// previous version could not be read. A key allowed to upload is not
+    /// necessarily allowed to list versions, and the write is not failed over a
+    /// diagnostic.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created: Option<bool>,
 }
 
 impl WriteDocument {
@@ -307,6 +324,7 @@ impl WriteDocument {
             source_version: None,
             place_id: None,
             version: None,
+            created: None,
             results: Vec::new(),
             error: None,
             single,
@@ -330,15 +348,20 @@ impl WriteDocument {
 
     /// A place got a new version. Called as each write lands, so a run that
     /// stops halfway still reports the half that happened.
-    pub fn landed(&mut self, place: &str, place_id: u64, version: u64) {
+    ///
+    /// `created` is `None` when the run could not tell a new version from one
+    /// that was already there. See [`WriteResult::created`].
+    pub fn landed(&mut self, place: &str, place_id: u64, version: u64, created: Option<bool>) {
         if self.single {
             self.place_id = Some(place_id.to_string());
             self.version = Some(version.to_string());
+            self.created = created;
         }
         self.results.push(WriteResult {
             place: place.to_string(),
             place_id: place_id.to_string(),
             version: version.to_string(),
+            created,
         });
     }
 
@@ -417,7 +440,7 @@ mod tests {
     /// One env's finished upload receipt, the shape the fan-out envelope holds.
     fn upload_receipt(env: &str, place_id: u64, version: u64) -> WriteDocument {
         let mut doc = WriteDocument::new(WriteCommand::Upload, env, place_id * 10, false, true);
-        doc.landed("main", place_id, version);
+        doc.landed("main", place_id, version, Some(true));
         doc
     }
 
@@ -548,7 +571,7 @@ mod tests {
     #[test]
     fn an_upload_reports_the_version_roblox_assigned() {
         let mut doc = WriteDocument::new(WriteCommand::Upload, "prod", 100, false, true);
-        doc.landed("main", 1001, 42);
+        doc.landed("main", 1001, 42, Some(true));
         let doc = parsed(&doc);
 
         assert_eq!(doc["schema_version"], SCHEMA_VERSION);
@@ -573,7 +596,7 @@ mod tests {
     #[test]
     fn all_places_omits_the_shortcut_even_for_one_place() {
         let mut doc = WriteDocument::new(WriteCommand::Upload, "prod", 100, true, false);
-        doc.landed("main", 1001, 42);
+        doc.landed("main", 1001, 42, Some(true));
         let doc = parsed(&doc);
 
         assert!(doc.get("place_id").is_none(), "{doc}");
@@ -589,8 +612,8 @@ mod tests {
     #[test]
     fn a_partial_run_keeps_what_landed_and_says_it_did_not_finish() {
         let mut doc = WriteDocument::new(WriteCommand::Upload, "prod", 100, false, false);
-        doc.landed("lobby", 1002, 7);
-        doc.landed("main", 1001, 42);
+        doc.landed("lobby", 1002, 7, Some(true));
+        doc.landed("main", 1001, 42, Some(true));
         let doc = parsed(&doc.failed(&anyhow::anyhow!(
             "Place 1003 is locked by an active Team Create session."
         )));
@@ -624,7 +647,7 @@ mod tests {
     fn a_promote_carries_both_ends_of_the_move() {
         let mut doc = WriteDocument::new(WriteCommand::Promote, "prod", 200, true, true)
             .promoted_from("staging", "main", 1001, 172);
-        doc.landed("main", 2001, 27);
+        doc.landed("main", 2001, 27, Some(true));
         let doc = parsed(&doc);
 
         assert_eq!(doc["command"], "promote");
@@ -641,7 +664,7 @@ mod tests {
     fn a_rollback_names_the_version_it_restored_and_the_one_it_created() {
         let mut doc =
             WriteDocument::new(WriteCommand::Rollback, "prod", 100, true, true).rolled_back_to(37);
-        doc.landed("main", 1001, 44);
+        doc.landed("main", 1001, 44, Some(true));
         let doc = parsed(&doc);
 
         assert_eq!(doc["command"], "rollback");
@@ -657,7 +680,7 @@ mod tests {
     #[test]
     fn every_id_and_version_is_a_string() {
         let mut doc = WriteDocument::new(WriteCommand::Upload, "prod", 100, false, true);
-        doc.landed("main", 123_456_789_012_345, 42);
+        doc.landed("main", 123_456_789_012_345, 42, Some(true));
         let doc = parsed(&doc);
 
         assert!(doc["universe_id"].is_string(), "{doc}");
@@ -674,6 +697,10 @@ mod tests {
     /// widen it by accident. A field added here breaks this test on purpose:
     /// the answer is a new envelope beside it, which is what
     /// [`MultiEnvWriteDocument`] is.
+    ///
+    /// `created` is the one field that has been added since, deliberately and
+    /// with this test updated in the same commit. It is additive and optional,
+    /// which `SCHEMA_VERSION` documents as not a bump.
     #[test]
     fn a_single_env_upload_emits_the_document_it_always_has() {
         let mut doc = WriteDocument::new(
@@ -683,7 +710,7 @@ mod tests {
             false,
             true,
         );
-        doc.landed("main", 109_876_543_210_988, 42);
+        doc.landed("main", 109_876_543_210_988, 42, Some(true));
 
         let mut buf = Vec::new();
         rbx_core::output::write_json(&mut buf, &doc).expect("write");
@@ -700,16 +727,42 @@ mod tests {
                 "  \"published\": false,\n",
                 "  \"place_id\": \"109876543210988\",\n",
                 "  \"version\": \"42\",\n",
+                "  \"created\": true,\n",
                 "  \"results\": [\n",
                 "    {\n",
                 "      \"place\": \"main\",\n",
                 "      \"place_id\": \"109876543210988\",\n",
-                "      \"version\": \"42\"\n",
+                "      \"version\": \"42\",\n",
+                "      \"created\": true\n",
                 "    }\n",
                 "  ]\n",
                 "}\n",
             )
         );
+    }
+
+    /// An unanswered question is an absent field, not a false one.
+    ///
+    /// `rollback` passes `None` because its endpoint has not been measured, and
+    /// so does an upload whose place could not be read first. `"created": false`
+    /// would say the place already held the file, which is a different claim
+    /// and one nothing checked.
+    #[test]
+    fn a_landing_nobody_could_classify_carries_no_created_field() {
+        let mut doc = WriteDocument::new(
+            WriteCommand::Rollback,
+            "prod",
+            109_876_543_210_987,
+            true,
+            true,
+        );
+        doc.landed("main", 109_876_543_210_988, 42, None);
+
+        let parsed = parsed(&doc);
+
+        assert_eq!(parsed["version"], "42");
+        assert!(parsed.get("created").is_none(), "{parsed}");
+        assert!(parsed["results"][0].get("created").is_none(), "{parsed}");
     }
 
     /// One receipt per env, in the order they were written, under an envelope

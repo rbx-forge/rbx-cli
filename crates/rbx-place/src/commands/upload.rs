@@ -10,7 +10,7 @@ use rbx_core::confirm::confirm_destructive;
 use rbx_core::output::{self, OutputFormat};
 use rbx_core::{EnvTarget, GlobalFlags};
 
-use super::{cannot_ask, make_client};
+use super::{cannot_ask, make_client, upload_and_classify, Landing};
 
 /// One env's share of the run: its config, and the places the flags resolve to
 /// inside it.
@@ -115,6 +115,12 @@ pub async fn run(
 
     let mut receipts: Vec<WriteDocument> = Vec::with_capacity(plan.len());
     let mut failure: Option<anyhow::Error> = None;
+    // What the closing line is allowed to claim. A run where every target
+    // already held the file is not a failure, and it is not `Upload complete.`
+    // either; but saying so requires having checked every one of them, so an
+    // unreadable place keeps the run on the wording that claims nothing.
+    let mut created_somewhere = false;
+    let mut unverified_somewhere = false;
 
     'envs: for env in &plan {
         if plural {
@@ -134,15 +140,29 @@ pub async fn run(
             if !format.is_json() {
                 print!("  {} ({}) ... ", place_name.bold(), place_id);
             }
-            match client
-                .upload_place(env.config.universe_id, *place_id, data.clone(), published)
-                .await
+            match upload_and_classify(
+                &client,
+                env.config.universe_id,
+                *place_id,
+                data.clone(),
+                published,
+            )
+            .await
             {
-                Ok(version) => {
+                Ok((version, landing)) => {
                     if !format.is_json() {
-                        println!("{}", format!("v{}", version).green());
+                        println!(
+                            "{}{}",
+                            format!("v{}", version).green(),
+                            landing.note().unwrap_or_default()
+                        );
                     }
-                    receipt.landed(place_name, *place_id, version);
+                    match landing {
+                        Landing::Created => created_somewhere = true,
+                        Landing::Unknown => unverified_somewhere = true,
+                        Landing::Unchanged => {}
+                    }
+                    receipt.landed(place_name, *place_id, version, landing.created());
                 }
                 Err(e) => {
                     // The places already uploaded to have new versions whatever
@@ -170,7 +190,18 @@ pub async fn run(
     }
     if !format.is_json() {
         println!();
-        println!("{}", "Upload complete.".green());
+        if created_somewhere || unverified_somewhere {
+            println!("{}", "Upload complete.".green());
+        } else {
+            // Not an error: the places hold the file that was asked for, which
+            // is the state the command exists to reach. Saying `Upload
+            // complete.` here is the part that misleads, because it is what a
+            // reader takes as proof their build went out.
+            println!(
+                "{}",
+                "Nothing to upload: every place already holds this file.".yellow()
+            );
+        }
     }
     Ok(())
 }

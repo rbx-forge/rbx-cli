@@ -87,9 +87,11 @@ Outside those, it throws away the only way back. The command says so on every ru
 `RemoveAsync`, from outside the game.
 
 ```sh
-rbx data --datastore PlayerData delete Player_156 --env prod          # dry run
-rbx data --datastore PlayerData delete Player_156 --env prod --apply
+rbx data --datastore PlayerData delete-key Player_156 --env prod          # dry run
+rbx data --datastore PlayerData delete-key Player_156 --env prod --apply
 ```
+
+Spelled `delete-key` since 0.7.0, beside `delete-store` below. The level is in the name on both, so neither reads as the default: `delete Player_156` and `delete-store PlayerData` would be one glance apart in a shell history, and only one of them is recoverable by re-running the game. `delete` and `restore` still work as aliases, so nothing that already calls them breaks.
 
 Despite the name it is the **gentler** of the two ways to start a player over. A normal read then answers nothing, so a game that builds a fresh profile when it finds none builds one, from its own template rather than from a copy of that template you have to keep in step. And the value survives: the entry stays in a listing with `--show-deleted`, and its last value stays readable through `data revisions` for thirty days. `set` and `reset` destroy it the moment they land.
 
@@ -126,6 +128,24 @@ rbx data stores --show-deleted --env prod
 Experience-wide, so it takes neither `--datastore` nor `--scope`. Needs `universe-datastores.control:list`.
 
 A store exists **from its first write**, not from the first `GetDataStore`, so a name that is absent here is a store the game has never written to. That also explains the names you did not choose: a game running in Studio writes wherever its own wrapper points, so a `-studio` twin of the live store is normal, and a wrapper library keeps its bookkeeping in a store of its own next to the data it manages.
+
+## Removing a store **(0.7.0+)**
+
+The level above `delete-key`, and it exists to close an asymmetry. A store comes into being from the first write to a name nobody created, so this tool could make one by accident and could not remove one at all: until 0.7.0 the only way back was the Creator Hub.
+
+```sh
+rbx data delete-store Sessions --env prod          # dry run
+rbx data delete-store Sessions --env prod --apply
+rbx data restore-store Sessions --env prod --apply
+```
+
+**It names its store positionally, and ignores `--datastore`.** That flag is the store the other subcommands happen to be pointed at, often from a shell alias or a script's preamble; a store being destroyed should be named in the command that destroys it.
+
+**It asks for the name typed back, not for a `y`.** The mistake worth catching here is not running the command, it is running it on the wrong store, and a name that arrived from a shell history answers `y` exactly as readily as one that was read off `data stores`. `--yes` skips it, because a script that names the wrong store was going to type the wrong name too.
+
+Soft, like `delete-key`: the store stays in `data stores --show-deleted`, and `restore-store` brings it back. **How long that lasts is not documented by Roblox**, so this page does not claim a window the way the thirty days for an entry is claimed. Check `data stores --show-deleted` rather than assuming.
+
+Both need `universe-datastores.control:delete`, and that is not a typo: Roblox puts `:undelete` under the delete scope rather than giving it one of its own, so a key that can remove a store can always put it back. Worth knowing when writing a key that should be able to do neither, because there is no narrower grant that allows only the undo.
 
 ## Finding keys
 
@@ -320,6 +340,23 @@ No `datastore` or `scope` key: this is the document you read before you have eit
 **Requires `--yes`.** `--json` refuses to prompt and every write asks for a confirmation, so the pair would either draw a prompt into a pipe or quietly skip a confirmation. Clap refuses the combination rather than either.
 
 `action` is the verb you asked for, not the one they share internally: `set`, `reset`, `restore`, `copy` or `delete`. `applied` is false for a dry run, which is a success that changed nothing, and telling those apart from the exit code alone is impossible. `existed` says whether the key was there before, so `set` reports whether it created one and `delete` reports whether it found anything to remove. `revision_id` is **absent** on a dry run and on a delete, and it is the field this document exists for: it is what `data revisions --revision` takes. `backup` is **absent** under `--no-backup` and when there was no previous value to copy.
+
+### `data delete-store --json`, and `restore-store` **(0.7.0+)**
+
+```json
+{
+  "schema_version": 1,
+  "datastore": "Sessions",
+  "action": "delete-store",
+  "applied": true
+}
+```
+
+A different document from the one above, deliberately, rather than that one with empty fields. These act on a store, so there is no entry and no scope to name, and a receipt carrying `"entry": ""` would invite a consumer to read it as an entry that happened to be unnamed.
+
+`action` is `delete-store` or `restore-store`. `applied` carries the meaning it does everywhere else here: false for a dry run.
+
+`delete-store --json` **requires `--yes`**, for the reason the writes above do. `restore-store --json` does not: restoring takes nothing away, so there is no confirmation for `--json` to collide with.
 
 ### `data list --json`
 

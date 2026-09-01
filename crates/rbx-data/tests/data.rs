@@ -1038,3 +1038,148 @@ fn no_backup_and_backup_cannot_be_passed_together() {
     ]);
     assert!(parsed.is_err(), "expected clap to refuse the pair");
 }
+
+// ---------------------------------------------------------------------------
+// Store-level delete and restore
+// ---------------------------------------------------------------------------
+
+const STORE_PATH: &str = "/cloud/v2/universes/66778899001/data-stores/PlayerData";
+
+/// Every request the server was asked for, as `METHOD path`.
+async fn traffic(server: &MockServer) -> Vec<String> {
+    server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|request| format!("{} {}", request.method, request.url.path()))
+        .collect()
+}
+
+/// The rule every write in this crate follows, and the one worth pinning hardest
+/// on the command that takes a whole store with it: without `--apply` nothing
+/// is sent at all. Not a request that is refused server-side, none.
+#[tokio::test]
+async fn delete_store_without_apply_sends_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    let server = MockServer::start().await;
+
+    run(
+        cli(&["delete-store", "PlayerData"], &server),
+        &flags(&places),
+    )
+    .await
+    .expect("a dry run is a success");
+
+    assert!(traffic(&server).await.is_empty());
+}
+
+#[tokio::test]
+async fn delete_store_with_apply_and_yes_deletes_the_store_itself() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path(STORE_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["delete-store", "PlayerData", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .expect("the store is removed");
+
+    assert_eq!(traffic(&server).await, vec![format!("DELETE {STORE_PATH}")]);
+}
+
+/// The undo goes to `:undelete` on the same path, and it is a POST. Pinned
+/// because the two differ only in a suffix and a verb, which is exactly the
+/// kind of pair a refactor swaps.
+#[tokio::test]
+async fn restore_store_posts_to_undelete() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(format!("{STORE_PATH}:undelete")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["restore-store", "PlayerData", "--apply"], &server),
+        &flags(&places),
+    )
+    .await
+    .expect("the store comes back");
+
+    assert_eq!(
+        traffic(&server).await,
+        vec![format!("POST {STORE_PATH}:undelete")]
+    );
+}
+
+/// `delete-store` names its target positionally and ignores `--datastore`,
+/// which the other subcommands read. A store being destroyed is named in the
+/// command that destroys it, never inherited from a flag a shell alias may be
+/// supplying.
+#[tokio::test]
+async fn delete_store_ignores_the_datastore_flag() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    let server = MockServer::start().await;
+    let other = "/cloud/v2/universes/66778899001/data-stores/Sessions";
+    Mock::given(method("DELETE"))
+        .and(path(other))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({})))
+        .mount(&server)
+        .await;
+
+    // `cli` passes `--datastore PlayerData`; the positional says Sessions.
+    run(
+        cli(&["delete-store", "Sessions", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .expect("the positional wins");
+
+    assert_eq!(traffic(&server).await, vec![format!("DELETE {other}")]);
+}
+
+/// The old spellings keep working. `delete` and `restore` shipped before the
+/// suffixes existed, so they stay as aliases rather than breaking whatever
+/// already calls them.
+#[test]
+fn the_pre_suffix_names_still_parse() {
+    let parse = |args: &[&str]| {
+        let mut argv = vec!["data", "--datastore", "PlayerData"];
+        argv.extend_from_slice(args);
+        <Wrapper as clap::Parser>::try_parse_from(argv).map(|_| ())
+    };
+
+    assert!(parse(&["delete", "Player_156"]).is_ok());
+    assert!(parse(&["restore", "Player_156", "--revision", "1"]).is_ok());
+    assert!(parse(&["delete-key", "Player_156"]).is_ok());
+    assert!(parse(&["restore-key", "Player_156", "--revision", "1"]).is_ok());
+}
+
+/// `--json` on the destructive one requires `--yes`, the rule the rest of this
+/// crate follows: `--json` refuses to prompt, and a write that asks would
+/// either draw a prompt into a pipe or skip a confirmation silently. Restoring
+/// takes nothing away and has no prompt to collide with, so it is free.
+#[test]
+fn json_requires_yes_only_where_there_is_something_to_confirm() {
+    let parse = |args: &[&str]| {
+        let mut argv = vec!["data", "--datastore", "PlayerData"];
+        argv.extend_from_slice(args);
+        <Wrapper as clap::Parser>::try_parse_from(argv).map(|_| ())
+    };
+
+    assert!(parse(&["delete-store", "PlayerData", "--json"]).is_err());
+    assert!(parse(&["delete-store", "PlayerData", "--json", "--yes"]).is_ok());
+    assert!(parse(&["restore-store", "PlayerData", "--json"]).is_ok());
+}

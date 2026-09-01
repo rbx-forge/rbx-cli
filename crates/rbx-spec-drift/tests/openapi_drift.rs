@@ -980,19 +980,6 @@ const CALLED_THROUGH_A_HELPER: &[(&str, &str, &str)] = &[
 const NOT_CALLED_ON_PURPOSE: &[(&str, &str, &str)] = &[
     (
         "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}",
-        "Deleting a whole data store. A real gap rather than a decision, and \
-         filed as #57: `rbx data` can bring a store into existence and cannot \
-         remove one. Listed here so this check stays green while that is \
-         designed, and the entry comes out with the command that closes it.",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}:undelete",
-        "The undo of the one above, and the other half of #57.",
-    ),
-    (
-        "https://apis.roblox.com",
         "/cloud/v2/universes/{universe_id}:restartServers",
         "A second way to do what `rbx restart` already does through \
          `/server-management/v1/universes/{id}/restarts`. The one in use also \

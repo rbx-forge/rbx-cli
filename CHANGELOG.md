@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx download` names a carousel preview video `.m3u8`.** `GamePreviewVideo`
+  (AssetTypeId 86) used to land as `.bin`. It is not a video file: the asset is
+  an HLS master playlist, `#EXTM3U` followed by five vp9/opus renditions from
+  1280x720 at 60fps down to 160x96 at 5fps, and it labels itself with
+  `RBX-VIDEOTYPE="GamePreviewVideo"`. Measured on a live public asset rather
+  than inferred, which matters here because the obvious guess by analogy with
+  `Video = 62` is `mp4`, and that would have named a 1.1 KB text manifest after
+  the thing it points at.
+
+  `AdsVideo` (81) and `StorePreviewVideo` (85) are almost certainly the same
+  shape and are deliberately left as `.bin`. Nobody has downloaded one.
+
 - **`created` on the `upload` and `promote` write documents**, and an
   `(unchanged)` marker on the human form. Boolean, absent when the run could
   not answer. See below for what it is answering.

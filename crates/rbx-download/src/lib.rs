@@ -358,6 +358,11 @@ fn resolve_type(spec: &str) -> Result<(String, Option<i64>)> {
 }
 
 /// AssetTypeId → file extension (matching the Roblox enum). Unknown → "bin".
+///
+/// Every arm here is a claim about what the bytes are, so an unmeasured guess
+/// belongs in `bin` rather than in a plausible-looking extension. `bin` says
+/// "we do not know"; a wrong extension tells the file manager, the browser and
+/// the next person something false. See #51.
 fn ext_for_type_id(id: i64) -> &'static str {
     match id {
         1 | 2 | 11 | 12 | 13 | 18 | 21 | 34 => "png",
@@ -367,6 +372,20 @@ fn ext_for_type_id(id: i64) -> &'static str {
         9 => "rbxl",
         62 => "mp4",
         73 => "ttf",
+        // `GamePreviewVideo`, the clip that plays in an experience's carousel.
+        // Not a video file: the asset is an HLS **master playlist**, opening
+        // `#EXTM3U` and listing five vp9/opus renditions from 1280x720 at 60fps
+        // down to 160x96 at 5fps. Measured on a live public asset, which even
+        // labels itself with `RBX-VIDEOTYPE="GamePreviewVideo"`.
+        //
+        // The obvious guess would have been `mp4`, by analogy with `Video =
+        // 62` above, and it would have been wrong: what lands on disk is a
+        // 1.1 KB text manifest that names its segments somewhere else.
+        //
+        // `AdsVideo = 81` and `StorePreviewVideo = 85` are almost certainly the
+        // same shape and are deliberately left in `bin`, because "almost
+        // certainly" is the reasoning this function does not accept.
+        86 => "m3u8",
         8 | 10 | 17 | 19 | 24 | 27..=32 | 38 | 40..=58 | 61 | 64..=72 | 76..=79 | 88..=90 => "rbxm",
         _ => "bin",
     }
@@ -423,6 +442,26 @@ mod tests {
             version: None,
             raw: false,
             forced: None,
+        }
+    }
+
+    /// A carousel preview video is an HLS manifest, not a video file, and the
+    /// analogy with `Video = 62` next door is exactly the trap: guessing `mp4`
+    /// would name a 1.1 KB text playlist after the thing it points at.
+    #[test]
+    fn a_game_preview_video_is_a_playlist_and_not_an_mp4() {
+        assert_eq!(ext_for_type_id(86), "m3u8");
+        assert_eq!(ext_for_type_id(62), "mp4");
+    }
+
+    /// The types nobody has downloaded stay `bin`, including the two that sit
+    /// either side of 86 and look like they must be the same thing. `bin` is
+    /// the answer that does not claim anything, and an unmeasured arm here
+    /// would be a claim.
+    #[test]
+    fn the_video_types_nobody_measured_are_still_unknown() {
+        for id in [81, 85] {
+            assert_eq!(ext_for_type_id(id), "bin", "AssetTypeId {id}");
         }
     }
 

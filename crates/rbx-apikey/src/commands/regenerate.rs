@@ -82,12 +82,77 @@ pub async fn run(
     // single-key path above has already paid for this.
     client.require_valid_session().await?;
 
+    let mut outcomes = Vec::with_capacity(names.len());
     for n in &names {
-        regenerate_one(&cfg, &mut lk, &client, n, clean_files).await;
+        outcomes.push(regenerate_one(&cfg, &mut lk, &client, n, clean_files).await);
         lock::save(&lk)?;
     }
-    println!("Old secrets invalid as of {}.", time_iso::iso_now());
+
+    let invalidated = outcomes.iter().filter(|o| o.invalidated_the_old()).count();
+    let failed = outcomes.iter().filter(|o| o.is_failure()).count();
+
+    // Only when something actually rotated, and this is the point of tracking
+    // the outcomes at all. The line used to print after the loop
+    // unconditionally, while `regenerate_one` swallowed its failures, so a run
+    // that rotated nothing still announced that the old secrets were gone.
+    //
+    // That is the line a reader acts on, because it is the one saying the value
+    // sitting in their CI is dead. Printing it after a total failure sends them
+    // to replace a secret that still works, and hides that the rotation they
+    // asked for never happened.
+    if invalidated > 0 {
+        let subject = if invalidated == names.len() {
+            "Old secrets".to_string()
+        } else {
+            format!("Old secrets for the {invalidated} key(s) rotated above")
+        };
+        println!("{} invalid as of {}.", subject, time_iso::iso_now());
+    }
+
+    // Non-zero on any failure, for the same reason. `--all` deliberately walks
+    // past a key it could not rotate so one bad entry does not strand the rest,
+    // and exiting 0 afterwards reports that tolerance as success.
+    if failed > 0 {
+        bail!(
+            "{} of {} key(s) did not come through. Each one is named above; a key not named \
+             there kept the secret it had.",
+            failed,
+            names.len()
+        );
+    }
+
     Ok(())
+}
+
+/// What one key's rotation did.
+///
+/// Two questions, and they do not always have the same answer: whether the old
+/// secret is dead, and whether the command did what it was asked. A rotation
+/// Roblox performed and this tool then failed to store answers yes to the first
+/// and no to the second, and reporting either one alone is how a reader ends up
+/// with a key nothing holds the secret to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Rotation {
+    /// Nothing reached Roblox, or Roblox refused. The key still has its old
+    /// secret and nothing needs replacing.
+    Untouched,
+    /// Rotated, and the new secret is stored where the config says.
+    Stored,
+    /// Rotated, so the old secret is dead, but the new one could not be written
+    /// and was printed for the reader to save by hand.
+    Unsaved,
+}
+
+impl Rotation {
+    /// Whether the secret this key had before the run is now worthless.
+    fn invalidated_the_old(self) -> bool {
+        matches!(self, Self::Stored | Self::Unsaved)
+    }
+
+    /// Whether the run should exit non-zero because of this key.
+    fn is_failure(self) -> bool {
+        matches!(self, Self::Untouched | Self::Unsaved)
+    }
 }
 
 async fn regenerate_one(
@@ -96,7 +161,7 @@ async fn regenerate_one(
     client: &crate::api::RbxApiKeyClient,
     name: &str,
     clean_files: bool,
-) {
+) -> Rotation {
     let entry = match lock::get(lk, name).cloned() {
         Some(e) => e,
         None => {
@@ -104,7 +169,7 @@ async fn regenerate_one(
                 "{}",
                 format!("skipping \"{}\": not in {}", name, lock::FILE).yellow()
             );
-            return;
+            return Rotation::Untouched;
         }
     };
 
@@ -116,7 +181,7 @@ async fn regenerate_one(
                 "{}",
                 format!("\"{}\": regenerate failed: {}", name, e).yellow()
             );
-            return;
+            return Rotation::Untouched;
         }
     };
 
@@ -144,7 +209,7 @@ async fn regenerate_one(
             "{}",
             format!("  Secret (save this manually): {}", new_secret).yellow()
         );
-        return;
+        return Rotation::Unsaved;
     }
 
     // Keep the lock entry's secret_file pointer in sync with the new backend so future
@@ -193,4 +258,34 @@ async fn regenerate_one(
     }
 
     println!("{}", format!("✓ \"{}\": secret rotated", name).green());
+    Rotation::Stored
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The bug this exists for: `Old secrets invalid as of <now>` printed after
+    /// a run that rotated nothing. A refused session rotates nothing, so
+    /// nothing about the old secrets changed and the line has to stay unsaid.
+    #[test]
+    fn a_rotation_that_did_not_happen_invalidates_nothing() {
+        assert!(!Rotation::Untouched.invalidated_the_old());
+        assert!(Rotation::Untouched.is_failure());
+    }
+
+    /// The case that needs both answers at once, and the reason this is not a
+    /// bool: Roblox rotated the key, so the old secret is dead and the line
+    /// must print, but the new one never reached disk, so the run failed.
+    #[test]
+    fn a_rotation_whose_secret_was_not_stored_is_both_at_once() {
+        assert!(Rotation::Unsaved.invalidated_the_old());
+        assert!(Rotation::Unsaved.is_failure());
+    }
+
+    #[test]
+    fn a_complete_rotation_is_only_the_first() {
+        assert!(Rotation::Stored.invalidated_the_old());
+        assert!(!Rotation::Stored.is_failure());
+    }
 }

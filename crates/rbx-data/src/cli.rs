@@ -648,3 +648,100 @@ pub(crate) enum Command {
         command: ordered::OrderedCommand,
     },
 }
+
+#[cfg(test)]
+mod json_flag_tests {
+    use super::*;
+    use rbx_core::output::OutputFormat;
+
+    #[derive(clap::Parser)]
+    struct Wrapper {
+        #[command(flatten)]
+        data: DataCli,
+    }
+
+    fn parses(args: &[&str]) -> bool {
+        let mut argv = vec!["data", "--datastore", "PlayerData"];
+        argv.extend_from_slice(args);
+        <Wrapper as clap::Parser>::try_parse_from(argv).is_ok()
+    }
+
+    /// A format that owns stdout may not stop to ask a question: that is
+    /// `OutputFormat::may_prompt`, and it is false for `Json` whatever the
+    /// terminal looks like. Every writing subcommand here asks one, through
+    /// `confirm_always`, so none of them carries the flag: the guarantee is
+    /// structural rather than a check somebody has to remember to write.
+    ///
+    /// This pins it. Adding `--json` to `set` would fail here, before it could
+    /// make `dialoguer` draw a prompt into somebody's pipe.
+    #[test]
+    fn json_is_confined_to_the_subcommands_that_never_prompt() {
+        assert!(!OutputFormat::Json.may_prompt());
+
+        for reading in [
+            vec!["get", "Player_156", "--json"],
+            vec!["list", "--json"],
+            vec!["revisions", "Player_156", "--json"],
+            vec!["diff", "Player_156", "--revisions", "a,b", "--json"],
+        ] {
+            assert!(parses(&reading), "{reading:?} should take --json");
+        }
+
+        // A write may report what it did, but only where no prompt can happen.
+        // `--yes` is what makes that true, so clap requires it rather than
+        // `confirm_always` learning to keep quiet: the guarantee stays at parse
+        // time, which is where it was.
+        for writing in [
+            vec!["set", "Player_156", "--value", "1", "--json"],
+            vec!["reset", "Player_156", "--json"],
+            vec!["restore", "Player_156", "--revision", "r1", "--json"],
+            vec!["delete", "Player_156", "--json"],
+        ] {
+            assert!(
+                !parses(&writing),
+                "{writing:?} must not take --json without --yes"
+            );
+
+            let mut allowed = writing.clone();
+            allowed.push("--yes");
+            assert!(parses(&allowed), "{allowed:?} should be accepted");
+        }
+
+        // These three still carry no document at all, so the flag does not
+        // exist on them and no amount of --yes conjures it.
+        for never in [
+            vec![
+                "copy",
+                "Player_156",
+                "--from",
+                "a",
+                "--to",
+                "b",
+                "--json",
+                "--yes",
+            ],
+            vec!["increment", "Player_156", "--by", "1", "--json", "--yes"],
+            vec!["snapshot", "--json"],
+        ] {
+            assert!(!parses(&never), "{never:?} must not take --json");
+        }
+    }
+
+    /// `--open` hands stdout to `git diff --no-index` and the terminal to
+    /// `code --diff`. Under `--json` that ruins the document exactly as a
+    /// prompt would, so the pair is refused at parse time rather than one
+    /// quietly winning.
+    #[test]
+    fn diff_refuses_open_and_json_together() {
+        assert!(parses(&["diff", "E", "--revisions", "a,b", "--open"]));
+        assert!(parses(&["diff", "E", "--revisions", "a,b", "--json"]));
+        assert!(!parses(&[
+            "diff",
+            "E",
+            "--revisions",
+            "a,b",
+            "--open",
+            "--json"
+        ]));
+    }
+}

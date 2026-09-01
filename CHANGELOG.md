@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A test that asks which documented endpoints we never call.** The spec drift
+  check answers whether everything this workspace calls still exists. It cannot
+  answer the reverse, because an endpoint nobody calls contributes nothing to a
+  scan of call sites, so the vendored spec can document a capability for months
+  and nothing says so. `Cloud_ListDataStores` sat there unimplemented until
+  somebody asked in conversation; it shipped as `rbx data stores` in 0.6.0 and
+  nothing in CI had ever mentioned it.
+
+  Scope is derived rather than curated: an endpoint is reported only when the
+  workspace already calls something on the same resource, so the several
+  hundred documented endpoints in areas this tool has no business in stay
+  silent without needing a line each. The first run over 697 documented paths
+  reported eleven.
+
+  Four of those turned out to be **called already**, through URLs built by
+  appending to a helper, which the extractor cannot resolve. They are listed
+  with their call sites, and the list is a record of calls the sibling drift
+  check does not protect either: if Roblox renames one of those paths, nothing
+  notices. Two were a real gap, filed as #57. The rest are declined with
+  reasons.
+
 - **A test that catches a flag documented nowhere.** The dual of the docs drift
   check: that one hands every `rbx ...` line in the pages to clap and catches
   prose describing a CLI that no longer exists, and it is blind to the reverse

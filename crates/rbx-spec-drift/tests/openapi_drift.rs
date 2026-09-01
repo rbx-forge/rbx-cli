@@ -896,6 +896,148 @@ fn is_known_undocumented(host: &str, path: &str) -> Option<&'static str> {
 }
 
 // ---------------------------------------------------------------------------
+// The other direction: documented and never called
+// ---------------------------------------------------------------------------
+
+/// The resource a path belongs to: its segments, with every parameterised one
+/// dropped.
+///
+/// `/cloud/v2/universes/{universeId}/data-stores` and
+/// `/cloud/v2/universes/{universeId}/data-stores/{dataStoreId}` share a family,
+/// because the second is an operation on the resource the first lists. A
+/// sub-resource does not: `.../data-stores/{dataStoreId}/entries` keeps
+/// `entries` and is its own family, so calling the entries API says nothing
+/// about whether the store API is covered.
+///
+/// A segment like `{dataStoreId}:undelete` normalises to `*:undelete`, which
+/// carries a wildcard and is therefore dropped too. That is deliberate: the
+/// `:undelete` action belongs to the resource it acts on, and it is one of the
+/// endpoints this check was asked to surface.
+fn family(segments: &[String]) -> Vec<String> {
+    segments
+        .iter()
+        .filter(|segment| !segment.contains('*'))
+        .cloned()
+        .collect()
+}
+
+/// Endpoints this workspace **does** call, through a URL the extractor cannot
+/// resolve, with the call site.
+///
+/// Every one of these is built by appending to a helper's return value, the
+/// shape `format!("{}:increment", self.entry_url(entry))`. The extractor reads
+/// string literals and consts; a URL assembled from a method call is a runtime
+/// value, and teaching it to follow one means evaluating Rust.
+///
+/// Kept apart from [`NOT_CALLED_ON_PURPOSE`] because the two say opposite
+/// things, and folding them together would bury the interesting half. An entry
+/// here is not a decision about scope, it is **a hole in the sibling check**:
+/// [`every_endpoint_we_call_still_exists_in_the_roblox_spec`] cannot see these
+/// calls either, so if Roblox renames one of these paths nothing in CI notices.
+/// This list is the record of which calls are unprotected, and it should shrink
+/// by making the URLs literal rather than by growing.
+const CALLED_THROUGH_A_HELPER: &[(&str, &str, &str)] = &[
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/scopes/{scope_id}/entries/{entry_id}:increment",
+        "rbx-data/src/lib.rs, `format!(\"{}:increment\", self.entry_url(entry))`. \
+         Reached by `rbx data increment`.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/scopes/{scope_id}/entries/{entry_id}:listRevisions",
+        "rbx-data/src/lib.rs, `format!(\"{}:listRevisions?maxPageSize=100\", \
+         self.entry_url(entry))`. Reached by `rbx data revisions`.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universeId}/secrets/{secretId}",
+        "rbx-secret/src/lib.rs, `format!(\"{}/{}\", self.secrets_url(), \
+         encode_query_value(id))`. Reached by `rbx secret set` (the PATCH half \
+         of its POST-then-PATCH upsert) and `rbx secret remove`.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}/memory-store/sorted-maps/{sorted_map_id}/items/{item_id}",
+        "rbx-memorystore/src/lib.rs, `fn item_url` appending an id to \
+         `items_url()`. Reached by the get, update and delete of `rbx \
+         memorystore`.",
+    ),
+];
+
+/// Endpoints inside a family this workspace covers that it deliberately does
+/// not call, each with the reason.
+///
+/// This is the counterpart of [`KNOWN_UNDOCUMENTED`] and works the same way: an
+/// entry is a decision somebody made and can be argued with, where a silent
+/// omission is a decision nobody recorded.
+///
+/// It stays short by construction. The scope is not curated here, it is read
+/// off the code: an endpoint is only ever reported when the workspace already
+/// calls something in the same family, so the hundreds of documented endpoints
+/// in areas this tool has no business in (trading, private messages, avatar
+/// customisation, localization tables) contribute nothing and need no entry.
+const NOT_CALLED_ON_PURPOSE: &[(&str, &str, &str)] = &[
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}",
+        "Deleting a whole data store. A real gap rather than a decision, and \
+         filed as #57: `rbx data` can bring a store into existence and cannot \
+         remove one. Listed here so this check stays green while that is \
+         designed, and the entry comes out with the command that closes it.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}:undelete",
+        "The undo of the one above, and the other half of #57.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}:restartServers",
+        "A second way to do what `rbx restart` already does through \
+         `/server-management/v1/universes/{id}/restarts`. The one in use also \
+         forecasts and reports status, which this does not, so switching would \
+         trade a three-endpoint command for a one-endpoint one. Worth \
+         revisiting only if Roblox deprecates the server-management surface.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/assets/v1/assets/{assetId}/versions/{versionNumber}",
+        "Metadata for one asset version. `rbx place` lists versions through the \
+         sibling path and fetches the bytes of a chosen one through \
+         `asset-delivery-api`, so the middle step has nothing to add: nothing \
+         here asks a question that the listing has not already answered.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/ads-management/v1/billing-accounts/{id}",
+        "One billing account by id. `rbx ads` lists them to let a campaign name \
+         one, and never needs to look one up afterwards.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}:generateSpeechAsset",
+        "Text to speech. Content creation, not deployment or operations, and \
+         nothing else in this tool generates assets.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}:translateText",
+        "Machine translation of a string. Same reason: this tool moves and \
+         configures what a project already has.",
+    ),
+];
+
+fn declined(host: &str, path: &str) -> Option<&'static str> {
+    let segments = normalise(path);
+    NOT_CALLED_ON_PURPOSE
+        .iter()
+        .chain(CALLED_THROUGH_A_HELPER)
+        .find(|(h, p, _)| *h == host && normalise(p) == segments)
+        .map(|(_, _, reason)| *reason)
+}
+
+// ---------------------------------------------------------------------------
 // The test
 // ---------------------------------------------------------------------------
 
@@ -1589,5 +1731,170 @@ fn engine_avatar_settings_is_still_an_opaque_string() {
          hand-written and unverified.\n\nIf Roblox now documents its contents, \
          derive that schema from the spec instead and delete \
          crates/rbx-schema/src/engine_avatar.rs.\n\nField as vendored: {field}"
+    );
+}
+
+/// What the vendored spec documents, in an area this workspace already works
+/// in, and never calls.
+///
+/// The sibling check answers "does everything we call still exist". It cannot
+/// answer this one, because an endpoint nobody calls contributes nothing to a
+/// scan of call sites, so the spec can document a capability for months and
+/// nothing says so. `Cloud_ListDataStores` sat there unimplemented until
+/// somebody asked in conversation how to list an experience's data stores; it
+/// shipped as `rbx data stores` in 0.6.0, and nothing in CI had ever mentioned
+/// it.
+///
+/// **Scope is derived, not curated.** An endpoint is reported only when this
+/// workspace already calls something in the same [`family`], so the several
+/// hundred documented endpoints in areas this tool has no business in stay
+/// silent without needing a line each. What that buys is the useful half: a
+/// newly documented endpoint next to one already in use shows up once, as
+/// "here is something you could now call", instead of never.
+#[test]
+fn every_documented_endpoint_in_a_covered_area_is_called_or_declined() {
+    let root = repo_root();
+    let (index, provenance) = load_spec(&root);
+    let sites = collect_call_sites(&root);
+
+    // The families this workspace works in, and the exact endpoints it calls.
+    let mut covered: BTreeSet<(String, Vec<String>)> = BTreeSet::new();
+    let mut called: BTreeSet<(String, Vec<String>)> = BTreeSet::new();
+    for (host, path) in sites.keys() {
+        let segments = normalise(path);
+        covered.insert((host.clone(), family(&segments)));
+        called.insert((host.clone(), segments));
+    }
+
+    let mut uncalled: Vec<(String, String)> = Vec::new();
+    let mut listed = 0usize;
+
+    for ((host, segments), spec_path) in &index {
+        if !covered.contains(&(host.clone(), family(segments))) {
+            continue;
+        }
+        if called.contains(&(host.clone(), segments.clone())) {
+            continue;
+        }
+        if declined(host, spec_path).is_some() {
+            listed += 1;
+            continue;
+        }
+        uncalled.push((host.clone(), spec_path.clone()));
+    }
+
+    assert!(
+        uncalled.is_empty(),
+        "\n\n{} documented endpoint(s) sit in an area this workspace already \
+         works in and are never called.\nVendored spec: {}\n\n{}\n\n\
+         Each one is either a capability worth adding, or a deliberate pass \
+         that belongs in NOT_CALLED_ON_PURPOSE with the reason written out. If \
+         it is called through a URL built from a helper, it belongs in \
+         CALLED_THROUGH_A_HELPER instead, which is a different statement. {} \
+         endpoint(s) are already listed between the two.\n\n\
+         This list only grows when Roblox documents something new next to \
+         something already in use, which is exactly when it is worth reading.",
+        uncalled.len(),
+        provenance,
+        uncalled
+            .iter()
+            .map(|(host, path)| format!("  {host}{path}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+        listed,
+    );
+}
+
+/// An entry that stops describing anything has to come out, the rule every
+/// allowlist in this workspace follows. An endpoint listed as deliberately
+/// skipped and then implemented is the good outcome; leaving the row behind
+/// would exempt it again the day the call is deleted.
+///
+/// [`CALLED_THROUGH_A_HELPER`] is deliberately not checked this way. Those
+/// endpoints *are* called, and the extractor not seeing them is the entire
+/// point of the list, so the same assertion would fail every one of them.
+/// Their stale-entry check is the opposite one, below.
+#[test]
+fn nothing_is_declined_while_being_called() {
+    let root = repo_root();
+    let sites = collect_call_sites(&root);
+    let called: BTreeSet<(String, Vec<String>)> = sites
+        .keys()
+        .map(|(host, path)| (host.clone(), normalise(path)))
+        .collect();
+
+    let stale: Vec<String> = NOT_CALLED_ON_PURPOSE
+        .iter()
+        .filter(|(host, path, _)| called.contains(&((*host).to_string(), normalise(path))))
+        .map(|(host, path, why)| format!("  {host}{path}\n    it was listed as: {why}"))
+        .collect();
+
+    assert!(
+        stale.is_empty(),
+        "{} NOT_CALLED_ON_PURPOSE entry/entries describe nothing:\n{}",
+        stale.len(),
+        stale.join("\n")
+    );
+}
+
+/// A helper-built URL that became literal has to leave the list.
+///
+/// That is the good outcome for [`CALLED_THROUGH_A_HELPER`]: the extractor can
+/// see the call, so the sibling drift check now protects it, and the entry is
+/// describing a hole that no longer exists. Left behind, it would quietly
+/// exempt the endpoint from this check for a reason that stopped being true.
+#[test]
+fn nothing_is_listed_as_helper_built_once_the_extractor_can_see_it() {
+    let root = repo_root();
+    let sites = collect_call_sites(&root);
+    let called: BTreeSet<(String, Vec<String>)> = sites
+        .keys()
+        .map(|(host, path)| (host.clone(), normalise(path)))
+        .collect();
+
+    let visible: Vec<String> = CALLED_THROUGH_A_HELPER
+        .iter()
+        .filter(|(host, path, _)| called.contains(&((*host).to_string(), normalise(path))))
+        .map(|(host, path, where_from)| {
+            format!("  {host}{path}\n    was listed as unresolvable: {where_from}")
+        })
+        .collect();
+
+    assert!(
+        visible.is_empty(),
+        "{} CALLED_THROUGH_A_HELPER entry/entries are extractable now, so the \
+         sibling drift check covers them and the row is stale:\n{}",
+        visible.len(),
+        visible.join("\n")
+    );
+}
+
+/// Both lists name paths the spec actually documents.
+///
+/// Without this, a Roblox rename turns an entry into a row matching nothing:
+/// the endpoint quietly leaves the report, the reason stays in the file, and
+/// the two never meet again. The sibling check catches a rename under a call
+/// site; nothing would catch one under an allowlist row.
+#[test]
+fn every_listed_endpoint_still_exists_in_the_spec() {
+    let root = repo_root();
+    let (index, provenance) = load_spec(&root);
+
+    let unknown: Vec<String> = NOT_CALLED_ON_PURPOSE
+        .iter()
+        .chain(CALLED_THROUGH_A_HELPER)
+        .filter(|(host, path, _)| !index.contains_key(&((*host).to_string(), normalise(path))))
+        .map(|(host, path, _)| format!("  {host}{path}"))
+        .collect();
+
+    assert!(
+        unknown.is_empty(),
+        "{} listed endpoint(s) are in neither list's spec any more.\n\
+         Vendored spec: {}\n{}\n\n\
+         Roblox renamed or removed them. Update the row to the new path, or \
+         delete it if the endpoint is gone.",
+        unknown.len(),
+        provenance,
+        unknown.join("\n")
     );
 }

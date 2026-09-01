@@ -9,8 +9,11 @@
 //! and the only way to move them there would be to rewrite what they assert.
 
 #![allow(clippy::unwrap_used)]
+use std::collections::BTreeMap;
+
 use super::*;
-use crate::config::PassConfig;
+use crate::config::{ConfigFile, PassConfig};
+use crate::lockfile::{BadgeLock, EnvLock, PassLock, ProductLock, DEFAULT_ENV};
 use rbx_core::GlobalFlags;
 use serde_json::json;
 use wiremock::matchers::{method, path as path_matcher};

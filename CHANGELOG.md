@@ -50,6 +50,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and this tool then failed to store answers yes to "is the old secret dead" and
   no to "did this work".
 
+### Changed
+
+- **Scope entries naming the same type and target are merged before being
+  sent.** `universe:read` and `universe:write` on two lines of `rbxapikey.toml`
+  went out as two entries; Roblox stores them as one holding both operations,
+  confirmed by reading a key back through `apikey introspect` (eight entries
+  sent, seven stored). The payload now has the shape the API answers in, so the
+  key created is comparable to the config that asked for it. No key gains or
+  loses a permission from this.
+
 ## [0.6.0]
 
 ### Added

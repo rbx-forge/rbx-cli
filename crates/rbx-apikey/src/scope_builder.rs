@@ -122,6 +122,46 @@ fn emit_for_datastores(key_cfg: &KeyConfig, out: &mut Vec<ScopeDef>) {
     }
 }
 
+/// Collapse entries naming the same scope type and the same target into one,
+/// taking the union of their operations.
+///
+/// `universe:read` and `universe:write` on two lines of `rbxapikey.toml` are two
+/// entries by the time they get here, and one permission set by any reading.
+/// Roblox stores them as one entry holding both operations: measured on
+/// 2026-09-01 against a key that declared them separately, eight entries sent
+/// and seven stored. So this sends the shape the API answers in rather than one
+/// it has to normalise, which is what makes a created key comparable to the
+/// config that asked for it.
+///
+/// This subsumes collapsing exact duplicates, which is the same operation with
+/// nothing left to add.
+///
+/// Order is each group's first appearance, and operations keep their declared
+/// order. Roblox reorders both (`write,manage-and-spend-robux` came back
+/// `["manage-and-spend-robux","write"]` in the same measurement), so neither is
+/// load-bearing; a stable payload is for whoever diffs two runs.
+fn merge_same_target(scopes: Vec<ScopeDef>) -> Vec<ScopeDef> {
+    let mut out: Vec<ScopeDef> = Vec::with_capacity(scopes.len());
+
+    for scope in scopes {
+        let merged = out.iter_mut().find(|kept| {
+            kept.scope_type == scope.scope_type && kept.target_parts == scope.target_parts
+        });
+        match merged {
+            Some(kept) => {
+                for operation in scope.operations {
+                    if !kept.operations.contains(&operation) {
+                        kept.operations.push(operation);
+                    }
+                }
+            }
+            None => out.push(scope),
+        }
+    }
+
+    out
+}
+
 pub fn build(
     key_cfg: &KeyConfig,
     universe_ids: &[u64],
@@ -169,7 +209,10 @@ pub fn build(
 
     emit_for_datastores(key_cfg, &mut scopes);
 
-    BuildResult { scopes, warnings }
+    BuildResult {
+        scopes: merge_same_target(scopes),
+        warnings,
+    }
 }
 
 /// True iff at least one scope is creator-targeted AND no explicit group_ids/user_ids are set.
@@ -362,6 +405,71 @@ mod tests {
         assert!(!s.contains("is_enabled"));
         assert!(!s.contains("expiration_time"));
         assert!(!s.contains("allowed_cidrs"));
+    }
+
+    /// The measurement in #2: `universe:read` and `universe:write` written on
+    /// two lines are what Roblox stores as one entry, so one entry is what goes
+    /// out.
+    #[test]
+    fn two_operation_sets_on_one_scope_type_become_one_entry() {
+        let mut cfg = k("universe", &["read"]);
+        cfg.scopes.push(ScopeSpec {
+            scope_type: "universe".to_string(),
+            operations: vec!["write".to_string()],
+        });
+
+        let r = build(&cfg, &[111], &[]);
+
+        assert_eq!(r.scopes.len(), 1);
+        assert_eq!(r.scopes[0].target_parts, vec!["111".to_string()]);
+        assert_eq!(
+            r.scopes[0].operations,
+            vec!["read".to_string(), "write".to_string()]
+        );
+    }
+
+    /// Merging is per target, not per type. Two universes are two permissions
+    /// and stay two entries, which is the line between collapsing a payload and
+    /// widening a key.
+    #[test]
+    fn the_same_type_on_different_targets_stays_separate() {
+        let mut cfg = k("universe", &["read"]);
+        cfg.scopes.push(ScopeSpec {
+            scope_type: "universe".to_string(),
+            operations: vec!["write".to_string()],
+        });
+
+        let r = build(&cfg, &[111, 222], &[]);
+
+        assert_eq!(r.scopes.len(), 2);
+        for scope in &r.scopes {
+            assert_eq!(
+                scope.operations,
+                vec!["read".to_string(), "write".to_string()]
+            );
+        }
+        assert_eq!(r.scopes[0].target_parts, vec!["111".to_string()]);
+        assert_eq!(r.scopes[1].target_parts, vec!["222".to_string()]);
+    }
+
+    /// An operation named twice is not an operation held twice. Roblox would
+    /// have dropped the repeat anyway; sending it once is what keeps the count
+    /// this tool prints equal to the count Roblox reports.
+    #[test]
+    fn an_operation_declared_twice_is_sent_once() {
+        let mut cfg = k("universe", &["read", "write"]);
+        cfg.scopes.push(ScopeSpec {
+            scope_type: "universe".to_string(),
+            operations: vec!["write".to_string(), "read".to_string()],
+        });
+
+        let r = build(&cfg, &[111], &[]);
+
+        assert_eq!(r.scopes.len(), 1);
+        assert_eq!(
+            r.scopes[0].operations,
+            vec!["read".to_string(), "write".to_string()]
+        );
     }
 
     #[test]

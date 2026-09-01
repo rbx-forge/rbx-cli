@@ -170,6 +170,37 @@ impl WriteDocument {
     }
 }
 
+/// What one `data delete-store` or `data restore-store` did.
+///
+/// A separate document from [`WriteDocument`] rather than that one with empty
+/// fields. These act on a store, so there is no entry and no scope to name,
+/// and a receipt carrying `"entry": ""` would invite a consumer to read it as
+/// an entry that happened to be unnamed.
+///
+/// `applied` carries the same meaning it does there, and for the same reason:
+/// a dry run is a success that changed nothing, and exit code 0 covers both.
+#[derive(Debug, Serialize)]
+pub struct StoreWriteDocument {
+    pub schema_version: u32,
+    /// The store that was acted on, as given.
+    pub datastore: String,
+    /// `delete-store` or `restore-store`.
+    pub action: String,
+    /// False without `--apply`: nothing was sent.
+    pub applied: bool,
+}
+
+impl StoreWriteDocument {
+    pub fn new(store: &str, action: &str, applied: bool) -> Self {
+        Self {
+            schema_version: SCHEMA_VERSION,
+            datastore: store.to_string(),
+            action: action.to_string(),
+            applied,
+        }
+    }
+}
+
 /// One `data stores` invocation.
 ///
 /// Experience-wide, so it names neither a store nor a scope: this is the

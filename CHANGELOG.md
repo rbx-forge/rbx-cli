@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx data delete-store` and `rbx data restore-store`.** A data store comes
+  into being from the first write to a name nobody created, so this tool could
+  make one by accident and could not remove one at all: the only way back was
+  the Creator Hub. Surfaced by the coverage check below, which found both
+  endpoints documented and never called.
+
+  `delete-store` asks for the store's name **typed back** rather than for a
+  `y`. The mistake worth catching is not running the command, it is running it
+  on the wrong store, and a name that arrived from a shell history answers `y`
+  exactly as readily as one read off `data stores`. It also names its store
+  positionally and ignores `--datastore`, which a shell alias may be supplying.
+
+  Both need `universe-datastores.control:delete`. That is not a typo: Roblox
+  files `:undelete` under the delete scope rather than giving it one of its
+  own, so a key that can remove a store can always put it back, and there is no
+  narrower grant for only the undo. Read off the spec rather than assumed,
+  after the scope this first claimed turned out not to exist.
+
+  How long a deleted store stays restorable is **not** documented by Roblox, so
+  nothing here claims a window the way the thirty days for an entry is claimed.
+  `data stores --show-deleted` is how to check.
+
 - **A test that asks which documented endpoints we never call.** The spec drift
   check answers whether everything this workspace calls still exists. It cannot
   answer the reverse, because an endpoint nobody calls contributes nothing to a
@@ -99,6 +121,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no to "did this work".
 
 ### Changed
+
+- **`rbx data delete` and `restore` are now `delete-key` and `restore-key`.**
+  The level is in the name on both sides, so neither reads as the default:
+  `delete Player_156` and `delete-store PlayerData` would be one glance apart
+  in a shell history, and only one of them is recoverable by re-running the
+  game. The old spellings stay as aliases, so nothing that already calls them
+  breaks.
 
 - **Scope entries naming the same type and target are merged before being
   sent.** `universe:read` and `universe:write` on two lines of `rbxapikey.toml`

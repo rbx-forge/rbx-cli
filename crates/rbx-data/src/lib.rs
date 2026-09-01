@@ -51,14 +51,14 @@ use rbx_core::api::{
     build_client, encode_query_value, execute_json, execute_with_retry, explain_missing_scope,
     is_api_status, require_api_key, ApiBase,
 };
-use rbx_core::confirm::confirm_always;
+use rbx_core::confirm::{confirm_always, confirm_by_typing};
 use rbx_core::output::{self, OutputFormat};
 use rbx_core::GlobalFlags;
 
 use crate::backup::{sanitise_filename, BackupTarget};
 use crate::json::{
     DiffDocument, DiffSide, DiffSource, GetDocument, ListDocument, RevisionDocument,
-    RevisionsDocument, Store, StoresDocument, WriteDocument,
+    RevisionsDocument, Store, StoreWriteDocument, StoresDocument, WriteDocument,
 };
 use crate::model::{DataStore, DataStoreEntry, EntryList, EntryUpdate, SnapshotResult, StoreList};
 
@@ -229,7 +229,13 @@ enum Command {
     /// One ordering matters: a live session that holds this profile in memory
     /// writes it back when it ends, undoing this. Delete while nobody is in
     /// the experience, or end the session first from inside the game.
-    Delete {
+    ///
+    /// Named `delete-key` beside `delete-store`, which removes the whole store
+    /// this entry lives in. The level is in the name on both, so neither reads
+    /// as the default: `delete profile_123` and `delete-store PlayerData` would
+    /// be one glance apart in a shell history. `delete` still works.
+    #[command(name = "delete-key", alias = "delete")]
+    DeleteKey {
         /// Entry key.
         entry: String,
 
@@ -308,6 +314,78 @@ enum Command {
         json: bool,
     },
 
+    /// Remove a whole data store, with every entry in it
+    ///
+    /// The counterpart of `delete-key` one level up, and the answer to an
+    /// asymmetry: a store comes into existence from the first write to a name
+    /// nobody created, so this tool could make one by accident and could not
+    /// remove one at all. Until now the only way back was the Creator Hub.
+    ///
+    /// Soft, like `delete-key`: the store stays in `data stores
+    /// --show-deleted` and `restore-store` brings it back. How long that lasts
+    /// is not documented by Roblox and is not claimed here.
+    ///
+    /// Asks for the store's name typed back rather than for a `y`. The mistake
+    /// worth catching is not running this, it is running it on the wrong store,
+    /// and a name that arrived from a shell history answers `y` just as
+    /// readily as one that was read off `data stores`.
+    ///
+    /// Needs `universe-datastores.control:delete`.
+    DeleteStore {
+        /// Store name, from `data stores`.
+        ///
+        /// Positional rather than taken from `--datastore`, though that flag
+        /// names a store too. `--datastore` is the store the other subcommands
+        /// happen to be pointed at, often from a config file or a shell alias;
+        /// a store being destroyed should be named in the command that destroys
+        /// it.
+        store: String,
+
+        /// Actually remove it.
+        #[arg(long)]
+        apply: bool,
+
+        /// Skip the confirmation prompt.
+        #[arg(long)]
+        yes: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// Requires `--yes`, the rule every write here follows: `--json`
+        /// refuses to prompt, so the pair would either draw a prompt into a
+        /// pipe or quietly skip a confirmation.
+        #[arg(long, requires = "yes")]
+        json: bool,
+    },
+
+    /// Bring back a store removed with `delete-store`
+    ///
+    /// The undo, and the reason `delete-store` can be soft about it. Works
+    /// while Roblox still holds the store, which `data stores --show-deleted`
+    /// is how you check: a store absent from that listing is past whatever
+    /// window Roblox keeps, and this cannot reach it.
+    ///
+    /// Needs `universe-datastores.control:delete`, the same scope as
+    /// `delete-store`. Roblox files `:undelete` under the delete scope rather
+    /// than giving it one of its own, so a key that can remove a store can
+    /// always put it back and there is no narrower grant for only the undo.
+    RestoreStore {
+        /// Store name, from `data stores --show-deleted`.
+        store: String,
+
+        /// Actually restore it.
+        #[arg(long)]
+        apply: bool,
+
+        /// Write the result to stdout as one JSON document.
+        ///
+        /// No `--yes` here, unlike its sibling: restoring a store takes
+        /// nothing away, so there is no confirmation for `--json` to collide
+        /// with.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// List entry keys
     List {
         /// Only keys starting with this.
@@ -363,7 +441,11 @@ enum Command {
     ///
     /// Works when there is a past revision to put back, which after a delete
     /// there is. After an overwrite there usually is not: see `data revisions`.
-    Restore {
+    ///
+    /// Named `restore-key` beside `restore-store`, for the reason `delete-key`
+    /// is. `restore` still works.
+    #[command(name = "restore-key", alias = "restore")]
+    RestoreKey {
         /// Entry key.
         entry: String,
 
@@ -673,6 +755,52 @@ impl Api {
         .map_err(explain_missing_scope)
     }
 
+    /// Remove a whole data store.
+    ///
+    /// The URL is built here rather than by appending to a helper, and that is
+    /// on purpose: the drift check reads string literals, so a path assembled
+    /// from a method call is one it cannot see and cannot protect against a
+    /// Roblox rename. `crates/rbx-spec-drift` keeps the list of the ones that
+    /// already got away.
+    async fn delete_store(&self, store: &str) -> Result<()> {
+        let url = self.base.join(&format!(
+            "/cloud/v2/universes/{}/data-stores/{}",
+            self.universe_id,
+            encode_query_value(store),
+        ));
+
+        execute_with_retry(|| {
+            let request = self.client.delete(&url).header("x-api-key", &self.api_key);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map(|_| ())
+        .map_err(explain_missing_scope)
+    }
+
+    /// Bring back a store removed with [`Self::delete_store`].
+    async fn restore_store(&self, store: &str) -> Result<()> {
+        let url = self.base.join(&format!(
+            "/cloud/v2/universes/{}/data-stores/{}:undelete",
+            self.universe_id,
+            encode_query_value(store),
+        ));
+
+        execute_with_retry(|| {
+            let request = self
+                .client
+                .post(&url)
+                .header("x-api-key", &self.api_key)
+                // Roblox answers 400 on an absent body for this one, where the
+                // path already carries everything it needs.
+                .json(&serde_json::json!({}));
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .map(|_| ())
+        .map_err(explain_missing_scope)
+    }
+
     /// One page of data store names.
     ///
     /// Experience-wide, so it uses neither `self.datastore` nor `self.scope`:
@@ -837,6 +965,11 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
         // `stores` is what you run *because* you do not know a store name.
         // Demanding one would make the discovery command need its own answer.
         (Command::Stores { .. }, store) => store.unwrap_or_default(),
+        // These two name their store positionally, and deliberately: a store
+        // being destroyed should be named in the command that destroys it,
+        // not inherited from a flag a shell alias may be supplying.
+        (Command::DeleteStore { .. }, store) => store.unwrap_or_default(),
+        (Command::RestoreStore { .. }, store) => store.unwrap_or_default(),
         // `ordered` raises its own error, naming `GetOrderedDataStore` rather
         // than `GetDataStore`. Sending somebody to the wrong Luau function is
         // a small thing that costs a real detour.
@@ -1014,6 +1147,77 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             Ok(())
         }
 
+        Command::DeleteStore {
+            store: name,
+            apply,
+            yes,
+            json,
+        } => {
+            let format = OutputFormat::from_json_flag(json);
+
+            if !apply {
+                // Named before anything is sent, so a dry run reads back the
+                // store it would have removed. That is the whole value of the
+                // dry run here: the danger is the name, not the operation.
+                format.note(
+                    format!("Would remove data store `{name}` and every entry in it.").dimmed(),
+                );
+                format.note("Add --apply to do it.".dimmed());
+                if format.is_json() {
+                    output::emit(&StoreWriteDocument::new(&name, "delete-store", false))?;
+                }
+                return Ok(());
+            }
+
+            confirm_by_typing(
+                &name,
+                &format!("Removing data store `{name}` and every entry in it."),
+                yes,
+            )?;
+
+            api.delete_store(&name).await?;
+
+            if format.is_json() {
+                return output::emit(&StoreWriteDocument::new(&name, "delete-store", true));
+            }
+            println!("{}", format!("Removed data store `{name}`.").green());
+            // Said here rather than in the help alone, because this is the
+            // moment somebody realises they meant a different store.
+            eprintln!(
+                "{}",
+                format!(
+                    "`rbx data restore-store {name}` brings it back, while Roblox still holds it."
+                )
+                .dimmed()
+            );
+            Ok(())
+        }
+
+        Command::RestoreStore {
+            store: name,
+            apply,
+            json,
+        } => {
+            let format = OutputFormat::from_json_flag(json);
+
+            if !apply {
+                format.note(format!("Would bring data store `{name}` back.").dimmed());
+                format.note("Add --apply to do it.".dimmed());
+                if format.is_json() {
+                    output::emit(&StoreWriteDocument::new(&name, "restore-store", false))?;
+                }
+                return Ok(());
+            }
+
+            api.restore_store(&name).await?;
+
+            if format.is_json() {
+                return output::emit(&StoreWriteDocument::new(&name, "restore-store", true));
+            }
+            println!("{}", format!("Restored data store `{name}`.").green());
+            Ok(())
+        }
+
         Command::List {
             prefix,
             show_deleted,
@@ -1142,7 +1346,7 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             Ok(())
         }
 
-        Command::Restore {
+        Command::RestoreKey {
             entry,
             revision,
             backup,
@@ -1427,7 +1631,7 @@ pub async fn run(cli: DataCli, global: &GlobalFlags) -> Result<()> {
             .await
         }
 
-        Command::Delete {
+        Command::DeleteKey {
             entry,
             backup,
             keep,

@@ -6,6 +6,11 @@ mod completions;
 #[cfg(test)]
 mod docs_drift;
 
+// The other direction: every flag the tree has must appear in a page. Same
+// crate, same reason.
+#[cfg(test)]
+mod docs_coverage;
+
 use std::path::PathBuf;
 use std::process::ExitCode;
 

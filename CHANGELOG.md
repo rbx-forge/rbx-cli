@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A test that catches a flag documented nowhere.** The dual of the docs drift
+  check: that one hands every `rbx ...` line in the pages to clap and catches
+  prose describing a CLI that no longer exists, and it is blind to the reverse
+  by construction, because it only reads what the pages already say.
+
+  The reverse is the one that rots quietly. A stale page is caught the first
+  time somebody follows it; an undocumented flag is never caught, because
+  nobody looks for a thing they were not told about.
+
+  It walks the clap tree and asks that each long flag appear literally in the
+  page `mkdocs.yml` sends a reader to, with an allowlist carrying a reason per
+  entry. First run found two: `rbx rtbf --config`, now documented, and
+  `rbx ban --users-url`, a hidden test seam listed with the reason it stays
+  unwritten.
+
 - **`rbx download` names a carousel preview video `.m3u8`.** `GamePreviewVideo`
   (AssetTypeId 86) used to land as `.bin`. It is not a video file: the asset is
   an HLS master playlist, `#EXTM3U` followed by five vp9/opus renditions from

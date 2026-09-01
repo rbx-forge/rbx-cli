@@ -176,14 +176,43 @@ async fn mount_upload(server: &MockServer, universe: u64, place: u64, version: u
 }
 
 /// The upload paths the server was asked for, in the order they arrived.
+///
+/// POSTs only. Each upload is now preceded by a GET of the place's versions,
+/// which is what tells a new version from one Roblox declined to create, and a
+/// read is not an upload. Counting it here would make every assertion below
+/// about request volume rather than about what was written.
 async fn uploads(server: &MockServer) -> Vec<String> {
     server
         .received_requests()
         .await
         .unwrap_or_default()
         .iter()
+        .filter(|request: &&Request| request.method == wiremock::http::Method::POST)
         .map(|request: &Request| request.url.path().to_string())
         .collect()
+}
+
+fn versions_path(place: u64) -> String {
+    format!("/assets/v1/assets/{place}/versions")
+}
+
+/// Answer the pre-upload read with a place already sitting at `version`.
+///
+/// Unmounted in most tests below, on purpose: the read is best effort, so a
+/// server that refuses it leaves the run reporting exactly what it reported
+/// before any of this existed. That is the path a write-only key takes.
+async fn mount_versions(server: &MockServer, place: u64, version: u64) {
+    Mock::given(method("GET"))
+        .and(path(versions_path(place)))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "assetVersions": [{
+                "path": format!("assets/{place}/versions/{version}"),
+                "createTime": "2026-01-01T00:00:00Z",
+                "published": false,
+            }],
+        })))
+        .mount(server)
+        .await;
 }
 
 /// The regression that matters most: naming one env is still one upload, and
@@ -209,6 +238,49 @@ async fn one_env_is_still_exactly_one_upload() {
     assert_eq!(
         uploads(&server).await,
         vec![upload_path(DEV_UNIVERSE, DEV_PLACE)]
+    );
+}
+
+/// Every upload reads the place's versions first, and reads them *before*
+/// writing.
+///
+/// The order is the whole point: Roblox answers a byte-identical upload with
+/// the number the place was already at, so the only thing that separates that
+/// from a real write is what the place held beforehand. Reading afterwards
+/// would compare the answer against itself.
+#[tokio::test]
+async fn an_upload_reads_the_current_version_before_writing() {
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    let file = rbxl(dir.path());
+    let server = MockServer::start().await;
+    mount_versions(&server, DEV_PLACE, 3).await;
+    mount_upload(&server, DEV_UNIVERSE, DEV_PLACE, 3).await;
+
+    run(
+        cli(
+            &["upload", "--env", "dev", "--file", &file.to_string_lossy()],
+            &server,
+        ),
+        &flags(&places, "dev"),
+    )
+    .await
+    .expect("an upload that changed nothing is still a successful run");
+
+    let paths: Vec<String> = server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .map(|request: &Request| request.url.path().to_string())
+        .collect();
+
+    assert_eq!(
+        paths,
+        vec![
+            versions_path(DEV_PLACE),
+            upload_path(DEV_UNIVERSE, DEV_PLACE)
+        ]
     );
 }
 

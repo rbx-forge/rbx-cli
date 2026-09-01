@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`created` on the `upload` and `promote` write documents**, and an
+  `(unchanged)` marker on the human form. Boolean, absent when the run could
+  not answer. See below for what it is answering.
+
+### Fixed
+
+- **An upload that changed nothing reported a version as if it had written
+  one.** Roblox creates no version for a file a place already holds: it answers
+  with the number the place is already at. The command printed that number and
+  `Upload complete.`, in output identical to a real write, so a `--file`
+  pointing at a stale artifact or a build step that failed quietly looked
+  exactly like a successful deploy.
+
+  Measured rather than assumed, against a test place: the same file uploaded
+  twice answered the same number both times and left the version list untouched;
+  one byte changed, in the reserved bytes of the binary header that the format
+  ignores, produced a new version two minutes later. So the deduplication is on
+  the bytes sent and no cooldown is involved.
+
+  Each upload now reads the place's current version first and compares. That
+  read is best effort: a key that may upload and may not list versions leaves
+  the question unanswered, `created` absent and the output as it was, because a
+  diagnostic must never be the reason a write fails. `promote` sends its bytes
+  through the same endpoint and gets the same treatment; `rollback` does not,
+  its endpoint has not been measured.
+
+- **`rbx apikey regenerate` announced `Old secrets invalid as of <time>` after a
+  run that rotated nothing.** The line printed unconditionally after the loop
+  while each key's failure was swallowed, so a run refused for a missing cookie
+  still said the old secrets were gone. That is the line a reader acts on,
+  because it is the one saying the value in their CI is dead.
+
+  It now prints only when something was actually rotated, and names the count
+  when only some of the keys were. Relatedly, the command exited zero after
+  failing to rotate anything; any key that did not come through now makes it
+  exit non-zero.
+
+  The two questions are tracked separately, because a rotation Roblox performed
+  and this tool then failed to store answers yes to "is the old secret dead" and
+  no to "did this work".
+
+### Changed
+
+- **Scope entries naming the same type and target are merged before being
+  sent.** `universe:read` and `universe:write` on two lines of `rbxapikey.toml`
+  went out as two entries; Roblox stores them as one holding both operations,
+  confirmed by reading a key back through `apikey introspect` (eight entries
+  sent, seven stored). The payload now has the shape the API answers in, so the
+  key created is comparable to the config that asked for it. No key gains or
+  loses a permission from this.
+
 ## [0.6.0]
 
 ### Added

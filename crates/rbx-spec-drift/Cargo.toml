@@ -19,3 +19,12 @@ serde_json.workspace = true
 
 [lints]
 workspace = true
+
+# Declared rather than auto-discovered, because the test is a directory now.
+# Cargo treats `tests/openapi_drift.rs` as a crate root, and a crate root
+# resolves `mod x;` against its own directory: `tests/x.rs`, never
+# `tests/openapi_drift/x.rs`. Naming the entry point inside the directory is
+# what makes the submodules beside it resolve.
+[[test]]
+name = "openapi_drift"
+path = "tests/openapi_drift/main.rs"

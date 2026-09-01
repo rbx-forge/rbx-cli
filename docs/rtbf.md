@@ -120,6 +120,14 @@ For the reason `rbx config` has none: the published config is readable in full, 
 
 Drift and unmatched templates sit on exit code `2` so a CI step can gate on the status alone, and tell "publish this" from "something broke".
 
+Every one of them reads `rbxrtbf.toml` from the working directory. `--config` points at another path, the way `--config` does for `rbx config` and `rbx meta`, which is what a repository holding several universes' declarations side by side needs.
+
+It goes on `rbx rtbf`, before the subcommand, because it selects the file the subcommand then acts on:
+
+```sh
+rbx rtbf --config universes/prod/rbxrtbf.toml check
+```
+
 ### `rbx rtbf show`
 
 The samples are the point. A pattern is read for what it was meant to say; a substituted sample is read for what it will actually match, which is the form you can compare against your Luau. `--user-id` picks the id to substitute (default `1234567890`).

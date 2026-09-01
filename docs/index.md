@@ -93,7 +93,12 @@ Building from source does, at the MSRV declared in the workspace manifest.
 
 ## Where to start
 
-Two ways in, depending on whether the experience exists yet:
+In a hurry, or starting from nothing? [Quick start](quickstart.md) walks the
+whole path on one page, from pinning the tools to a staging deploy running in
+CI, and links here for the depth rather than before it.
+
+The longer route, and the two ways in depending on whether the experience
+exists yet:
 
 - **Nothing on Roblox yet.** [`rbx init`](init.md) creates the group, universe
   and places, and writes the `rbxplace.toml` that everything else reads.

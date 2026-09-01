@@ -126,6 +126,7 @@ extra:
 
 nav:
   - Introduction: index.md
+  - Quick start: quickstart.md
 
   - Getting started:
       - rbx init: init.md

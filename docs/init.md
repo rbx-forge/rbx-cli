@@ -6,10 +6,10 @@ Bootstrap Roblox resources from the command line: create groups, universes, and 
 
 ## Features
 
-- **Create a group**: `rbx init create-group --name ... --icon icon.png`
+- **Create a group**: `rbx init create-group --name ... --icon icon.png`, with `--record` to write it straight into `rbxplace.toml` as the `[owner]`
 - **Create a universe**: `rbx init create-universe [--group <id>]`, returns the universe ID and the root place ID in one call
 - **Create a place** inside an existing universe: `rbx init create-place --universe-id <id>`
-- **Auto-record into `rbxplace.toml`**: both creates append their new ids to the shared env map, prompting for the env/place name: comments and formatting in the file are preserved
+- **Auto-record into `rbxplace.toml`**: every create appends what it made to the shared env map, prompting for the env/place name: comments and formatting in the file are preserved
 - **Rename a place / universe** by id: `rbx init rename-place` / `rbx init rename-universe`
 - **List your groups**: `rbx init list-groups` (cookie required)
 - **List a group's universes**: `rbx init list-universes --group <id>` (no credential needed; see [what these listings expose](#the-listings-need-no-credential))
@@ -22,17 +22,19 @@ Bootstrap Roblox resources from the command line: create groups, universes, and 
 Bootstrap a brand-new project with a group, a universe, and an extra lobby place:
 
 ```sh
-# 1. Create the group (returns id 123456789)
-rbx init create-group --name "My Studio" --icon assets/group-icon.png --public
+# 1. Create the group, and record it as [owner] (creates rbxplace.toml)
+rbx init create-group --name "My Studio" --icon assets/group-icon.png --public --record
 
-# 2. Create a universe under that group (returns universe_id + root_place_id)
-rbx init create-universe --group 123456789 --name "[TEST] My Game" --env test
+# 2. Create a universe. The owner comes from [owner], so no id to pass
+rbx init create-universe --name "[TEST] My Game" --env test
 
 # 3. Add a second place inside the universe
 rbx init create-place --universe-id 987654321 --name "Lobby" --place lobby
 ```
 
-Steps 2 and 3 record their ids in `rbxplace.toml` as they go, so there's nothing to copy by hand. Omit `--env`/`--place`/`--name` and you'll be asked for them instead.
+Every step records what it made in `rbxplace.toml` as it goes, so there is nothing to copy by hand and no id in transit between commands. Omit `--env`/`--place`/`--name` and you'll be asked for them instead.
+
+`--record` is what makes step 2 able to omit `--group`: it writes the `[owner]` block that `create-universe` then resolves its owner from. It is opt-in, because it is the one create that may bring `rbxplace.toml` into existence rather than only extend it. It also refuses, *before* the 100 Robux are spent, when the file already declares an owner: a script that died at step 2 can be re-run without buying a second group.
 
 Starting from an existing group with universes already created? `rbx init list-universes --group <id>` prints their ids; write the `[<env>]` sections yourself, then check the result with [`rbx env list`](./env.md). See [the field reference](./env.md#every-field-and-where-it-goes) for what goes where.
 
@@ -49,9 +51,14 @@ Create a new Roblox group. An icon is required by Roblox (PNG or JPEG).
 | `--icon` | **Yes** | Path to a PNG/JPEG icon file |
 | `--description` | No | Group description (default: empty) |
 | `--public` | No | Make the group publicly joinable (default: invite-only) |
+| `--record` | No | Write the new group as `[owner]` in `rbxplace.toml`, creating the file if needed |
 | `--yes` / `-y` | No | Skip the confirmation prompt |
 
 > Roblox requires the authenticated user to be eligible to create groups (verified email + minimum account age). If the chosen name is already taken, `rbx init` prints a clear message instead of a raw HTTP error.
+
+`--record` appends the block and never rewrites lines already on disk, so comments, key order and CRLF endings survive. It refuses when the file already declares a top-level `[owner]`, and it checks that before contacting Roblox: creating a group costs 100 Robux and cannot be undone, so the refusal has to come while nothing has been spent. A file that exists but does not parse stops the run for the same reason, rather than being treated as "no owner" and appended to.
+
+Without `--record` the command only prints the id, which is the right default when you are creating a group that has nothing to do with the directory you happen to be standing in.
 
 </details>
 

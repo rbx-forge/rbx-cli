@@ -4,16 +4,19 @@
 //! `rbx env get place-id --env prod` always prints the id that
 //! `rbx place upload --env prod` would target.
 //!
-//! Four verbs: `list`/`get` mirror `rbx config`:
+//! Five verbs: `list`/`get`/`set` mirror `rbx config`:
 //! - `list`: human-readable dump of the whole file (or one env via `--env`),
 //!   plus the two bare listings `--names` and `--place-names` that scripts and
 //!   the generated shell completions read.
 //! - `get`: one bare value on stdout, for `$(...)` capture in scripts.
+//! - `set`: write one of the settings that has no counterpart on Roblox, so
+//!   nothing else in the suite could ever produce it. See `commands::set` for
+//!   why that rule is the whole scope of the verb.
 //! - `gen-module`: the same data as a Luau/Lua/JSON/TS module for game code.
 //! - `rm`: take an env out of every file that mentions it.
 //!
-//! `rm` is the only one that writes, and it writes only local files: this
-//! crate still never opens a connection. It lives here rather than in
+//! `set` and `rm` are the two that write, and they write only local files:
+//! this crate still never opens a connection. `rm` lives here rather than in
 //! `rbx-shop` or `rbx-meta` because an env is not owned by either: it is
 //! declared in `rbxplace.toml` and referenced from both, so removing one is a
 //! question about this file's contents that happens to reach into its
@@ -120,6 +123,18 @@ pub enum EnvCommands {
         check: bool,
     },
 
+    /// Write one local setting into rbxplace.toml.
+    ///
+    /// Only the settings nothing else can produce: `[owner]` for a group that
+    /// already existed, and the policy blocks (`[codegen]`, `[groups]`, and
+    /// the per-env `codegen` / `confirm`) that have no counterpart on Roblox,
+    /// so no `pull` or `import` can ever bring them back.
+    ///
+    /// Ids are not settable. `rbx init` writes `universe_id` and `places.*`
+    /// when it creates the thing they name; a flag that let you type one by
+    /// hand is a flag that lets you point prod at a test universe.
+    Set(SetCli),
+
     /// Remove an env from rbxplace.toml and every file keyed by it.
     ///
     /// Local only. Nothing is deleted on Roblox, and nothing could be: a game
@@ -146,6 +161,80 @@ pub enum EnvCommands {
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
+    },
+}
+
+#[derive(Args, Debug)]
+pub struct SetCli {
+    #[command(subcommand)]
+    pub what: SetCommands,
+
+    /// Replace an existing value without asking. Works before or after the
+    /// subcommand.
+    ///
+    /// Only consulted when a setting is being *changed*: adding one that was
+    /// absent never prompts, and setting a value the file already has writes
+    /// nothing at all.
+    #[arg(short = 'y', long = "yes", global = true)]
+    pub yes: bool,
+}
+
+/// One writable setting. Each is a separate verb rather than a dotted key path
+/// (`rbx env set groups.shops ...`), so each carries its own arguments, its own
+/// value type and its own `--help`: `confirm = "true"` has already parsed as a
+/// string once in this project's history and silently disabled the prompt on
+/// the env most likely to be prod.
+#[derive(Subcommand, Debug)]
+pub enum SetCommands {
+    /// Top-level `[owner]`: who the universes in this file belong to.
+    ///
+    /// For a group made on the website. `rbx init create-group --record`
+    /// writes this block for a group it creates itself.
+    Owner {
+        /// `group` or `user`.
+        #[arg(long = "type", value_enum)]
+        kind: rbx_core::owner::OwnerType,
+
+        /// The group or user id.
+        #[arg(long)]
+        id: u64,
+    },
+
+    /// `[codegen] output`: where `rbx env gen-module` writes its module.
+    CodegenOutput {
+        /// Path, with the extension choosing the format (`.luau`, `.lua`,
+        /// `.json`, `.ts`).
+        path: String,
+    },
+
+    /// A `[groups]` entry: a name usable anywhere `--env` is.
+    ///
+    /// Every member must already be an env in the file. A group naming one
+    /// that does not exist makes the file unloadable for every command, so it
+    /// is refused here rather than written.
+    Group {
+        /// Group name. Must not collide with an env or a reserved name.
+        name: String,
+
+        /// The envs it stands for, comma-separated, in the order commands
+        /// should visit them.
+        #[arg(value_delimiter = ',')]
+        members: Vec<String>,
+    },
+
+    /// Per-env `codegen`: whether game code should see this env. Needs `--env`.
+    Codegen {
+        /// `false` for a universe that only ever receives uploads.
+        #[arg(action = clap::ArgAction::Set)]
+        enabled: bool,
+    },
+
+    /// Per-env `confirm`: whether writes to this env prompt first. Needs
+    /// `--env`.
+    Confirm {
+        /// `true` for an env worth being asked about.
+        #[arg(action = clap::ArgAction::Set)]
+        enabled: bool,
     },
 }
 
@@ -207,6 +296,7 @@ pub async fn run(cli: EnvCli, global: &GlobalFlags) -> Result<()> {
         EnvCommands::GenModule { out, check } => {
             commands::gen_module::run(&global.places, out.as_deref(), check)
         }
+        EnvCommands::Set(cli) => commands::set::run(global, cli),
         EnvCommands::Rm { name, dry_run, yes } => {
             commands::rm::run(&global.places, &name, dry_run, yes)
         }

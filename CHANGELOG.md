@@ -5,6 +5,78 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`rbx env set`.** `rbxplace.toml` could be read almost completely and
+  written almost not at all: `rbx env` had four verbs, three that read and one
+  that deletes. Five settings now have a writer, and the choice of *which five*
+  is the whole design.
+
+  Every other file in this suite can be rebuilt from Roblox: `shop init
+  --from-remote`, `meta init --from-remote`, `config pull`. These five cannot,
+  because Roblox has never heard of them. `[codegen] output`, `[groups]` and
+  the per-env `codegen` / `confirm` are local policy: which module to generate,
+  which envs a name fans out over, which env is dangerous enough to ask about
+  first. `[owner]` joins them for the case nothing covered: a group made on the
+  website, where `create-universe` only ever *reads* that block and
+  `create-group --record` has no group to create.
+
+  ```sh
+  rbx env set owner --type group --id 1234567890
+  rbx env set codegen-output generated/shared/Environments.luau
+  rbx env set group shops dev,staging,prod
+  rbx env set codegen false --env ci
+  rbx env set confirm true  --env prod
+  ```
+
+  Ids are deliberately not settable. `rbx init` writes `universe_id` and
+  `places.*` when it creates the thing they name, and a flag that lets you type
+  one by hand is a flag that lets you point prod at a test universe.
+
+  **Setting a value the file already has writes nothing**, so a bootstrap
+  script re-run after a failure halfway through is a no-op rather than a diff.
+  Changing a value that differs asks first, and off a terminal names `--yes`
+  instead of failing inside the prompt library. Adding one that was absent
+  never asks: `confirm true` on an env that never mentioned it is an addition,
+  not the replacement of a `false` nobody typed.
+
+  **A change that would make the file unloadable is refused before it is
+  written.** The candidate document goes through the same loader every other
+  command uses, so `set group shops dev,qa` in a file with no `[qa]` fails with
+  that loader's own message, listing the envs that do exist, and leaves the
+  file untouched. Writing a `[groups]` entry is the case that matters: it makes
+  the whole file unreadable for every command, including this one.
+
+- **`rbx init create-group --record`.** The group id was the one id in the
+  bootstrap that nothing captured. `create-universe` and `create-place` have
+  always written what they made into `rbxplace.toml`; `create-group` printed
+  its id and left you to paste it. With `--record` it writes the `[owner]`
+  block instead, and because `create-universe` already resolves its owner from
+  that block, the next command needs no `--group` at all. A bootstrap script
+  stops carrying ids between commands:
+
+  ```sh
+  rbx init create-group    --name "My Studio" --icon icon.png --record -y
+  rbx init create-universe --name "[TEST] My Game" --env test -y
+  ```
+
+  Opt-in, where the other two record by default and opt out with
+  `--no-record`. The asymmetry is deliberate: those two only ever extend a file
+  that already exists, while this one has to be able to create it, and creating
+  a file in whatever directory the command was run from is not something to do
+  unasked.
+
+  It refuses when the file already declares a top-level `[owner]`, and it
+  checks **before** contacting Roblox. Creating a group costs 100 Robux and
+  cannot be undone, so a run that would be refused has to be refused while
+  nothing has been spent. That is also what makes a bootstrap script
+  re-runnable after a failure halfway through: the second run stops at the
+  group instead of buying another one. A file that exists but does not parse
+  stops the run for the same reason, rather than being read as "no owner" and
+  appended to.
+
 ## [0.7.0]
 
 ### Added

@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used)]
 
-use rbx_import::discover::{fetch_places, fetch_universe, Hosts, Owner};
+use rbx_import::discover::{fetch_places, fetch_universe, Hosts, Owner, OwnerType};
 use serde_json::json;
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -69,7 +69,7 @@ async fn a_group_owned_universe_resolves_to_a_group_owner() {
     assert_eq!(
         owner,
         Some(Owner {
-            kind: "group",
+            kind: OwnerType::Group,
             id: 456
         })
     );
@@ -96,7 +96,7 @@ async fn a_user_owned_universe_resolves_to_a_user_owner() {
     assert_eq!(
         owner,
         Some(Owner {
-            kind: "user",
+            kind: OwnerType::User,
             id: 123
         })
     );

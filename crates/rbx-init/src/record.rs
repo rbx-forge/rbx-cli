@@ -25,6 +25,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
 
+use rbx_core::owner::Owner;
 use rbx_core::places::{is_reserved_env_name, Environment, PlacesFile, RESERVED_ENV_NAMES};
 
 /// Place name assumed when none is given. The whole toolkit already treats
@@ -408,6 +409,25 @@ pub fn insert_place(path: &Path, env: &str, place: &str, place_id: u64) -> Resul
     std::fs::write(path, updated).with_context(|| format!("Failed to write {}", path.display()))
 }
 
+/// Append a top-level `[owner]` block, creating the file when it is absent.
+///
+/// The one writer here that may create `rbxplace.toml` rather than only extend
+/// it, and the exception is what `create-group --record` is for: a group is
+/// created before any env exists, so requiring the file to be there already
+/// would mean the group can never be the first thing a project creates.
+///
+/// Callers check that the file declares no owner first. Overwriting one
+/// somebody set is not a decision this function makes on its own.
+pub fn append_owner(path: &Path, owner: Owner) -> Result<()> {
+    let content = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(e) => return Err(e).with_context(|| format!("Failed to read {}", path.display())),
+    };
+    std::fs::write(path, append_owner_str(&content, owner))
+        .with_context(|| format!("Failed to write {}", path.display()))
+}
+
 /// String form of [`append_env`], so the formatting is directly testable.
 pub fn append_env_str(
     content: &str,
@@ -430,6 +450,28 @@ pub fn append_env_str(
     out.push_str(&format!("[{env}]{newline}"));
     out.push_str(&format!("universe_id = {universe_id}{newline}"));
     out.push_str(&format!("places.{place} = {place_id}{newline}"));
+    out
+}
+
+/// String form of [`append_owner`], so the formatting is directly testable.
+///
+/// `[owner]` goes at the end like any other appended table. It reads better at
+/// the top, but moving it there would mean rewriting lines that are already on
+/// disk, which is the one thing this module does not do.
+pub fn append_owner_str(content: &str, owner: Owner) -> String {
+    let newline = detect_newline(content);
+    let mut out = content.to_string();
+
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push_str(newline);
+    }
+    if !out.trim().is_empty() {
+        out.push_str(newline);
+    }
+
+    out.push_str(&format!("[owner]{newline}"));
+    out.push_str(&format!("type = \"{}\"{newline}", owner.kind));
+    out.push_str(&format!("id = {}{newline}", owner.id));
     out
 }
 
@@ -591,6 +633,88 @@ main = 2001
         let out = append_env_str("[dev]\r\nuniverse_id = 100\r\n", "test", 300, "main", 3001);
         assert!(out.ends_with("[test]\r\nuniverse_id = 300\r\nplaces.main = 3001\r\n"));
         assert!(!out.contains("\n\n"), "must not mix endings, got {out:?}");
+        parsed(&out);
+    }
+
+    // -----------------------------------------------------------------
+    // append_owner_str
+    // -----------------------------------------------------------------
+
+    fn group(id: u64) -> Owner {
+        Owner {
+            kind: rbx_core::owner::OwnerType::Group,
+            id,
+        }
+    }
+
+    /// A file with content but no owner, which is the only shape the caller
+    /// ever hands this: `ensure_owner_absent` refuses the rest before any
+    /// group is bought.
+    const NO_OWNER: &str = "\
+# Shared env map. Keep prod last.
+
+[codegen]
+output = \"src/shared/Envs.luau\"
+
+[dev]
+universe_id = 100
+places.main = 1001
+";
+
+    #[test]
+    fn append_owner_leaves_existing_bytes_untouched() {
+        let out = append_owner_str(NO_OWNER, group(1234567890));
+        assert!(
+            out.starts_with(NO_OWNER),
+            "append must be a pure suffix, got:\n{out}"
+        );
+        assert!(out.ends_with("[owner]\ntype = \"group\"\nid = 1234567890\n"));
+
+        let places = parsed(&out);
+        assert_eq!(places.owner.unwrap().id, 1234567890);
+        // The comment, the [codegen] block and the env are all still there.
+        assert!(out.contains("# Shared env map. Keep prod last."));
+        assert!(out.contains("output = \"src/shared/Envs.luau\""));
+        assert_eq!(places.get("dev").unwrap().universe_id, 100);
+    }
+
+    /// The bare-repo case: `create-group --record` writes into a file that
+    /// does not exist yet, so the content it appends to is empty.
+    #[test]
+    fn append_owner_to_an_empty_file_has_no_leading_blank() {
+        let out = append_owner_str("", group(1234567890));
+        assert_eq!(out, "[owner]\ntype = \"group\"\nid = 1234567890\n");
+        assert!(parsed(&out).owner.is_some());
+    }
+
+    #[test]
+    fn append_owner_spells_a_user_owner() {
+        let out = append_owner_str(
+            "",
+            Owner {
+                kind: rbx_core::owner::OwnerType::User,
+                id: 42,
+            },
+        );
+        assert!(out.contains("type = \"user\""), "got:\n{out}");
+        assert_eq!(
+            parsed(&out).owner.unwrap().kind,
+            rbx_core::owner::OwnerType::User
+        );
+    }
+
+    #[test]
+    fn append_owner_preserves_crlf() {
+        let out = append_owner_str("[prod]\r\nuniverse_id = 1\r\n", group(5));
+        assert!(out.ends_with("id = 5\r\n"), "{out:?}");
+        assert!(!out.contains("\n\n"), "a CRLF file must not gain LF lines");
+        parsed(&out);
+    }
+
+    #[test]
+    fn append_owner_terminates_a_file_that_lacks_a_final_newline() {
+        let out = append_owner_str("[dev]\nuniverse_id = 100", group(7));
+        assert!(out.contains("universe_id = 100\n\n[owner]"), "got:\n{out}");
         parsed(&out);
     }
 

@@ -8,6 +8,7 @@ Every other subcommand resolves `--env` against this file. `rbx env` is the read
 
 - **List** - See every env, its universe id, and its places, rendered in the file's own TOML shape
 - **Get** - Print one bare value to stdout, ready for `$(...)` capture in scripts and CI
+- **Set** - Write the settings nothing on Roblox can produce: `[owner]`, `[codegen]`, `[groups]`, and the per-env `codegen` / `confirm`
 - **Gen-module** - Export the whole map as a Luau/Lua/JSON/TypeScript module for your game code, with `--check` to prove the committed copy was never hand-edited
 - **JSON** - `--json` on `list` and `get` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
 - **Completions** - The env and place names in this file are what `--env <TAB>` and `--place <TAB>` offer, in bash, zsh, fish and PowerShell
@@ -301,6 +302,39 @@ Envs and places are emitted in name order, so regenerating from an unchanged `rb
 
 
 <details markdown="1">
+<summary><code>rbx env set</code></summary>
+
+Write one local setting into `rbxplace.toml`, preserving comments and key order.
+
+```sh
+rbx env set owner --type group --id 1234567890
+rbx env set codegen-output generated/shared/Environments.luau
+rbx env set group shops dev,staging,prod
+rbx env set codegen false --env ci
+rbx env set confirm true  --env prod
+```
+
+| Setting | Writes | Needs `--env` |
+| --- | --- | --- |
+| `owner --type <group\|user> --id <id>` | `[owner]` | No |
+| `codegen-output <path>` | `[codegen] output` | No |
+| `group <name> <envs>` | one `[groups]` entry | No |
+| `codegen <true\|false>` | the env's `codegen` | **Yes** |
+| `confirm <true\|false>` | the env's `confirm` | **Yes** |
+
+**Only these five, and the rule is not arbitrary.** Every other file in this suite can be rebuilt from Roblox (`shop init --from-remote`, `meta init --from-remote`, `config pull`). These five have no counterpart on Roblox, so no import can ever bring them back: which module to generate, which envs a name fans out over, which env is dangerous enough to ask about first, and who owns the universes when the group was made on the website rather than by [`rbx init create-group --record`](./init.md).
+
+Ids are deliberately **not** settable. `rbx init` writes `universe_id` and `places.*` when it creates the thing they name, and a flag that lets you type one by hand is a flag that lets you point prod at a test universe.
+
+**Setting a value the file already has writes nothing** and says so, so a bootstrap script can be re-run after a failure halfway through without producing a diff. Changing a value that differs asks first; `--yes` answers. Adding one that was absent never asks, including `confirm true` on an env that never mentioned it: nothing is being overwritten there, only the default it was inheriting.
+
+**A change that would make the file unloadable is refused before it is written.** The new document is parsed by the same loader every other command uses, so `rbx env set group shops dev,qa` in a file with no `[qa]` fails with that loader's own message, listing the envs that do exist, and leaves the file alone.
+
+`owner` and `codegen-output` create `rbxplace.toml` when it does not exist yet, which is what lets a fresh repository be pointed at an existing group. The other three name an env, so they need a file that has some.
+
+</details>
+
+<details markdown="1">
 <summary><code>rbx env rm</code></summary>
 
 Remove an env from `rbxplace.toml` and from every file keyed by it.
@@ -506,11 +540,14 @@ The install paths, the four shells, and what happens outside a project are on [i
 
 ## Where the file comes from
 
-`rbx env` only reads it. One command writes it:
+Four commands write it, and each writes only its own part:
 
+- `rbx init create-group --record`: the `[owner]` block, for a group it just created
+- `rbx init create-universe` / `create-place`: the `[<env>]` section and `places.*` for what they created
+- `rbx env set`: the local settings nothing on Roblox knows about, listed above
 - `rbx place fetch --env <name> --write`: refresh one env's places from the live universe
 
-Otherwise it is yours to write. A minimal file is one `[<env>]` section with a `universe_id`; `rbx init list-universes` prints the ids to put in it, and `rbx init create-universe` appends a section for a universe it creates.
+Otherwise it is yours to write. A minimal file is one `[<env>]` section with a `universe_id`; `rbx init list-universes` prints the ids to put in it.
 
 > **Nothing generates this file wholesale, and that is deliberate.** Every writer here only inserts lines. Reserializing the document through serde would drop comments, reorder keys, and silently delete any field it does not model, `env` overrides included.
 

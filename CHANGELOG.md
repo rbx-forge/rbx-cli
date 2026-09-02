@@ -9,6 +9,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx env set`.** `rbxplace.toml` could be read almost completely and
+  written almost not at all: `rbx env` had four verbs, three that read and one
+  that deletes. Five settings now have a writer, and the choice of *which five*
+  is the whole design.
+
+  Every other file in this suite can be rebuilt from Roblox: `shop init
+  --from-remote`, `meta init --from-remote`, `config pull`. These five cannot,
+  because Roblox has never heard of them. `[codegen] output`, `[groups]` and
+  the per-env `codegen` / `confirm` are local policy: which module to generate,
+  which envs a name fans out over, which env is dangerous enough to ask about
+  first. `[owner]` joins them for the case nothing covered: a group made on the
+  website, where `create-universe` only ever *reads* that block and
+  `create-group --record` has no group to create.
+
+  ```sh
+  rbx env set owner --type group --id 1234567890
+  rbx env set codegen-output generated/shared/Environments.luau
+  rbx env set group shops dev,staging,prod
+  rbx env set codegen false --env ci
+  rbx env set confirm true  --env prod
+  ```
+
+  Ids are deliberately not settable. `rbx init` writes `universe_id` and
+  `places.*` when it creates the thing they name, and a flag that lets you type
+  one by hand is a flag that lets you point prod at a test universe.
+
+  **Setting a value the file already has writes nothing**, so a bootstrap
+  script re-run after a failure halfway through is a no-op rather than a diff.
+  Changing a value that differs asks first, and off a terminal names `--yes`
+  instead of failing inside the prompt library. Adding one that was absent
+  never asks: `confirm true` on an env that never mentioned it is an addition,
+  not the replacement of a `false` nobody typed.
+
+  **A change that would make the file unloadable is refused before it is
+  written.** The candidate document goes through the same loader every other
+  command uses, so `set group shops dev,qa` in a file with no `[qa]` fails with
+  that loader's own message, listing the envs that do exist, and leaves the
+  file untouched. Writing a `[groups]` entry is the case that matters: it makes
+  the whole file unreadable for every command, including this one.
+
 - **`rbx init create-group --record`.** The group id was the one id in the
   bootstrap that nothing captured. `create-universe` and `create-place` have
   always written what they made into `rbxplace.toml`; `create-group` printed

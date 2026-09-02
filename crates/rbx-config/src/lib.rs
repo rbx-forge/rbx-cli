@@ -134,11 +134,30 @@ pub enum ConfigCommands {
     /// Roll back to a previous revision.
     Rollback {
         /// Revision id to roll back to (shows picker if omitted).
+        ///
+        /// Required off a terminal, where there is nobody to show the picker
+        /// to. `rbx config versions` lists the ids.
         revision_id: Option<String>,
 
         /// Number of revisions to show in picker.
         #[arg(long, default_value = "10")]
         count: usize,
+
+        /// Publish message for the version the rollback creates.
+        #[arg(long, short)]
+        message: Option<String>,
+
+        /// Publish without a message.
+        #[arg(long)]
+        no_message: bool,
+
+        /// Skip confirmation prompt.
+        ///
+        /// Answers the publish message too, exactly as on `sync`: a flag that
+        /// skipped the confirmation and then stopped on a second question
+        /// would fail a pipeline on a message about a terminal.
+        #[arg(long, short)]
+        yes: bool,
     },
 }
 
@@ -219,8 +238,22 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
         ConfigCommands::Versions { count, json } => {
             commands::versions::run(&ctx, count, json).await
         }
-        ConfigCommands::Rollback { revision_id, count } => {
-            commands::rollback::run(&ctx, revision_id, count).await
+        ConfigCommands::Rollback {
+            revision_id,
+            count,
+            message,
+            no_message,
+            yes,
+        } => {
+            commands::rollback::run(
+                &ctx,
+                revision_id,
+                count,
+                message.as_deref(),
+                no_message,
+                yes,
+            )
+            .await
         }
     }
 }

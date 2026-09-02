@@ -9,7 +9,14 @@ use crate::lock;
 use super::{make_client, resolve_message};
 use rbx_core::confirm::confirm_destructive;
 
-pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> Result<()> {
+pub async fn run(
+    ctx: &ConfigCtx,
+    revision_id: Option<String>,
+    count: usize,
+    message: Option<&str>,
+    no_message: bool,
+    yes: bool,
+) -> Result<()> {
     let (env, universe_id, confirm) = ctx.resolve_target()?;
     // A rollback publishes, so the file gets to name the repository it
     // publishes into: restoring a revision of the wrong one replaces a live
@@ -31,6 +38,15 @@ pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> 
     let target_revision = match revision_id {
         Some(rev_id) => rev_id,
         None => {
+            // Before the listing call rather than after it: a run that cannot
+            // reach the picker should not spend a request on the revisions it
+            // is about to have nowhere to show.
+            if !rbx_core::output::is_interactive() {
+                bail!(
+                    "no revision id given, and there is nobody to show the picker to. \
+                     Pass one as an argument: `rbx config versions` lists them."
+                );
+            }
             print!("  Fetching {} recent revisions ... ", count);
             let revisions = client.list_revisions(universe_id, count).await?;
             println!("{}", "ok".green());
@@ -75,8 +91,16 @@ pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> 
             &target_revision[..std::cmp::min(8, target_revision.len())]
         ),
         confirm,
-        false,
+        yes,
     )?;
+
+    // Resolved before the restore, not after. `restore_revision` stages a
+    // draft, and a draft is not nothing: it replaces whatever was staged
+    // there. Failing on "no publish message" once that has happened would
+    // leave the universe holding a draft nobody asked to stage, from a command
+    // that then reported failure. Everything that can refuse this run refuses
+    // it while the universe is untouched.
+    let message = resolve_message(message, no_message, yes)?;
 
     print!("  Restoring revision {} ... ", target_revision);
     let draft_hash = client
@@ -84,10 +108,6 @@ pub async fn run(ctx: &ConfigCtx, revision_id: Option<String>, count: usize) -> 
         .await?;
     println!("{}", "ok".green());
 
-    // `false` for both: rollback takes neither --no-message nor --yes. It is
-    // interactive by construction (without an explicit revision id it draws a
-    // picker) so there is no unattended path for the guard to serve.
-    let message = resolve_message(None, false, false)?;
     print!("  Publishing ... ");
     match client
         .publish(universe_id, &message, "Immediate", Some(&draft_hash))

@@ -302,11 +302,23 @@ Roll back to a previous revision. Restores the chosen revision into the draft an
 rbx config rollback --env dev                   # interactive picker
 rbx config rollback --env dev <revision_id>     # direct
 rbx config rollback --env dev --count 30        # picker with more entries
+
+# Unattended, for a pipeline recovering from a bad publish
+rbx config rollback --env prod <revision_id> --message "revert #123" --yes
 ```
 
 | Flag | Description |
 | --- | --- |
 | `--count` | Number of revisions to show in the picker (default: `10`) |
+| `--message` / `-m` | Publish message for the version the rollback creates |
+| `--no-message` | Publish without a message |
+| `--yes` / `-y` | Skip the confirmation, and answer the publish message too |
+
+**Scriptable.** A rollback is the command a pipeline reaches for when a publish went wrong, so it runs unattended on the same terms as `sync`: `--yes` answers both the confirmation and the publish message, exactly as it does there.
+
+Off a terminal, a run with no `revision_id` fails asking for one and names `rbx config versions`, rather than failing inside the picker with a message about a terminal. It fails **before** fetching the revisions, so a run with nowhere to display them spends no request.
+
+Everything that can refuse the run refuses it while the universe is untouched: the message is resolved before the revision is restored, because restoring stages a draft and replaces whatever was staged there. A rollback that stopped on "no publish message" after that point would leave a draft nobody asked to stage, from a command that reported failure.
 
 </details>
 

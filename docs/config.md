@@ -314,7 +314,7 @@ rbx config rollback --env prod <revision_id> --message "revert #123" --yes
 | `--no-message` | Publish without a message |
 | `--yes` / `-y` | Skip the confirmation, and answer the publish message too |
 
-**Scriptable.** A rollback is the command a pipeline reaches for when a publish went wrong, so it runs unattended on the same terms as `sync`: `--yes` answers both the confirmation and the publish message, exactly as it does there.
+**Scriptable (0.8.0+).** A rollback is the command a pipeline reaches for when a publish went wrong, so it runs unattended on the same terms as `sync`: `--yes` answers both the confirmation and the publish message, exactly as it does there.
 
 Off a terminal, a run with no `revision_id` fails asking for one and names `rbx config versions`, rather than failing inside the picker with a message about a terminal. It fails **before** fetching the revisions, so a run with nowhere to display them spends no request.
 

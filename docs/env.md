@@ -304,7 +304,7 @@ Envs and places are emitted in name order, so regenerating from an unchanged `rb
 <details markdown="1">
 <summary><code>rbx env set</code></summary>
 
-Write one local setting into `rbxplace.toml`, preserving comments and key order.
+**(0.8.0+)** Write one local setting into `rbxplace.toml`, preserving comments and key order.
 
 ```sh
 rbx env set owner --type group --id 1234567890

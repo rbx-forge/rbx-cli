@@ -14,15 +14,11 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 
 use rbx_core::api::{ApiBase, DEFAULT_API_BASE};
-
-/// Who a universe belongs to, in the shape `rbxplace.toml`'s `[owner]` block
-/// wants.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Owner {
-    /// `user` or `group`.
-    pub kind: &'static str,
-    pub id: u64,
-}
+// The shape `rbxplace.toml`'s `[owner]` block wants. This module used to carry
+// its own copy of it, with `kind` as a `&'static str`, which meant the writer
+// in `rbx-init::record` had to be handed a spelling rather than a type: the
+// one place a typo would have produced a file no loader accepts.
+pub use rbx_core::owner::{Owner, OwnerType};
 
 /// One place in the universe, as it will be written under `[<env>.places]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -95,18 +91,18 @@ pub async fn fetch_universe(
     let owner = match (&universe.user, &universe.group) {
         // A universe has one or the other, never both. If Roblox ever sends
         // both, the group is the meaningful one for a payment source.
-        (_, Some(group)) => parse_owner("group", group),
-        (Some(user), None) => parse_owner("user", user),
+        (_, Some(group)) => parse_owner(OwnerType::Group, group),
+        (Some(user), None) => parse_owner(OwnerType::User, user),
         (None, None) => None,
     };
 
     Ok((universe.display_name, owner))
 }
 
-/// `users/123` -> `Owner { kind: "user", id: 123 }`. A shape that does not
+/// `users/123` -> `Owner { kind: User, id: 123 }`. A shape that does not
 /// parse yields `None` rather than an error: the owner is a convenience for
 /// `[owner]`, and failing the whole import over it would be out of proportion.
-fn parse_owner(kind: &'static str, path: &str) -> Option<Owner> {
+fn parse_owner(kind: OwnerType, path: &str) -> Option<Owner> {
     path.rsplit('/')
         .next()?
         .parse()
@@ -319,16 +315,16 @@ mod tests {
     #[test]
     fn an_owner_path_keeps_only_the_id() {
         assert_eq!(
-            parse_owner("user", "users/123"),
+            parse_owner(OwnerType::User, "users/123"),
             Some(Owner {
-                kind: "user",
+                kind: OwnerType::User,
                 id: 123
             })
         );
         assert_eq!(
-            parse_owner("group", "groups/456"),
+            parse_owner(OwnerType::Group, "groups/456"),
             Some(Owner {
-                kind: "group",
+                kind: OwnerType::Group,
                 id: 456
             })
         );
@@ -338,8 +334,8 @@ mod tests {
     /// convenience, and failing the import over it would be out of proportion.
     #[test]
     fn an_unparseable_owner_is_none_rather_than_an_error() {
-        assert_eq!(parse_owner("user", "users/not-a-number"), None);
-        assert_eq!(parse_owner("user", ""), None);
+        assert_eq!(parse_owner(OwnerType::User, "users/not-a-number"), None);
+        assert_eq!(parse_owner(OwnerType::User, ""), None);
     }
 
     #[test]

@@ -12,8 +12,11 @@
 //! create-universe` has been appending envs that way since before this
 //! command existed.
 //!
-//! The one thing `record` has no writer for is `[owner]`, so that is here:
-//! same rule: append only, and never over an owner the user already declared.
+//! `[owner]` used to be the exception, written here because `record` had no
+//! writer for it. It has one now (`rbx init create-group --record` needs to
+//! write that block before any env exists), so this module states the *rule*
+//! for it and delegates the bytes: append only, and never over an owner the
+//! user already declared.
 
 use std::path::Path;
 
@@ -21,7 +24,7 @@ use anyhow::{Context, Result};
 
 use rbx_core::places::PlacesFile;
 
-use crate::discover::{Owner, Universe};
+use crate::discover::Universe;
 
 /// What [`write_env`] did, so the caller can report it without re-reading the
 /// file.
@@ -100,7 +103,7 @@ pub fn write_env(path: &Path, env: &str, universe: &Universe) -> Result<PlacesWr
             .ok()
             .is_some_and(|f| f.resolve_owner(env).is_some());
         if !has_owner {
-            append_owner(path, owner)?;
+            rbx_init::record::append_owner(path, *owner)?;
             result.owner_written = true;
         }
     }
@@ -108,49 +111,12 @@ pub fn write_env(path: &Path, env: &str, universe: &Universe) -> Result<PlacesWr
     Ok(result)
 }
 
-/// Append a top-level `[owner]` block.
-///
-/// Only ever called when the file resolves no owner for this env, so it cannot
-/// overwrite a per-env `[<env>.owner]` or a top-level one the user set.
-fn append_owner(path: &Path, owner: &Owner) -> Result<()> {
-    let content = std::fs::read_to_string(path)
-        .with_context(|| format!("Failed to read {}", path.display()))?;
-    std::fs::write(path, append_owner_str(&content, owner))
-        .with_context(|| format!("Failed to write {}", path.display()))
-}
-
-/// String form of [`append_owner`], so the formatting is directly testable.
-///
-/// `[owner]` goes at the end like any other appended table. It reads better at
-/// the top, but moving it there would mean rewriting lines that are already
-/// on disk, which is the one thing this module does not do.
-fn append_owner_str(content: &str, owner: &Owner) -> String {
-    let newline = if content.contains("\r\n") {
-        "\r\n"
-    } else {
-        "\n"
-    };
-    let mut out = content.to_string();
-
-    if !out.is_empty() && !out.ends_with('\n') {
-        out.push_str(newline);
-    }
-    if !out.trim().is_empty() {
-        out.push_str(newline);
-    }
-
-    out.push_str(&format!("[owner]{newline}"));
-    out.push_str(&format!("type = \"{}\"{newline}", owner.kind));
-    out.push_str(&format!("id = {}{newline}", owner.id));
-    out
-}
-
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
-    use crate::discover::Place;
+    use crate::discover::{Owner, OwnerType, Place};
 
     fn universe(id: u64, places: Vec<Place>, owner: Option<Owner>) -> Universe {
         Universe {
@@ -187,7 +153,7 @@ mod tests {
                 111,
                 vec![place("main", 222)],
                 Some(Owner {
-                    kind: "group",
+                    kind: OwnerType::Group,
                     id: 7,
                 }),
             ),
@@ -236,7 +202,7 @@ places.main = 888
                 111,
                 vec![place("main", 222)],
                 Some(Owner {
-                    kind: "group",
+                    kind: OwnerType::Group,
                     id: 7,
                 }),
             ),
@@ -366,19 +332,5 @@ places.main = 888
         assert!(!text.contains("places.main"), "{text}");
         let loaded = PlacesFile::load(&path).unwrap();
         assert_eq!(loaded.get("prod").unwrap().places.get("start"), Some(&222));
-    }
-
-    #[test]
-    fn an_owner_block_keeps_the_files_line_endings() {
-        let crlf = "[prod]\r\nuniverse_id = 1\r\n";
-        let out = append_owner_str(
-            crlf,
-            &Owner {
-                kind: "user",
-                id: 5,
-            },
-        );
-        assert!(out.ends_with("id = 5\r\n"), "{out:?}");
-        assert!(!out.contains("\n\n"), "a CRLF file must not gain LF lines");
     }
 }

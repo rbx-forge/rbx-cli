@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`rbx init create-group --record`.** The group id was the one id in the
+  bootstrap that nothing captured. `create-universe` and `create-place` have
+  always written what they made into `rbxplace.toml`; `create-group` printed
+  its id and left you to paste it. With `--record` it writes the `[owner]`
+  block instead, and because `create-universe` already resolves its owner from
+  that block, the next command needs no `--group` at all. A bootstrap script
+  stops carrying ids between commands:
+
+  ```sh
+  rbx init create-group    --name "My Studio" --icon icon.png --record -y
+  rbx init create-universe --name "[TEST] My Game" --env test -y
+  ```
+
+  Opt-in, where the other two record by default and opt out with
+  `--no-record`. The asymmetry is deliberate: those two only ever extend a file
+  that already exists, while this one has to be able to create it, and creating
+  a file in whatever directory the command was run from is not something to do
+  unasked.
+
+  It refuses when the file already declares a top-level `[owner]`, and it
+  checks **before** contacting Roblox. Creating a group costs 100 Robux and
+  cannot be undone, so a run that would be refused has to be refused while
+  nothing has been spent. That is also what makes a bootstrap script
+  re-runnable after a failure halfway through: the second run stops at the
+  group instead of buying another one. A file that exists but does not parse
+  stops the run for the same reason, rather than being read as "no owner" and
+  appended to.
+
 ## [0.7.0]
 
 ### Added

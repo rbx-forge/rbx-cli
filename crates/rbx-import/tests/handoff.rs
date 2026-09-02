@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used)]
 
 use rbx_core::places::{self, PlacesFile};
-use rbx_import::discover::{Owner, Place, Universe};
+use rbx_import::discover::{Owner, OwnerType, Place, Universe};
 use rbx_import::places_file::write_env;
 
 fn universe(id: u64, places: Vec<(&str, u64)>, owner: Option<Owner>) -> Universe {
@@ -50,7 +50,7 @@ fn the_written_env_resolves_through_the_shared_resolver() {
             99887766554,
             vec![("main", 55501), ("lobby", 77702)],
             Some(Owner {
-                kind: "group",
+                kind: OwnerType::Group,
                 id: 456,
             }),
         ),
@@ -115,7 +115,7 @@ fn the_written_file_has_no_unrecognised_keys() {
             111,
             vec![("main", 1001), ("arena", 1002)],
             Some(Owner {
-                kind: "user",
+                kind: OwnerType::User,
                 id: 42,
             }),
         ),

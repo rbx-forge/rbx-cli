@@ -48,6 +48,22 @@ pub enum InitCommands {
         #[arg(long)]
         icon: PathBuf,
 
+        /// Record the new group as the `[owner]` block of rbxplace.toml,
+        /// creating the file when it does not exist yet.
+        ///
+        /// Opt-in, where `create-universe` and `create-place` record by
+        /// default and opt *out* with `--no-record`. The asymmetry is the
+        /// point: those two only ever extend a file that is already there,
+        /// while this one has to be able to create it, and creating a file in
+        /// whatever directory the command happens to run in is not something
+        /// to do unasked.
+        ///
+        /// Refused before the purchase when the file already declares an
+        /// owner, so a re-run after a failure costs nothing rather than a
+        /// second group.
+        #[arg(long)]
+        record: bool,
+
         /// Skip confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
@@ -183,8 +199,12 @@ pub async fn run(cli: InitCli, global: &GlobalFlags) -> Result<()> {
             description,
             public,
             icon,
+            record,
             yes,
-        } => commands::create_group::run(global, &name, &description, public, &icon, yes).await,
+        } => {
+            commands::create_group::run(global, &name, &description, public, &icon, record, yes)
+                .await
+        }
         InitCommands::CreateUniverse {
             group,
             user,

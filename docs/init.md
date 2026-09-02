@@ -56,7 +56,7 @@ Create a new Roblox group. An icon is required by Roblox (PNG or JPEG).
 
 > Roblox requires the authenticated user to be eligible to create groups (verified email + minimum account age). If the chosen name is already taken, `rbx init` prints a clear message instead of a raw HTTP error.
 
-`--record` appends the block and never rewrites lines already on disk, so comments, key order and CRLF endings survive. It refuses when the file already declares a top-level `[owner]`, and it checks that before contacting Roblox: creating a group costs 100 Robux and cannot be undone, so the refusal has to come while nothing has been spent. A file that exists but does not parse stops the run for the same reason, rather than being treated as "no owner" and appended to.
+**(0.8.0+)** `--record` appends the block and never rewrites lines already on disk, so comments, key order and CRLF endings survive. It refuses when the file already declares a top-level `[owner]`, and it checks that before contacting Roblox: creating a group costs 100 Robux and cannot be undone, so the refusal has to come while nothing has been spent. A file that exists but does not parse stops the run for the same reason, rather than being treated as "no owner" and appended to.
 
 Without `--record` the command only prints the id, which is the right default when you are creating a group that has nothing to do with the directory you happen to be standing in.
 

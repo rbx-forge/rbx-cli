@@ -77,6 +77,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   stops the run for the same reason, rather than being read as "no owner" and
   appended to.
 
+- **`rbx config rollback` runs unattended.** It took neither `--yes` nor
+  `--message`, and its own comment said why: "interactive by construction ...
+  there is no unattended path for the guard to serve." That reasoning holds for
+  the picker and not for the rest of the command, and it left the one command a
+  pipeline reaches for *after* a bad publish as the only one it could not call.
+
+  `--message`, `--no-message` and `--yes` now mean on `rollback` what they mean
+  on `sync`, `--yes` answering the publish message as well as the confirmation.
+
+  ```sh
+  rbx config rollback --env prod <revision_id> --message "revert #123" --yes
+  ```
+
+  Off a terminal, a run with no revision id fails asking for one and naming
+  `rbx config versions`, instead of failing inside the picker with a message
+  about a terminal. It fails **before** listing the revisions: a run with
+  nowhere to display them should not spend a request fetching them.
+
+### Fixed
+
+- **A refused `rollback` could leave a draft staged.** The publish message was
+  resolved after the revision had been restored, and restoring stages a draft,
+  replacing whatever was staged there. So a rollback that then stopped for want
+  of a message left the universe holding a draft nobody asked for, from a
+  command that reported failure. Everything that can refuse the run now refuses
+  it while the universe is untouched.
+
 ## [0.7.0]
 
 ### Added

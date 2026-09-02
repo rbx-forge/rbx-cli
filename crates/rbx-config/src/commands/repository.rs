@@ -320,9 +320,9 @@ async fn sync_over_a_staged_draft_publishes_and_does_not_refuse() {
 /// for `/assets/v1/assets/{assetId}:restore`. The old spelling reached Roblox
 /// as an unknown path and the rollback never happened.
 ///
-/// It cannot get further than the restore in a test: the publish message is
-/// composed interactively and there is nobody to ask, so the assertion is on
-/// the request that was made and on which question stopped the run.
+/// This used to stop at the restore, because the publish message could only be
+/// answered interactively. `--no-message` and `--yes` mean the whole rollback
+/// now runs unattended, so both requests are asserted rather than one.
 #[tokio::test]
 async fn rollback_restores_from_the_default_repository() {
     let dir = repo();
@@ -336,16 +336,60 @@ async fn rollback_restores_from_the_default_repository() {
         .mount(&server)
         .await;
 
-    let err = super::rollback::run(&ctx(&dir, &server, None), Some(REVISION.to_string()), 10)
-        .await
-        .expect_err("a publish message needs a terminal");
-    assert!(format!("{err:#}").contains("--message"), "{err:#}");
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO_PATH}/publish")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "configVersion": 4 })))
+        .expect(1)
+        .mount(&server)
+        .await;
 
+    super::rollback::run(
+        &ctx(&dir, &server, None),
+        Some(REVISION.to_string()),
+        10,
+        None,
+        true,
+        true,
+    )
+    .await
+    .expect("rollback");
+
+    // Both halves of the rollback address the same repository: restoring from
+    // one and publishing into another would replace a config nobody touched.
     let requests = server.received_requests().await.expect("recorded");
-    assert_eq!(requests.len(), 1);
+    assert_eq!(requests.len(), 2);
     assert_eq!(
         requests[0].url.path(),
         format!("{REPO_PATH}/revisions/{REVISION}/restore")
+    );
+    assert_eq!(requests[1].url.path(), format!("{REPO_PATH}/publish"));
+}
+
+/// Without a revision id there is a picker, and off a terminal there is nobody
+/// to show it to. The refusal has to come *before* the listing call: a run that
+/// has nowhere to display revisions should not spend a request fetching them,
+/// and it must certainly not restore anything.
+#[tokio::test]
+async fn rollback_with_no_revision_and_no_terminal_asks_for_the_id_and_calls_nothing() {
+    let dir = repo();
+    let server = MockServer::start().await;
+
+    let err = super::rollback::run(&ctx(&dir, &server, None), None, 10, None, true, true)
+        .await
+        .expect_err("a picker needs a terminal");
+    let text = format!("{err:#}");
+    assert!(text.contains("rbx config versions"), "{text}");
+    // Not a message about a terminal, which tells a reader of CI logs nothing
+    // they can act on.
+    assert!(!text.to_lowercase().contains("prompt error"), "{text}");
+
+    assert!(
+        server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .is_empty(),
+        "nothing may be requested before the run knows which revision it wants"
     );
 }
 

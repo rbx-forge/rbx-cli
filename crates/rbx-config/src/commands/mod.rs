@@ -58,7 +58,7 @@ pub fn resolve_message(message: Option<&str>, no_message: bool, yes: bool) -> Re
     }
     if !rbx_core::output::is_interactive() {
         anyhow::bail!(
-            "a publish message is needed and there is nobody to ask. On `config sync`, pass --message \"...\", or --no-message to publish without one, or --yes, which answers this as well as the confirmation. `config rollback` composes its own message and needs a terminal."
+            "a publish message is needed and there is nobody to ask. Pass --message \"...\", or --no-message to publish without one, or --yes, which answers this as well as the confirmation."
         );
     }
     let msg = dialoguer::Input::<String>::new()

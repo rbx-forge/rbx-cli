@@ -181,8 +181,13 @@ pub(crate) enum Command {
     /// Named `delete-key` beside `delete-store`, which removes the whole store
     /// this entry lives in. The level is in the name on both, so neither reads
     /// as the default: `delete profile_123` and `delete-store PlayerData` would
-    /// be one glance apart in a shell history. `delete` still works.
-    #[command(name = "delete-key", alias = "delete")]
+    /// be one glance apart in a shell history.
+    ///
+    /// The bare `delete` was kept as an alias when the suffix was introduced,
+    /// and dropped in 0.9.0. It was the exact spelling the rename existed to
+    /// remove, held open for callers who did not exist yet, on the one
+    /// subcommand here where reading the wrong level destroys the wrong thing.
+    #[command(name = "delete-key")]
     DeleteKey {
         /// Entry key.
         entry: String,
@@ -391,8 +396,8 @@ pub(crate) enum Command {
     /// there is. After an overwrite there usually is not: see `data revisions`.
     ///
     /// Named `restore-key` beside `restore-store`, for the reason `delete-key`
-    /// is. `restore` still works.
-    #[command(name = "restore-key", alias = "restore")]
+    /// is, and the bare `restore` went the same way in 0.9.0.
+    #[command(name = "restore-key")]
     RestoreKey {
         /// Entry key.
         entry: String,
@@ -694,8 +699,8 @@ mod json_flag_tests {
         for writing in [
             vec!["set", "Player_156", "--value", "1", "--json"],
             vec!["reset", "Player_156", "--json"],
-            vec!["restore", "Player_156", "--revision", "r1", "--json"],
-            vec!["delete", "Player_156", "--json"],
+            vec!["restore-key", "Player_156", "--revision", "r1", "--json"],
+            vec!["delete-key", "Player_156", "--json"],
         ] {
             assert!(
                 !parses(&writing),

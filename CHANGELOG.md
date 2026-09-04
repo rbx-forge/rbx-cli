@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **The per-tool `RBX<TOOL>_COOKIE` variable that outlived the merge into one
+  binary.** When the suite was a set of standalone binaries each read its own;
+  folding them into `rbx <subcommand>` unified them to `RBX_COOKIE`, and one
+  survivor was kept on the argument that removing a variable which works would
+  break whoever had set it. Nobody had. It cost a branch in the chain that
+  resolves a full-account credential, and an exception in the check that
+  forbids naming retired variables, which is now a rule with no exceptions.
+
+  If you did set it, rename it to `RBX_COOKIE`. Everything else about
+  [docs/cookie.md](docs/cookie.md) is unchanged.
+
+- **`rbx data delete` and `rbx data restore`, the pre-suffix aliases.** 0.7.0
+  renamed them `delete-key` and `restore-key` so the level would be in the name
+  beside `delete-store` and `restore-store`, then kept the old spellings as
+  aliases. Those spellings were the ambiguity the rename existed to remove, on
+  the one pair of subcommands here where reading the wrong level destroys the
+  wrong thing. Use `delete-key` and `restore-key`.
+
+### Changed
+
+- `rbx download`'s docs no longer call the default `--source public` backend
+  "legacy". The word described Roblox's older `assetdelivery.roblox.com` host,
+  not a deprecation here: that backend is the default because it reaches more
+  assets than Open Cloud does, and neither is on the way out.
+
 ## [0.8.0]
 
 ### Added

@@ -91,7 +91,9 @@ rbx data --datastore PlayerData delete-key Player_156 --env prod          # dry 
 rbx data --datastore PlayerData delete-key Player_156 --env prod --apply
 ```
 
-Spelled `delete-key` since 0.7.0, beside `delete-store` below. The level is in the name on both, so neither reads as the default: `delete Player_156` and `delete-store PlayerData` would be one glance apart in a shell history, and only one of them is recoverable by re-running the game. `delete` and `restore` still work as aliases, so nothing that already calls them breaks.
+Spelled `delete-key` since 0.7.0, beside `delete-store` below. The level is in the name on both, so neither reads as the default: `delete Player_156` and `delete-store PlayerData` would be one glance apart in a shell history, and only one of them is recoverable by re-running the game.
+
+**The bare `delete` and `restore` were kept as aliases in 0.7.0 and removed in 0.9.0.** They were the exact spellings the rename existed to get rid of, held open for callers who did not exist yet. Use `delete-key` and `restore-key`.
 
 Despite the name it is the **gentler** of the two ways to start a player over. A normal read then answers nothing, so a game that builds a fresh profile when it finds none builds one, from its own template rather than from a copy of that template you have to keep in step. And the value survives: the entry stays in a listing with `--show-deleted`, and its last value stays readable through `data revisions` for thirty days. `set` and `reset` destroy it the moment they land.
 
@@ -179,7 +181,7 @@ Experience-wide, so it takes neither `--datastore` nor `--scope`. Needs `univers
 ```sh
 rbx data --datastore PlayerData revisions Player_156 --env prod
 rbx data --datastore PlayerData revisions Player_156 --revision <id> --env prod
-rbx data --datastore PlayerData restore Player_156 --revision <id> --env prod --apply
+rbx data --datastore PlayerData restore-key Player_156 --revision <id> --env prod --apply
 ```
 
 Expect fewer revisions than you wrote, for the reason above. This is mostly useful after a delete, where the value from before survives, or after a snapshot, which is what puts a revision there to find. To undo an overwrite with neither, use the backup file: `ls .rbx/backups/<env>/` lists them newest last, and putting one back is `set --file`:

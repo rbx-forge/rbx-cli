@@ -140,7 +140,10 @@ pub(crate) async fn run_with(
     let env_global = global_for_env(global, &env, &places_path);
 
     // ── domains ──
-    let mut gaps = meta_gaps(&env_global, &domains);
+    // `resolve_cookie()`, not `env_global.cookie`: the meta step runs the whole
+    // chain, Studio included, so the gap has to follow what it will actually
+    // have. See `meta_gaps`.
+    let mut gaps = meta_gaps(env_global.resolve_cookie().as_deref(), &domains);
 
     for domain in &domains {
         let outcome = importer.import(*domain, &env_global, dir).await;
@@ -229,11 +232,20 @@ fn global_for_env(global: &GlobalFlags, env: &str, places: &Path) -> GlobalFlags
 /// included. Reading `global.cookie` here therefore told everyone with Studio
 /// signed in to re-run with `--cookie` for fields meta had just read
 /// correctly, which is advice to redo finished work.
-fn meta_gaps(global: &GlobalFlags, domains: &[Domain]) -> Vec<Gap> {
+///
+/// Hence the resolved cookie as a parameter rather than the flags to resolve
+/// it from. The distinction this function got wrong once now lives at its one
+/// call site, in the words `resolve_cookie()`, where re-introducing the bug
+/// means writing `global.cookie` on a line that plainly reads as the wrong
+/// thing. It used to be testable from in here, because the per-tool cookie
+/// variable that outlived the merge into one binary was a source reachable
+/// from outside `rbx-core`; it was retired in 0.9.0, and the Studio lookup it
+/// stood in for has no seam this crate can reach.
+fn meta_gaps(cookie: Option<&str>, domains: &[Domain]) -> Vec<Gap> {
     if !domains.contains(&Domain::Meta) {
         return Vec::new();
     }
-    report::cookie_only_meta_gaps(global.resolve_cookie().is_some())
+    report::cookie_only_meta_gaps(cookie.is_some())
 }
 
 /// The file a domain layers onto when it is already there.
@@ -503,12 +515,9 @@ fn print_plan(
 #[cfg(test)]
 mod tests {
     #![allow(clippy::unwrap_used)]
-    // `set_var`/`remove_var` are unsafe under the 2024 semantics, and the
-    // cookie gap is decided by what the process environment resolves to.
-    // Scoped to the test module so the crate-wide `unsafe_code` lint still
-    // covers what ships, the arrangement `rbx_core::env` uses for the same
-    // reason.
-    #![allow(unsafe_code)]
+    // No `#[allow(unsafe_code)]`: the one test that needed it set a cookie
+    // env var to reach a source `--cookie` could not spell, and `meta_gaps`
+    // now takes the resolved cookie instead of resolving one.
     use std::sync::Mutex;
 
     use serde_json::json;
@@ -874,40 +883,26 @@ mod tests {
     }
 
     /// The cookie-only fields are reported as missing when the meta step will
-    /// have no cookie, and not when it will have one, whichever source it
-    /// comes from.
+    /// have no cookie, and not when it will have one, whichever source it came
+    /// from.
     ///
-    /// `RBXAPIKEY_COOKIE` stands in for every source that is resolved without
-    /// being typed on this command line: it is the one such source reachable
-    /// from outside `rbx-core`, whose Studio lookup has no seam here. Keying
-    /// the gap off `--cookie` alone passed the first two assertions and failed
-    /// the third, and the user it failed for was the common case: Studio
-    /// signed in, no flag.
+    /// Total now that the cookie arrives resolved: both inputs are covered,
+    /// and no source is privileged over another because the function cannot
+    /// tell them apart. What this can no longer assert is that the *caller*
+    /// resolves before asking, which the retired per-tool cookie variable used
+    /// to make reachable from here. That moved to the call site in `run_with`,
+    /// where it is a visible `resolve_cookie()` rather than a habit buried in
+    /// a helper.
     #[test]
     fn the_meta_gap_follows_the_cookie_the_meta_step_will_resolve() {
-        let no_cookie = flags("rbxplace.toml");
         assert_eq!(
-            meta_gaps(&no_cookie, &Domain::ALL).len(),
+            meta_gaps(None, &Domain::ALL).len(),
             1,
-            "nothing to resolve, so the legacy fields really are unreadable"
+            "nothing to resolve, so the cookie-only fields really are unreadable"
         );
-
-        let mut explicit = flags("rbxplace.toml");
-        explicit.cookie = Some("from-flag".into());
-        assert!(meta_gaps(&explicit, &Domain::ALL).is_empty());
-
-        // SAFETY: this is the only test in the binary that writes the
-        // environment. The concurrent readers are the import tests reaching
-        // `resolve_cookie` through `run_with`, and none of them asserts on the
-        // gap it decides, so one landing inside this window reads a value it
-        // does not check.
-        unsafe { std::env::set_var("RBXAPIKEY_COOKIE", "from-legacy-var") };
-        let resolved = meta_gaps(&no_cookie, &Domain::ALL);
-        // SAFETY: as above.
-        unsafe { std::env::remove_var("RBXAPIKEY_COOKIE") };
         assert!(
-            resolved.is_empty(),
-            "the meta step resolves this one, so the fields are readable and \
+            meta_gaps(Some("from-anywhere"), &Domain::ALL).is_empty(),
+            "the meta step resolves one, so the fields are readable and \
              `re-run with --cookie` is advice to redo finished work"
         );
     }
@@ -916,7 +911,7 @@ mod tests {
     /// never touched.
     #[test]
     fn a_run_without_meta_reports_no_cookie_gap_at_all() {
-        assert!(meta_gaps(&flags("rbxplace.toml"), &[Domain::Shop]).is_empty());
+        assert!(meta_gaps(None, &[Domain::Shop]).is_empty());
     }
 
     /// The warning names the configs this run will pull into, and only those:

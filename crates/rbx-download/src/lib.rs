@@ -1,11 +1,15 @@
 //! Download Roblox assets by id (`rbx download`).
 //!
 //! Two backends:
-//! - `--source public` (default): the legacy `assetdelivery.roblox.com`
+//! - `--source public` (default): Roblox's older `assetdelivery.roblox.com`
 //!   endpoint with an optional `.ROBLOSECURITY` cookie (auto-detected from a
 //!   local Studio install via `GlobalFlags::resolve_cookie`). Broad reach.
 //! - `--source cloud`: the Open Cloud `asset-delivery-api` with `--api-key`.
 //!   Supports `--version <n>` to pin a specific asset version.
+//!
+//! "Older" is about Roblox's own surface, not about anything deprecated here:
+//! the public endpoint is the **default** because it reaches more assets than
+//! Open Cloud does. Neither is on the way out.
 //!
 //! Asset type → file extension is resolved from `economy.roblox.com` metadata,
 //! unless `--type` is given (a numeric AssetTypeId or an alias), in which case
@@ -58,7 +62,7 @@ pub struct DownloadCli {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Source {
-    /// Legacy assetdelivery endpoint (cookie auth, broad reach).
+    /// The older assetdelivery endpoint (cookie auth, broad reach). Default.
     Public,
     /// Open Cloud asset-delivery-api (api-key auth, supports --version).
     Cloud,

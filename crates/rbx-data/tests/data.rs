@@ -684,7 +684,7 @@ async fn a_dry_run_says_it_was_not_applied_rather_than_looking_like_a_write() {
     mount_existing(&server, serde_json::json!({ "value": 1 })).await;
 
     run(
-        cli(&["delete", "Player_156", "--json", "--yes"], &server),
+        cli(&["delete-key", "Player_156", "--json", "--yes"], &server),
         &flags(&places_file(dir.path())),
     )
     .await
@@ -701,7 +701,7 @@ async fn delete_without_apply_reads_the_entry_and_removes_nothing() {
     mount_existing(&server, serde_json::json!({ "value": { "coins": 10 } })).await;
 
     run(
-        cli(&["delete", "Player_156"], &server),
+        cli(&["delete-key", "Player_156"], &server),
         &flags(&places_file(dir.path())),
     )
     .await
@@ -727,7 +727,7 @@ async fn deleting_writes_the_backup_before_the_request() {
         .await;
 
     run(
-        cli(&["delete", "Player_156", "--apply", "--yes"], &server),
+        cli(&["delete-key", "Player_156", "--apply", "--yes"], &server),
         &flags(&places_file(dir.path())),
     )
     .await
@@ -755,7 +755,7 @@ async fn deleting_a_key_that_is_not_there_is_a_no_op_rather_than_a_failure() {
         .await;
 
     run(
-        cli(&["delete", "Player_156", "--apply", "--yes"], &server),
+        cli(&["delete-key", "Player_156", "--apply", "--yes"], &server),
         &flags(&places_file(dir.path())),
     )
     .await
@@ -1150,19 +1150,24 @@ async fn delete_store_ignores_the_datastore_flag() {
     assert_eq!(traffic(&server).await, vec![format!("DELETE {other}")]);
 }
 
-/// The old spellings keep working. `delete` and `restore` shipped before the
-/// suffixes existed, so they stay as aliases rather than breaking whatever
-/// already calls them.
+/// Only the suffixed spellings parse. `delete` and `restore` shipped as
+/// aliases before the suffixes existed and were dropped in 0.9.0.
+///
+/// Asserted rather than merely removed, because an alias is one attribute and
+/// comes back by reflex. `delete <key>` next to `delete-store <name>` is the
+/// ambiguity the suffix exists to remove, on the pair of subcommands where
+/// reading the wrong level destroys the wrong thing: a bare `delete` that
+/// parses is worth failing a test over.
 #[test]
-fn the_pre_suffix_names_still_parse() {
+fn the_pre_suffix_names_no_longer_parse() {
     let parse = |args: &[&str]| {
         let mut argv = vec!["data", "--datastore", "PlayerData"];
         argv.extend_from_slice(args);
         <Wrapper as clap::Parser>::try_parse_from(argv).map(|_| ())
     };
 
-    assert!(parse(&["delete", "Player_156"]).is_ok());
-    assert!(parse(&["restore", "Player_156", "--revision", "1"]).is_ok());
+    assert!(parse(&["delete", "Player_156"]).is_err());
+    assert!(parse(&["restore", "Player_156", "--revision", "1"]).is_err());
     assert!(parse(&["delete-key", "Player_156"]).is_ok());
     assert!(parse(&["restore-key", "Player_156", "--revision", "1"]).is_ok());
 }

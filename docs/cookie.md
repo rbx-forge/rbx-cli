@@ -74,16 +74,16 @@ publish, the answer is to change the name, not to withhold a credential.
 `GlobalFlags::resolve_cookie` in `rbx-core` is the only resolver, and it is consulted in this order:
 
 1. **`--cookie <value>` or `RBX_COOKIE`.** Explicit, and highest priority.
-2. **`RBXAPIKEY_COOKIE`.** The one per-tool variable that survived `rbx apikey` becoming a subcommand. Explicit too, so it beats auto-detection.
-3. **`--no-auto-cookie`.** If set, resolution stops here with no cookie.
-4. **Auto-detection from a local Roblox Studio install** (Windows registry, macOS plist), via the [`rbx_cookie`](https://github.com/blake-mealey/mantle/tree/main/rbx_cookie) crate. What it finds is a **candidate**, not yet a credential: see [auto-detection is opt-in](#auto-detection-is-opt-in).
+2. **`--no-auto-cookie`.** If set, resolution stops here with no cookie.
+3. **Auto-detection from a local Roblox Studio install** (Windows registry, macOS plist), via the [`rbx_cookie`](https://github.com/blake-mealey/mantle/tree/main/rbx_cookie) crate. What it finds is a **candidate**, not yet a credential: see [auto-detection is opt-in](#auto-detection-is-opt-in).
 
-Four points where the order is load-bearing rather than arbitrary:
+Three points where the order is load-bearing rather than arbitrary:
 
-- **Steps 1 and 2 come before the `--no-auto-cookie` check, deliberately.** The flag governs auto-detection, which is the only step you did not ask for. It was never meant to suppress a variable you set on purpose.
-- **`RBXAPIKEY_COOKIE` beats auto-detection.** It used to lose, because `rbx apikey` only reached it after the shared resolver returned nothing, which on any machine with Studio installed never happened. A variable set on purpose was silently overridden by a cookie nobody asked for.
-- **An empty `RBX_COOKIE=` is an answer, not an absence.** It counts as explicit and stops the Studio lookup. A command that genuinely needs a cookie will then send the empty one and be refused by Roblox, rather than stopping locally with the "no cookie" message. An empty `RBXAPIKEY_COOKIE` is treated as unset instead: it has no flag to spell "no cookie" with, so an empty one is more likely a leftover in a shell profile than an instruction.
+- **Step 1 comes before the `--no-auto-cookie` check, deliberately.** The flag governs auto-detection, which is the only step you did not ask for. It was never meant to suppress a cookie you supplied on purpose.
+- **An empty `RBX_COOKIE=` is an answer, not an absence.** It counts as explicit and stops the Studio lookup. A command that genuinely needs a cookie will then send the empty one and be refused by Roblox, rather than stopping locally with the "no cookie" message.
 - **The Studio lookup happens in exactly one place.** It used to happen in two, and the second site did not know about `--no-auto-cookie`, so every `rbx apikey` subcommand read the session cookie with no working way to refuse. An escape hatch that silently does nothing is worse than no escape hatch, because you believe you opted out. Two lookup sites are what made that divergence possible; one cannot diverge from itself.
+
+**There is one variable, `RBX_COOKIE`.** Until 0.9.0 there was a second, left over from the days when `rbx apikey` was its own binary with its own `RBX<TOOL>_COOKIE`. It was kept on the argument that removing a variable that works would break whoever had set it, and retired on the observation that nobody had. If you are one of the people who did, rename it to `RBX_COOKIE`.
 
 ### Auto-detection is opt-in
 

@@ -1,8 +1,8 @@
 //! Roblox cloud-authentication + api-keys API wrapper.
 //!
 //! Auth: the session cookie this client is handed. Every source: an explicit
-//! flag, `RBX_COOKIE`, `RBXAPIKEY_COOKIE`, Studio auto-detection: is resolved
-//! once, in `rbx_core::GlobalFlags::resolve_cookie`. Nothing here looks one up.
+//! flag, `RBX_COOKIE`, Studio auto-detection: is resolved once, in
+//! `rbx_core::GlobalFlags::resolve_cookie`. Nothing here looks one up.
 //! CSRF: Roblox returns 403 + x-csrf-token on first mutating request; retry with the token.
 
 pub mod api_keys;
@@ -187,10 +187,11 @@ impl RbxApiKeyClient {
 // `--no-auto-cookie`, so the flag turned the first site off and handed the
 // decision to this one, which auto-detected anyway.
 //
-// Both halves now live in `rbx_core::env`: the Studio lookup, and the
-// `RBXAPIKEY_COOKIE` variable this used to read first. The notice string went
-// with them: it was duplicated here byte-for-byte and pinned by a test, which
-// is the cost of having had two sites at all.
+// The Studio lookup now happens only in `rbx_core::env`. The notice string
+// went with it: it was duplicated here byte-for-byte and pinned by a test,
+// which is the cost of having had two sites at all. This also used to read a
+// per-tool cookie variable before the shared chain got a chance to; that
+// variable was retired in 0.9.0.
 
 // `authenticated_user` was here: a second `users/authenticated` request with
 // its own URL literal, its own error mapping and no memory of having been

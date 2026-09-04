@@ -277,7 +277,7 @@ Studio detection is **opt-in**: `--auto-cookie` is the standing yes, an interact
 
 **In CI, that last rule means `--auto-cookie` is not the answer**: there is no Studio on a runner, and a runner that happens to have one must not reach into it. Every write verb here (`create`, `update`, `regenerate`, `delete`, `prune`) requires a cookie, so a scheduled `rbx apikey create --all` needs `RBX_COOKIE` from a secret store. Prefer arranging the pipeline so none of these run there at all: the keys they mint are the credential CI should be *using*, not making.
 
-A session cookie is a full-account credential, strictly more powerful than the scoped keys this command creates. [docs/cookie.md](./cookie.md) is the trust model: the full resolution order (including `RBXAPIKEY_COOKIE`, the per-tool variable that survived the merge into one binary), what an auto-detected cookie prints on stderr, and why it is never written to disk.
+A session cookie is a full-account credential, strictly more powerful than the scoped keys this command creates. [docs/cookie.md](./cookie.md) is the trust model: the full resolution order, what an auto-detected cookie prints on stderr, and why it is never written to disk.
 
 ## `rbx apikey can-manage`
 

@@ -100,8 +100,8 @@ pub fn explain_invalid_name_or_description(
 ///
 /// No `.or_else` fallback. There used to be one, onto a second lookup that did
 /// not honour `--no-auto-cookie`, which is how the flag came to be ignored by
-/// every subcommand here. `resolve_cookie` now reads `RBXAPIKEY_COOKIE` itself,
-/// so this has nothing left to add.
+/// every subcommand here. `resolve_cookie` is the whole chain, so this has
+/// nothing left to add.
 pub fn make_client(global: &GlobalFlags) -> RbxApiKeyClient {
     RbxApiKeyClient::new(global.resolve_cookie())
 }

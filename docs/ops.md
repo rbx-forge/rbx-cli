@@ -114,7 +114,7 @@ The `.ROBLOSECURITY` cookie is the one credential in this tool that the section 
 
 A session cookie is a complete account identity. It is not scoped to a universe, not scoped to an operation, and not revocable per tool, so it is strictly more powerful than any key `rbx` will ever ask you for. A handful of commands outside this page do need one, because Open Cloud publishes no equivalent endpoint.
 
-**The trust model lives in one place: [docs/cookie.md](./cookie.md).** What the cookie is used for and never used for, the resolution order behind `--cookie`, `RBX_COOKIE`, `RBXAPIKEY_COOKIE` and `--no-auto-cookie`, the stderr notice when it is auto-detected, and why it is never written to disk.
+**The trust model lives in one place: [docs/cookie.md](./cookie.md).** What the cookie is used for and never used for, the resolution order behind `--cookie`, `RBX_COOKIE` and `--no-auto-cookie`, the stderr notice when it is auto-detected, and why it is never written to disk.
 
 ## The development configs, and why they are not in git
 

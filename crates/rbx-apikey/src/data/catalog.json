@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-01",
-  "source_url": "https://github.com/Roblox/creator-docs/blob/d025c96bdb1c81570221997092fbe0ad94b5337c/content/en-us/reference/cloud/openapi.json",
+  "version": "2026-09-05",
+  "source_url": "https://github.com/Roblox/creator-docs/blob/40503291a36612cf726c2b8f6c0d3bb1b11e8b31/content/en-us/reference/cloud/openapi.json",
   "scopes": {
     "ad.billing": {
       "operations": [
@@ -136,7 +136,8 @@
     },
     "memory-store": {
       "operations": [
-        "flush"
+        "flush",
+        "get"
       ],
       "target_type": "universe"
     },

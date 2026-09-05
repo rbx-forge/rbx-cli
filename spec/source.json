@@ -1,7 +1,7 @@
 {
   "repository": "Roblox/creator-docs",
-  "commit": "d025c96bdb1c81570221997092fbe0ad94b5337c",
-  "commit_date": "2026-09-01",
+  "commit": "40503291a36612cf726c2b8f6c0d3bb1b11e8b31",
+  "commit_date": "2026-09-03",
   "document": "content/en-us/reference/cloud/openapi.json",
   "vendored": "spec/openapi.json"
 }

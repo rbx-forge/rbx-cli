@@ -1,11 +1,11 @@
 use std::path::Path;
 
-use anyhow::Result;
-use rbx_core::api::ApiError;
+use anyhow::{Context, Result};
+use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy};
 use reqwest::multipart;
 
 use super::models::{DeveloperProduct, ListDeveloperProductsResponse};
-use super::RbxClient;
+use super::{icon_part, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_developer_products(&self) -> Result<Vec<DeveloperProduct>> {
@@ -68,39 +68,37 @@ impl RbxClient {
             ))
         };
 
-        let mut form = multipart::Form::new()
-            .text("name", name.to_string())
-            .text("description", description.unwrap_or("").to_string())
-            .text("isForSale", is_for_sale.to_string())
-            .text(
-                "isRegionalPricingEnabled",
-                is_regional_pricing_enabled.to_string(),
-            )
-            .text("price", price.to_string());
+        let icon = icon_path
+            .map(|path| rbx_core::image::process_image(path, self.bleed))
+            .transpose()?;
 
-        if let Some(path) = icon_path {
-            let bytes = rbx_core::image::process_image(path, self.bleed)?;
-            let part = multipart::Part::bytes(bytes)
-                .file_name("icon.png")
-                .mime_str("image/png")?;
-            form = form.part("imageFile", part);
-        }
+        let response = execute_create_with_retry_policy(
+            || async {
+                let mut form = multipart::Form::new()
+                    .text("name", name.to_string())
+                    .text("description", description.unwrap_or("").to_string())
+                    .text("isForSale", is_for_sale.to_string())
+                    .text(
+                        "isRegionalPricingEnabled",
+                        is_regional_pricing_enabled.to_string(),
+                    )
+                    .text("price", price.to_string());
+                if let Some(bytes) = &icon {
+                    form = form.part("imageFile", icon_part(bytes)?);
+                }
+                Ok(self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
-
-        Ok(serde_json::from_str(&body)?)
+        Ok(serde_json::from_str(&response.text().await?)?)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -130,71 +128,71 @@ impl RbxClient {
         // storePageEnabled=false is sent in the same request.
         // Workaround: first remove from store page, then set off sale.
         if !is_for_sale {
-            let disable_store_form = multipart::Form::new()
-                .text("name", name.to_string())
-                .text("description", description.unwrap_or("").to_string())
-                .text("isForSale", "true")
-                .text(
-                    "isRegionalPricingEnabled",
-                    is_regional_pricing_enabled.to_string(),
-                )
-                .text("storePageEnabled", "false")
-                .text("price", price.to_string());
-
-            let resp = self
-                .client
-                .patch(&url)
-                .header("x-api-key", &api_key)
-                .multipart(disable_store_form)
-                .send()
-                .await?;
-
-            if !resp.status().is_success() && !resp.status().is_redirection() {
-                let status = resp.status();
-                let body = resp.text().await.unwrap_or_default();
-                // Context rather than a bespoke message: the status stays
-                // recoverable, and "which call failed" is what the sentence
-                // was actually adding.
-                return Err(anyhow::Error::from(ApiError::new(status, body))
-                    .context("disabling the store page"));
-            }
+            // An update sets fields to fixed values, so sending it twice lands
+            // the same state: the full retry is safe here, unlike a create.
+            execute_with_retry_policy(
+                || async {
+                    let disable_store_form = multipart::Form::new()
+                        .text("name", name.to_string())
+                        .text("description", description.unwrap_or("").to_string())
+                        .text("isForSale", "true")
+                        .text(
+                            "isRegionalPricingEnabled",
+                            is_regional_pricing_enabled.to_string(),
+                        )
+                        .text("storePageEnabled", "false")
+                        .text("price", price.to_string());
+                    Ok(self
+                        .client
+                        .patch(&url)
+                        .header("x-api-key", &api_key)
+                        .multipart(disable_store_form)
+                        .send()
+                        .await?)
+                },
+                &WRITE_POLICY,
+            )
+            .await
+            // Context rather than a bespoke message: the status stays
+            // recoverable, and "which call failed" is what the sentence
+            // was actually adding.
+            .context("disabling the store page")?;
         }
 
         let effective_store_page = store_page_enabled && is_for_sale;
 
-        let mut form = multipart::Form::new()
-            .text("name", name.to_string())
-            .text("description", description.unwrap_or("").to_string())
-            .text("isForSale", is_for_sale.to_string())
-            .text(
-                "isRegionalPricingEnabled",
-                is_regional_pricing_enabled.to_string(),
-            )
-            .text("storePageEnabled", effective_store_page.to_string())
-            .text("price", price.to_string());
+        let icon = icon_path
+            .map(|path| rbx_core::image::process_image(path, self.bleed))
+            .transpose()?;
 
-        if let Some(path) = icon_path {
-            let bytes = rbx_core::image::process_image(path, self.bleed)?;
-            let part = multipart::Part::bytes(bytes)
-                .file_name("icon.png")
-                .mime_str("image/png")?;
-            form = form.part("imageFile", part);
-        }
+        let response = execute_with_retry_policy(
+            || async {
+                let mut form = multipart::Form::new()
+                    .text("name", name.to_string())
+                    .text("description", description.unwrap_or("").to_string())
+                    .text("isForSale", is_for_sale.to_string())
+                    .text(
+                        "isRegionalPricingEnabled",
+                        is_regional_pricing_enabled.to_string(),
+                    )
+                    .text("storePageEnabled", effective_store_page.to_string())
+                    .text("price", price.to_string());
+                if let Some(bytes) = &icon {
+                    form = form.part("imageFile", icon_part(bytes)?);
+                }
+                Ok(self
+                    .client
+                    .patch(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let response = self
-            .client
-            .patch(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        let status = response.status();
         let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
-
         if body.is_empty() {
             return self.get_developer_product(id).await;
         }
@@ -333,6 +331,56 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(created.id, Some(99));
+    }
+
+    /// A sync creates products back to back, and Roblox answers 429 partway
+    /// through a large catalogue. That refusal applied nothing, so the create
+    /// is sent again rather than stopping the run.
+    #[tokio::test]
+    async fn a_rate_limited_create_is_sent_again() {
+        let server = MockServer::start().await;
+        let create_path = format!("/developer-products/v2/universes/{UNIVERSE}/developer-products");
+        Mock::given(method("POST"))
+            .and(path(create_path.clone()))
+            .respond_with(ResponseTemplate::new(429).insert_header("retry-after", "0"))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(create_path))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "productId": 99, "name": "Gems" })),
+            )
+            .mount(&server)
+            .await;
+
+        let created = client(&server)
+            .create_developer_product("Gems", None, 100, None, true, false)
+            .await
+            .unwrap();
+        assert_eq!(created.id, Some(99));
+        assert_eq!(server.received_requests().await.unwrap().len(), 2);
+    }
+
+    /// A 5xx may hide a product that was created anyway. Sending again would
+    /// make a second one nobody can delete, so the error comes back instead.
+    #[tokio::test]
+    async fn a_create_that_fails_on_the_server_is_not_sent_again() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path(format!(
+                "/developer-products/v2/universes/{UNIVERSE}/developer-products"
+            )))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        assert!(client(&server)
+            .create_developer_product("Gems", None, 100, None, true, false)
+            .await
+            .is_err());
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
     }
 
     /// A refused create must not read as a success with a missing id: the

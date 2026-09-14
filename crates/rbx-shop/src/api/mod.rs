@@ -4,9 +4,9 @@ pub mod passes;
 pub mod products;
 
 use anyhow::{bail, Result};
-use reqwest::Client;
+use reqwest::{multipart, Client};
 
-use rbx_core::api::ApiBase;
+use rbx_core::api::{ApiBase, RetryPolicy};
 use rbx_core::owner::OwnerType;
 
 use colored::Colorize;
@@ -29,6 +29,29 @@ const THUMBNAILS_HOST: &str = "https://thumbnails.roblox.com";
 /// Asking for the maximum everywhere would bloat every icon whose master is
 /// smaller, and these files are committed, then re-uploaded on the next sync.
 const ICON_SIZE: &str = "512x512";
+
+/// How long a write waits out Roblox's rate limit before giving up.
+///
+/// The shared default (3 retries, about 7 s) is sized for reads. A sync sends
+/// one write per resource back to back, and a run creating about sixty
+/// products was stopped by a 429 partway through. Five retries from 2 s wait
+/// roughly a minute (2 + 4 + 8 + 16 + 32), unless Roblox sends `retry-after`,
+/// which wins.
+pub(crate) const WRITE_POLICY: RetryPolicy = RetryPolicy {
+    max_retries: 5,
+    base_backoff_secs: 2,
+};
+
+/// An icon as a multipart part.
+///
+/// Built again for every attempt: a `Form` is consumed by the send, so a
+/// resend after a 429 needs a fresh one, while the image itself is processed
+/// once by the caller.
+pub(crate) fn icon_part(bytes: &[u8]) -> Result<multipart::Part> {
+    Ok(multipart::Part::bytes(bytes.to_vec())
+        .file_name("icon.png")
+        .mime_str("image/png")?)
+}
 
 /// The two hosts this crate reaches.
 ///

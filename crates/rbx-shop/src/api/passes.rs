@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use anyhow::Result;
-use rbx_core::api::ApiError;
+use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy};
 use reqwest::multipart;
 
 use super::models::{GamePass, ListGamePassesResponse};
-use super::RbxClient;
+use super::{icon_part, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_game_passes(&self) -> Result<Vec<GamePass>> {
@@ -68,41 +68,39 @@ impl RbxClient {
             ))
         };
 
-        let mut form = multipart::Form::new()
-            .text("name", name.to_string())
-            .text("description", description.unwrap_or("").to_string())
-            .text("isForSale", is_for_sale.to_string())
-            .text(
-                "isRegionalPricingEnabled",
-                is_regional_pricing_enabled.to_string(),
-            );
+        let icon = icon_path
+            .map(|path| rbx_core::image::process_image(path, self.bleed))
+            .transpose()?;
 
-        if let Some(p) = price {
-            form = form.text("price", p.to_string());
-        }
-        if let Some(path) = icon_path {
-            let bytes = rbx_core::image::process_image(path, self.bleed)?;
-            let part = multipart::Part::bytes(bytes)
-                .file_name("icon.png")
-                .mime_str("image/png")?;
-            form = form.part("imageFile", part);
-        }
+        let response = execute_create_with_retry_policy(
+            || async {
+                let mut form = multipart::Form::new()
+                    .text("name", name.to_string())
+                    .text("description", description.unwrap_or("").to_string())
+                    .text("isForSale", is_for_sale.to_string())
+                    .text(
+                        "isRegionalPricingEnabled",
+                        is_regional_pricing_enabled.to_string(),
+                    );
+                if let Some(p) = price {
+                    form = form.text("price", p.to_string());
+                }
+                if let Some(bytes) = &icon {
+                    form = form.part("imageFile", icon_part(bytes)?);
+                }
+                Ok(self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
-
-        Ok(serde_json::from_str(&body)?)
+        Ok(serde_json::from_str(&response.text().await?)?)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -125,39 +123,39 @@ impl RbxClient {
             ))
         };
 
-        let mut form = multipart::Form::new()
-            .text("name", name.to_string())
-            .text("description", description.unwrap_or("").to_string())
-            .text("isForSale", is_for_sale.to_string())
-            .text(
-                "isRegionalPricingEnabled",
-                is_regional_pricing_enabled.to_string(),
-            );
+        let icon = icon_path
+            .map(|path| rbx_core::image::process_image(path, self.bleed))
+            .transpose()?;
 
-        if let Some(p) = price {
-            form = form.text("price", p.to_string());
-        }
-        if let Some(path) = icon_path {
-            let bytes = rbx_core::image::process_image(path, self.bleed)?;
-            let part = multipart::Part::bytes(bytes)
-                .file_name("icon.png")
-                .mime_str("image/png")?;
-            form = form.part("file", part);
-        }
+        let response = execute_with_retry_policy(
+            || async {
+                let mut form = multipart::Form::new()
+                    .text("name", name.to_string())
+                    .text("description", description.unwrap_or("").to_string())
+                    .text("isForSale", is_for_sale.to_string())
+                    .text(
+                        "isRegionalPricingEnabled",
+                        is_regional_pricing_enabled.to_string(),
+                    );
+                if let Some(p) = price {
+                    form = form.text("price", p.to_string());
+                }
+                if let Some(bytes) = &icon {
+                    form = form.part("file", icon_part(bytes)?);
+                }
+                Ok(self
+                    .client
+                    .patch(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let response = self
-            .client
-            .patch(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        let status = response.status();
         let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
 
         // Update returns 204 No Content, so body may be empty
         if body.is_empty() {

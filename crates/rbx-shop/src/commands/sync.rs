@@ -375,7 +375,9 @@ async fn apply_kind<K: Appliable>(
         let entry = match &action.action {
             Action::Create => {
                 print!("  Creating {} '{}'...", K::KIND, action.name);
-                let entry = K::create(apply, resolved).await?;
+                let entry = K::create(apply, resolved)
+                    .await
+                    .map_err(explain_rate_limit)?;
                 println!(" {} (id: {})", "done".green(), K::id(&entry));
                 entry
             }
@@ -390,7 +392,9 @@ async fn apply_kind<K: Appliable>(
                             K::KIND.label()
                         )
                     });
-                K::update(apply, resolved, prior, changes).await?
+                K::update(apply, resolved, prior, changes)
+                    .await
+                    .map_err(explain_rate_limit)?
             }
             Action::Skip => unreachable!("skipped above"),
         };
@@ -401,6 +405,25 @@ async fn apply_kind<K: Appliable>(
     }
 
     Ok(())
+}
+
+/// A rate limit that outlasted every retry.
+///
+/// A bare `429 Too Many Requests` reads like a failed run to clean up after.
+/// It is not one: every resource before this one is already saved in the
+/// lockfile, and the refused call applied nothing, so the fix is to run the
+/// same command again once Roblox lets up.
+fn explain_rate_limit(error: anyhow::Error) -> anyhow::Error {
+    if rbx_core::api::is_api_status(&error, reqwest::StatusCode::TOO_MANY_REQUESTS) {
+        error.context(format!(
+            "Roblox is still rate-limiting writes after about a minute of retries.\n  \
+             Everything created before this point is saved in {}, and this call applied \
+             nothing.\n  Fix: wait a minute, then run the same command again to continue.",
+            crate::lockfile::LOCKFILE_NAME
+        ))
+    } else {
+        error
+    }
 }
 
 // ---------------------------------------------------------------------------

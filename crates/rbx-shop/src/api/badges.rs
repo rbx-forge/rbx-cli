@@ -1,11 +1,11 @@
 use std::path::Path;
 
 use anyhow::Result;
-use rbx_core::api::ApiError;
+use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy};
 use reqwest::multipart;
 
 use super::models::{Badge, BadgeIconResponse, ListBadgesResponse};
-use super::RbxClient;
+use super::{icon_part, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_badges(&self, universe_id: u64) -> Result<Vec<Badge>> {
@@ -83,36 +83,36 @@ impl RbxClient {
             ))
         };
 
-        let mut form = multipart::Form::new()
-            .text("name", name.to_string())
-            .text("description", description.unwrap_or("").to_string())
-            .text("paymentSourceType", payment_source.to_string())
-            .text("expectedCost", expected_cost.to_string())
-            .text("isActive", "true".to_string());
+        let icon = icon_path
+            .map(|path| rbx_core::image::process_image(path, self.bleed))
+            .transpose()?;
 
-        if let Some(path) = icon_path {
-            let bytes = rbx_core::image::process_image(path, self.bleed)?;
-            let part = multipart::Part::bytes(bytes)
-                .file_name("icon.png")
-                .mime_str("image/png")?;
-            form = form.part("files", part);
-        }
+        // Create-only resend: a badge past the free quota costs Robux, and a
+        // second one after a lost answer would be paid for twice.
+        let response = execute_create_with_retry_policy(
+            || async {
+                let mut form = multipart::Form::new()
+                    .text("name", name.to_string())
+                    .text("description", description.unwrap_or("").to_string())
+                    .text("paymentSourceType", payment_source.to_string())
+                    .text("expectedCost", expected_cost.to_string())
+                    .text("isActive", "true".to_string());
+                if let Some(bytes) = &icon {
+                    form = form.part("files", icon_part(bytes)?);
+                }
+                Ok(self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
-
-        let status = response.status();
-        let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
-
-        Ok(serde_json::from_str(&body)?)
+        Ok(serde_json::from_str(&response.text().await?)?)
     }
 
     pub async fn update_badge(
@@ -134,21 +134,21 @@ impl RbxClient {
             "enabled": enabled,
         });
 
-        let response = self
-            .client
-            .patch(&url)
-            .header("x-api-key", &api_key)
-            .json(&body)
-            .send()
-            .await?;
+        let response = execute_with_retry_policy(
+            || async {
+                Ok(self
+                    .client
+                    .patch(&url)
+                    .header("x-api-key", &api_key)
+                    .json(&body)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let status = response.status();
-        let resp_body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, resp_body).into());
-        }
-
-        Ok(serde_json::from_str(&resp_body)?)
+        Ok(serde_json::from_str(&response.text().await?)?)
     }
 
     pub async fn update_badge_icon(
@@ -163,26 +163,24 @@ impl RbxClient {
         };
 
         let bytes = rbx_core::image::process_image(icon_path, self.bleed)?;
-        let part = multipart::Part::bytes(bytes)
-            .file_name("icon.png")
-            .mime_str("image/png")?;
-        let form = multipart::Form::new().part("Files", part);
 
-        let response = self
-            .client
-            .post(&url)
-            .header("x-api-key", &api_key)
-            .multipart(form)
-            .send()
-            .await?;
+        // Replacing an icon twice leaves the same icon: the full retry is safe.
+        let response = execute_with_retry_policy(
+            || async {
+                let form = multipart::Form::new().part("Files", icon_part(&bytes)?);
+                Ok(self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &api_key)
+                    .multipart(form)
+                    .send()
+                    .await?)
+            },
+            &WRITE_POLICY,
+        )
+        .await?;
 
-        let status = response.status();
-        let body = response.text().await?;
-        if !status.is_success() {
-            return Err(ApiError::new(status, body).into());
-        }
-
-        Ok(serde_json::from_str(&body)?)
+        Ok(serde_json::from_str(&response.text().await?)?)
     }
 }
 

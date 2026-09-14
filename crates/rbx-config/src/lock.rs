@@ -62,7 +62,7 @@ impl LockFile {
 
     pub fn save(&self, path: &Path) -> Result<()> {
         let content = toml::to_string_pretty(self).context("Failed to serialize lock file")?;
-        std::fs::write(path, content).with_context(|| format!("Failed to write {}", path.display()))
+        rbx_core::lockfile::write(path, &content)
     }
 
     /// Update lock entry for an environment.

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use rbx_core::lockfile::{LockfileFormat, LockfileMigration};
 use serde::{Deserialize, Serialize};
 
@@ -174,9 +174,7 @@ impl Lockfile {
 
     pub fn save(&self, path: &Path) -> Result<()> {
         let content = toml::to_string_pretty(self)?;
-        std::fs::write(path, content)
-            .with_context(|| format!("Failed to write {}", path.display()))?;
-        Ok(())
+        rbx_core::lockfile::write(path, &content)
     }
 
     /// Get the EnvLock for an env, creating an empty one if absent.

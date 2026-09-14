@@ -121,8 +121,7 @@ pub fn save(lock: &Lock) -> Result<()> {
 
 pub fn save_to(lock: &Lock, path: &Path) -> Result<()> {
     let s = toml::to_string_pretty(lock).context("failed to serialize lock file")?;
-    std::fs::write(path, s).with_context(|| format!("failed to write {}", path.display()))?;
-    Ok(())
+    rbx_core::lockfile::write(path, &s)
 }
 
 pub fn get<'a>(lock: &'a Lock, name: &str) -> Option<&'a LockEntry> {

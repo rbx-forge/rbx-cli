@@ -26,7 +26,9 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::Input;
 
 use rbx_core::owner::Owner;
-use rbx_core::places::{is_reserved_env_name, Environment, PlacesFile, RESERVED_ENV_NAMES};
+use rbx_core::places::{
+    is_reserved_env_name, Environment, PlacesFile, DEFAULT_ROOT_PLACE, RESERVED_ENV_NAMES,
+};
 
 /// Place name assumed when none is given. The whole toolkit already treats
 /// `main` as the default entry (`rbx_core::places::resolve` prefers it over
@@ -388,6 +390,10 @@ fn prompt_place_name(entry: &Environment, env: &str, suggested: &str) -> Result<
 /// Append a brand-new env block at the end of the file. A `[header]` always
 /// opens a fresh table, so this is a pure append: nothing already on disk is
 /// re-read, re-parsed, or rewritten.
+///
+/// `place` is the universe's start place: both callers record an env at the
+/// moment they learn its root place and nothing else. When it is not keyed
+/// `main`, the block says so with a `root` line.
 pub fn append_env(
     path: &Path,
     env: &str,
@@ -406,6 +412,16 @@ pub fn insert_place(path: &Path, env: &str, place: &str, place_id: u64) -> Resul
     let content = std::fs::read_to_string(path)
         .with_context(|| format!("Failed to read {}", path.display()))?;
     let updated = insert_place_str(&content, env, place, place_id)?;
+    std::fs::write(path, updated).with_context(|| format!("Failed to write {}", path.display()))
+}
+
+/// Declare which place is an existing env's start place, leaving every other
+/// line intact. Callers check the env has no `root` yet: replacing one is not
+/// a decision this function makes.
+pub fn insert_root(path: &Path, env: &str, place: &str) -> Result<()> {
+    let content = std::fs::read_to_string(path)
+        .with_context(|| format!("Failed to read {}", path.display()))?;
+    let updated = insert_root_str(&content, env, place)?;
     std::fs::write(path, updated).with_context(|| format!("Failed to write {}", path.display()))
 }
 
@@ -449,8 +465,39 @@ pub fn append_env_str(
 
     out.push_str(&format!("[{env}]{newline}"));
     out.push_str(&format!("universe_id = {universe_id}{newline}"));
+    if place != DEFAULT_ROOT_PLACE {
+        out.push_str(&format!("root = \"{place}\"{newline}"));
+    }
     out.push_str(&format!("places.{place} = {place_id}{newline}"));
     out
+}
+
+/// String form of [`insert_root`], so the line surgery is directly testable.
+///
+/// The line goes in the `[<env>]` table itself, never in a `[<env>.places]`
+/// sub-table, where `root` would read as a place of that name. It sits under
+/// `universe_id` when there is one, which is where [`append_env_str`] puts it.
+pub fn insert_root_str(content: &str, env: &str, place: &str) -> Result<String> {
+    let newline = detect_newline(content);
+    let mut lines: Vec<String> = content.split_inclusive('\n').map(str::to_string).collect();
+
+    let header = lines
+        .iter()
+        .position(|l| header_name(l).as_deref() == Some(env))
+        .ok_or_else(|| anyhow!("[{}] not found in rbxplace.toml.", env))?;
+    let end = table_end(&lines, header);
+
+    let anchor = (header + 1..end)
+        .find(|&i| lines[i].trim_start().starts_with("universe_id"))
+        .or_else(|| (header + 1..end).rfind(|&i| is_key_line(&lines[i])))
+        .unwrap_or(header);
+
+    if !lines[anchor].ends_with('\n') {
+        lines[anchor].push_str(newline);
+    }
+    lines.insert(anchor + 1, format!("root = \"{place}\"{newline}"));
+
+    Ok(lines.concat())
 }
 
 /// String form of [`append_owner`], so the formatting is directly testable.
@@ -626,6 +673,69 @@ main = 2001
     fn append_env_honors_a_custom_place_key() {
         let out = append_env_str("[dev]\nuniverse_id = 100\n", "test", 300, "lobby", 3002);
         assert_eq!(parsed(&out).get("test").unwrap().places["lobby"], 3002);
+    }
+
+    /// The place recorded with a new env is its start place, so a key other
+    /// than `main` has to say so, or the module would ship no `rootPlaceId`.
+    #[test]
+    fn append_env_declares_a_start_place_not_keyed_main() {
+        let out = append_env_str("", "test", 300, "lobby", 3002);
+        assert_eq!(
+            out,
+            "[test]\nuniverse_id = 300\nroot = \"lobby\"\nplaces.lobby = 3002\n"
+        );
+        let file = parsed(&out);
+        assert_eq!(
+            file.get("test").unwrap().root_place(),
+            Some(("lobby", 3002))
+        );
+    }
+
+    #[test]
+    fn append_env_writes_no_root_for_main() {
+        let out = append_env_str("", "test", 300, "main", 3001);
+        assert!(!out.contains("root"), "got:\n{out}");
+    }
+
+    // -----------------------------------------------------------------
+    // insert_root_str
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn insert_root_lands_under_universe_id_and_nowhere_else() {
+        let content = "\
+# The live game.
+[prod]
+universe_id = 200
+confirm = true
+[prod.places]
+start = 2001
+
+[dev]
+universe_id = 100
+";
+        let out = insert_root_str(content, "prod", "start").unwrap();
+        assert_eq!(
+            out,
+            content.replace(
+                "universe_id = 200\n",
+                "universe_id = 200\nroot = \"start\"\n"
+            )
+        );
+        let file = parsed(&out);
+        assert_eq!(file.get("prod").unwrap().root.as_deref(), Some("start"));
+        assert!(file.get("dev").unwrap().root.is_none());
+    }
+
+    #[test]
+    fn insert_root_preserves_crlf_and_a_missing_final_newline() {
+        let out = insert_root_str("[dev]\r\nuniverse_id = 100", "dev", "lobby").unwrap();
+        assert_eq!(out, "[dev]\r\nuniverse_id = 100\r\nroot = \"lobby\"\r\n");
+    }
+
+    #[test]
+    fn insert_root_rejects_an_unknown_env() {
+        assert!(insert_root_str(WITH_COMMENTS, "nope", "main").is_err());
     }
 
     #[test]

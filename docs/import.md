@@ -132,7 +132,9 @@ Open Cloud can read one place (`/cloud/v2/universes/{id}/places/{p}`) but cannot
 
 The call does not auto-detect a Studio cookie, and now that the listing is known to be open there is nothing for auto-detection to buy here. The `meta` step that runs afterwards is an ordinary `rbx meta` invocation and resolves the cookie the usual way, which is where a cookie genuinely changes the outcome. [docs/cookie.md](./cookie.md) has the full order.
 
-The root place is always written as `places.main`, whatever Roblox calls it, because `main` is the key the rest of the toolkit resolves to when `--place` is omitted. Other places take a slugified form of their display name, suffixed if two collide.
+The root place is written as `places.main`, whatever Roblox calls it, because an unset `root` means `main` and the start place is what the rest of the toolkit resolves to when `--place` is omitted. Other places take a slugified form of their display name, suffixed if two collide.
+
+When the env already lists the root place under another key, that key is kept and `root = "<key>"` is added, provided the env declared no start place yet. A file whose `main` or `root` names a different place is left alone and the disagreement is printed: the start place is also the default `--place`, so rewriting it would silently move where the next upload lands. See [`root`](./env.md#root).
 
 ## Related
 

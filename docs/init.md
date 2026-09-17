@@ -76,7 +76,7 @@ The new universe is recorded in `rbxplace.toml` as a new `[<env>]` block, so you
 | `--template-place-id` | No | Template place ID to clone from (defaults to Roblox's empty baseplate) |
 | `--name` | No | Rename the universe's root place to this name after creation (Roblox displays the root place name as the universe name). Prompted for when omitted |
 | `--env` | No | Env name to record the universe as. Prompted for when omitted. **Refused with `--no-record`** |
-| `--place` | No | Place key for the root place (default `main`). **Refused with `--no-record`** |
+| `--place` | No | Place key for the root place (default `main`). Any other key is recorded with `root = "<key>"`. **Refused with `--no-record`** |
 | `--no-record` | No | Don't touch `rbxplace.toml`. Refused alongside `--env` or `--place`, which would be asking for the record and refusing it in one command |
 | `--yes` / `-y` | No | Skip the confirmation prompt. Whether the universe is still recorded depends on `--env`: see below |
 

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rootPlaceId` in the module `rbx env gen-module` writes**, so game code
+  reads the start place of the env it runs in instead of searching `placeIds`
+  for a name. It comes from a new optional `root` field in `rbxplace.toml`,
+  one per env rather than a flag per place, which cannot mark zero places or
+  two. Without it the start place is `main`, the key `rbx import` and
+  `rbx init create-universe` already give it, so most files never carry the
+  field. An env with neither has no `rootPlaceId`, rather than a guessed one.
+
+  Generation stays offline. `rbx init` and `rbx import` write `root` from
+  Roblox when the start place is recorded under another key, `rbx env list
+  --json` reports it, and a new `env/root` row in `rbx check --env <name>`
+  compares it against Roblox. A `root` naming no place of its env is refused
+  when the file loads. `--place` now defaults to the start place, which is
+  `main` for every file written before this field existed.
+
 ### Removed
 
 - **The per-tool `RBX<TOOL>_COOKIE` variable that outlived the merge into one

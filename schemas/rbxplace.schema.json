@@ -91,6 +91,14 @@
             "minimum": 0.0
           }
         },
+        "root": {
+          "description": "Which entry of `places` is the universe's start place, when it is not `main`.\n\n`rbx import` and `rbx init` write it from Roblox when they record the env, so it only appears when the start place is recorded under another name. `rbx env gen-module` emits the id as `rootPlaceId`, and `rbx check` compares it against Roblox. A name that is not a key of `places` is refused when the file loads.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "universe_id": {
           "description": "The universe this env targets. Required.",
           "type": "integer",

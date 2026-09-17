@@ -68,6 +68,7 @@ files the import just wrote:
 | Config file | Check | Network |
 |---|---|---|
 | `rbxplace.toml` | `env/gen-module`: the committed env module still matches | no |
+| `rbxplace.toml` | `env/root`: each env's start place is still Roblox's | **yes**, no credential |
 | `rbxshop.toml` | `shop/lockfile`: declared passes/badges/products against the lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed shop modules still match | no |
 | `rbxmeta.toml` | `meta/lockfile`: declared universe/place metadata against the lockfile | no |
@@ -84,9 +85,16 @@ stores, and then silently never matches. That row therefore runs under
 `--offline` like any other local comparison; only the comparison against the
 published set is cut.
 
+`env/root` reads the start place from `develop.roblox.com`, which answers
+without a key or a cookie, so it needs the network and nothing else. It only
+appears for an env named with `--env` that has places: `rbxplace.toml` has no
+standalone block, and an env used at universe scope has no start place to get
+wrong. It is kept apart from `env/gen-module` so that the generated module
+stays a function of the file alone.
+
 So `config/live` and `rtbf/live` are the only rows that need credentials, and
-`--offline` is a small cut: everything else compares committed files against
-committed files. That makes the offline mode usable from a pre-commit hook,
+`--offline` is a small cut: everything else except `env/root` compares
+committed files against committed files. That makes the offline mode usable from a pre-commit hook,
 which is the point of having it.
 
 The key is only demanded once one of those rows has something to compare. With

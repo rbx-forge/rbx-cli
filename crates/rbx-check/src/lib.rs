@@ -201,7 +201,12 @@ async fn gather(dir: &Path, offline: bool, global: &GlobalFlags) -> Result<Repor
     };
     for entry in &found {
         let rows = match entry.tool {
-            discovery::Tool::Env => tools::env(&entry.path),
+            discovery::Tool::Env => {
+                let mut rows = tools::env(&entry.path);
+                let develop = rbx_core::api::ApiBase::new(rbx_core::universe::DEVELOP_HOST);
+                rows.extend(tools::env_root(&entry.path, &envs, offline, &develop).await);
+                rows
+            }
             discovery::Tool::Shop => tools::shop(&entry.path, &envs),
             discovery::Tool::Meta => tools::meta(&entry.path, &envs),
             discovery::Tool::Config => tools::config(&entry.path, &envs, global, offline).await,

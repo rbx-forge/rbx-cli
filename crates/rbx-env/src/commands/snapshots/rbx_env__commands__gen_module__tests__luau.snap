@@ -10,6 +10,7 @@ export type EnvironmentType = "development" | "prod"
 export type EnvironmentInfo = {
   env: EnvironmentType,
   universeId: number,
+  rootPlaceId: number?,
   placeIds: { { name: string, id: number } },
 }
 
@@ -17,6 +18,7 @@ local envs: { EnvironmentInfo } = {
   {
     env = "development",
     universeId = 100,
+    rootPlaceId = 1002,
     placeIds = {
       {
         name = "lobby",
@@ -31,6 +33,7 @@ local envs: { EnvironmentInfo } = {
   {
     env = "prod",
     universeId = 200,
+    rootPlaceId = 2001,
     placeIds = {
       {
         name = "arena",

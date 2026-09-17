@@ -58,6 +58,10 @@ pub struct Env {
     /// entry, so a consumer looks one up rather than walking a list. Empty
     /// for tools that work at universe scope.
     pub places: BTreeMap<String, u64>,
+    /// The `root` field: which place is the start place. **Absent** when
+    /// unset, in which case `main` is, if `places` has one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub root: Option<String>,
 }
 
 impl Env {
@@ -74,6 +78,7 @@ impl Env {
                 .iter()
                 .map(|(place, id)| (place.clone(), *id))
                 .collect(),
+            root: env.root.clone(),
         }
     }
 }

@@ -19,6 +19,10 @@ struct RenderEnv<'a> {
     /// section name.
     env_type: &'a str,
     universe_id: u64,
+    /// The start place's id, so game code reads it rather than searching
+    /// `placeIds` for the right name. `None` for an env that declares no start
+    /// place, and the key is then left out of that env's entry.
+    root_place_id: Option<u64>,
     places: Vec<(&'a str, u64)>,
 }
 
@@ -154,6 +158,7 @@ fn render_envs(config: &PlacesFile) -> Vec<RenderEnv<'_>> {
             RenderEnv {
                 env_type: env.env.as_deref().unwrap_or(name.as_str()),
                 universe_id: env.universe_id,
+                root_place_id: env.root_place().map(|(_, id)| id),
                 places,
             }
         })
@@ -193,6 +198,9 @@ fn generate_lua(envs: &[RenderEnv<'_>]) -> String {
         lines.push("  {".to_string());
         lines.push(format!("    env = \"{}\",", env.env_type));
         lines.push(format!("    universeId = {},", env.universe_id));
+        if let Some(id) = env.root_place_id {
+            lines.push(format!("    rootPlaceId = {id},"));
+        }
 
         lines.push("    placeIds = {".to_string());
         for (place_name, place_id) in &env.places {
@@ -231,6 +239,7 @@ fn generate_luau(envs: &[RenderEnv<'_>]) -> String {
     lines.push("export type EnvironmentInfo = {".to_string());
     lines.push("  env: EnvironmentType,".to_string());
     lines.push("  universeId: number,".to_string());
+    lines.push("  rootPlaceId: number?,".to_string());
     lines.push("  placeIds: { { name: string, id: number } },".to_string());
     lines.push("}".to_string());
     lines.push(String::new());
@@ -241,6 +250,9 @@ fn generate_luau(envs: &[RenderEnv<'_>]) -> String {
         lines.push("  {".to_string());
         lines.push(format!("    env = \"{}\",", env.env_type));
         lines.push(format!("    universeId = {},", env.universe_id));
+        if let Some(id) = env.root_place_id {
+            lines.push(format!("    rootPlaceId = {id},"));
+        }
 
         lines.push("    placeIds = {".to_string());
         for (place_name, place_id) in &env.places {
@@ -271,11 +283,16 @@ fn generate_json(envs: &[RenderEnv<'_>]) -> Result<String> {
                 .map(|(name, id)| serde_json::json!({ "name": name, "id": id }))
                 .collect();
 
-            serde_json::json!({
+            let mut entry = serde_json::json!({
                 "env": env.env_type,
                 "universeId": env.universe_id,
                 "placeIds": place_ids,
-            })
+            });
+            // Omitted rather than `null`, like the TypeScript `rootPlaceId?`.
+            if let Some(id) = env.root_place_id {
+                entry["rootPlaceId"] = serde_json::json!(id);
+            }
+            entry
         })
         .collect();
 
@@ -306,6 +323,7 @@ fn generate_typescript(envs: &[RenderEnv<'_>]) -> String {
     lines.push("export interface EnvironmentInfo {".to_string());
     lines.push("  env: EnvironmentType;".to_string());
     lines.push("  universeId: number;".to_string());
+    lines.push("  rootPlaceId?: number;".to_string());
     lines.push("  placeIds: PlaceInfo[];".to_string());
     lines.push("}".to_string());
     lines.push(String::new());
@@ -316,6 +334,9 @@ fn generate_typescript(envs: &[RenderEnv<'_>]) -> String {
         lines.push("  {".to_string());
         lines.push(format!("    env: \"{}\",", env.env_type));
         lines.push(format!("    universeId: {},", env.universe_id));
+        if let Some(id) = env.root_place_id {
+            lines.push(format!("    rootPlaceId: {id},"));
+        }
 
         lines.push("    placeIds: [".to_string());
         for (place_name, place_id) in &env.places {
@@ -412,9 +433,9 @@ main = 1001
     //
     // Run `cargo insta review` to accept an intended change.
 
-    /// Two envs game code sees: one renamed with `env = "..."`, one with two
-    /// places, plus a third marked `codegen = false`, which must appear in
-    /// none of the four outputs.
+    /// Two envs game code sees: one renamed with `env = "..."` whose start
+    /// place is not `main`, one with two places, plus a third marked
+    /// `codegen = false`, which must appear in none of the four outputs.
     const SNAPSHOT_FIXTURE: &str = r#"
 [prod]
 universe_id = 200
@@ -425,6 +446,7 @@ arena = 2002
 [dev]
 universe_id = 100
 env = "development"
+root = "lobby"
 [dev.places]
 main = 1001
 lobby = 1002
@@ -730,5 +752,26 @@ codegen = false
     fn an_env_without_places_still_renders() {
         let out = generate_luau(&render_envs(&config("[dev]\nuniverse_id = 100\n")));
         assert!(out.contains("placeIds = {\n    }"), "got:\n{out}");
+    }
+
+    /// The start place is written as an id so game code does not search for
+    /// it, and left out rather than guessed when the file names none.
+    #[test]
+    fn the_root_place_id_is_emitted_only_for_an_env_that_declares_one() {
+        let parsed = config(
+            "[dev]\nuniverse_id = 100\nplaces.main = 1001\n\
+             [shop]\nuniverse_id = 300\nplaces.lobby = 3002\n",
+        );
+        let envs = render_envs(&parsed);
+        assert_eq!(envs[0].root_place_id, Some(1001));
+        assert_eq!(envs[1].root_place_id, None);
+
+        let out = generate_luau(&envs);
+        assert_eq!(out.matches("rootPlaceId = ").count(), 1, "got:\n{out}");
+        assert!(out.contains("rootPlaceId = 1001,"), "got:\n{out}");
+
+        let json: serde_json::Value = serde_json::from_str(&generate_json(&envs).unwrap()).unwrap();
+        assert_eq!(json[0]["rootPlaceId"], 1001);
+        assert!(json[1].get("rootPlaceId").is_none(), "absent, not null");
     }
 }

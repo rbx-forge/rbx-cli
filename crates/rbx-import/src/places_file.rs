@@ -40,6 +40,25 @@ pub struct PlacesWrite {
     /// wrote it. Carries the id on file when it disagrees with the one being
     /// imported: a mismatch worth naming rather than silently honouring.
     pub existing_universe_id: Option<u64>,
+    /// `root = "<key>"` was inserted: the env had no start place, and Roblox's
+    /// is on file under a key other than `main`.
+    pub root_written: Option<String>,
+    /// The file names a start place other than Roblox's, and it was kept.
+    pub root_conflict: Option<RootConflict>,
+}
+
+/// A start place on file that is not the one Roblox reports.
+///
+/// Reported rather than fixed: the start place is also the default target of
+/// every command run without `--place`, so rewriting it would silently change
+/// where the next `rbx place upload` lands.
+#[derive(Debug, PartialEq, Eq)]
+pub struct RootConflict {
+    /// What the file resolves as the start place, `None` when Roblox's root id
+    /// is not on file at all.
+    pub on_file: Option<(String, u64)>,
+    /// What Roblox reports.
+    pub roblox: u64,
 }
 
 /// Create or complete the `[<env>]` block for `universe` in `path`.
@@ -98,6 +117,8 @@ pub fn write_env(path: &Path, env: &str, universe: &Universe) -> Result<PlacesWr
         }
     }
 
+    record_root(path, env, root.id, &mut result)?;
+
     if let Some(owner) = &universe.owner {
         let has_owner = PlacesFile::load(path)
             .ok()
@@ -109,6 +130,54 @@ pub fn write_env(path: &Path, env: &str, universe: &Universe) -> Result<PlacesWr
     }
 
     Ok(result)
+}
+
+/// Make the env's start place say what Roblox says, when that needs no
+/// rewrite.
+///
+/// Runs after the places are written, so the root id is on file whenever it
+/// could be. Only one case is written: no start place yet, and the root id
+/// listed under some key. Every disagreement with an existing declaration,
+/// explicit `root` or implicit `main`, is reported instead (see
+/// [`RootConflict`]).
+fn record_root(path: &Path, env: &str, root_id: u64, result: &mut PlacesWrite) -> Result<()> {
+    // Lenient like every other read in `write_env`: the envs are already
+    // written, and failing the import here would report as lost what is on
+    // disk. The next command to load the file names the problem.
+    let Ok(file) = PlacesFile::load(path) else {
+        return Ok(());
+    };
+    let Some(entry) = file.environments.get(env) else {
+        return Ok(());
+    };
+
+    let on_file = entry.root_place().map(|(name, id)| (name.to_string(), id));
+    if on_file.as_ref().is_some_and(|(_, id)| *id == root_id) {
+        return Ok(());
+    }
+
+    // Sorted so two keys holding the same id pick the same one every run.
+    let mut listed: Vec<&str> = entry
+        .places
+        .iter()
+        .filter(|(_, id)| **id == root_id)
+        .map(|(key, _)| key.as_str())
+        .collect();
+    listed.sort();
+
+    match (on_file, listed.first()) {
+        (None, Some(key)) => {
+            rbx_init::record::insert_root(path, env, key)?;
+            result.root_written = Some((*key).to_string());
+        }
+        (on_file, _) => {
+            result.root_conflict = Some(RootConflict {
+                on_file,
+                roblox: root_id,
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -332,5 +401,61 @@ places.main = 888
         assert!(!text.contains("places.main"), "{text}");
         let loaded = PlacesFile::load(&path).unwrap();
         assert_eq!(loaded.get("prod").unwrap().places.get("start"), Some(&222));
+
+        // And since that key is not `main`, the file now says which place
+        // starts the game, or the generated module would carry no root id.
+        assert_eq!(result.root_written.as_deref(), Some("start"));
+        assert_eq!(
+            loaded.get("prod").unwrap().root_place(),
+            Some(("start", 222))
+        );
+    }
+
+    /// A fresh env keys its root `main`, so there is nothing to declare.
+    #[test]
+    fn a_new_env_needs_no_root_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("rbxplace.toml");
+
+        let result = write_env(
+            &path,
+            "prod",
+            &universe(111, vec![place("main", 222), place("lobby", 333)], None),
+        )
+        .unwrap();
+
+        assert_eq!(result.root_written, None);
+        assert_eq!(result.root_conflict, None);
+        assert!(!std::fs::read_to_string(&path).unwrap().contains("root"));
+    }
+
+    /// `main` on file points at another place. Writing `root` would move the
+    /// default target of `rbx place upload`, so the disagreement is reported
+    /// and the file is left as the user wrote it.
+    #[test]
+    fn a_main_that_is_not_the_root_is_reported_and_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write(
+            dir.path(),
+            "[prod]\nuniverse_id = 111\nplaces.main = 999\nplaces.start = 222\n",
+        );
+        let before = std::fs::read_to_string(&path).unwrap();
+
+        let result = write_env(
+            &path,
+            "prod",
+            &universe(111, vec![place("main", 222)], None),
+        )
+        .unwrap();
+
+        assert_eq!(result.root_written, None);
+        assert_eq!(
+            result.root_conflict,
+            Some(RootConflict {
+                on_file: Some(("main".into(), 999)),
+                roblox: 222,
+            })
+        );
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
     }
 }

@@ -198,6 +198,100 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
     vec![ToolReport::new("env", "gen-module", outcome, summary).details(details)]
 }
 
+/// The start place on file against the one Roblox reports.
+///
+/// The one online question about `rbxplace.toml`, kept out of `gen-module` so
+/// that check stays offline: the module is generated from the file, and this
+/// row is what says whether the file is still right. The listing it reads
+/// answers without any credential, so no key is asked for.
+///
+/// No row without `--env`, and none for an env with no places: `rbxplace.toml`
+/// has no standalone block, and an env used at universe scope has no start
+/// place to be wrong about. A skipped row for either would be noise in every
+/// plain `rbx check`.
+pub async fn env_root(
+    places_path: &Path,
+    envs: &[Option<String>],
+    offline: bool,
+    develop: &rbx_core::api::ApiBase,
+) -> Vec<ToolReport> {
+    // A file that does not load is already the `gen-module` row's error.
+    let Ok(places) = PlacesFile::load(places_path) else {
+        return Vec::new();
+    };
+    let targets: Vec<(&str, &rbx_core::places::Environment)> = envs
+        .iter()
+        .flatten()
+        .filter_map(|name| Some((name.as_str(), places.get(name).ok()?)))
+        .filter(|(_, entry)| !entry.places.is_empty())
+        .collect();
+
+    let row = |outcome: Outcome, summary: String, env: &str| {
+        ToolReport::new("env", "root", outcome, summary).env(env)
+    };
+
+    if offline {
+        return targets
+            .into_iter()
+            .map(|(env, _)| {
+                row(
+                    Outcome::Skipped,
+                    "--offline: reading the start place needs the network".into(),
+                    env,
+                )
+            })
+            .collect();
+    }
+
+    let client = rbx_core::api::build_client();
+    let mut reports = Vec::new();
+    for (env, entry) in targets {
+        let roblox = match rbx_core::universe::root_place_id(
+            &client,
+            develop,
+            None,
+            entry.universe_id,
+        )
+        .await
+        {
+            Ok(id) => id,
+            Err(err) => {
+                reports.push(row(Outcome::Error, one_line(&err), env));
+                continue;
+            }
+        };
+
+        reports.push(match entry.root_place() {
+            Some((name, id)) if id == roblox => {
+                row(Outcome::Clean, format!("start place is {name}"), env)
+            }
+            on_file => {
+                let summary = match on_file {
+                    Some((name, id)) => {
+                        format!("start place on file is {name} ({id}), Roblox's is {roblox}")
+                    }
+                    None => format!("no start place on file, Roblox's is {roblox}"),
+                };
+                let listed = entry
+                    .places
+                    .iter()
+                    .filter(|(_, id)| **id == roblox)
+                    .map(|(key, _)| key.as_str())
+                    .min();
+                let fix = match listed {
+                    Some(key) => format!("set root = \"{key}\" under [{env}] in rbxplace.toml"),
+                    None => format!(
+                        "place {roblox} is not under [{env}.places]: add it, then set root to \
+                         its key"
+                    ),
+                };
+                row(Outcome::Drift, summary, env).details(vec![fix])
+            }
+        });
+    }
+    reports
+}
+
 // ---------------------------------------------------------------------------
 // shop / rbxshop.toml
 // ---------------------------------------------------------------------------
@@ -1271,5 +1365,76 @@ mod tests {
         };
 
         assert_eq!(rtbf_fingerprints(&omitted), rtbf_fingerprints(&explicit));
+    }
+
+    // ── env/root ──
+
+    async fn develop_with_root(
+        root_place_id: u64,
+    ) -> (wiremock::MockServer, rbx_core::api::ApiBase) {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/universes/100"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "rootPlaceId": root_place_id })),
+            )
+            .mount(&server)
+            .await;
+        let base = rbx_core::api::ApiBase::new(server.uri());
+        (server, base)
+    }
+
+    fn places_file(content: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("rbxplace.toml");
+        std::fs::write(&path, content).expect("write");
+        (dir, path)
+    }
+
+    fn dev() -> Vec<Option<String>> {
+        vec![Some("dev".to_string())]
+    }
+
+    #[tokio::test]
+    async fn a_start_place_that_matches_roblox_is_clean() {
+        let (_server, base) = develop_with_root(1001).await;
+        let (_d, path) = places_file("[dev]\nuniverse_id = 100\nplaces.main = 1001\n");
+
+        let reports = env_root(&path, &dev(), false, &base).await;
+        assert_eq!(reports.len(), 1);
+        assert_eq!(reports[0].outcome, Outcome::Clean, "{reports:?}");
+        assert_eq!(reports[0].check, "root");
+    }
+
+    /// `main` is only the convention. When Roblox's start place is on file
+    /// under another key, the row says which `root` fixes it.
+    #[tokio::test]
+    async fn a_start_place_on_file_under_another_key_is_drift_naming_the_fix() {
+        let (_server, base) = develop_with_root(1002).await;
+        let (_d, path) =
+            places_file("[dev]\nuniverse_id = 100\nplaces.main = 1001\nplaces.lobby = 1002\n");
+
+        let reports = env_root(&path, &dev(), false, &base).await;
+        assert_eq!(reports[0].outcome, Outcome::Drift, "{reports:?}");
+        assert!(
+            reports[0].details[0].contains("root = \"lobby\""),
+            "{reports:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_env_means_no_row_and_offline_skips_without_asking_roblox() {
+        let (server, base) = develop_with_root(1001).await;
+        let (_d, path) = places_file("[dev]\nuniverse_id = 100\nplaces.main = 1001\n");
+
+        assert!(env_root(&path, &[None], false, &base).await.is_empty());
+
+        let offline = env_root(&path, &dev(), true, &base).await;
+        assert_eq!(offline[0].outcome, Outcome::Skipped);
+        assert!(server.received_requests().await.unwrap().is_empty());
     }
 }

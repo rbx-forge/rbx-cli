@@ -314,6 +314,23 @@ fn report_places_write(path: &Path, env: &str, written: &places_file::PlacesWrit
     if written.owner_written {
         println!("  {} [owner] added", "✓".green());
     }
+    if let Some(key) = &written.root_written {
+        println!("  {} root = \"{}\": the start place", "✓".green(), key);
+    }
+    if let Some(conflict) = &written.root_conflict {
+        let on_file = match &conflict.on_file {
+            Some((name, id)) => format!("names {name} (place {id}) as its start place"),
+            None => "names no start place".to_string(),
+        };
+        println!(
+            "  {} [{}] {}, but Roblox's is place {}: kept. It is also the default target \
+             without --place, so fix `root` or the place ids by hand if Roblox is right.",
+            "!".yellow(),
+            env,
+            on_file,
+            conflict.roblox
+        );
+    }
     if let Some(on_file) = written.existing_universe_id {
         println!(
             "  {} [{}] already points at universe {}: kept. Nothing was retargeted; \

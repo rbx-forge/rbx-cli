@@ -108,6 +108,7 @@ One JSON document on stdout, nothing else. Diagnostics (the unknown-key warning 
 | `envs[].confirm` | boolean | Whether writes to this env prompt first |
 | `envs[].codegen` | boolean | Whether `rbx env gen-module` emits this env |
 | `envs[].places` | object | Place name to place id. Empty for envs used only at universe scope |
+| `envs[].root` | string | The `root` field: which place is the start place. **Absent** when unset, in which case it is `main` if `places` has one |
 
 `envs[].owner` is the override as the file spells it, never the resolved value, so `.envs[].owner // .owner` reproduces the fallback and "inherited" stays distinguishable from "overridden". Optional fields are omitted rather than emitted as `null`, so `has("owner")` is a usable test.
 
@@ -269,7 +270,7 @@ This is the form to prefer wherever the check runs. A `--check` spelled with a d
 
 `--check` re-renders in memory and asserts the file on disk still matches `rbxplace.toml`, so a module that was edited by hand (or left stale after an env changed) fails instead of shipping. It stays offline, so it runs in a pre-commit hook and in CD. See [Guarding generated files](shop.md#guarding-generated-files) for the hook and CI snippets, and for the one thing that breaks the comparison.
 
-The output is an array of environment objects, each with `env`, `universeId`, and `placeIds` (an array of `{ name, id }`). Luau and TypeScript additionally get a union type of every env name:
+The output is an array of environment objects, each with `env`, `universeId`, `rootPlaceId` and `placeIds` (an array of `{ name, id }`). Luau and TypeScript additionally get a union type of every env name:
 
 ```luau
 export type EnvironmentType = "dev" | "prod"
@@ -277,12 +278,15 @@ export type EnvironmentType = "dev" | "prod"
 export type EnvironmentInfo = {
   env: EnvironmentType,
   universeId: number,
+  rootPlaceId: number?,
   placeIds: { { name: string, id: number } },
 }
 
 local envs: { EnvironmentInfo } = { ... }
 return envs
 ```
+
+`rootPlaceId` **(0.9.0+)** is the id of the env's start place (see [`root`](#root)), so game code can tell whether it is running there without looking a name up in `placeIds`. It is optional in the types and left out of an env that declares no start place: a guessed id would be worse than none.
 
 The optional `env` key in `rbxplace.toml` overrides the name game code matches on (it defaults to the section name):
 
@@ -405,6 +409,7 @@ universe_id = 9876543211
 confirm = true                       # prompt before writes to this env
 env = "Production"                   # what game code matches on
 owner = { type = "user", id = 42 }   # overrides the top-level [owner]
+# root = "lobby"                     # the start place, when it is not `main`
 [prod.places]
 main = 234567890123456
 lobby = 234567890999999
@@ -428,13 +433,33 @@ codegen = false                      # tooling env: keep it out of the module
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `universe_id` | integer | **required** | The universe this env targets |
-| `places` | table | `{}` | Place name → place id. `main` is the default when `--place` is omitted |
+| `places` | table | `{}` | Place name → place id. The start place is the default when `--place` is omitted |
+| `root` **(0.9.0+)** | string | `main` | Which entry of `places` is the universe's start place. See [`root`](#root) |
 | `confirm` | bool | `false` | Prompt before write operations on this env (`upload`, `sync`, `rollback`, `promote`) |
 | `env` | string | the section name | What game code matches on. A **rename**, not an alias: two envs resolving to the same name is an error |
 | `owner` | table | the top-level `[owner]` | Per-env owner override, for the rare env living under a different account |
 | `codegen` | bool | `true` | `false` keeps the env out of the generated modules: see below |
 
-Where a field carries a **(X.Y.Z+)** tag, it needs at least that release. This page describes `main`, which is where a feature lands before it ships (and `/blob/main/docs/env.md` is the URL links and search results hand you) so a tagged field is newer than whatever `rokit.toml` pins until you check `rbx --version`. Nothing in the table above is tagged today: every field here is in the latest release.
+Where a field carries a **(X.Y.Z+)** tag, it needs at least that release. This page describes `main`, which is where a feature lands before it ships (and `/blob/main/docs/env.md` is the URL links and search results hand you) so a tagged field is newer than whatever `rokit.toml` pins until you check `rbx --version`. `root` is the one tagged field today: every other field here is in the latest release.
+
+### `root`
+
+Every universe has exactly one start place, and `root` says which entry of `places` it is. Most files never need it: `rbx import` and `rbx init create-universe` key the start place `main`, and an unset `root` means `main`. They write `root` themselves when they record the start place under another key, so the value comes from Roblox rather than from memory.
+
+```toml
+[prod]
+universe_id = 9876543211
+root = "lobby"
+places.main = 234567890123456
+places.lobby = 234567890999999
+```
+
+- **One field per env, not a flag per place.** A flag could mark no place or two, and every `places.x = id` would have to become a table to carry it.
+- **A name that is not in `places` is refused** when the file loads, with the places that do exist. A misspelled `root` would otherwise ship a module with no `rootPlaceId` and nothing saying why.
+- **An env with neither `root` nor `main` has no start place.** A single place under another name is not taken for it: it may be a second place whose start place was never recorded.
+- **It is the default target** of every command run without `--place`.
+
+`rbx env gen-module` stays offline and emits the id as `rootPlaceId`. Whether the file is still right is a question for Roblox, which `rbx check --env <name>` asks in its [`env/root`](./check.md) row.
 
 ### `codegen = false`
 

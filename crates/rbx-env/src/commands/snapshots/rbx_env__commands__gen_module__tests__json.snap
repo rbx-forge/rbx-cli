@@ -15,6 +15,7 @@ expression: generate_json(&envs).unwrap()
         "name": "main"
       }
     ],
+    "rootPlaceId": 1002,
     "universeId": 100
   },
   {
@@ -29,6 +30,7 @@ expression: generate_json(&envs).unwrap()
         "name": "main"
       }
     ],
+    "rootPlaceId": 2001,
     "universeId": 200
   }
 ]

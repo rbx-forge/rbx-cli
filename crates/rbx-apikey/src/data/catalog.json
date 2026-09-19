@@ -1,6 +1,6 @@
 {
-  "version": "2026-09-01",
-  "source_url": "https://github.com/Roblox/creator-docs/blob/d025c96bdb1c81570221997092fbe0ad94b5337c/content/en-us/reference/cloud/openapi.json",
+  "version": "2026-09-19",
+  "source_url": "https://github.com/Roblox/creator-docs/blob/e622b54ba7f82f38dbbe7182bae6049627dfb9a5/content/en-us/reference/cloud/openapi.json",
   "scopes": {
     "ad.billing": {
       "operations": [
@@ -72,12 +72,6 @@
       "target_type": "creator",
       "description": "Group forum categories, posts, comments."
     },
-    "legacy-asset": {
-      "operations": [
-        "manage"
-      ],
-      "target_type": "none"
-    },
     "legacy-badge": {
       "operations": [
         "manage"
@@ -136,7 +130,8 @@
     },
     "memory-store": {
       "operations": [
-        "flush"
+        "flush",
+        "get"
       ],
       "target_type": "universe"
     },

@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The `GameIds` dispatcher `rbx shop codegen` writes annotates its `env`
+  local**: `local env: EnvName? = UNIVERSE_TO_ENV[game.GameId]`. Luau inferred
+  the same type from the table above it, so nothing type-checks differently;
+  what changes is that a reader sees a miss is possible before reaching the
+  `if not env` guard. Regenerating rewrites that one line.
+
 - `rbx download`'s docs no longer call the default `--source public` backend
   "legacy". The word described Roblox's older `assetdelivery.roblox.com` host,
   not a deprecation here: that backend is the default because it reaches more

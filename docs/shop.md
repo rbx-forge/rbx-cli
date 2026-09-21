@@ -807,7 +807,7 @@ local function exhaustiveMatch(value: never): never
     error(`rbx shop: unhandled env in dispatcher: {value :: any}`)
 end
 
-local env = UNIVERSE_TO_ENV[game.GameId]
+local env: EnvName? = UNIVERSE_TO_ENV[game.GameId]
 if not env then
     error(`rbx shop: unknown universe {game.GameId}`)
 end

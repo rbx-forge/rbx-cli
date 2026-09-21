@@ -622,8 +622,11 @@ fn render_init_luau(
          end\n\n",
     );
 
-    // Resolve the env from the running universe.
-    out.push_str("local env = UNIVERSE_TO_ENV[game.GameId]\n");
+    // Resolve the env from the running universe. Annotated rather than left to
+    // inference: a reader sees that a miss is possible before reaching the
+    // `if not env` below, and the narrowing the dispatcher relies on is stated
+    // where it starts rather than inferred from the table two blocks up.
+    out.push_str("local env: EnvName? = UNIVERSE_TO_ENV[game.GameId]\n");
     out.push_str("if not env then\n");
     out.push_str("\terror(`rbxshop: unknown universe {game.GameId}`)\n");
     out.push_str("end\n\n");

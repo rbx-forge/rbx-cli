@@ -5,6 +5,7 @@ Open Roblox places in Studio directly from the command line, configured via a sh
 ## Features
 
 - **Simple CLI** - Open places with `rbx open <env> <place>`
+- **Studio or the client** - `--play` joins the place in the Roblox client instead of opening it for editing
 - **Interactive picker** - Select environment and place with a menu if needed
 - **Shared config** - Uses the same `rbxplace.toml` as other `rbx` subcommands
 - **Cross-platform** - Works on Windows, macOS, and Linux
@@ -41,13 +42,30 @@ rbx open staging
 ## Usage
 
 ```
-rbx open [ENV] [PLACE]
+rbx open [ENV] [PLACE] [--play]
 ```
 
 ### Arguments
 
 - `ENV` - Environment name (e.g., `prod`, `staging`). Falls back to the global `--env` flag, then to an interactive picker.
 - `PLACE` - Place name within the environment (e.g., `main`, `lobby`). Falls back to the global `--place` flag, then to an interactive picker (auto-picks when the env has exactly one place).
+
+### Flags
+
+- `--play` - Join the place in the Roblox client instead of opening it in Studio. See [Playing instead of editing](#playing-instead-of-editing-090)
+
+### Playing instead of editing **(0.9.0+)**
+
+```sh
+rbx open prod main --play      # join the place in the Roblox client
+rbx open --place-id 123 --play # without a project
+```
+
+`--play` changes the app and nothing else: the same `<env> <place>`, `--place-id` and `--universe-id` name the place, and there is still no network call. It is refused with `--new` and with a `.rbxl` on disk, which name a place that is not published and so has nothing to join.
+
+The link sent is `roblox://experiences/start?placeId=<id>`, the deep link the Roblox client handles itself, rather than the `roblox-player:1+launchmode:play+...` the website sends. The website's form carries `gameinfo:<ticket>`, a single-use authentication ticket issued for one account; the same URI without it (`roblox-player:1+launchmode:play+placeId:<id>`) was measured on Windows starting the client and stopping at its home screen, with nothing to join.
+
+**It does not choose an account.** Neither form of link carries an identity the client will act on, so the place is joined as whoever is signed into the Roblox app. Signing in as somebody else means doing it in the app. [`rbx-switch`](https://github.com/rbx-dev-tools/rbx-switch) does not help here: it switches the accounts signed into **Studio**.
 
 ### Without a project
 

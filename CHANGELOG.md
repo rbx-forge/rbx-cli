@@ -24,6 +24,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   when the file loads. `--place` now defaults to the start place, which is
   `main` for every file written before this field existed.
 
+- **`rbx open --play`**, which joins the place in the Roblox client instead of
+  opening it in Studio. Everything that names the place is unchanged, so the
+  id nobody remembers stays in `rbxplace.toml`: `rbx open prod main --play`.
+  Refused with `--new` and with a `.rbxl` on disk, neither of which names a
+  published place.
+
+  It sends `roblox://experiences/start?placeId=<id>`, the deep link the client
+  resolves itself. The `roblox-player:1+launchmode:play+...` the website sends
+  carries `gameinfo:<ticket>`, an authentication ticket issued per account;
+  without one, that URI starts the client at its home screen and joins
+  nothing. Which is also the flag's limit: no link carries an identity, so the
+  place is joined as whoever is signed into the Roblox app.
+
 ### Removed
 
 - **The per-tool `RBX<TOOL>_COOKIE` variable that outlived the merge into one

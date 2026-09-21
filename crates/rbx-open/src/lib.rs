@@ -8,6 +8,10 @@
 //!    a single-place universe opens without a prompt.
 //! 3. `rbxplace.toml`, addressed by the global `--env` / `--place` flags, then
 //!    by the positional `<env> <place>` arguments, then by a picker.
+//!
+//! `--play` keeps all of that and changes only the app: the place is joined in
+//! the Roblox client instead of opened in Studio. The `place_uri` function
+//! carries why the deep link is the form that works, and what it cannot do.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -70,6 +74,42 @@ pub struct OpenCli {
     /// needs neither a terminal nor a network call.
     #[arg(long, requires = "new_place", conflicts_with = "template")]
     pub baseplate: bool,
+
+    /// Join the place in the Roblox client instead of opening it in Studio.
+    ///
+    /// Everything else is unchanged: the same `<env> <place>`, `--place-id`
+    /// and `--universe-id` name the place, and no network call is made.
+    ///
+    /// **It does not choose an account.** The link carries no identity, so the
+    /// client joins as whoever is signed into it.
+    #[arg(long, conflicts_with = "new_place")]
+    pub play: bool,
+}
+
+/// Which app a place is opened in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OpenIn {
+    Studio,
+    Player,
+}
+
+impl OpenIn {
+    fn of(play: bool) -> Self {
+        if play {
+            Self::Player
+        } else {
+            Self::Studio
+        }
+    }
+
+    /// The verb for the progress line: Studio opens a place to edit, the
+    /// client joins a running experience.
+    fn verb(self) -> &'static str {
+        match self {
+            Self::Studio => "Opening",
+            Self::Player => "Joining",
+        }
+    }
 }
 
 pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
@@ -81,6 +121,14 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
     // Recognised by extension rather than by "does this file exist", so an env
     // named `prod` can never be captured by a stray file of the same name.
     if let Some(path) = place_file_target(cli.file.as_deref(), cli.env.as_deref()) {
+        if cli.play {
+            bail!(
+                "`--play` joins a place published on Roblox, and {} is a file on disk: the \
+                 client has no id to join. Open it in Studio, or name the place it publishes \
+                 to.",
+                path.display()
+            );
+        }
         if cli.new_place
             || !global.place_id.is_empty()
             || global.universe_id.is_some()
@@ -126,7 +174,7 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
             }
         };
 
-        open_place(place_id)?;
+        open_place(place_id, OpenIn::Studio)?;
         match name {
             Some(name) => println!(
                 "{} Opening a new {} place (template {})",
@@ -151,10 +199,12 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
     // `roblox-studio:` URI out of one number and makes no network call, so
     // requiring an rbxplace.toml to supply that number was the whole reason it
     // could not be used outside a configured project.
+    let open_in = OpenIn::of(cli.play);
+
     if !global.place_id.is_empty() {
         let place_id = global.single_place()?;
-        open_place(place_id)?;
-        println!("{} Opening place {}", "✓".green(), place_id);
+        open_place(place_id, open_in)?;
+        println!("{} {} place {}", "✓".green(), open_in.verb(), place_id);
         return Ok(());
     }
 
@@ -181,10 +231,11 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
         .await?;
 
         let chosen = pick_universe_place(universe_id, &places)?;
-        open_place(chosen.id)?;
+        open_place(chosen.id, open_in)?;
         println!(
-            "{} Opening {} (place {})",
+            "{} {} {} (place {})",
             "✓".green(),
+            open_in.verb(),
             label(chosen).cyan(),
             chosen.id
         );
@@ -205,10 +256,11 @@ pub async fn run(cli: OpenCli, global: &GlobalFlags) -> Result<()> {
     let place_choice = cli.place.or_else(|| global.place.clone());
     let (place_name, place_id) = resolve_place(&env_name, env, place_choice)?;
 
-    open_place(place_id)?;
+    open_place(place_id, open_in)?;
     println!(
-        "{} Opening {}/{} (place {})",
+        "{} {} {}/{} (place {})",
         "✓".green(),
+        open_in.verb(),
         env_name.cyan(),
         place_name.cyan(),
         place_id
@@ -414,10 +466,25 @@ fn new_target(
     Ok(None)
 }
 
-fn open_place(place_id: u64) -> Result<()> {
-    launch(&format!(
-        "roblox-studio:1+task:EditPlace+placeId:{place_id}+universeId:0"
-    ))
+fn open_place(place_id: u64, open_in: OpenIn) -> Result<()> {
+    launch(&place_uri(place_id, open_in))
+}
+
+/// The URI for one place, in one app.
+///
+/// The player form is a deep link rather than the `roblox-player:` launch the
+/// website sends. That one carries `gameinfo:<ticket>`, a per-account
+/// authentication ticket, and the short spelling without it
+/// (`roblox-player:1+launchmode:play+placeId:<id>`) was measured on Windows on
+/// 2026-09-21: the client starts and stops at its home screen, having nothing
+/// to join with. The deep link needs no ticket because the client resolves the
+/// place itself, which is also why it cannot pick an account: it joins as
+/// whoever is signed in.
+fn place_uri(place_id: u64, open_in: OpenIn) -> String {
+    match open_in {
+        OpenIn::Studio => format!("roblox-studio:1+task:EditPlace+placeId:{place_id}+universeId:0"),
+        OpenIn::Player => format!("roblox://experiences/start?placeId={place_id}"),
+    }
 }
 
 /// Open a `.rbxl` / `.rbxlx` from disk.
@@ -447,7 +514,8 @@ fn open_file(path: &Path) -> Result<()> {
     launch(&target)
 }
 
-/// Hand one target (a `roblox-studio:` URI or a path) to the desktop.
+/// Hand one target (a `roblox-studio:` or `roblox:` URI, or a path) to the
+/// desktop.
 fn launch(target: &str) -> Result<()> {
     let uri = target;
 
@@ -470,7 +538,7 @@ fn launch(target: &str) -> Result<()> {
             .raw_arg(format!("/C explorer \"{uri}\""))
             .creation_flags(CREATE_NO_WINDOW)
             .status()
-            .context("Failed to launch Studio")?;
+            .context("Failed to launch Roblox")?;
     }
 
     #[cfg(target_os = "macos")]
@@ -478,7 +546,7 @@ fn launch(target: &str) -> Result<()> {
         Command::new("open")
             .arg(&uri)
             .spawn()
-            .context("Failed to launch Studio")?;
+            .context("Failed to launch Roblox")?;
     }
 
     #[cfg(target_os = "linux")]
@@ -638,6 +706,29 @@ mod tests {
             place_file_target(Some(Path::new("weird-name")), None),
             Some(PathBuf::from("weird-name"))
         );
+    }
+
+    #[test]
+    fn studio_edits_the_place_and_the_client_joins_it() {
+        assert_eq!(
+            place_uri(123, OpenIn::Studio),
+            "roblox-studio:1+task:EditPlace+placeId:123+universeId:0"
+        );
+        // The deep link, not `roblox-player:1+launchmode:play+placeId:123`:
+        // that one starts the client and stops at its home screen, having no
+        // authentication ticket to join with.
+        assert_eq!(
+            place_uri(123, OpenIn::Player),
+            "roblox://experiences/start?placeId=123"
+        );
+    }
+
+    #[test]
+    fn the_progress_line_says_which_app_it_is() {
+        assert_eq!(OpenIn::of(false), OpenIn::Studio);
+        assert_eq!(OpenIn::of(true), OpenIn::Player);
+        assert_eq!(OpenIn::Studio.verb(), "Opening");
+        assert_eq!(OpenIn::Player.verb(), "Joining");
     }
 
     /// Bare `--new` decides nothing on its own: the picker does. Returning the

@@ -277,6 +277,9 @@ impl Pullable for PassKind {
             icon: None,
             for_sale: lock.for_sale,
             regional_pricing: false,
+            // Not imported from the lock, the same way `regional_pricing` is
+            // not: a pulled config states no pricing intent of its own.
+            managed_pricing: None,
             create_gift: false,
             path: None,
         }
@@ -476,6 +479,8 @@ impl Pullable for ProductKind {
             icon: None,
             for_sale: lock.for_sale,
             regional_pricing: false,
+            // See the pass above.
+            managed_pricing: None,
             store_page: lock.store_page,
             create_gift: false,
             path: None,

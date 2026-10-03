@@ -116,6 +116,11 @@ pub async fn run(
                 icon: icon_path,
                 for_sale: is_for_sale,
                 regional_pricing: false,
+                // Left unset rather than importing what Roblox reports.
+                // Roblox opts passes into managed pricing by itself, so
+                // writing that back as a declared intent would commit every
+                // imported config to a setting its author never chose.
+                managed_pricing: None,
                 create_gift: false,
                 path: None,
             },
@@ -131,6 +136,10 @@ pub async fn run(
                 icon_hash,
                 for_sale: is_for_sale,
                 regional_pricing: false,
+                // The lockfile records remote state, so here the measured
+                // value does belong. The config staying silent is what keeps
+                // it from showing as a change to apply.
+                managed_pricing: pass.is_managed_pricing_enabled,
             },
         );
     }
@@ -231,6 +240,8 @@ pub async fn run(
                 icon: icon_path,
                 for_sale: is_for_sale,
                 regional_pricing: false,
+                // Unset for the same reason as a pass. See above.
+                managed_pricing: None,
                 store_page,
                 create_gift: false,
                 path: None,
@@ -247,6 +258,7 @@ pub async fn run(
                 icon_hash,
                 for_sale: is_for_sale,
                 regional_pricing: false,
+                managed_pricing: product.is_managed_pricing_enabled,
                 store_page,
             },
         );

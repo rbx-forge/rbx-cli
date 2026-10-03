@@ -18,7 +18,7 @@ use std::path::Path;
 use anyhow::Result;
 use colored::Colorize;
 
-use crate::api::RbxClient;
+use crate::api::{Pricing, RbxClient};
 use crate::codegen;
 use crate::config::{
     resolve_name, BadgeConfig, Config, PassConfig, ProductConfig, ResolvedResources, ResourceKind,
@@ -119,6 +119,7 @@ async fn sync_one_env(
 ) -> Result<bool> {
     let resources = config.resolve_env(Some(&env_target.name))?;
     Config::validate_icon_paths(&resources, config_dir)?;
+    Config::validate_pricing(&resources)?;
 
     // Snapshot the env's lock section, building a fresh one if missing.
     let env_lock_snapshot = lockfile
@@ -475,7 +476,7 @@ impl Appliable for PassKind {
                 cfg.price,
                 icon,
                 cfg.for_sale,
-                cfg.regional_pricing,
+                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
             )
             .await?;
         Ok(PassLock {
@@ -487,6 +488,9 @@ impl Appliable for PassKind {
             icon_hash,
             for_sale: cfg.for_sale,
             regional_pricing: cfg.regional_pricing,
+            // What Roblox reports back, not what was asked: a pass Roblox
+            // opted in by itself records as on even when the config is silent.
+            managed_pricing: result.is_managed_pricing_enabled,
         })
     }
 
@@ -515,7 +519,7 @@ impl Appliable for PassKind {
                 cfg.price,
                 send_icon,
                 cfg.for_sale,
-                cfg.regional_pricing,
+                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
             )
             .await?;
         println!(" {}", "done".green());
@@ -529,6 +533,7 @@ impl Appliable for PassKind {
             icon_hash: icon_hash.or(prior.icon_hash),
             for_sale: cfg.for_sale,
             regional_pricing: cfg.regional_pricing,
+            managed_pricing: result.is_managed_pricing_enabled.or(prior.managed_pricing),
         })
     }
 }
@@ -574,7 +579,7 @@ impl Appliable for ProductKind {
                 cfg.price,
                 icon,
                 cfg.for_sale,
-                cfg.regional_pricing,
+                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
             )
             .await?;
         Ok(ProductLock {
@@ -586,6 +591,7 @@ impl Appliable for ProductKind {
             icon_hash,
             for_sale: cfg.for_sale,
             regional_pricing: cfg.regional_pricing,
+            managed_pricing: result.is_managed_pricing_enabled,
             store_page: cfg.store_page,
         })
     }
@@ -615,7 +621,7 @@ impl Appliable for ProductKind {
                 cfg.price,
                 send_icon,
                 cfg.for_sale,
-                cfg.regional_pricing,
+                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
                 cfg.store_page,
             )
             .await?;
@@ -630,6 +636,7 @@ impl Appliable for ProductKind {
             icon_hash: icon_hash.or(prior.icon_hash),
             for_sale: cfg.for_sale,
             regional_pricing: cfg.regional_pricing,
+            managed_pricing: result.is_managed_pricing_enabled.or(prior.managed_pricing),
             store_page: cfg.store_page,
         })
     }

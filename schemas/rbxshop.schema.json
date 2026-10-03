@@ -345,6 +345,13 @@
             "null"
           ]
         },
+        "managed_pricing": {
+          "description": "Roblox's successor to `regional_pricing`: it bundles regional pricing with price optimization under one opt-in.\n\nTri-state on purpose. Roblox enables managed pricing by itself on passes, so a plain `false` default would make every sync turn off something nobody asked to turn off. Unset sends no field at all and leaves whatever Roblox has.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "name": {
           "type": [
             "string",
@@ -366,6 +373,7 @@
           "minimum": 0.0
         },
         "regional_pricing": {
+          "description": "Deprecated by Roblox in favour of `managed_pricing`, which supersedes it. Kept because it is already in released configs.",
           "default": false,
           "type": "boolean"
         }
@@ -395,6 +403,13 @@
         "icon": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "managed_pricing": {
+          "description": "An env can turn managed pricing on or off for this pass, but cannot put it back to unset: omitting the key here means \"no override\", which is the only thing omission can mean in an overlay.",
+          "type": [
+            "boolean",
             "null"
           ]
         },
@@ -453,6 +468,13 @@
             "null"
           ]
         },
+        "managed_pricing": {
+          "description": "See `PassConfig::managed_pricing`. Unlike a pass, a developer product is not opted in by Roblox on its own: enabling it also requires dynamically scripted prices and a `GetUsersPriceLevelsAsync` call in the experience, which this tool cannot check for you.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
         "name": {
           "type": [
             "string",
@@ -471,6 +493,7 @@
           "minimum": 0.0
         },
         "regional_pricing": {
+          "description": "Deprecated by Roblox in favour of `managed_pricing`. See `PassConfig`.",
           "default": false,
           "type": "boolean"
         },
@@ -504,6 +527,13 @@
         "icon": {
           "type": [
             "string",
+            "null"
+          ]
+        },
+        "managed_pricing": {
+          "description": "See `PassOverlay::managed_pricing`.",
+          "type": [
+            "boolean",
             "null"
           ]
         },

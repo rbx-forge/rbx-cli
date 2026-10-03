@@ -319,6 +319,7 @@ fn locked_pass(id: u64, name: &str, price: u64) -> PassLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
     }
 }
 
@@ -737,6 +738,7 @@ fn gift_enabled_pass() -> PassConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         create_gift: true,
         path: None,
     }
@@ -752,6 +754,7 @@ fn gift_product_lock() -> ProductLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
     }
 }
@@ -820,6 +823,7 @@ fn pass_config(price: u64) -> PassConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         create_gift: false,
         path: None,
     }

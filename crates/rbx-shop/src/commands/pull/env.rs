@@ -150,10 +150,12 @@ pub(super) async fn pull_one_env(
             key
         };
 
-        // The list API doesn't report regional pricing, so preserve whatever the
-        // lockfile last recorded (set by sync) instead of clobbering it to false:
-        // otherwise a synced `regional_pricing = true` shows a phantom diff
-        // after every pull.
+        // Regional pricing keeps whatever the lockfile last recorded (set by
+        // sync) rather than what the remote reports. The remote does report
+        // it, in `priceInformation.enabledFeatures`, but it reports it as on
+        // whenever managed pricing is on, since managed pricing subsumes it.
+        // Recording that against a config that says `regional_pricing =
+        // false` would show a change on every pull that no sync can settle.
         let prior_regional = old_env_lock
             .passes
             .get(&key)
@@ -170,6 +172,10 @@ pub(super) async fn pull_one_env(
                 icon_hash: None,
                 for_sale: pass.is_for_sale.unwrap_or(true),
                 regional_pricing: prior_regional,
+                // Managed pricing takes the measured value instead, which is
+                // the point of reading it: a config that declares nothing
+                // raises no diff, so there is nothing to go phantom.
+                managed_pricing: pass.is_managed_pricing_enabled,
             },
         );
     }
@@ -295,9 +301,8 @@ pub(super) async fn pull_one_env(
             key
         };
 
-        // Preserve the lockfile's regional pricing (see the pass loop above):
-        // the list API never reports it, so clobbering to false would create a
-        // phantom diff against a synced `regional_pricing = true`.
+        // Preserve the lockfile's regional pricing, and take the measured
+        // managed pricing. Same reasoning as the pass loop above.
         let prior_regional = old_env_lock
             .products
             .get(&key)
@@ -314,6 +319,7 @@ pub(super) async fn pull_one_env(
                 icon_hash: None,
                 for_sale: product.is_for_sale.unwrap_or(true),
                 regional_pricing: prior_regional,
+                managed_pricing: product.is_managed_pricing_enabled,
                 store_page: product.store_page_enabled.unwrap_or(false),
             },
         );

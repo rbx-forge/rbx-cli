@@ -251,6 +251,27 @@ fn bool_change(field: &str, cfg: bool, lock: bool, out: &mut Vec<FieldChange>) {
     }
 }
 
+/// `managed_pricing`, which is tri-state on both sides.
+///
+/// A config that says nothing enforces nothing, so it never reports a change
+/// however the lockfile reads: Roblox turns managed pricing on by itself, and
+/// a diff on an unstated field would offer to undo that on every run. Once
+/// the config does state an intent, a lockfile that never recorded the field
+/// counts as not matching it, so the first sync writes it.
+fn managed_pricing_change(cfg: Option<bool>, lock: Option<bool>, out: &mut Vec<FieldChange>) {
+    let Some(want) = cfg else { return };
+    if lock != Some(want) {
+        out.push(FieldChange::new(
+            "managed_pricing",
+            match lock {
+                Some(v) => v.to_string(),
+                None => "unset".to_string(),
+            },
+            want.to_string(),
+        ));
+    }
+}
+
 // ---------------------------------------------------------------------------
 // The three kinds
 // ---------------------------------------------------------------------------
@@ -297,6 +318,7 @@ impl Diffable for PassKind {
             lock.regional_pricing,
             out,
         );
+        managed_pricing_change(cfg.managed_pricing, lock.managed_pricing, out);
     }
 }
 
@@ -360,6 +382,7 @@ impl Diffable for ProductKind {
             lock.regional_pricing,
             out,
         );
+        managed_pricing_change(cfg.managed_pricing, lock.managed_pricing, out);
         bool_change("store_page", cfg.store_page, lock.store_page, out);
     }
 }

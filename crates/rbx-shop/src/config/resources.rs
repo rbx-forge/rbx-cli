@@ -22,8 +22,19 @@ pub struct PassConfig {
     pub icon: Option<PathBuf>,
     #[serde(default = "default_true")]
     pub for_sale: bool,
+    /// Deprecated by Roblox in favour of `managed_pricing`, which supersedes
+    /// it. Kept because it is already in released configs.
     #[serde(default)]
     pub regional_pricing: bool,
+    /// Roblox's successor to `regional_pricing`: it bundles regional pricing
+    /// with price optimization under one opt-in.
+    ///
+    /// Tri-state on purpose. Roblox enables managed pricing by itself on
+    /// passes, so a plain `false` default would make every sync turn off
+    /// something nobody asked to turn off. Unset sends no field at all and
+    /// leaves whatever Roblox has.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     /// When true, an extra developer product is derived automatically at
     /// resolve time: same price/description/icon, name prefixed with
     /// `[gifts].label`. See `crate::gifts`.
@@ -65,8 +76,15 @@ pub struct ProductConfig {
     pub icon: Option<PathBuf>,
     #[serde(default = "default_true")]
     pub for_sale: bool,
+    /// Deprecated by Roblox in favour of `managed_pricing`. See `PassConfig`.
     #[serde(default)]
     pub regional_pricing: bool,
+    /// See `PassConfig::managed_pricing`. Unlike a pass, a developer product
+    /// is not opted in by Roblox on its own: enabling it also requires
+    /// dynamically scripted prices and a `GetUsersPriceLevelsAsync` call in
+    /// the experience, which this tool cannot check for you.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     #[serde(default)]
     pub store_page: bool,
     /// When true, an extra developer product is derived automatically at

@@ -164,6 +164,55 @@ If you'd rather do it by hand for a single item instead of scanning everything, 
 
 The next `sync` will then update the existing remote product rather than create a new one.
 
+## Pricing
+
+Roblox has two settings here, and only one of them is current.
+
+`managed_pricing` is the live one. It is Roblox's own opt-in, and it covers two automations at once: **regional pricing**, which adjusts the price by economic region down to a floor of 30% of your default, and **price optimization**, which tests price points against your experience's demand and conversion data.
+
+`regional_pricing` is the older, narrower setting. Roblox marks it deprecated on all four write endpoints and accepts only one of the two per request, so setting both is refused:
+
+```
+Pass 'VIP': regional_pricing and managed_pricing cannot both be set.
+```
+
+### Unset is a third state, not `false`
+
+`managed_pricing` has no default, which makes it the only boolean in this config that can be genuinely absent:
+
+| In the file | What a sync sends |
+| --- | --- |
+| nothing | neither field: whatever Roblox has stays |
+| `managed_pricing = true` | `isManagedPricingEnabled=true` |
+| `managed_pricing = false` | `isManagedPricingEnabled=false` |
+| `regional_pricing = true` | `isRegionalPricingEnabled=true` (deprecated) |
+
+That distinction is load-bearing. Roblox turns managed pricing on by itself for passes, so a config that says nothing must send nothing: a `false` default would quietly undo that on every run, for every pass, in every project that never mentioned pricing at all.
+
+For the same reason, a config silent on `managed_pricing` reports no diff however the lockfile reads. Stating nothing means delegating the choice, not asking for it off.
+
+### What cannot be set from here
+
+Whether an item ends up on price optimization or keeps your fixed price is **not** in the API. The write side is one boolean; the split lives in the Creator Hub, per item.
+
+What you can do is read it back. `rbx shop list passes --json` reports both, straight from Roblox:
+
+```json
+{
+  "id": "1234567890",
+  "name": "VIP Pass",
+  "price": 299,
+  "managed_pricing": true,
+  "pricing_features": ["RegionalPricing", "UserFixedPrice"]
+}
+```
+
+`pricing_features` is Roblox's own list, and `UserFixedPrice` there is how you tell that this item kept your price instead of being optimized. A developer product also needs dynamically scripted prices and a `GetUsersPriceLevelsAsync` call in the experience before managed pricing does anything useful, and neither of those is something this tool can check for you.
+
+**Measured once, on one developer product.** Before the opt-in, Roblox reported `managed_pricing: false` with `pricing_features: []`. Setting `managed_pricing = true` and syncing produced `managed_pricing: true` with `pricing_features: ["RegionalPricing"]`, and the `create_gift` twin inherited both. So the opt-in bought regional pricing and did not put the price under optimization: `PriceOptimization` never appeared. One item is not a rule, and eligibility is Roblox's call, which is exactly why this is reported rather than assumed.
+
+An empty `pricing_features` is not the same as a missing one. Empty means Roblox returned a pricing block with no automation active; absent means it returned no pricing block at all.
+
 ## Duplicate names
 
 Roblox does not require game pass, badge or developer product names to be unique. `init --from-remote` and `pull` key a newly discovered resource by its display name, because that is the only human-meaningful handle the API offers, so two passes both called "VIP" want the same key.
@@ -446,6 +495,7 @@ rbx shop show --env prod --json
 | `passes.*.price` | integer | Robux. **Absent** when the file sets none, which for a pass means free |
 | `products.*.price` | integer | Robux. Always present: the field is required |
 | `*.for_sale`, `*.regional_pricing`, `*.create_gift`, `products.*.store_page`, `badges.*.enabled` | boolean | Always present, with the serde default filled in |
+| `passes.*.managed_pricing`, `products.*.managed_pricing` | boolean | The one boolean here that can be missing. **Absent** when the file states nothing, which is not `false`: absent leaves Roblox's own setting alone, `false` turns it off |
 | `*.description` / `*.icon` / `*.path` | string | As the file spells them. **Absent** when unset |
 
 There is no `totals` object anywhere in these two documents. `rbx check --json` has one and it counts outcomes; one here would count rows under the same name. `.passes | length` is the count, and it cannot be misread.
@@ -614,7 +664,8 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 | `description` | `string` | No | Pass description |
 | `icon` | `string` | No | Path to icon file |
 | `for_sale` | `bool` | No | Whether the pass is for sale (default: `true`) |
-| `regional_pricing` | `bool` | No | Enable regional pricing (default: `false`) |
+| `regional_pricing` | `bool` | No | Deprecated by Roblox, superseded by `managed_pricing` (default: `false`) - see [Pricing](#pricing) |
+| `managed_pricing` | `bool` | No | Enable Roblox's managed pricing. **No default**: unset leaves whatever Roblox has - see [Pricing](#pricing) |
 | `create_gift` | `bool` | No | Derive a "Gift\<name\>" developer product twin (default: `false`) - see [Gift products](#gift-products) |
 | `path` | `string` | No | Override the codegen path for this item |
 
@@ -643,7 +694,8 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 | `description` | `string` | No | Product description |
 | `icon` | `string` | No | Path to icon file |
 | `for_sale` | `bool` | No | Whether the product is for sale (default: `true`) |
-| `regional_pricing` | `bool` | No | Enable regional pricing (default: `false`) |
+| `regional_pricing` | `bool` | No | Deprecated by Roblox, superseded by `managed_pricing` (default: `false`) - see [Pricing](#pricing) |
+| `managed_pricing` | `bool` | No | Enable Roblox's managed pricing. **No default**: unset leaves whatever Roblox has - see [Pricing](#pricing) |
 | `store_page` | `bool` | No | Show on the store page (default: `false`) |
 | `create_gift` | `bool` | No | Derive a "Gift\<name\>" developer product twin (default: `false`) - see [Gift products](#gift-products) |
 | `path` | `string` | No | Override the codegen path for this item |

@@ -50,6 +50,11 @@ pub struct PassOverlay {
     pub for_sale: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regional_pricing: Option<bool>,
+    /// An env can turn managed pricing on or off for this pass, but cannot
+    /// put it back to unset: omitting the key here means "no override",
+    /// which is the only thing omission can mean in an overlay.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub create_gift: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,6 +92,9 @@ pub struct ProductOverlay {
     pub for_sale: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub regional_pricing: Option<bool>,
+    /// See `PassOverlay::managed_pricing`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_page: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -103,6 +111,7 @@ impl PassOverlay {
             && self.icon.is_none()
             && self.for_sale.is_none()
             && self.regional_pricing.is_none()
+            && self.managed_pricing.is_none()
             && self.create_gift.is_none()
             && self.path.is_none()
     }
@@ -126,6 +135,7 @@ impl ProductOverlay {
             && self.icon.is_none()
             && self.for_sale.is_none()
             && self.regional_pricing.is_none()
+            && self.managed_pricing.is_none()
             && self.store_page.is_none()
             && self.create_gift.is_none()
             && self.path.is_none()
@@ -152,6 +162,9 @@ impl PassConfig {
         if let Some(v) = ov.regional_pricing {
             self.regional_pricing = v;
         }
+        if let Some(v) = ov.managed_pricing {
+            self.managed_pricing = Some(v);
+        }
         if let Some(v) = ov.create_gift {
             self.create_gift = v;
         }
@@ -169,6 +182,9 @@ impl PassConfig {
             icon: ov.icon.clone(),
             for_sale: ov.for_sale.unwrap_or(true),
             regional_pricing: ov.regional_pricing.unwrap_or(false),
+            // Carried as-is: unset in the overlay stays unset in the config,
+            // which is a state this field has and the others do not.
+            managed_pricing: ov.managed_pricing,
             create_gift: ov.create_gift.unwrap_or(false),
             path: ov.path.clone(),
         }
@@ -225,6 +241,9 @@ impl ProductConfig {
         if let Some(v) = ov.regional_pricing {
             self.regional_pricing = v;
         }
+        if let Some(v) = ov.managed_pricing {
+            self.managed_pricing = Some(v);
+        }
         if let Some(v) = ov.store_page {
             self.store_page = v;
         }
@@ -252,6 +271,8 @@ impl ProductConfig {
             icon: ov.icon.clone(),
             for_sale: ov.for_sale.unwrap_or(true),
             regional_pricing: ov.regional_pricing.unwrap_or(false),
+            // Carried as-is. See `PassConfig::from_overlay`.
+            managed_pricing: ov.managed_pricing,
             store_page: ov.store_page.unwrap_or(false),
             create_gift: ov.create_gift.unwrap_or(false),
             path: ov.path.clone(),

@@ -467,6 +467,93 @@ regional_pricing = true
 }
 
 #[tokio::test]
+async fn managed_pricing_sends_its_own_field_and_not_the_deprecated_one() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+managed_pricing = true
+"#,
+    );
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mock(
+        &server,
+        "POST",
+        pass_collection(),
+        json!({ "gamePassId": 111, "isManagedPricingEnabled": true }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let create = only(&reqs, "POST", &pass_collection());
+    assert_eq!(
+        field(create, "isManagedPricingEnabled").as_deref(),
+        Some("true")
+    );
+    // Roblox documents the two as mutually exclusive, so the deprecated one
+    // has to be absent rather than sent as false alongside it.
+    assert!(field(create, "isRegionalPricingEnabled").is_none());
+
+    // Taken from the response, which is what makes the lockfile a record of
+    // remote state rather than of what was asked for.
+    assert_eq!(shop.env_lock().passes["VIP"].managed_pricing, Some(true));
+}
+
+#[tokio::test]
+async fn a_pass_that_states_no_pricing_sends_neither_pricing_field() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mock(
+        &server,
+        "POST",
+        pass_collection(),
+        json!({ "gamePassId": 111 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let create = only(&reqs, "POST", &pass_collection());
+    // Roblox enables managed pricing on passes by itself. Sending either
+    // field as false here would turn that off on every sync, which is what
+    // an unstated config must not do.
+    assert!(field(create, "isRegionalPricingEnabled").is_none());
+    assert!(field(create, "isManagedPricingEnabled").is_none());
+}
+
+#[tokio::test]
+async fn asking_for_both_pricings_at_once_is_refused() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+regional_pricing = true
+managed_pricing = true
+"#,
+    );
+    let server = MockServer::start().await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(
+        err.contains("cannot both be set"),
+        "expected the conflict to be refused, got: {err}"
+    );
+    // Refused before anything was sent, not partway through.
+    assert!(requests(&server).await.is_empty());
+}
+
+#[tokio::test]
 async fn updating_a_pass_patches_the_id_from_the_lockfile() {
     let shop = Shop::new(
         r#"

@@ -80,6 +80,7 @@ pub fn apply_gifts(
                     icon: pass.icon.clone(),
                     for_sale: pass.for_sale,
                     regional_pricing: pass.regional_pricing,
+                    managed_pricing: pass.managed_pricing,
                     store_page: false,
                     create_gift: false,
                     path: None,
@@ -100,6 +101,7 @@ pub fn apply_gifts(
                     icon: product.icon.clone(),
                     for_sale: product.for_sale,
                     regional_pricing: product.regional_pricing,
+                    managed_pricing: product.managed_pricing,
                     store_page: false,
                     create_gift: false,
                     path: None,
@@ -287,6 +289,7 @@ mod tests {
             icon: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
             create_gift,
             path: None,
         }
@@ -300,6 +303,7 @@ mod tests {
             icon: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
             store_page: false,
             create_gift,
             path: None,
@@ -429,6 +433,7 @@ mod tests {
             icon_hash: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
             store_page: false,
         }
     }

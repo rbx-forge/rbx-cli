@@ -98,6 +98,11 @@ pub struct Pass {
     pub price: Option<u64>,
     pub for_sale: bool,
     pub regional_pricing: bool,
+    /// **Absent** when the file states no managed pricing, which is not the
+    /// same as `false`: absent leaves Roblox's own setting alone, `false`
+    /// turns it off. The only boolean here that can be missing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     pub create_gift: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -134,6 +139,9 @@ pub struct Product {
     pub price: u64,
     pub for_sale: bool,
     pub regional_pricing: bool,
+    /// See `Pass::managed_pricing`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
     pub store_page: bool,
     pub create_gift: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -156,6 +164,7 @@ impl From<&PassConfig> for Pass {
             price: pass.price,
             for_sale: pass.for_sale,
             regional_pricing: pass.regional_pricing,
+            managed_pricing: pass.managed_pricing,
             create_gift: pass.create_gift,
             description: pass.description.clone(),
             icon: icon(pass.icon.as_deref()),
@@ -183,6 +192,7 @@ impl From<&ProductConfig> for Product {
             price: product.price,
             for_sale: product.for_sale,
             regional_pricing: product.regional_pricing,
+            managed_pricing: product.managed_pricing,
             store_page: product.store_page,
             create_gift: product.create_gift,
             description: product.description.clone(),
@@ -287,6 +297,21 @@ pub struct Resource {
     /// Developer products only.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub store_page: Option<bool>,
+    /// Passes and products: whether Roblox has managed pricing on for this
+    /// one. Reported rather than declared, so this is the live answer to
+    /// "did my config actually land".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub managed_pricing: Option<bool>,
+    /// Which pricing automations Roblox lists as active, verbatim: any of
+    /// `RegionalPricing`, `PriceOptimization`, `UserFixedPrice`.
+    ///
+    /// Worth reporting even though nothing here can set it. Managed pricing
+    /// is one boolean on the write side, and which automations it then turns
+    /// on is Roblox's call plus whatever the Creator Hub was told per item.
+    /// This list is the only way to find out which it picked. **Absent**
+    /// rather than empty when Roblox reported no pricing block at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pricing_features: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon_asset_id: Option<String>,
 }
@@ -299,6 +324,11 @@ impl From<&GamePass> for Resource {
             description: pass.description.clone(),
             price: pass.price(),
             for_sale: pass.is_for_sale,
+            managed_pricing: pass.is_managed_pricing_enabled,
+            pricing_features: pass
+                .price_information
+                .as_ref()
+                .map(|p| p.enabled_features.clone()),
             icon_asset_id: pass.icon_asset_id.map(|id| id.to_string()),
             ..Self::default()
         }
@@ -327,6 +357,11 @@ impl From<&DeveloperProduct> for Resource {
             price: product.price(),
             for_sale: product.is_for_sale,
             store_page: product.store_page_enabled,
+            managed_pricing: product.is_managed_pricing_enabled,
+            pricing_features: product
+                .price_information
+                .as_ref()
+                .map(|p| p.enabled_features.clone()),
             icon_asset_id: product.icon_image_asset_id.map(|id| id.to_string()),
             ..Self::default()
         }

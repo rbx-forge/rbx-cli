@@ -34,6 +34,7 @@ fn v2_round_trip() {
                     icon_hash: None,
                     for_sale: true,
                     regional_pricing: false,
+                    managed_pricing: None,
                 },
             )]),
             badges: BTreeMap::new(),
@@ -77,6 +78,7 @@ fn product_lock_round_trip() {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
     };
     let serialized = toml::to_string(&lock).unwrap();

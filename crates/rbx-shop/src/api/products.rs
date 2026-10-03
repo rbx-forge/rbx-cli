@@ -5,7 +5,7 @@ use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy}
 use reqwest::multipart;
 
 use super::models::{DeveloperProduct, ListDeveloperProductsResponse};
-use super::{icon_part, RbxClient, WRITE_POLICY};
+use super::{icon_part, Pricing, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_developer_products(&self) -> Result<Vec<DeveloperProduct>> {
@@ -57,7 +57,7 @@ impl RbxClient {
         price: u64,
         icon_path: Option<&Path>,
         is_for_sale: bool,
-        is_regional_pricing_enabled: bool,
+        pricing: Pricing,
     ) -> Result<DeveloperProduct> {
         let api_key = self.api_key_header()?.to_string();
         let url = {
@@ -74,15 +74,13 @@ impl RbxClient {
 
         let response = execute_create_with_retry_policy(
             || async {
-                let mut form = multipart::Form::new()
-                    .text("name", name.to_string())
-                    .text("description", description.unwrap_or("").to_string())
-                    .text("isForSale", is_for_sale.to_string())
-                    .text(
-                        "isRegionalPricingEnabled",
-                        is_regional_pricing_enabled.to_string(),
-                    )
-                    .text("price", price.to_string());
+                let mut form = pricing.apply(
+                    multipart::Form::new()
+                        .text("name", name.to_string())
+                        .text("description", description.unwrap_or("").to_string())
+                        .text("isForSale", is_for_sale.to_string())
+                        .text("price", price.to_string()),
+                );
                 if let Some(bytes) = &icon {
                     form = form.part("imageFile", icon_part(bytes)?);
                 }
@@ -110,7 +108,7 @@ impl RbxClient {
         price: u64,
         icon_path: Option<&Path>,
         is_for_sale: bool,
-        is_regional_pricing_enabled: bool,
+        pricing: Pricing,
         store_page_enabled: bool,
     ) -> Result<DeveloperProduct> {
         let api_key = self.api_key_header()?.to_string();
@@ -132,16 +130,14 @@ impl RbxClient {
             // the same state: the full retry is safe here, unlike a create.
             execute_with_retry_policy(
                 || async {
-                    let disable_store_form = multipart::Form::new()
-                        .text("name", name.to_string())
-                        .text("description", description.unwrap_or("").to_string())
-                        .text("isForSale", "true")
-                        .text(
-                            "isRegionalPricingEnabled",
-                            is_regional_pricing_enabled.to_string(),
-                        )
-                        .text("storePageEnabled", "false")
-                        .text("price", price.to_string());
+                    let disable_store_form = pricing.apply(
+                        multipart::Form::new()
+                            .text("name", name.to_string())
+                            .text("description", description.unwrap_or("").to_string())
+                            .text("isForSale", "true")
+                            .text("storePageEnabled", "false")
+                            .text("price", price.to_string()),
+                    );
                     Ok(self
                         .client
                         .patch(&url)
@@ -167,16 +163,14 @@ impl RbxClient {
 
         let response = execute_with_retry_policy(
             || async {
-                let mut form = multipart::Form::new()
-                    .text("name", name.to_string())
-                    .text("description", description.unwrap_or("").to_string())
-                    .text("isForSale", is_for_sale.to_string())
-                    .text(
-                        "isRegionalPricingEnabled",
-                        is_regional_pricing_enabled.to_string(),
-                    )
-                    .text("storePageEnabled", effective_store_page.to_string())
-                    .text("price", price.to_string());
+                let mut form = pricing.apply(
+                    multipart::Form::new()
+                        .text("name", name.to_string())
+                        .text("description", description.unwrap_or("").to_string())
+                        .text("isForSale", is_for_sale.to_string())
+                        .text("storePageEnabled", effective_store_page.to_string())
+                        .text("price", price.to_string()),
+                );
                 if let Some(bytes) = &icon {
                     form = form.part("imageFile", icon_part(bytes)?);
                 }
@@ -226,7 +220,7 @@ impl RbxClient {
 mod tests {
     #![allow(clippy::unwrap_used)]
 
-    use crate::api::RbxClient;
+    use crate::api::{Pricing, RbxClient};
     use serde_json::json;
     use wiremock::matchers::{header, method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -327,7 +321,7 @@ mod tests {
             .await;
 
         let created = client(&server)
-            .create_developer_product("Gems", None, 100, None, true, false)
+            .create_developer_product("Gems", None, 100, None, true, Pricing::Regional(false))
             .await
             .unwrap();
         assert_eq!(created.id, Some(99));
@@ -356,7 +350,7 @@ mod tests {
             .await;
 
         let created = client(&server)
-            .create_developer_product("Gems", None, 100, None, true, false)
+            .create_developer_product("Gems", None, 100, None, true, Pricing::Regional(false))
             .await
             .unwrap();
         assert_eq!(created.id, Some(99));
@@ -377,7 +371,7 @@ mod tests {
             .await;
 
         assert!(client(&server)
-            .create_developer_product("Gems", None, 100, None, true, false)
+            .create_developer_product("Gems", None, 100, None, true, Pricing::Regional(false))
             .await
             .is_err());
         assert_eq!(server.received_requests().await.unwrap().len(), 1);
@@ -398,7 +392,7 @@ mod tests {
             .await;
 
         assert!(client(&server)
-            .create_developer_product("Gems", None, 100, None, true, false)
+            .create_developer_product("Gems", None, 100, None, true, Pricing::Regional(false))
             .await
             .is_err());
     }

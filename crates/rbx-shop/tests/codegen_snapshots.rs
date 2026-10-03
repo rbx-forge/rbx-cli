@@ -36,6 +36,7 @@ fn pass_cfg(path: Option<&str>, create_gift: bool) -> PassConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         create_gift,
         path: path.map(str::to_string),
     }
@@ -49,6 +50,7 @@ fn product_cfg(path: Option<&str>) -> ProductConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
         create_gift: false,
         path: path.map(str::to_string),
@@ -75,6 +77,7 @@ fn pass_lock(id: u64, name: &str) -> PassLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
     }
 }
 
@@ -99,6 +102,7 @@ fn product_lock(id: u64, name: &str) -> ProductLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
     }
 }

@@ -63,6 +63,7 @@ fn pass(price: Option<u64>) -> PassConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         create_gift: false,
         path: None,
     }
@@ -86,6 +87,7 @@ fn product(price: u64) -> ProductConfig {
         icon: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
         create_gift: false,
         path: None,
@@ -102,6 +104,7 @@ fn pass_lock(price: Option<u64>) -> PassLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
     }
 }
 
@@ -126,6 +129,7 @@ fn product_lock(price: u64) -> ProductLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
     }
 }
@@ -238,6 +242,67 @@ fn a_resource_matching_its_lock_entry_is_skipped() {
     assert!(warnings.is_empty());
     assert!(!plan.has_changes());
     assert_eq!(plan.summary(), "0 to create, 0 to update, 3 unchanged");
+}
+
+/// Roblox turns managed pricing on by itself, so the lockfile routinely
+/// records `Some(true)` for a pass whose config says nothing about it. That
+/// must not read as a change: a sync would then offer, on every single run, to
+/// undo something the developer never asked to control.
+#[test]
+fn a_config_silent_on_managed_pricing_ignores_whatever_the_lock_recorded() {
+    let mut locked = pass_lock(Some(499));
+    locked.managed_pricing = Some(true);
+
+    let plan = build_sync_plan(
+        &resources(vec![("VIP", pass(Some(499)))], vec![], vec![]),
+        &lock(vec![("VIP", locked)], vec![], vec![]),
+        Path::new("."),
+    )
+    .unwrap();
+
+    let (passes, _, _, _) = rendered(&plan);
+    assert_eq!(passes, ["skip VIP"]);
+    assert!(!plan.has_changes());
+}
+
+/// Once the config does state an intent, a lockfile that never recorded the
+/// field counts as not matching it, so the first sync writes it. `unset` rather
+/// than `false` in the rendered change, because the two are different states.
+#[test]
+fn asking_for_managed_pricing_against_an_unrecorded_lock_is_an_update() {
+    let mut cfg = pass(Some(499));
+    cfg.managed_pricing = Some(true);
+
+    let plan = build_sync_plan(
+        &resources(vec![("VIP", cfg)], vec![], vec![]),
+        &lock(vec![("VIP", pass_lock(Some(499)))], vec![], vec![]),
+        Path::new("."),
+    )
+    .unwrap();
+
+    let (passes, _, _, _) = rendered(&plan);
+    assert_eq!(passes, ["update VIP: managed_pricing: unset -> true"]);
+}
+
+/// The lock agreeing with the stated intent is not a change, which is what
+/// keeps a synced `managed_pricing = true` from diffing on every run.
+#[test]
+fn managed_pricing_matching_the_lock_is_not_a_change() {
+    let mut cfg = pass(Some(499));
+    cfg.managed_pricing = Some(true);
+    let mut locked = pass_lock(Some(499));
+    locked.managed_pricing = Some(true);
+
+    let plan = build_sync_plan(
+        &resources(vec![("VIP", cfg)], vec![], vec![]),
+        &lock(vec![("VIP", locked)], vec![], vec![]),
+        Path::new("."),
+    )
+    .unwrap();
+
+    let (passes, _, _, _) = rendered(&plan);
+    assert_eq!(passes, ["skip VIP"]);
+    assert!(!plan.has_changes());
 }
 
 /// The lock entry's `name` is the *display* name, so a config with no explicit

@@ -296,6 +296,41 @@ impl Config {
         Ok(())
     }
 
+    /// Refuse a resource that asks for both pricing automations at once.
+    ///
+    /// Roblox's API accepts one field or the other, never both, so there is no
+    /// request that honours such a config. Refusing beats picking a winner
+    /// silently: the two mean different things, and only the author knows
+    /// which one was meant.
+    pub fn validate_pricing(resources: &ResolvedResources) -> Result<()> {
+        // The first conflict is enough: they all need the same one-line edit,
+        // and listing every one of them would not tell the author anything
+        // the first does not.
+        let first_conflict = resources
+            .passes
+            .iter()
+            .filter(|(_, p)| p.regional_pricing && p.managed_pricing.is_some())
+            .map(|(name, _)| ("Pass", name))
+            .chain(
+                resources
+                    .products
+                    .iter()
+                    .filter(|(_, p)| p.regional_pricing && p.managed_pricing.is_some())
+                    .map(|(name, _)| ("Product", name)),
+            )
+            .next();
+
+        if let Some((kind, name)) = first_conflict {
+            bail!(
+                "{kind} '{name}': regional_pricing and managed_pricing cannot both be set. \
+                 Roblox accepts one of the two per write, and managed_pricing supersedes \
+                 regional_pricing (it bundles regional pricing with price optimization). \
+                 Drop regional_pricing."
+            );
+        }
+        Ok(())
+    }
+
     pub fn default_template() -> String {
         r#"# rbx shop configuration
 # Manages Roblox game passes, badges, and developer products via the Open Cloud API.

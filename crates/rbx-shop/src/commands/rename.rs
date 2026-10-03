@@ -187,6 +187,7 @@ mod tests {
             icon: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
             create_gift: true,
             path: None,
         }
@@ -202,6 +203,7 @@ mod tests {
             icon_hash: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
         }
     }
 
@@ -215,6 +217,7 @@ mod tests {
             icon_hash: None,
             for_sale: true,
             regional_pricing: false,
+            managed_pricing: None,
             store_page: false,
         }
     }
@@ -288,6 +291,7 @@ mod tests {
                     icon: None,
                     for_sale: true,
                     regional_pricing: false,
+                    managed_pricing: None,
                     store_page: false,
                     create_gift: false,
                     path: None,

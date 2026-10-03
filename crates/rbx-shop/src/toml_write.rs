@@ -230,6 +230,7 @@ fn write_pass(t: &mut Table, cfg: &PassConfig) {
     set_opt_path(t, "icon", cfg.icon.as_deref());
     set_bool(t, "for_sale", cfg.for_sale, true);
     set_bool(t, "regional_pricing", cfg.regional_pricing, false);
+    set_opt_bool(t, "managed_pricing", cfg.managed_pricing);
     set_bool(t, "create_gift", cfg.create_gift, false);
     set_opt_str(t, "path", cfg.path.as_deref());
 }
@@ -250,6 +251,7 @@ fn write_product(t: &mut Table, cfg: &ProductConfig) {
     set_opt_path(t, "icon", cfg.icon.as_deref());
     set_bool(t, "for_sale", cfg.for_sale, true);
     set_bool(t, "regional_pricing", cfg.regional_pricing, false);
+    set_opt_bool(t, "managed_pricing", cfg.managed_pricing);
     set_bool(t, "store_page", cfg.store_page, false);
     set_bool(t, "create_gift", cfg.create_gift, false);
     set_opt_str(t, "path", cfg.path.as_deref());
@@ -262,6 +264,7 @@ fn write_pass_overlay(t: &mut Table, ov: &PassOverlay) {
     set_opt_path(t, "icon", ov.icon.as_deref());
     set_opt_bool(t, "for_sale", ov.for_sale);
     set_opt_bool(t, "regional_pricing", ov.regional_pricing);
+    set_opt_bool(t, "managed_pricing", ov.managed_pricing);
     set_opt_bool(t, "create_gift", ov.create_gift);
     set_opt_str(t, "path", ov.path.as_deref());
 }
@@ -281,6 +284,7 @@ fn write_product_overlay(t: &mut Table, ov: &ProductOverlay) {
     set_opt_path(t, "icon", ov.icon.as_deref());
     set_opt_bool(t, "for_sale", ov.for_sale);
     set_opt_bool(t, "regional_pricing", ov.regional_pricing);
+    set_opt_bool(t, "managed_pricing", ov.managed_pricing);
     set_opt_bool(t, "store_page", ov.store_page);
     set_opt_bool(t, "create_gift", ov.create_gift);
     set_opt_str(t, "path", ov.path.as_deref());

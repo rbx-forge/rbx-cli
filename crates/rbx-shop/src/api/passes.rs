@@ -5,7 +5,7 @@ use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy}
 use reqwest::multipart;
 
 use super::models::{GamePass, ListGamePassesResponse};
-use super::{icon_part, RbxClient, WRITE_POLICY};
+use super::{icon_part, Pricing, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_game_passes(&self) -> Result<Vec<GamePass>> {
@@ -57,7 +57,7 @@ impl RbxClient {
         price: Option<u64>,
         icon_path: Option<&Path>,
         is_for_sale: bool,
-        is_regional_pricing_enabled: bool,
+        pricing: Pricing,
     ) -> Result<GamePass> {
         let api_key = self.api_key_header()?.to_string();
         let url = {
@@ -74,14 +74,12 @@ impl RbxClient {
 
         let response = execute_create_with_retry_policy(
             || async {
-                let mut form = multipart::Form::new()
-                    .text("name", name.to_string())
-                    .text("description", description.unwrap_or("").to_string())
-                    .text("isForSale", is_for_sale.to_string())
-                    .text(
-                        "isRegionalPricingEnabled",
-                        is_regional_pricing_enabled.to_string(),
-                    );
+                let mut form = pricing.apply(
+                    multipart::Form::new()
+                        .text("name", name.to_string())
+                        .text("description", description.unwrap_or("").to_string())
+                        .text("isForSale", is_for_sale.to_string()),
+                );
                 if let Some(p) = price {
                     form = form.text("price", p.to_string());
                 }
@@ -112,7 +110,7 @@ impl RbxClient {
         price: Option<u64>,
         icon_path: Option<&Path>,
         is_for_sale: bool,
-        is_regional_pricing_enabled: bool,
+        pricing: Pricing,
     ) -> Result<GamePass> {
         let api_key = self.api_key_header()?.to_string();
         let url = {
@@ -129,14 +127,12 @@ impl RbxClient {
 
         let response = execute_with_retry_policy(
             || async {
-                let mut form = multipart::Form::new()
-                    .text("name", name.to_string())
-                    .text("description", description.unwrap_or("").to_string())
-                    .text("isForSale", is_for_sale.to_string())
-                    .text(
-                        "isRegionalPricingEnabled",
-                        is_regional_pricing_enabled.to_string(),
-                    );
+                let mut form = pricing.apply(
+                    multipart::Form::new()
+                        .text("name", name.to_string())
+                        .text("description", description.unwrap_or("").to_string())
+                        .text("isForSale", is_for_sale.to_string()),
+                );
                 if let Some(p) = price {
                     form = form.text("price", p.to_string());
                 }

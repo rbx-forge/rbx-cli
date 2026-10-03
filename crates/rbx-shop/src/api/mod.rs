@@ -42,6 +42,66 @@ pub(crate) const WRITE_POLICY: RetryPolicy = RetryPolicy {
     base_backoff_secs: 2,
 };
 
+/// Which pricing automation a write enforces.
+///
+/// Roblox publishes two form fields for this, `isRegionalPricingEnabled` and
+/// `isManagedPricingEnabled`, and documents them as mutually exclusive: the
+/// developer-product spec says the regional one "should not be used when
+/// setting isManagedPricingEnabled", and marks it deprecated on all four
+/// write endpoints. Managed pricing is the successor and bundles regional
+/// pricing with price optimization.
+///
+/// An enum rather than two booleans so a request that sets both cannot be
+/// built in the first place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pricing {
+    /// Send neither field, leaving whatever Roblox already has. That matters
+    /// because Roblox now enables managed pricing by itself on passes: a
+    /// write that always sent one of these fields would silently turn off
+    /// something nobody asked to turn off.
+    Untouched,
+    /// Send the deprecated `isRegionalPricingEnabled`.
+    Regional(bool),
+    /// Send `isManagedPricingEnabled`.
+    Managed(bool),
+}
+
+impl Pricing {
+    /// How a config's two pricing keys resolve to the one field sent.
+    ///
+    /// `managed_pricing` wins when set, because the two cannot both be sent
+    /// and it is the field Roblox still maintains. A config that sets both to
+    /// a conflicting pair is refused earlier, in `validate_pricing`, so this
+    /// never has to guess which one the author meant.
+    pub fn from_config(regional: bool, managed: Option<bool>) -> Self {
+        match (managed, regional) {
+            (Some(v), _) => Self::Managed(v),
+            // The default. An implicit `regional_pricing = false` states no
+            // intent, so it sends nothing rather than writing the deprecated
+            // field as false on every sync.
+            (None, false) => Self::Untouched,
+            (None, true) => Self::Regional(true),
+        }
+    }
+
+    /// The one form field this pricing sends, if any.
+    fn field(self) -> Option<(&'static str, bool)> {
+        match self {
+            Self::Untouched => None,
+            Self::Regional(v) => Some(("isRegionalPricingEnabled", v)),
+            Self::Managed(v) => Some(("isManagedPricingEnabled", v)),
+        }
+    }
+
+    /// Add that field to a form, or leave the form alone.
+    pub(crate) fn apply(self, form: multipart::Form) -> multipart::Form {
+        match self.field() {
+            Some((name, value)) => form.text(name, value.to_string()),
+            None => form,
+        }
+    }
+}
+
 /// An icon as a multipart part.
 ///
 /// Built again for every attempt: a `Form` is consumed by the send, so a

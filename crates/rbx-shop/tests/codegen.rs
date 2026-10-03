@@ -18,6 +18,7 @@ fn pass(id: u64, name: &str) -> PassLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
     }
 }
 
@@ -42,6 +43,7 @@ fn product(id: u64, name: &str, price: u64) -> ProductLock {
         icon_hash: None,
         for_sale: true,
         regional_pricing: false,
+        managed_pricing: None,
         store_page: false,
     }
 }

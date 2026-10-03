@@ -115,7 +115,11 @@ fn show_flat(res: &ResolvedResources, sort: ShowSort) {
             name: resolve_name(p.name.as_deref(), key).to_string(),
             price_sort: p.for_sale.then_some(p.price).flatten(),
             price_str: price_cell(p.price, p.for_sale),
-            flags: flags_cell(&[("regional", p.regional_pricing)]),
+            flags: flags_cell(&[
+                ("regional", p.regional_pricing),
+                ("managed", p.managed_pricing == Some(true)),
+                ("managed:off", p.managed_pricing == Some(false)),
+            ]),
         });
     }
     for (key, p) in &res.products {
@@ -126,6 +130,8 @@ fn show_flat(res: &ResolvedResources, sort: ShowSort) {
             price_str: price_cell(Some(p.price), p.for_sale),
             flags: flags_cell(&[
                 ("regional", p.regional_pricing),
+                ("managed", p.managed_pricing == Some(true)),
+                ("managed:off", p.managed_pricing == Some(false)),
                 ("store_page", p.store_page),
             ]),
         });
@@ -266,7 +272,11 @@ fn show_passes(res: &ResolvedResources, sort: ShowSort) {
             "  {:<w$}  {:>10}  {}",
             name.cyan(),
             price_cell(*price, p.for_sale),
-            flags_cell(&[("regional", p.regional_pricing)]),
+            flags_cell(&[
+                ("regional", p.regional_pricing),
+                ("managed", p.managed_pricing == Some(true)),
+                ("managed:off", p.managed_pricing == Some(false)),
+            ]),
             w = w
         );
         println!("{}", line.trim_end());
@@ -328,6 +338,8 @@ fn show_products(res: &ResolvedResources, sort: ShowSort) {
             price_cell(*price, p.for_sale),
             flags_cell(&[
                 ("regional", p.regional_pricing),
+                ("managed", p.managed_pricing == Some(true)),
+                ("managed:off", p.managed_pricing == Some(false)),
                 ("store_page", p.store_page)
             ]),
             w = w

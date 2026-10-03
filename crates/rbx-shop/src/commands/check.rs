@@ -47,6 +47,7 @@ pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
         println!("\n{} {}", "env:".bold(), env_target.name.bold());
         let resources = config.resolve_env(Some(&env_target.name))?;
         Config::validate_icon_paths(&resources, config_dir)?;
+        Config::validate_pricing(&resources)?;
 
         let default_lock = EnvLock {
             universe_id: env_target.universe_id,
@@ -152,6 +153,7 @@ price = 99
                     icon_hash: None,
                     for_sale: true,
                     regional_pricing: false,
+                    managed_pricing: None,
                 },
             );
         lockfile

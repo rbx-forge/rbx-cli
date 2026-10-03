@@ -61,6 +61,7 @@ fn build_config(output: &str, style: CodegenStyle, typescript: bool) -> Config {
         },
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::new(),
         badges: BTreeMap::new(),

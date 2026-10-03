@@ -133,6 +133,9 @@ pub struct Config {
     #[serde(default, skip_serializing_if = "GiftsConfig::is_default")]
     pub gifts: GiftsConfig,
 
+    #[serde(default, skip_serializing_if = "SettingsConfig::is_default")]
+    pub settings: SettingsConfig,
+
     /// Extra files (relative to this one) whose `passes`/`badges`/`products`
     /// tables (and their `[envs.<name>.*]` overlays) get merged in at load
     /// time via `Config::load_merged`. Only meaningful on the main file:
@@ -257,6 +260,34 @@ impl Default for IconsConfig {
 impl IconsConfig {
     fn is_default(&self) -> bool {
         self.bleed && self.dir == default_icon_dir()
+    }
+}
+
+/// The `[settings]` table: defaults every resource inherits unless it
+/// overrides them.
+///
+/// One key so far, because only one field here has a default worth stating
+/// once. The others already have a sensible one baked in (`for_sale` is true,
+/// `store_page` is false), and repeating those per project would add a layer
+/// without removing any typing.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Default, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsConfig {
+    /// Managed pricing for every pass and product that states none of its
+    /// own. An item's `managed_pricing`, and an env overlay's, both win over
+    /// this.
+    ///
+    /// Unset here means what it means on an item: send no pricing field and
+    /// leave Roblox's own setting alone. So this adds a third layer without
+    /// adding a third state.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_managed_pricing: Option<bool>,
+}
+
+impl SettingsConfig {
+    pub fn is_default(&self) -> bool {
+        self.default_managed_pricing.is_none()
     }
 }
 

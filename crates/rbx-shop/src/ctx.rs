@@ -180,6 +180,7 @@ mod tests {
             codegen: Default::default(),
             icons: Default::default(),
             gifts: Default::default(),
+            settings: Default::default(),
             include: Default::default(),
             passes: Default::default(),
             badges: Default::default(),

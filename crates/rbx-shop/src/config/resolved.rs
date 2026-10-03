@@ -71,6 +71,20 @@ impl Config {
             self.gifts.capitalize_key,
         )?;
 
+        // Last, so it fills what neither the item nor the env overlay stated,
+        // and so derived gift products inherit it like anything else. `or`
+        // rather than an assignment: an item that said `false` asked to turn
+        // managed pricing off, and a project default must not read that as
+        // "nothing stated" and flip it back on.
+        if let Some(default) = self.settings.default_managed_pricing {
+            for pass in resolved.passes.values_mut() {
+                pass.managed_pricing = pass.managed_pricing.or(Some(default));
+            }
+            for product in resolved.products.values_mut() {
+                product.managed_pricing = product.managed_pricing.or(Some(default));
+            }
+        }
+
         Ok(resolved)
     }
 
@@ -140,12 +154,13 @@ impl Config {
                 || !inc.codegen.is_default()
                 || !inc.icons.is_default()
                 || !inc.gifts.is_default()
+                || !inc.settings.is_default()
                 || !inc.include.is_empty()
             {
                 bail!(
                     "Included file {} may only contain [passes.*], [badges.*], [products.*], \
                      and their [envs.<name>.*] overlays: experience/owner/codegen/icons/\
-                     gifts/include belong in the main config file.",
+                     gifts/settings/include belong in the main config file.",
                     inc_path.display()
                 );
             }
@@ -389,6 +404,11 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # key_prefix = "Gift"
 # capitalize_key = false
 
+# Defaults every pass and product inherits unless it sets its own. An item's
+# own key wins, and an [envs.<name>] overlay wins over both.
+# [settings]
+# default_managed_pricing = true
+
 # Game Passes
 # [passes.VIP]
 # name = "VIP Pass"       # optional: defaults to "VIP"
@@ -396,7 +416,9 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # description = "VIP access"
 # icon = "icons/vip.png"
 # for_sale = true          # optional: defaults to true
-# regional_pricing = false # optional: defaults to false
+# managed_pricing = true   # optional: NO default. Unset leaves Roblox's own
+#                          # setting alone, which is not the same as false.
+# regional_pricing = false # deprecated by Roblox, superseded by the above
 # create_gift = false      # optional: derive a "GiftVIP" dev product twin
 # path = "shop.specials"   # optional: override codegen path
 
@@ -415,7 +437,9 @@ universe_id = 0        # Your Roblox universe ID (omit if you always use --env)
 # description = "100 coins"
 # icon = "icons/coins.png"
 # for_sale = true
-# regional_pricing = false
+# managed_pricing = true   # optional: NO default. A product also needs
+#                          # scripted prices and GetUsersPriceLevelsAsync.
+# regional_pricing = false # deprecated by Roblox, superseded by the above
 # store_page = false
 # create_gift = false      # optional: derive a "GiftCoins100" dev product twin
 # path = "shop.specials"

@@ -67,6 +67,9 @@
       "additionalProperties": {
         "$ref": "#/definitions/ProductConfig"
       }
+    },
+    "settings": {
+      "$ref": "#/definitions/SettingsConfig"
     }
   },
   "definitions": {
@@ -570,6 +573,20 @@
           ]
         }
       }
+    },
+    "SettingsConfig": {
+      "description": "The `[settings]` table: defaults every resource inherits unless it overrides them.\n\nOne key so far, because only one field here has a default worth stating once. The others already have a sensible one baked in (`for_sale` is true, `store_page` is false), and repeating those per project would add a layer without removing any typing.",
+      "type": "object",
+      "properties": {
+        "default_managed_pricing": {
+          "description": "Managed pricing for every pass and product that states none of its own. An item's `managed_pricing`, and an env overlay's, both win over this.\n\nUnset here means what it means on an item: send no pricing field and leave Roblox's own setting alone. So this adds a third layer without adding a third state.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": false
     }
   }
 }

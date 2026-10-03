@@ -57,6 +57,117 @@ price = 999
 }
 
 #[test]
+fn settings_default_fills_only_the_resources_that_state_nothing() {
+    let (_dir, path) = write_config(
+        r#"
+[settings]
+default_managed_pricing = true
+
+[passes.Inherits]
+price = 499
+
+[passes.OptsOut]
+price = 499
+managed_pricing = false
+
+[products.AlsoInherits]
+price = 99
+"#,
+    );
+
+    let resolved = Config::load_merged(&path)
+        .unwrap()
+        .resolve_env(None)
+        .unwrap();
+
+    assert_eq!(
+        resolved.passes["Inherits"].managed_pricing,
+        Some(true),
+        "a pass stating nothing takes the project default"
+    );
+    assert_eq!(
+        resolved.passes["OptsOut"].managed_pricing,
+        Some(false),
+        "an explicit false asked for off, and the default must not flip it back"
+    );
+    assert_eq!(
+        resolved.products["AlsoInherits"].managed_pricing,
+        Some(true)
+    );
+}
+
+/// Without the table, nothing is filled in: the field stays unset, which is
+/// what keeps a sync from sending a pricing field nobody asked for.
+#[test]
+fn no_settings_table_leaves_managed_pricing_unset() {
+    let (_dir, path) = write_config(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+
+    let resolved = Config::load_merged(&path)
+        .unwrap()
+        .resolve_env(None)
+        .unwrap();
+
+    assert_eq!(resolved.passes["VIP"].managed_pricing, None);
+}
+
+/// The env overlay sits between the item and the default, and beats both.
+#[test]
+fn an_env_overlay_beats_the_settings_default() {
+    let (_dir, path) = write_config(
+        r#"
+[settings]
+default_managed_pricing = true
+
+[passes.VIP]
+price = 499
+
+[envs.staging.passes.VIP]
+managed_pricing = false
+"#,
+    );
+
+    let config = Config::load_merged(&path).unwrap();
+
+    assert_eq!(
+        config.resolve_env(Some("staging")).unwrap().passes["VIP"].managed_pricing,
+        Some(false)
+    );
+    assert_eq!(
+        config.resolve_env(Some("prod")).unwrap().passes["VIP"].managed_pricing,
+        Some(true),
+        "an env with no overlay still gets the default"
+    );
+}
+
+/// A derived gift product is resolved like any other resource, so it inherits
+/// the default too rather than being the one thing the table misses.
+#[test]
+fn a_derived_gift_inherits_the_settings_default() {
+    let (_dir, path) = write_config(
+        r#"
+[settings]
+default_managed_pricing = true
+
+[passes.VIP]
+price = 499
+create_gift = true
+"#,
+    );
+
+    let resolved = Config::load_merged(&path)
+        .unwrap()
+        .resolve_env(None)
+        .unwrap();
+
+    assert_eq!(resolved.products["GiftVIP"].managed_pricing, Some(true));
+}
+
+#[test]
 fn resolve_env_returns_base_when_no_overlay() {
     let config = Config {
         experience: None,
@@ -64,6 +175,7 @@ fn resolve_env_returns_base_when_no_overlay() {
         codegen: Default::default(),
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::from([(
             "VIP".to_string(),
@@ -111,6 +223,7 @@ fn resolve_env_applies_overlay_on_existing_pass() {
         codegen: Default::default(),
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::from([(
             "VIP".to_string(),
@@ -162,6 +275,7 @@ fn resolve_env_adds_env_exclusive_pass() {
         codegen: Default::default(),
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::new(),
         badges: BTreeMap::new(),
@@ -199,6 +313,7 @@ fn resolve_env_errors_on_overlay_only_product_without_price() {
         codegen: Default::default(),
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::new(),
         badges: BTreeMap::new(),
@@ -232,6 +347,7 @@ fn badge_overlay_enabled_override() {
         codegen: Default::default(),
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::new(),
         badges: BTreeMap::from([(
@@ -468,6 +584,38 @@ id = 1
 
     let err = Config::load_merged(&main_path).unwrap_err();
     assert!(err.to_string().contains("may only contain"));
+}
+
+/// `[settings]` is global like the other non-resource tables, so an included
+/// file may not carry one. Left to merge silently, a project default declared
+/// in the wrong file would be read, dropped, and never applied.
+#[test]
+fn load_merged_rejects_a_settings_table_in_an_included_file() {
+    let dir = tempdir().unwrap();
+    let main_path = dir.path().join("rbxshop.toml");
+    std::fs::write(
+        &main_path,
+        r#"
+[include]
+files = ["rbxshop.extra.toml"]
+"#,
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("rbxshop.extra.toml"),
+        r#"
+[settings]
+default_managed_pricing = true
+
+[passes.VIP]
+price = 499
+"#,
+    )
+    .unwrap();
+
+    let err = Config::load_merged(&main_path).unwrap_err().to_string();
+    assert!(err.contains("may only contain"), "{err}");
+    assert!(err.contains("settings"), "the message must name it: {err}");
 }
 
 #[test]

@@ -127,6 +127,7 @@ fn config(style: CodegenStyle, typescript: bool) -> Config {
         },
         icons: Default::default(),
         gifts: Default::default(),
+        settings: Default::default(),
         include: Default::default(),
         passes: BTreeMap::from([
             // `path` override: this one lands outside the default `passes` table.

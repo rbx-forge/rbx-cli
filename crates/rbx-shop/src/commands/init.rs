@@ -332,6 +332,11 @@ pub async fn run(
         codegen: CodegenConfig::default(),
         icons: icons_config,
         gifts: Default::default(),
+        // No [settings] either, and for the same kind of reason: an imported
+        // config states no pricing intent of its own, so the project default
+        // stays unset rather than being guessed from what the remote happens
+        // to have today.
+        settings: Default::default(),
         include: Default::default(),
         passes,
         badges,

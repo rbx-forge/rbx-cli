@@ -191,6 +191,28 @@ That distinction is load-bearing. Roblox turns managed pricing on by itself for 
 
 For the same reason, a config silent on `managed_pricing` reports no diff however the lockfile reads. Stating nothing means delegating the choice, not asking for it off.
 
+### Setting it once for the whole project
+
+Writing the key on every item gets old at seventy of them, so `[settings]` states it once:
+
+```toml
+[settings]
+default_managed_pricing = true
+
+[passes.VIP]
+price = 499                 # inherits true
+
+[passes.Legacy]
+price = 299
+managed_pricing = false     # opts out, and the default does not flip it back
+```
+
+Three layers, each beating the one before it: `[settings]`, then the item's own key, then its `[envs.<name>]` overlay. Derived `create_gift` twins are resolved like any other resource, so they inherit too.
+
+Leaving the table out changes nothing: the field stays unset, and nothing is sent. The default adds a layer, not a fourth state.
+
+`[settings]` is global to the project, so an included file may not carry one. Declared in the wrong file it would be read, dropped and never applied, which is why that is an error rather than a silent merge.
+
 ### What cannot be set from here
 
 Whether an item ends up on price optimization or keeps your fixed price is **not** in the API. The write side is one boolean; the split lives in the Creator Hub, per item.
@@ -712,6 +734,19 @@ Inject asset IDs into every env's generated module. Useful for manually managed 
 | `capitalize_key` | `bool` | `false` | Uppercase the first letter of the source key *in the derived key only* (never in the source's own TOML key). With `key_prefix = "gift"`: `vipPass` -> `giftVipPass` instead of the default `giftvipPass` |
 
 Note the three are independent: `label` controls the name shown on Roblox, `key_prefix`/`capitalize_key` control the identifier in the generated Luau/TS module. None of them transforms the source's own key or name in `rbxshop.toml` - only the derived copies. `capitalize_key` exists because a lowercase `key_prefix` run directly into a lowercase-starting key (`giftvipPass`) reads as broken rather than as a compound identifier; capitalizing just that derived copy fixes it without touching how you write your own keys.
+
+</details>
+
+<details markdown="1">
+<summary><code>[settings]</code></summary>
+
+Defaults every pass and product inherits unless it sets its own. Optional, and global to the project: an included file may not carry one.
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `default_managed_pricing` | `bool` | *unset* | `managed_pricing` for every pass and product that states none. An item's own key wins, and its `[envs.<name>]` overlay wins over both. Unset means what it means on an item: send no pricing field - see [Pricing](#pricing) |
+
+One key so far, deliberately. The other per-item booleans already carry a sensible default (`for_sale` is true, `store_page` is false), so restating those per project would add a layer without saving any typing. `managed_pricing` is the one with no default to fall back on, and the one you are likely to want the same way across every item.
 
 </details>
 

@@ -270,9 +270,12 @@ impl IconsConfig {
 /// once. The others already have a sensible one baked in (`for_sale` is true,
 /// `store_page` is false), and repeating those per project would add a layer
 /// without removing any typing.
+// No `deny_unknown_fields`: a config written by a newer release has to stay
+// loadable, so an unknown key is a warning and never a rejection here. The
+// next default added to this table would otherwise make every older binary
+// refuse the file outright.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Default, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct SettingsConfig {
     /// Managed pricing for every pass and product that states none of its
     /// own. An item's `managed_pricing`, and an env overlay's, both win over

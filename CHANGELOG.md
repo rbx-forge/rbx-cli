@@ -77,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not a deprecation here: that backend is the default because it reaches more
   assets than Open Cloud does, and neither is on the way out.
 
+- `rbx meta pull` prints its summary in the spelling of `rbxmeta.toml`
+  (`"limited"`, `["playtesters"]`, `"r15"`) instead of the Rust names
+  (`Limited`, `{Playtesters}`, `R15`).
+
 ### Fixed
 
 - **`rbx meta pull` and `init` wrote `visibility = "private"` over a limited

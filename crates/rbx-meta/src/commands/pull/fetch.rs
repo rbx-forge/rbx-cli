@@ -483,7 +483,7 @@ pub(super) fn place_audience(
         // belongs beside it, whatever the base says.
         Some(remote) if overlay.visibility.is_some() => {
             if overlay.audience.as_ref() != Some(&remote) {
-                changes.push(format!("audience: override ← {:?}", remote));
+                changes.push(format!("audience: override ← {}", toml_spelling(&remote)));
                 overlay.audience = Some(remote);
             }
         }

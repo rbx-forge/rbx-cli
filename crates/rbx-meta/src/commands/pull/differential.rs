@@ -1,14 +1,29 @@
 //! The differential algorithm: which of the base block and the env overlay a
 //! remote value belongs in.
 
+use serde::Serialize;
+
 use crate::config::SocialLink;
+
+/// A value as `rbxmeta.toml` spells it, for the summary `pull` prints.
+///
+/// `Debug` printed the Rust names (`Limited`, `{Playtesters}`, `R15`), which
+/// are not what the user finds in the file a moment later. Going through the
+/// same serde attributes that read the file gives the spelling they will see.
+/// `Debug` stays as the fallback for a value TOML cannot represent.
+pub(super) fn toml_spelling<T: Serialize + std::fmt::Debug>(v: &T) -> String {
+    match toml::Value::try_from(v) {
+        Ok(value) => value.to_string(),
+        Err(_) => format!("{v:?}"),
+    }
+}
 
 /// Apply differential algorithm for an `Option<T>` field.
 ///   - remote=None: do nothing (we don't pull "absence")
 ///   - base=None && remote=Some: promote to base, clear overlay
 ///   - remote==base: clear overlay
 ///   - else: set overlay = remote
-pub(super) fn diff_apply_opt<T: Clone + PartialEq + std::fmt::Debug>(
+pub(super) fn diff_apply_opt<T: Clone + PartialEq + std::fmt::Debug + Serialize>(
     base: &mut Option<T>,
     overlay: &mut Option<T>,
     remote: Option<T>,
@@ -22,7 +37,7 @@ pub(super) fn diff_apply_opt<T: Clone + PartialEq + std::fmt::Debug>(
             if overlay.is_some() {
                 *overlay = None;
             }
-            changes.push(format!("{}: base ← {:?}", label, r));
+            changes.push(format!("{}: base ← {}", label, toml_spelling(&r)));
         }
         Some(b) if *b == r => {
             if overlay.take().is_some() {
@@ -32,7 +47,7 @@ pub(super) fn diff_apply_opt<T: Clone + PartialEq + std::fmt::Debug>(
         Some(_) => {
             let was = overlay.replace(r.clone());
             if was.as_ref() != Some(&r) {
-                changes.push(format!("{}: override ← {:?}", label, r));
+                changes.push(format!("{}: override ← {}", label, toml_spelling(&r)));
             }
         }
     }
@@ -64,6 +79,35 @@ pub(super) fn diff_apply_social(
             if was.as_ref() != Some(&r) {
                 changes.push(format!("social.{}: override ← '{}'", platform, r.title));
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod spelling_tests {
+    use super::toml_spelling;
+    use crate::config::{Audience, AvatarType, Genre, PaidAccess, ServerFill, Visibility};
+    use std::collections::BTreeSet;
+
+    /// Every line of a real pull summary, as the file spells it.
+    #[test]
+    fn the_summary_uses_the_spelling_of_the_file() {
+        let audience: BTreeSet<Audience> = [Audience::Playtesters].into();
+        let cases = [
+            (toml_spelling(&"staging".to_string()), r#""staging""#),
+            (toml_spelling(&Visibility::Limited), r#""limited""#),
+            (toml_spelling(&audience), r#"["playtesters"]"#),
+            (toml_spelling(&false), "false"),
+            (toml_spelling(&AvatarType::R15), r#""r15""#),
+            (toml_spelling(&Genre::All), r#""all""#),
+            (toml_spelling(&PaidAccess::Free), r#"{ mode = "free" }"#),
+            (
+                toml_spelling(&ServerFill::Automatic),
+                r#"{ mode = "automatic" }"#,
+            ),
+        ];
+        for (got, want) in cases {
+            assert_eq!(got, want);
         }
     }
 }

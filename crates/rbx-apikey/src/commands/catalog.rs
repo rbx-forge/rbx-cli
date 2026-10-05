@@ -310,6 +310,7 @@ fn parse_scopes(json_body: &str) -> Result<BTreeMap<String, ScopeInfo>> {
 /// scopes. Returns how many were carried over. A missing or unreadable file is
 /// not an error: the first ever run has nothing to carry.
 /// One scope type as the key service describes it.
+#[derive(Debug)]
 struct ServiceScope {
     operations: BTreeSet<String>,
     target_type: String,
@@ -661,6 +662,98 @@ mod tests {
         reconcile(&mut scopes, &service(&[("asset", "read", "creator")]));
 
         assert!(scopes.contains_key("retired-scope"));
+    }
+
+    /// `fetch_service_scopes` over HTTP, because the mapping that matters
+    /// lives in it and not in `reconcile`.
+    ///
+    /// The `service()` helper above rebuilds `""` -> `"none"` by hand, so it
+    /// cannot catch that mapping changing. Exercised against a mock server
+    /// the same way the client's own request shaping is.
+    mod from_the_service {
+        use super::super::fetch_service_scopes;
+        use serde_json::json;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        async fn serving(body: serde_json::Value) -> MockServer {
+            let server = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/scopes"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(body))
+                .mount(&server)
+                .await;
+            server
+        }
+
+        /// One row per `(scopeType, operation)` pair, which is how the service
+        /// publishes them, folded into one entry per scope type.
+        #[tokio::test]
+        async fn rows_fold_per_scope_and_an_empty_target_becomes_none() {
+            let server = serving(json!({"scopes": [
+                {"scopeType": "group", "operation": "read", "targetType": ""},
+                {"scopeType": "group", "operation": "write", "targetType": ""},
+                {"scopeType": "asset", "operation": "read", "targetType": "creator"}
+            ]}))
+            .await;
+
+            let out = fetch_service_scopes(&format!("{}/scopes", server.uri()))
+                .await
+                .unwrap();
+
+            assert_eq!(out["group"].target_type, "none");
+            assert_eq!(
+                out["group"].operations.iter().cloned().collect::<Vec<_>>(),
+                vec!["read", "write"]
+            );
+            assert_eq!(out["asset"].target_type, "creator");
+        }
+
+        /// A missing `targetType` reads as no target rather than as an empty
+        /// string that later compares unequal to everything.
+        #[tokio::test]
+        async fn an_absent_target_also_becomes_none() {
+            let server = serving(json!({"scopes": [
+                {"scopeType": "legacy-asset", "operation": "manage"}
+            ]}))
+            .await;
+
+            let out = fetch_service_scopes(&format!("{}/scopes", server.uri()))
+                .await
+                .unwrap();
+
+            assert_eq!(out["legacy-asset"].target_type, "none");
+        }
+
+        /// Two targets for one scope type is not something to average out: a
+        /// request can only send one, and picking would be a guess.
+        #[tokio::test]
+        async fn disagreeing_targets_for_one_scope_are_refused() {
+            let server = serving(json!({"scopes": [
+                {"scopeType": "group", "operation": "read", "targetType": ""},
+                {"scopeType": "group", "operation": "write", "targetType": "creator"}
+            ]}))
+            .await;
+
+            let err = fetch_service_scopes(&format!("{}/scopes", server.uri()))
+                .await
+                .unwrap_err()
+                .to_string();
+
+            assert!(err.contains("two different targets"), "{err}");
+            assert!(err.contains("group"), "{err}");
+        }
+
+        /// An empty list means the document changed shape. Writing a catalog
+        /// from it would strip every target in one go.
+        #[tokio::test]
+        async fn an_empty_list_is_refused() {
+            let server = serving(json!({"scopes": []})).await;
+
+            assert!(fetch_service_scopes(&format!("{}/scopes", server.uri()))
+                .await
+                .is_err());
+        }
     }
 
     /// The shape Roblox publishes today. A regression here means `regenerate`

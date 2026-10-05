@@ -174,7 +174,10 @@ pub async fn run(global: &GlobalFlags, remote_check: bool, format: OutputFormat)
                         // regenerate a perfectly valid key.
                         Err(e) => (
                             Status::CheckFailed,
-                            format!("could not verify on Roblox: {}", e),
+                            // `{:#}` for the reason given in `create`: `{}`
+                            // renders only the outermost frame, so a wrapped
+                            // error reports the operation and drops the cause.
+                            format!("could not verify on Roblox: {:#}", e),
                         ),
                         Ok(None) => (
                             Status::OrphanRemote,

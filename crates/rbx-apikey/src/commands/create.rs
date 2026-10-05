@@ -401,7 +401,12 @@ async fn verify_against_introspect(client: &RbxApiKeyClient, secret: &str, sent:
         Err(e) => {
             println!(
                 "{}",
-                format!("  (skipped post-create introspect verification: {})", e).yellow()
+                // `{:#}` and not `{}`: the error arrives wrapped in context,
+                // and `{}` renders only the outermost frame. That printed
+                // "skipped: introspecting the key", which names the operation
+                // and hides the reason, on the one check that says whether
+                // Roblox stored the scopes as they were sent.
+                format!("  (skipped post-create introspect verification: {:#})", e).yellow()
             );
             return;
         }
@@ -483,6 +488,28 @@ mod tests {
             target_parts: targets.iter().map(|s| s.to_string()).collect(),
             operations: ops.iter().map(|s| s.to_string()).collect(),
         }
+    }
+
+    /// The skipped-introspect line reported "introspecting the key" and
+    /// nothing else, because `{}` on an `anyhow::Error` renders only the
+    /// outermost frame and the client wraps the failure in exactly that
+    /// context. Asserted on the rendering rather than left to a comment: the
+    /// difference is one character, and this is the check that says whether
+    /// Roblox stored the scopes as they were sent.
+    #[test]
+    fn a_wrapped_error_renders_its_cause_and_not_just_its_context() {
+        let wrapped = anyhow::Error::from(rbx_core::api::ApiError::new(
+            reqwest::StatusCode::UNAUTHORIZED,
+            "Invalid API key",
+        ))
+        .context("introspecting the key");
+
+        let alternate = format!("{wrapped:#}");
+        assert!(alternate.contains("introspecting the key"), "{alternate}");
+        assert!(alternate.contains("Invalid API key"), "{alternate}");
+
+        // What it used to print, kept as the contrast.
+        assert_eq!(format!("{wrapped}"), "introspecting the key");
     }
 
     /// The whole point of #101: Roblox may store the same permissions in a

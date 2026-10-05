@@ -32,8 +32,13 @@ pub async fn run(global: &GlobalFlags, name: &str) -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&resp)?);
             Ok(())
         }
+        // `{:#}` and not `{}`: the client wraps this in
+        // `.context("introspecting the key")`, and `{}` renders only that
+        // outermost frame. This printed "introspect failed: introspecting the
+        // key", so the status and body never reached the terminal and the
+        // hint below read as the diagnosis rather than as one guess.
         Err(e) => bail!(
-            "introspect failed: {}\n\nHint: the JWT inside the secret expires ~1h after create/regenerate. Try `rbx apikey regenerate {}` and call introspect again.",
+            "introspect failed: {:#}\n\nIf that says the token is invalid or expired: the JWT inside the secret only works for about an hour after create or regenerate. `rbx apikey regenerate {}` issues a fresh one, then introspect again.",
             e,
             name
         ),

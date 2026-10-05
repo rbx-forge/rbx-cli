@@ -6,7 +6,7 @@ use crate::api::RbxClient;
 use crate::config::{
     AnimationType, Avatar, AvatarType, CollisionType, Config, Devices, Experience, Game, Genre,
     JointPositioningType, MediaConfig, PaidAccess, PrivateServer, ServerFill, SocialLink,
-    SocialLinks, Visibility,
+    SocialLinks,
 };
 use crate::ctx::MetaCtx;
 use crate::diff::config_to_lock;
@@ -162,10 +162,21 @@ pub async fn run(
         None
     };
 
-    let visibility = universe
-        .visibility
-        .as_deref()
-        .and_then(Visibility::from_open_cloud);
+    // Not Open Cloud's `visibility`: it cannot say "limited". See `Access`.
+    let (visibility, audience) = match client.get_universe_access().await {
+        Ok(Some(access)) => {
+            let (v, a) = access.into_parts();
+            (Some(v), a)
+        }
+        Ok(None) => (None, None),
+        Err(e) => {
+            eprintln!(
+                "  warning: audience fetch failed ({}). Skipping visibility.",
+                e
+            );
+            (None, None)
+        }
+    };
 
     let game = Game {
         name: place.display_name.clone().or(universe.display_name.clone()),
@@ -194,6 +205,7 @@ pub async fn run(
         server_fill,
         allow_copying,
         visibility,
+        audience,
         studio_access_to_apis_allowed,
         beta_mode,
         // Write-only on Roblox's side, so there is nothing to adopt: an

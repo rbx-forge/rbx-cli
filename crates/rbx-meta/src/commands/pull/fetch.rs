@@ -1,13 +1,16 @@
 //! One env's read: everything Roblox is asked for, and the shape it comes back in.
 
+use std::collections::BTreeSet;
+
 use anyhow::Result;
 use colored::Colorize;
 
 use crate::api::models::ApiSocialLink;
 use crate::api::RbxClient;
+
 use crate::config::{
-    AnimationType, AvatarType, CollisionType, Config, Genre, JointPositioningType, PaidAccess,
-    PrivateServer, ServerFill, SocialLink, Visibility,
+    AnimationType, Audience, AvatarType, CollisionType, Config, EnvOverlay, Game, Genre,
+    JointPositioningType, PaidAccess, PrivateServer, ServerFill, SocialLink, Visibility,
 };
 use crate::ctx::MetaCtx;
 use crate::lockfile::Lockfile;
@@ -124,16 +127,33 @@ pub(super) async fn fetch_env(
         None
     };
 
-    let remote_visibility = universe
-        .visibility
-        .as_deref()
-        .and_then(Visibility::from_open_cloud);
+    // From the develop host and not from Open Cloud's `visibility`, which has
+    // no word for "limited" and reports a Limited ⟩ Playtesters universe as
+    // PRIVATE. Anonymous, so this works without a cookie. See `Access`.
+    let remote_access = match client.get_universe_access().await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!(
+                "warning: audience fetch failed ({}). Skipping visibility.",
+                e
+            );
+            None
+        }
+    };
+    let (remote_visibility, remote_audience) = match remote_access.clone() {
+        Some(access) => {
+            let (v, a) = access.into_parts();
+            (Some(v), a)
+        }
+        None => (None, None),
+    };
 
     // Everything that came from an endpoint allowed to fail, gathered before
     // the differential apply mutates the config. `reconcile_lock` needs the
     // *confirmed* values, and after `diff_apply_opt` has run the config no
     // longer distinguishes what was read from what was already written.
     let confirmed = ConfirmedReads {
+        access: remote_access,
         allow_copying: remote_allow_copying,
         server_fill: remote_server_fill.clone(),
         studio_access_to_apis_allowed: remote_studio_access,
@@ -219,6 +239,13 @@ pub(super) async fn fetch_env(
         &mut overlay.visibility,
         remote_visibility,
         "visibility",
+        &mut changes,
+    );
+    place_audience(
+        &mut config.game,
+        overlay,
+        remote_visibility,
+        remote_audience,
         &mut changes,
     );
     diff_apply_opt(
@@ -433,9 +460,148 @@ pub(super) async fn fetch_env(
     Ok((client, confirmed))
 }
 
+/// Put `audience` in the layer that holds this env's `visibility`, after the
+/// differential pass has decided where `visibility` goes.
+///
+/// Not a plain `diff_apply_opt`: `audience` is only valid in a layer whose
+/// visibility is limited (`Config::validate_audience`), and the generic rule
+/// would break that. A base `public` with a limited env would see the audience
+/// promoted into `[game]`, beside `public`, and the next `sync` would refuse
+/// the file this pull just wrote.
+pub(super) fn place_audience(
+    base: &mut Game,
+    overlay: &mut EnvOverlay,
+    remote_visibility: Option<Visibility>,
+    remote_audience: Option<BTreeSet<Audience>>,
+    changes: &mut Vec<String>,
+) {
+    let Some(remote_visibility) = remote_visibility else {
+        return;
+    };
+    match remote_audience {
+        // The env's own visibility differs from the base, so the audience
+        // belongs beside it, whatever the base says.
+        Some(remote) if overlay.visibility.is_some() => {
+            if overlay.audience.as_ref() != Some(&remote) {
+                changes.push(format!("audience: override ← {:?}", remote));
+                overlay.audience = Some(remote);
+            }
+        }
+        // The base is limited too: the usual base-or-override rule.
+        Some(remote) => {
+            diff_apply_opt(
+                &mut base.audience,
+                &mut overlay.audience,
+                Some(remote),
+                "audience",
+                changes,
+            );
+        }
+        // Not limited: an audience this env would declare is now invalid.
+        None => {
+            debug_assert_ne!(remote_visibility, Visibility::Limited);
+            if overlay.audience.take().is_some() {
+                changes.push("audience: cleared override (not limited)".to_string());
+            }
+            if base.visibility == Some(remote_visibility) && base.audience.take().is_some() {
+                changes.push("audience: cleared (not limited)".to_string());
+            }
+        }
+    }
+}
+
 pub(super) fn to_social(link: &ApiSocialLink) -> SocialLink {
     SocialLink {
         title: link.title.clone(),
         url: link.uri.clone(),
+    }
+}
+
+#[cfg(test)]
+mod audience_tests {
+    use super::*;
+
+    fn set(a: &[Audience]) -> Option<BTreeSet<Audience>> {
+        Some(a.iter().copied().collect())
+    }
+
+    /// Runs the visibility pass the way `fetch_env` does, then this one.
+    fn pull(
+        base: &mut Game,
+        overlay: &mut EnvOverlay,
+        v: Visibility,
+        a: Option<BTreeSet<Audience>>,
+    ) {
+        let mut changes = Vec::new();
+        diff_apply_opt(
+            &mut base.visibility,
+            &mut overlay.visibility,
+            Some(v),
+            "visibility",
+            &mut changes,
+        );
+        place_audience(base, overlay, Some(v), a, &mut changes);
+    }
+
+    /// The case the plain differential rule got wrong: the audience would
+    /// have been promoted into `[game]`, beside `public`.
+    #[test]
+    fn a_limited_env_under_a_public_base_keeps_its_audience_in_the_overlay() {
+        let mut base = Game {
+            visibility: Some(Visibility::Public),
+            ..Default::default()
+        };
+        let mut overlay = EnvOverlay::default();
+
+        pull(
+            &mut base,
+            &mut overlay,
+            Visibility::Limited,
+            set(&[Audience::Playtesters]),
+        );
+
+        assert_eq!(base.audience, None);
+        assert_eq!(overlay.visibility, Some(Visibility::Limited));
+        assert_eq!(overlay.audience, set(&[Audience::Playtesters]));
+    }
+
+    #[test]
+    fn a_first_pull_of_a_limited_experience_fills_the_base() {
+        let mut base = Game::default();
+        let mut overlay = EnvOverlay::default();
+
+        pull(
+            &mut base,
+            &mut overlay,
+            Visibility::Limited,
+            set(&[Audience::Friends]),
+        );
+
+        assert_eq!(
+            base.access(),
+            Some(crate::config::Access::Limited([Audience::Friends].into()))
+        );
+        assert_eq!(overlay, EnvOverlay::default());
+    }
+
+    /// Going public drops the env's own audience, which would now be refused,
+    /// and leaves the base's alone: the base is still limited.
+    #[test]
+    fn an_env_that_went_public_drops_only_its_own_audience() {
+        let mut base = Game {
+            visibility: Some(Visibility::Limited),
+            audience: set(&[Audience::Playtesters]),
+            ..Default::default()
+        };
+        let mut overlay = EnvOverlay {
+            audience: set(&[Audience::Friends]),
+            ..Default::default()
+        };
+
+        pull(&mut base, &mut overlay, Visibility::Public, None);
+
+        assert_eq!(overlay.visibility, Some(Visibility::Public));
+        assert_eq!(overlay.audience, None);
+        assert_eq!(base.audience, set(&[Audience::Playtesters]));
     }
 }

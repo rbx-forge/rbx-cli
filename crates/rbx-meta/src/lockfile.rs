@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use anyhow::Result;
@@ -6,8 +6,8 @@ use rbx_core::lockfile::{LockfileFormat, LockfileMigration};
 use serde::{Deserialize, Serialize};
 
 use crate::config::{
-    Avatar, Devices, Genre, PaidAccess, Permissions, PrivateServer, ServerFill, SocialLinks,
-    Visibility,
+    Access, Audience, Avatar, Devices, Genre, PaidAccess, Permissions, PrivateServer, ServerFill,
+    SocialLinks, Visibility,
 };
 
 pub const LOCKFILE_NAME: &str = "rbxmeta.lock.toml";
@@ -70,6 +70,10 @@ pub struct GameLock {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub visibility: Option<Visibility>,
 
+    /// Set only beside `visibility = "limited"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<BTreeSet<Audience>>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub studio_access_to_apis_allowed: Option<bool>,
 
@@ -124,6 +128,7 @@ impl GameLock {
             && self.voice_chat.is_none()
             && self.allow_copying.is_none()
             && self.visibility.is_none()
+            && self.audience.is_none()
             && self.studio_access_to_apis_allowed.is_none()
             && self.beta_mode.is_none()
             && self.private_server.is_none()
@@ -135,6 +140,17 @@ impl GameLock {
             && self.paid_access.is_none()
             && self.genre.is_none()
             && self.engine_avatar_settings_hash.is_none()
+    }
+
+    pub fn access(&self) -> Option<Access> {
+        Access::from_parts(self.visibility, self.audience.as_ref())
+    }
+
+    /// Record an access setting as applied, keeping the two keys consistent.
+    pub fn set_access(&mut self, access: Access) {
+        let (visibility, audience) = access.into_parts();
+        self.visibility = Some(visibility);
+        self.audience = audience;
     }
 }
 

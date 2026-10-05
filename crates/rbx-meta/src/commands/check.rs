@@ -78,6 +78,7 @@ fn report_env(
     let (env, universe_id, place_id) = target;
     let (game, media) = config.resolve_env(Some(env));
     Config::validate_invariants(&game)?;
+    config.validate_audience(Some(env.as_str()))?;
     Config::validate_media_paths(&media, config_dir)?;
 
     let env_lock = lockfile.env_view(env);
@@ -124,8 +125,8 @@ fn report_env(
         }
     }
 
-    if let Some(v) = plan.visibility_change {
-        println!("\n  {} visibility (cookie): → {:?}", "▸".cyan(), v);
+    if let Some(v) = &plan.visibility_change {
+        println!("\n  {} visibility (cookie): → {}", "▸".cyan(), v);
     }
 
     if let Some(b) = plan.beta_mode_change {

@@ -105,6 +105,25 @@
         }
       }
     },
+    "Audience": {
+      "description": "One group a `limited` experience is open to.",
+      "oneOf": [
+        {
+          "description": "Users granted playtest permission on the experience.",
+          "type": "string",
+          "enum": [
+            "playtesters"
+          ]
+        },
+        {
+          "description": "The owner's friends, or the group's members (\"Community Members\") when a group owns the experience. Roblox sends both as the same value.",
+          "type": "string",
+          "enum": [
+            "friends"
+          ]
+        }
+      ]
+    },
     "Avatar": {
       "description": "Avatar rules, as a group.",
       "type": "object",
@@ -277,6 +296,16 @@
             "null"
           ]
         },
+        "audience": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Audience"
+          },
+          "uniqueItems": true
+        },
         "avatar": {
           "$ref": "#/definitions/Avatar"
         },
@@ -425,6 +454,17 @@
             "null"
           ]
         },
+        "audience": {
+          "description": "Who a `limited` experience is open to: \"playtesters\", \"friends\", or both. On a group-owned experience \"friends\" means its community members. Only allowed with `visibility = \"limited\"`.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Audience"
+          },
+          "uniqueItems": true
+        },
         "avatar": {
           "description": "Avatar rules: which rig, whose animations, how collisions are shaped, and the scale range players are held to.\n\nRequires cookie (universe configuration endpoint).",
           "allOf": [
@@ -537,7 +577,7 @@
           ]
         },
         "visibility": {
-          "description": "Public vs private visibility. Read via Open Cloud, write requires cookie.",
+          "description": "Who can play: \"public\", \"limited\" or \"private\". Write requires cookie.",
           "anyOf": [
             {
               "$ref": "#/definitions/Visibility"
@@ -895,10 +935,29 @@
       }
     },
     "Visibility": {
-      "type": "string",
-      "enum": [
-        "public",
-        "private"
+      "description": "Who can play the experience: the Creator Hub \"Audience\" setting. `limited` takes its groups from the `audience` key.",
+      "oneOf": [
+        {
+          "description": "Anyone, and discoverable.",
+          "type": "string",
+          "enum": [
+            "public"
+          ]
+        },
+        {
+          "description": "Only the groups listed in `audience`. Not discoverable.",
+          "type": "string",
+          "enum": [
+            "limited"
+          ]
+        },
+        {
+          "description": "Only users with edit permission.",
+          "type": "string",
+          "enum": [
+            "private"
+          ]
+        }
       ]
     }
   }

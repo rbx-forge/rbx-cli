@@ -3,8 +3,8 @@
 use std::collections::BTreeMap;
 
 use rbx_meta::config::{
-    Config, Devices, EnvOverlay, Experience, Game, MediaConfig, MediaOverlay, PrivateServer,
-    ServerFill, SocialLink, SocialLinks, Visibility,
+    Access, Audience, Config, Devices, EnvOverlay, Experience, Game, MediaConfig, MediaOverlay,
+    PrivateServer, ServerFill, SocialLink, SocialLinks, Visibility,
 };
 use tempfile::tempdir;
 
@@ -349,24 +349,136 @@ fn server_fill_custom_count() {
 }
 
 // ---------------------------------------------------------------------------
-// Visibility parsing
+// Access: visibility + audience, and the `audiences` wire list
 // ---------------------------------------------------------------------------
 
+fn limited(audience: &[Audience]) -> Access {
+    Access::Limited(audience.iter().copied().collect())
+}
+
+/// The shapes a live universe answered with. Limited ⟩ Playtesters reads
+/// back `[1, 2]`: Roblox adds the editors, and they must not turn a limited
+/// experience into a private one on the way in.
 #[test]
-fn visibility_parses_open_cloud_enum_values() {
-    assert!(matches!(
-        Visibility::from_open_cloud("PUBLIC"),
-        Some(Visibility::Public)
-    ));
-    assert!(matches!(
-        Visibility::from_open_cloud("PRIVATE"),
-        Some(Visibility::Private)
-    ));
-    assert!(Visibility::from_open_cloud("DRAFT").is_none());
+fn audiences_parse_as_roblox_returns_them() {
+    assert_eq!(Access::from_audiences(&[1]), Some(Access::Private));
+    assert_eq!(Access::from_audiences(&[4]), Some(Access::Public));
+    assert_eq!(
+        Access::from_audiences(&[1, 2]),
+        Some(limited(&[Audience::Playtesters]))
+    );
+    assert_eq!(
+        Access::from_audiences(&[3, 2]),
+        Some(limited(&[Audience::Playtesters, Audience::Friends]))
+    );
+}
+
+/// An audience value this build does not know is "not confirmed", never a
+/// narrower setting than the experience really has.
+#[test]
+fn an_unknown_audience_value_is_not_guessed() {
+    assert_eq!(Access::from_audiences(&[2, 9]), None);
 }
 
 #[test]
-fn visibility_is_public_helper() {
-    assert!(Visibility::Public.is_public());
-    assert!(!Visibility::Private.is_public());
+fn audiences_are_sent_as_creator_hub_sends_them() {
+    assert_eq!(Access::Private.to_audiences(), vec![1]);
+    assert_eq!(Access::Public.to_audiences(), vec![4]);
+    assert_eq!(
+        limited(&[Audience::Friends, Audience::Playtesters]).to_audiences(),
+        vec![2, 3]
+    );
+}
+
+#[test]
+fn limited_reads_its_audience_from_the_toml() {
+    let config: Config = toml::from_str(
+        r#"
+[game]
+visibility = "limited"
+audience = ["friends", "playtesters"]
+"#,
+    )
+    .unwrap();
+    assert_eq!(
+        config.game.access(),
+        Some(limited(&[Audience::Playtesters, Audience::Friends]))
+    );
+}
+
+#[test]
+fn validate_rejects_limited_without_an_audience() {
+    for audience in [None, Some(Default::default())] {
+        let game = Game {
+            visibility: Some(Visibility::Limited),
+            audience,
+            ..Default::default()
+        };
+        let err = Config::validate_invariants(&game).unwrap_err().to_string();
+        assert!(err.contains("audience"), "{err}");
+    }
+}
+
+/// An env overlay switches a limited base to public without being able to
+/// unset the inherited `audience`, so the resolved game must still validate.
+#[test]
+fn an_overlay_can_turn_a_limited_base_public() {
+    let config: Config = toml::from_str(
+        r#"
+[game]
+visibility = "limited"
+audience = ["playtesters"]
+
+[envs.prod]
+visibility = "public"
+"#,
+    )
+    .unwrap();
+    let (game, _) = config.resolve_env(Some("prod"));
+    assert_eq!(game.access(), Some(Access::Public));
+    Config::validate_invariants(&game).unwrap();
+    config.validate_audience(Some("prod")).unwrap();
+}
+
+/// A layer that writes `audience` beside `public` or `private` has written a
+/// key that does nothing. That is an error, not a silent no-op.
+#[test]
+fn an_audience_beside_public_or_private_is_refused() {
+    for visibility in ["public", "private"] {
+        let config: Config = toml::from_str(&format!(
+            "[game]\nvisibility = \"{visibility}\"\naudience = [\"playtesters\"]\n"
+        ))
+        .unwrap();
+        let err = config.validate_audience(None).unwrap_err().to_string();
+        assert!(err.contains("[game]") && err.contains(visibility), "{err}");
+    }
+}
+
+/// The same rule in an env: the overlay's audience is checked against the
+/// visibility that env ends up with, inherited or its own.
+#[test]
+fn an_env_audience_is_checked_against_the_env_visibility() {
+    let config: Config = toml::from_str(
+        r#"
+[game]
+visibility = "public"
+
+[envs.dev]
+visibility = "limited"
+audience = ["playtesters"]
+
+[envs.prod]
+audience = ["friends"]
+"#,
+    )
+    .unwrap();
+    config.validate_audience(Some("dev")).unwrap();
+    let err = config
+        .validate_audience(Some("prod"))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains("[envs.prod]") && err.contains("public"),
+        "{err}"
+    );
 }

@@ -10,7 +10,7 @@ use anyhow::{bail, Context, Result};
 use serde_json::{json, Value};
 
 use crate::api::models::ApiSocialLink;
-use crate::config::{Game, SocialLink, Visibility};
+use crate::config::{Access, Game, SocialLink};
 use crate::lockfile::GameLock;
 use rbx_core::image::hash_bytes;
 
@@ -292,9 +292,12 @@ pub(crate) fn short_hash_opt(hash: Option<&str>) -> String {
     }
 }
 
-pub(crate) fn build_visibility_change(game: &Game, lock: &GameLock) -> Option<Visibility> {
-    let desired = game.visibility?;
-    if lock.visibility == Some(desired) {
+/// Compared as one setting, not as two keys: an audience left behind in the
+/// config under `visibility = "public"` is not a change, and a limited
+/// experience whose audience changed is one even though `visibility` did not.
+pub(crate) fn build_visibility_change(game: &Game, lock: &GameLock) -> Option<Access> {
+    let desired = game.access()?;
+    if lock.access().as_ref() == Some(&desired) {
         return None;
     }
     Some(desired)

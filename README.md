@@ -72,7 +72,7 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | `rbx check` | Run every configured tool's check in one pass, with one aggregated exit code. The CI contract. | [docs/check.md](./docs/check.md) |
 | `rbx status` | The same engine, grouped by environment and always exit 0: where the project stands, for a human. | [docs/check.md](./docs/check.md#rbx-status) |
 | `rbx place` | Place file upload, download, promote between envs, rollback to past versions. | [docs/place.md](./docs/place.md) |
-| `rbx meta` | Universe and place metadata (name, description, devices, social links, server fill, avatar rules, third-party permissions, paid access, ...). | [docs/meta.md](./docs/meta.md) |
+| `rbx meta` | Universe and place metadata (name, description, devices, social links, visibility and audience, server fill, avatar rules, third-party permissions, paid access, ...). | [docs/meta.md](./docs/meta.md) |
 | `rbx config` | In-experience live configs via the Open Cloud Configs API. | [docs/config.md](./docs/config.md) |
 | `rbx secret` | Credentials the game reads through `HttpService:GetSecret`, sealed before they leave your machine. | [docs/secret.md](./docs/secret.md) |
 | `rbx rtbf` | Which data store keys hold a user's data, so Roblox can delete them on a right-to-be-forgotten request, checked against the stores you actually have. | [docs/rtbf.md](./docs/rtbf.md) |

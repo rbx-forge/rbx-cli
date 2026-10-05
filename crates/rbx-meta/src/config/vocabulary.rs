@@ -4,6 +4,8 @@
 //! One enum each, with the same parse-and-render pair the avatar types carry
 //! and for the same reason.
 
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Serialize};
 
 /// The four flags under `permissions` on the legacy universe configuration.
@@ -169,26 +171,171 @@ impl Genre {
     }
 }
 
+/// Who can play the experience: the Creator Hub "Audience" setting.
+/// `limited` takes its groups from the `audience` key.
+// How the pair goes on the wire: see `Access`.
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Visibility {
+    /// Anyone, and discoverable.
     Public,
+    /// Only the groups listed in `audience`. Not discoverable.
+    Limited,
+    /// Only users with edit permission.
     Private,
 }
 
-impl Visibility {
-    /// Parse the Open Cloud Universe.visibility enum value.
-    pub fn from_open_cloud(value: &str) -> Option<Self> {
-        match value {
-            "PUBLIC" => Some(Visibility::Public),
-            "PRIVATE" => Some(Visibility::Private),
-            _ => None,
+/// One group a `limited` experience is open to.
+// Ordered so a set of them has one spelling, whatever order the config listed
+// them in: the lockfile compares sets, not lists.
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Audience {
+    /// Users granted playtest permission on the experience.
+    Playtesters,
+    /// The owner's friends, or the group's members ("Community Members") when
+    /// a group owns the experience. Roblox sends both as the same value.
+    Friends,
+}
+
+/// `visibility` and `audience` resolved into the one setting Roblox stores.
+///
+/// # The wire format, measured
+///
+/// Roblox stores a list of audience values, read from `GET
+/// develop.roblox.com/v1/universes/{id}` and written as `audiences` on the v2
+/// configuration PATCH. The values are `Editors = 1`, `PlayTesters = 2`,
+/// `Friends = 3`, `Public = 4`, taken from the Creator Hub bundle and checked
+/// against a live universe on 2026-10-05:
+///
+/// - private is `[1]`, public is `[4]`;
+/// - limited is any non-empty subset of `{2, 3}`. Roblox adds `1` itself: a
+///   universe set to Limited ⟩ Playtesters reads back `[1, 2]`.
+///
+/// Open Cloud's `Universe.visibility` cannot tell these apart. It still has
+/// two values, and that same Limited universe reports `isActive: false`, which
+/// is what Open Cloud calls `PRIVATE`. Reading it is how `pull` came to write
+/// `private` over a limited experience.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Access {
+    Private,
+    Limited(BTreeSet<Audience>),
+    Public,
+}
+
+const AUDIENCE_EDITORS: u8 = 1;
+const AUDIENCE_PLAYTESTERS: u8 = 2;
+const AUDIENCE_FRIENDS: u8 = 3;
+const AUDIENCE_PUBLIC: u8 = 4;
+
+impl Access {
+    /// Join the two config keys. `None` when `visibility` is unset: the
+    /// setting is then not managed, whatever `audience` says.
+    ///
+    /// `audience` is read for `limited` only, so an env overlay can switch a
+    /// limited base to `public` without having to unset a key TOML has no way
+    /// to unset.
+    pub fn from_parts(
+        visibility: Option<Visibility>,
+        audience: Option<&BTreeSet<Audience>>,
+    ) -> Option<Self> {
+        Some(match visibility? {
+            Visibility::Private => Access::Private,
+            Visibility::Public => Access::Public,
+            Visibility::Limited => Access::Limited(audience.cloned().unwrap_or_default()),
+        })
+    }
+
+    /// Split back into the two config keys. `audience` is `None` unless
+    /// limited.
+    pub fn into_parts(self) -> (Visibility, Option<BTreeSet<Audience>>) {
+        match self {
+            Access::Private => (Visibility::Private, None),
+            Access::Public => (Visibility::Public, None),
+            Access::Limited(set) => (Visibility::Limited, Some(set)),
         }
     }
 
-    pub fn is_public(&self) -> bool {
-        matches!(self, Visibility::Public)
+    /// Parse the `audiences` list Roblox returns.
+    ///
+    /// `None` for a value this build does not know, rather than dropping it:
+    /// a fifth audience that got ignored here would make a pull write a
+    /// narrower setting than the experience really has.
+    pub fn from_audiences(values: &[u8]) -> Option<Self> {
+        let mut set = BTreeSet::new();
+        let mut public = false;
+        for &v in values {
+            match v {
+                AUDIENCE_EDITORS => {}
+                AUDIENCE_PLAYTESTERS => {
+                    set.insert(Audience::Playtesters);
+                }
+                AUDIENCE_FRIENDS => {
+                    set.insert(Audience::Friends);
+                }
+                AUDIENCE_PUBLIC => public = true,
+                _ => return None,
+            }
+        }
+        Some(if public {
+            Access::Public
+        } else if set.is_empty() {
+            Access::Private
+        } else {
+            Access::Limited(set)
+        })
+    }
+
+    /// The `audiences` list to send, as Creator Hub sends it: `[1]` for
+    /// private, `[4]` for public, and the bare subset for limited.
+    pub fn to_audiences(&self) -> Vec<u8> {
+        match self {
+            Access::Private => vec![AUDIENCE_EDITORS],
+            Access::Public => vec![AUDIENCE_PUBLIC],
+            Access::Limited(set) => set
+                .iter()
+                .map(|a| match a {
+                    Audience::Playtesters => AUDIENCE_PLAYTESTERS,
+                    Audience::Friends => AUDIENCE_FRIENDS,
+                })
+                .collect(),
+        }
+    }
+
+    /// Whether the universe has to be activated for this setting, or
+    /// deactivated.
+    ///
+    /// Not the same line as public versus private. Creator Hub deactivates
+    /// whenever every audience is editors or playtesters, so Limited ⟩
+    /// Playtesters is an *inactive* universe and Limited ⟩ Friends an active
+    /// one. This mirrors that rule rather than guessing a cleaner one.
+    pub fn is_active(&self) -> bool {
+        match self {
+            Access::Private => false,
+            Access::Public => true,
+            Access::Limited(set) => set.contains(&Audience::Friends),
+        }
+    }
+}
+
+impl std::fmt::Display for Access {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Access::Private => f.write_str("private"),
+            Access::Public => f.write_str("public"),
+            Access::Limited(set) => {
+                let names: Vec<&str> = set
+                    .iter()
+                    .map(|a| match a {
+                        Audience::Playtesters => "playtesters",
+                        Audience::Friends => "friends",
+                    })
+                    .collect();
+                write!(f, "limited ({})", names.join(", "))
+            }
+        }
     }
 }
 

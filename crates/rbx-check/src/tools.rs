@@ -473,7 +473,9 @@ pub fn meta(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
         let label = env_label(env.as_deref());
         let (game, media) = config.resolve_env(Some(&label));
 
-        if let Err(err) = Config::validate_invariants(&game) {
+        if let Err(err) = Config::validate_invariants(&game)
+            .and_then(|()| config.validate_audience(Some(label.as_str())))
+        {
             reports.push(
                 ToolReport::new("meta", "lockfile", Outcome::Error, one_line(&err)).env(&label),
             );
@@ -543,8 +545,8 @@ fn meta_change_descriptions(plan: &rbx_meta::diff::SyncPlan) -> Vec<String> {
     for patch in [&plan.universe_legacy_patch].into_iter().flatten() {
         out.extend(patch.descriptions.iter().cloned());
     }
-    if let Some(v) = plan.visibility_change {
-        out.push(format!("visibility: → {v:?}"));
+    if let Some(v) = &plan.visibility_change {
+        out.push(format!("visibility: → {v}"));
     }
     if let Some(b) = plan.beta_mode_change {
         out.push(format!("beta_mode: → {b}"));

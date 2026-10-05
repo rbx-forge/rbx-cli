@@ -7,9 +7,9 @@ use anyhow::{Context, Result};
 use toml_edit::{value, DocumentMut, Item, Table};
 
 use crate::config::{
-    AnimationType, AssetOverride, AssetOverrides, Avatar, AvatarType, CollisionType, Config,
-    Devices, EnvOverlay, Genre, JointPositioningType, MediaConfig, MediaOverlay, PaidAccess,
-    Permissions, PrivateServer, ServerFill, SocialLinks,
+    Access, AnimationType, AssetOverride, AssetOverrides, Avatar, AvatarType, CollisionType,
+    Config, Devices, EnvOverlay, Genre, JointPositioningType, MediaConfig, MediaOverlay,
+    PaidAccess, Permissions, PrivateServer, ServerFill, SocialLinks,
 };
 use crate::lockfile::GameLock;
 
@@ -53,6 +53,7 @@ pub(super) fn write_config_toml(path: &Path, config: &Config) -> Result<()> {
 /// recognise. All four leave the lockfile with nothing new to say.
 #[derive(Default)]
 pub(crate) struct ConfirmedReads {
+    pub access: Option<Access>,
     pub allow_copying: Option<bool>,
     pub server_fill: Option<ServerFill>,
     pub studio_access_to_apis_allowed: Option<bool>,
@@ -86,8 +87,9 @@ pub(crate) struct ConfirmedReads {
 ///
 /// The fields absent from this function are the ones read through Open Cloud on
 /// a call that fails the whole command rather than warning: name, description,
-/// server size, voice chat, visibility, private servers, devices and social
-/// links. If those did not arrive, there is no lockfile to write.
+/// server size, voice chat, private servers, devices and social links. If those
+/// did not arrive, there is no lockfile to write. Visibility used to be on that
+/// list and left it when its read moved to the develop host, which warns.
 pub(super) fn reconcile_lock(
     fresh: &mut GameLock,
     previous: &GameLock,
@@ -104,6 +106,13 @@ pub(super) fn reconcile_lock(
     fresh.engine_avatar_settings_hash = previous.engine_avatar_settings_hash.clone();
 
     // Read from an endpoint that may warn instead of failing.
+    match &confirmed.access {
+        Some(access) => fresh.set_access(access.clone()),
+        None => {
+            fresh.visibility = previous.visibility;
+            fresh.audience = previous.audience.clone();
+        }
+    }
     fresh.allow_copying = confirmed.allow_copying.or(previous.allow_copying);
     fresh.server_fill = confirmed
         .server_fill
@@ -135,6 +144,7 @@ pub(super) fn write_game_block(doc: &mut DocumentMut, key: &str, config: &Config
     set_opt_bool(t, "voice_chat", game.voice_chat);
     set_opt_bool(t, "allow_copying", game.allow_copying);
     set_opt_str(t, "visibility", game.visibility.map(visibility_str));
+    set_audience(t, game.audience.as_ref());
     set_opt_bool(
         t,
         "studio_access_to_apis_allowed",
@@ -410,6 +420,7 @@ pub(super) fn write_env_overlay(doc: &mut DocumentMut, env: &str, overlay: &EnvO
     set_opt_bool(t, "voice_chat", overlay.voice_chat);
     set_opt_bool(t, "allow_copying", overlay.allow_copying);
     set_opt_str(t, "visibility", overlay.visibility.map(visibility_str));
+    set_audience(t, overlay.audience.as_ref());
     set_opt_bool(
         t,
         "studio_access_to_apis_allowed",
@@ -469,7 +480,7 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::config::{Experience, Game, SocialLink, Visibility};
+    use crate::config::{Audience, Experience, Game, SocialLink, Visibility};
     use std::collections::BTreeMap;
 
     /// Seed a config file and return `(tempdir, path)`. The tempdir must stay
@@ -548,6 +559,7 @@ mod tests {
                 voice_chat: Some(false),
                 allow_copying: Some(false),
                 visibility: Some(Visibility::Private),
+                audience: Some([Audience::Friends].into()),
                 studio_access_to_apis_allowed: Some(false),
                 beta_mode: Some(false),
                 private_server: Some(PrivateServer { price: 0 }),
@@ -614,7 +626,8 @@ mod tests {
                 social_links: all_social_links(),
                 server_fill: Some(ServerFill::Custom { reserved_slots: 7 }),
                 allow_copying: Some(true),
-                visibility: Some(Visibility::Public),
+                visibility: Some(Visibility::Limited),
+                audience: Some([Audience::Playtesters, Audience::Friends].into()),
                 studio_access_to_apis_allowed: Some(true),
                 beta_mode: Some(true),
                 permissions: Some(Permissions {

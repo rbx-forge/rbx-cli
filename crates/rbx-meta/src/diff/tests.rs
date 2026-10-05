@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used)]
 
 use super::*;
-use crate::config::{AvatarScales, ServerFill, SocialLink};
+use crate::config::{Audience, AvatarScales, ServerFill, SocialLink, Visibility};
 use crate::config::{Devices, MediaConfig, PrivateServer};
 use crate::lockfile::MediaLock;
 use rbx_core::image::{hash_bytes, process_image};
@@ -143,7 +143,7 @@ mod build_plan {
             plan.universe_legacy_patch.expect("universe legacy").body,
             json!({ "studioAccessToApisAllowed": true })
         );
-        assert_eq!(plan.visibility_change, Some(Visibility::Public));
+        assert_eq!(plan.visibility_change, Some(Access::Public));
         assert_eq!(plan.beta_mode_change, Some(true));
     }
 }
@@ -568,9 +568,9 @@ mod legacy_patches {
 //
 // Neither is a patch body: both are separate endpoints, and visibility in
 // particular decides the *order* the rest of the plan is applied in.
-// `commands::sync` activates before every other call when going public
-// (a paid private server cannot be set on a private universe) and
-// deactivates after them all when going private.
+// `commands::sync` applies it before every other call toward an active
+// setting (a paid private server cannot be set on a private universe) and
+// after them all toward an inactive one.
 // -----------------------------------------------------------------------
 
 mod visibility_and_beta {
@@ -585,10 +585,10 @@ mod visibility_and_beta {
 
         let plan = plan_for(&g, &l);
 
-        assert_eq!(plan.visibility_change, Some(Visibility::Public));
+        assert_eq!(plan.visibility_change, Some(Access::Public));
         assert!(
-            plan.visibility_change.is_some_and(|v| v.is_public()),
-            "sync keys the activate-first branch off is_public()"
+            plan.visibility_change.is_some_and(|v| v.is_active()),
+            "sync keys the activate-first branch off is_active()"
         );
     }
 
@@ -601,10 +601,10 @@ mod visibility_and_beta {
 
         let plan = plan_for(&g, &l);
 
-        assert_eq!(plan.visibility_change, Some(Visibility::Private));
+        assert_eq!(plan.visibility_change, Some(Access::Private));
         assert!(
-            plan.visibility_change.is_some_and(|v| !v.is_public()),
-            "sync keys the deactivate-last branch off !is_public()"
+            plan.visibility_change.is_some_and(|v| !v.is_active()),
+            "sync keys the deactivate-last branch off !is_active()"
         );
     }
 
@@ -618,7 +618,7 @@ mod visibility_and_beta {
 
         assert_eq!(
             plan_for(&g, &lock()).visibility_change,
-            Some(Visibility::Public)
+            Some(Access::Public)
         );
     }
 
@@ -646,11 +646,61 @@ mod visibility_and_beta {
 
         let plan = plan_for(&g, &l);
 
-        assert_eq!(plan.visibility_change, Some(Visibility::Public));
+        assert_eq!(plan.visibility_change, Some(Access::Public));
         assert_eq!(
             plan.universe_patch.expect("price patch").body,
             json!({ "privateServerPriceRobux": 100 })
         );
+    }
+
+    fn limited(audience: &[Audience]) -> Access {
+        Access::Limited(audience.iter().copied().collect())
+    }
+
+    /// The bug this setting was rebuilt for: a limited experience whose
+    /// audience changes is a change, though `visibility` reads "limited" on
+    /// both sides.
+    #[test]
+    fn a_new_audience_on_a_limited_experience_is_a_change() {
+        let mut g = game();
+        g.visibility = Some(Visibility::Limited);
+        g.audience = Some([Audience::Playtesters, Audience::Friends].into());
+        let mut l = lock();
+        l.set_access(limited(&[Audience::Playtesters]));
+
+        assert_eq!(
+            plan_for(&g, &l).visibility_change,
+            Some(limited(&[Audience::Playtesters, Audience::Friends]))
+        );
+    }
+
+    /// `audience` is read under `limited` only, so one left behind after
+    /// switching to public is not a difference. Otherwise an env overlay
+    /// could never turn a limited base public: TOML has no way to unset the
+    /// inherited key.
+    #[test]
+    fn an_audience_under_another_visibility_is_ignored() {
+        let mut g = game();
+        g.visibility = Some(Visibility::Public);
+        g.audience = Some([Audience::Playtesters].into());
+        let mut l = lock();
+        l.set_access(Access::Public);
+
+        assert_eq!(plan_for(&g, &l).visibility_change, None);
+        assert!(
+            plan_for(&g, &config_to_lock(&g)).is_empty(),
+            "a lock built from this config must agree with it"
+        );
+    }
+
+    /// Limited ⟩ Playtesters is an inactive universe, so it goes last like
+    /// private; Limited ⟩ Friends is active, so it goes first like public.
+    /// Measured on a live universe and read from Creator Hub's own rule.
+    #[test]
+    fn whether_limited_is_active_depends_on_friends() {
+        assert!(!limited(&[Audience::Playtesters]).is_active());
+        assert!(limited(&[Audience::Friends]).is_active());
+        assert!(limited(&[Audience::Playtesters, Audience::Friends]).is_active());
     }
 
     #[test]

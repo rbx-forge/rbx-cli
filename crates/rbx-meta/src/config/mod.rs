@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
@@ -75,9 +75,15 @@ pub struct Game {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allow_copying: Option<bool>,
 
-    /// Public vs private visibility. Read via Open Cloud, write requires cookie.
+    /// Who can play: "public", "limited" or "private". Write requires cookie.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub visibility: Option<Visibility>,
+
+    /// Who a `limited` experience is open to: "playtesters", "friends", or
+    /// both. On a group-owned experience "friends" means its community
+    /// members. Only allowed with `visibility = "limited"`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<BTreeSet<Audience>>,
 
     /// Studio API access toggle. Requires cookie (universe configuration endpoint).
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -194,6 +200,15 @@ fn clean_path(path: &str) -> String {
 /// list for those two tables, which is the drift this whole approach was
 /// chosen to avoid, so it is a deliberate 90% rather than an oversight. See
 /// TODO.md.
+fn visibility_name(v: Option<Visibility>) -> &'static str {
+    match v {
+        Some(Visibility::Public) => "public",
+        Some(Visibility::Limited) => "limited",
+        Some(Visibility::Private) => "private",
+        None => "unset",
+    }
+}
+
 fn warn_ignored_keys(path: &Path, ignored: &[String]) {
     if ignored.is_empty() {
         return;
@@ -229,6 +244,7 @@ impl Game {
             && self.server_fill.is_none()
             && self.allow_copying.is_none()
             && self.visibility.is_none()
+            && self.audience.is_none()
             && self.studio_access_to_apis_allowed.is_none()
             && self.beta_mode.is_none()
             && self.permissions.is_none()
@@ -236,6 +252,11 @@ impl Game {
             && self.paid_access.is_none()
             && self.genre.is_none()
             && self.engine_avatar_settings.is_none()
+    }
+
+    /// `visibility` and `audience` as the one setting Roblox stores.
+    pub fn access(&self) -> Option<Access> {
+        Access::from_parts(self.visibility, self.audience.as_ref())
     }
 }
 impl Game {
@@ -259,6 +280,9 @@ impl Game {
         }
         if let Some(v) = overlay.visibility {
             self.visibility = Some(v);
+        }
+        if let Some(v) = &overlay.audience {
+            self.audience = Some(v.clone());
         }
         if let Some(v) = overlay.studio_access_to_apis_allowed {
             self.studio_access_to_apis_allowed = Some(v);
@@ -434,6 +458,16 @@ impl Config {
             }
         }
 
+        // Creator Hub will not save Limited with every box unticked, and
+        // `[]` on the wire is not a setting anybody has seen Roblox accept.
+        if matches!(game.access(), Some(Access::Limited(set)) if set.is_empty()) {
+            bail!(
+                "visibility = \"limited\" needs an audience.\n  \
+                 Fix: add audience = [\"playtesters\"], [\"friends\"], or both \
+                 (\"friends\" is community members on a group-owned experience)."
+            );
+        }
+
         let is_private = matches!(game.visibility, Some(Visibility::Private));
         let has_paid_private_server = game
             .private_server
@@ -446,6 +480,39 @@ impl Config {
                  Roblox requires the experience to be PUBLIC to enable paid private servers.\n  \
                  Fix: set visibility = \"public\", or set private_server.price = 0 (free)."
             );
+        }
+        Ok(())
+    }
+
+    /// Refuse an `audience` declared beside a visibility that does not read it.
+    ///
+    /// Checked per layer rather than on the resolved game, because the layer
+    /// is what the user wrote. `[game]` limited with an audience and
+    /// `[envs.prod] visibility = "public"` is fine: prod declared no audience,
+    /// and TOML gives it no way to unset the inherited one. But a layer that
+    /// writes `audience` itself under `public` or `private` has written a key
+    /// that does nothing, and saying nothing would leave them believing it
+    /// applied.
+    pub fn validate_audience(&self, env: Option<&str>) -> Result<()> {
+        let unused = |v: Option<Visibility>| v.is_some_and(|v| v != Visibility::Limited);
+        if self.game.audience.is_some() && unused(self.game.visibility) {
+            bail!(
+                "[game] sets audience with visibility = \"{}\".\n  \
+                 audience is only read when visibility = \"limited\".\n  \
+                 Fix: remove audience, or set visibility = \"limited\".",
+                visibility_name(self.game.visibility)
+            );
+        }
+        if let Some((name, overlay)) = env.and_then(|n| self.envs.get_key_value(n)) {
+            let effective = overlay.visibility.or(self.game.visibility);
+            if overlay.audience.is_some() && effective != Some(Visibility::Limited) {
+                bail!(
+                    "[envs.{name}] sets audience, but visibility for this env is \"{}\".\n  \
+                     audience is only read when visibility = \"limited\".\n  \
+                     Fix: remove audience from [envs.{name}], or set visibility = \"limited\" there.",
+                    visibility_name(effective)
+                );
+            }
         }
         Ok(())
     }
@@ -499,7 +566,8 @@ place_id = 0          # Your root place ID (omit if you use --env)
 # server_size = 50          # Max concurrent players per server
 # voice_chat = false
 # allow_copying = false              # REQUIRES cookie
-# visibility = "public"              # "public" | "private", REQUIRES cookie to change
+# visibility = "public"              # "public" | "limited" | "private", REQUIRES cookie to change
+# audience = ["playtesters"]         # limited only: "playtesters" and/or "friends" (community members for a group)
 # studio_access_to_apis_allowed = false  # REQUIRES cookie. Lets Studio scripts call Open Cloud / data store APIs
 # beta_mode = false                      # REQUIRES cookie. true = hides from Home Recommendations (Experience Beta)
 

@@ -207,7 +207,8 @@ Metadata is a set of `PATCH` calls against one universe and one place, so two
 concurrent runs interleave field writes and the last call wins per field.
 Nothing is created and nothing gets an id, so nothing duplicates. The lockfile
 is saved after every successful call, and the visibility ordering rule (public
-first, private last) is enforced within a run.
+or limited to friends first, private or limited to playtesters last) is
+enforced within a run.
 
 Thumbnails are the exception worth flagging: a sync issues deletes, then
 uploads, then a single reorder built from the ids its *own* lockfile now holds.
@@ -271,7 +272,7 @@ not survive contact with `rbx shop`. Creating a pass, a badge or a product is a
 `Create` Roblox cannot undo, badge creation spends Robux, and the next habit on
 this list says creates are the reviewed step. A reviewed irreversible purchase
 is a human act, so the human does sync prod. `rbx meta` says the same from the
-other direction: `visibility`, `allow_copying`, `studio_access_to_apis_allowed`
+other direction: `visibility`, `audience`, `allow_copying`, `studio_access_to_apis_allowed`
 and `server_fill` have no Open Cloud endpoint, so CI cannot write them without
 a session cookie on the runner, which [docs/cookie.md](cookie.md) spends a page
 arguing against.

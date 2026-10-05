@@ -12,6 +12,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::RbxClient;
+use crate::config::Access;
 
 // Paths, not URLs: the host comes from `RbxClient::legacy_url` so a test can
 // point it somewhere else. They were absolute until the visibility ordering in
@@ -265,7 +266,60 @@ impl RbxClient {
         self.send_with_csrf_body(build).await
     }
 
-    /// Make the universe public. Legacy endpoint, requires cookie.
+    /// Read who can play, from `GET /v1/universes/{id}`.
+    ///
+    /// **No credential is sent, because none is needed.** Measured on
+    /// 2026-10-05: this endpoint answers `audiences` to an anonymous caller,
+    /// for a group-owned universe that is not public. So `pull` learns the
+    /// setting even without a cookie, which it could not before: the Open
+    /// Cloud field it read used to be the only source, and that one cannot
+    /// say "limited". See [`Access`].
+    ///
+    /// `Ok(None)` when Roblox sent no `audiences`, or a value this build does
+    /// not know: the setting is then not confirmed, and nothing may be adopted
+    /// from it.
+    pub async fn get_universe_access(&self) -> Result<Option<Access>> {
+        #[derive(Deserialize)]
+        struct DevelopUniverse {
+            #[serde(default)]
+            audiences: Option<Vec<u8>>,
+        }
+
+        let url = self.legacy_url(&format!("{}/{}", UNIVERSE_LEGACY_PATH, self.universe_id));
+        let response = self.client.get(&url).send().await?;
+        let status = response.status();
+        let body = response.text().await?;
+        if !status.is_success() {
+            return Err(roblox_error(status, &body)
+                .context("reading the universe's audience from develop.roblox.com"));
+        }
+        let parsed: DevelopUniverse = serde_json::from_str(&body)
+            .with_context(|| format!("parsing GET /v1/universes/{}", self.universe_id))?;
+        Ok(parsed.audiences.as_deref().and_then(Access::from_audiences))
+    }
+
+    /// Set who can play, the way Creator Hub does: the `audiences` list on the
+    /// v2 configuration PATCH, then activate or deactivate to match.
+    ///
+    /// The two halves run in the order Creator Hub runs them. Toward an
+    /// inactive setting it deactivates first; toward an active one it writes
+    /// the audience first. The second rule is the one that matters: a private
+    /// universe activated before its audience is narrowed would be public for
+    /// the length of a round trip, and Limited ⟩ Friends is the setting where
+    /// that is least acceptable.
+    pub async fn set_universe_access(&self, access: &Access) -> Result<()> {
+        let body = serde_json::json!({ "audiences": access.to_audiences() });
+        if access.is_active() {
+            self.patch_universe_config_legacy(body).await?;
+            self.activate_universe().await
+        } else {
+            self.deactivate_universe().await?;
+            self.patch_universe_config_legacy(body).await.map(|_| ())
+        }
+    }
+
+    /// Activate the universe. Legacy endpoint, requires cookie. Called through
+    /// [`Self::set_universe_access`], which pairs it with the audience.
     pub async fn activate_universe(&self) -> Result<()> {
         let cookie = self.cookie_header()?.to_string();
         let url = self.legacy_url(&format!(
@@ -284,7 +338,7 @@ impl RbxClient {
         let universe_id = self.universe_id;
         self.send_with_csrf(build).await.with_context(|| {
             format!(
-                "Failed to make universe {} public.\n  \
+                "Failed to activate universe {} (public, or limited to friends).\n  \
                  Roblox returns the same 403 for both of:\n    \
                  1. Cookie account lacks 'Configure all places' permission in the owning group.\n    \
                  2. Experience isn't eligible for public access yet (e.g. missing maturity label).\n  \
@@ -294,7 +348,8 @@ impl RbxClient {
         })
     }
 
-    /// Make the universe private. Legacy endpoint, requires cookie.
+    /// Deactivate the universe. Legacy endpoint, requires cookie. Called
+    /// through [`Self::set_universe_access`].
     pub async fn deactivate_universe(&self) -> Result<()> {
         let cookie = self.cookie_header()?.to_string();
         let url = self.legacy_url(&format!(
@@ -313,7 +368,7 @@ impl RbxClient {
         let universe_id = self.universe_id;
         self.send_with_csrf(build).await.with_context(|| {
             format!(
-                "Failed to make universe {} private.\n  \
+                "Failed to deactivate universe {} (private, or limited to playtesters).\n  \
                  Likely cause: the cookie account lacks 'Configure all places' permission in the owning group.",
                 universe_id
             )

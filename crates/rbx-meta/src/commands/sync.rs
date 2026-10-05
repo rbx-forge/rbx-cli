@@ -35,6 +35,7 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
 
         let (game, media) = config.resolve_env(Some(env));
         Config::validate_invariants(&game)?;
+        config.validate_audience(Some(env.as_str()))?;
         Config::validate_media_paths(&media, &config_dir)?;
 
         let env_lock = lockfile.env_view(env);
@@ -280,18 +281,19 @@ async fn apply_plan(
         el.place_id = place_id;
     }
 
-    // Activate first if going to PUBLIC. Other PATCHes (notably
-    // privateServerPriceRobux > 0) require the universe to be public, so we
-    // must flip visibility before sending them.
-    if matches!(plan.visibility_change, Some(v) if v.is_public()) {
+    // Toward an active setting (public, or limited to friends): first. Other
+    // PATCHes (notably privateServerPriceRobux > 0) require an active
+    // universe, so it has to be flipped before they are sent.
+    if let Some(access) = plan.visibility_change.as_ref().filter(|a| a.is_active()) {
         println!(
-            "\n{} visibility → public (first, unlocks other patches)...",
-            "Setting".cyan().bold()
+            "\n{} visibility → {} (first, unlocks other patches)...",
+            "Setting".cyan().bold(),
+            access
         );
-        client.activate_universe().await?;
-        lockfile.env_mut(env).game.visibility = Some(crate::config::Visibility::Public);
+        client.set_universe_access(access).await?;
+        lockfile.env_mut(env).game.set_access(access.clone());
         lockfile.save(lockfile_path)?;
-        println!("  {} visibility set to public", "✓".green());
+        println!("  {} visibility set to {}", "✓".green(), access);
     }
 
     // Apply universe patch.
@@ -376,17 +378,19 @@ async fn apply_plan(
         println!("  {} beta_mode set to {}", "✓".green(), enabled);
     }
 
-    // Deactivate last if going to PRIVATE. Keeps the universe in its more
-    // permissive state until all other patches have been applied.
-    if matches!(plan.visibility_change, Some(v) if !v.is_public()) {
+    // Toward an inactive setting (private, or limited to playtesters): last.
+    // Keeps the universe in its more permissive state until all other patches
+    // have been applied.
+    if let Some(access) = plan.visibility_change.as_ref().filter(|a| !a.is_active()) {
         println!(
-            "\n{} visibility → private (last)...",
-            "Setting".cyan().bold()
+            "\n{} visibility → {} (last)...",
+            "Setting".cyan().bold(),
+            access
         );
-        client.deactivate_universe().await?;
-        lockfile.env_mut(env).game.visibility = Some(crate::config::Visibility::Private);
+        client.set_universe_access(access).await?;
+        lockfile.env_mut(env).game.set_access(access.clone());
         lockfile.save(lockfile_path)?;
-        println!("  {} visibility set to private", "✓".green());
+        println!("  {} visibility set to {}", "✓".green(), access);
     }
 
     // Icon.
@@ -532,8 +536,8 @@ fn print_plan(plan: &SyncPlan, env: &str) {
         }
     }
 
-    if let Some(v) = plan.visibility_change {
-        println!("\n  {} visibility (cookie): → {:?}", "▸".cyan(), v);
+    if let Some(v) = &plan.visibility_change {
+        println!("\n  {} visibility (cookie): → {}", "▸".cyan(), v);
     }
 
     if let Some(b) = plan.beta_mode_change {
@@ -821,7 +825,7 @@ main = 250
 #[cfg(test)]
 mod ordering_tests {
     use super::*;
-    use crate::config::Visibility;
+    use crate::config::{Access, Audience};
     use crate::diff::UniversePatch;
     use serde_json::json;
     use wiremock::matchers::path_regex;
@@ -994,7 +998,7 @@ mod ordering_tests {
         accept_everything(&server).await;
 
         let plan = SyncPlan {
-            visibility_change: Some(Visibility::Public),
+            visibility_change: Some(Access::Public),
             universe_patch: universe_patch(),
             ..SyncPlan::default()
         };
@@ -1015,7 +1019,7 @@ mod ordering_tests {
         accept_everything(&server).await;
 
         let plan = SyncPlan {
-            visibility_change: Some(Visibility::Private),
+            visibility_change: Some(Access::Private),
             universe_patch: universe_patch(),
             ..SyncPlan::default()
         };
@@ -1037,7 +1041,7 @@ mod ordering_tests {
         accept_everything(&server).await;
         let public = apply(
             &SyncPlan {
-                visibility_change: Some(Visibility::Public),
+                visibility_change: Some(Access::Public),
                 universe_patch: universe_patch(),
                 ..SyncPlan::default()
             },
@@ -1049,7 +1053,7 @@ mod ordering_tests {
         accept_everything(&other).await;
         let private = apply(
             &SyncPlan {
-                visibility_change: Some(Visibility::Private),
+                visibility_change: Some(Access::Private),
                 universe_patch: universe_patch(),
                 ..SyncPlan::default()
             },
@@ -1057,12 +1061,129 @@ mod ordering_tests {
         )
         .await;
 
-        assert_eq!(position(&public, "/activate"), 0, "{public:?}");
+        // Each direction is a pair: the audience PATCH and the (de)activate.
+        assert_eq!(position(&public, CONFIG), 0, "{public:?}");
+        assert_eq!(position(&public, "/activate"), 1, "{public:?}");
         assert_eq!(
             position(&private, "/deactivate"),
+            private.len() - 2,
+            "{private:?}"
+        );
+        assert_eq!(
+            rposition(&private, CONFIG),
             private.len() - 1,
             "{private:?}"
         );
+    }
+
+    const CONFIG: &str = "/v2/universes/111/configuration";
+
+    fn rposition(paths: &[String], needle: &str) -> usize {
+        paths
+            .iter()
+            .rposition(|p| p.contains(needle))
+            .unwrap_or_else(|| panic!("{needle} was never requested; got {paths:?}"))
+    }
+
+    fn limited(audience: &[Audience]) -> Access {
+        Access::Limited(audience.iter().copied().collect())
+    }
+
+    /// The `audiences` bodies sent, in order.
+    async fn audiences_sent(server: &MockServer) -> Vec<serde_json::Value> {
+        server
+            .received_requests()
+            .await
+            .expect("the mock server records requests")
+            .iter()
+            .filter(|r| r.url.path() == CONFIG)
+            .filter_map(|r| serde_json::from_slice::<serde_json::Value>(&r.body).ok())
+            .filter_map(|b| b.get("audiences").cloned())
+            .collect()
+    }
+
+    /// Toward an active setting the audience is written *before* the
+    /// activate, as Creator Hub does. The other order would make a private
+    /// universe public for one round trip on its way to Limited ⟩ Friends.
+    #[tokio::test]
+    async fn the_audience_is_narrowed_before_the_universe_is_activated() {
+        let server = MockServer::start().await;
+        accept_everything(&server).await;
+
+        let paths = apply(
+            &SyncPlan {
+                visibility_change: Some(limited(&[Audience::Friends])),
+                universe_patch: universe_patch(),
+                ..SyncPlan::default()
+            },
+            &server,
+        )
+        .await;
+
+        assert!(
+            position(&paths, CONFIG) < position(&paths, "/activate")
+                && position(&paths, "/activate") < position(&paths, "/cloud/v2/universes"),
+            "audience, then activate, then the rest; got {paths:?}"
+        );
+        assert_eq!(audiences_sent(&server).await, vec![json!([3])]);
+    }
+
+    /// Limited ⟩ Playtesters is inactive: it goes last, deactivates, and
+    /// sends the bare subset. Roblox adds the editors itself.
+    #[tokio::test]
+    async fn limited_to_playtesters_deactivates_last() {
+        let server = MockServer::start().await;
+        accept_everything(&server).await;
+
+        let paths = apply(
+            &SyncPlan {
+                visibility_change: Some(limited(&[Audience::Playtesters])),
+                universe_patch: universe_patch(),
+                ..SyncPlan::default()
+            },
+            &server,
+        )
+        .await;
+
+        assert!(
+            position(&paths, "/cloud/v2/universes") < position(&paths, "/deactivate"),
+            "got {paths:?}"
+        );
+        assert!(!paths.iter().any(|p| p.ends_with("/activate")), "{paths:?}");
+        assert_eq!(audiences_sent(&server).await, vec![json!([2])]);
+    }
+
+    /// What the lockfile records has to be what `build_plan` compares
+    /// against, or the next `check` reports the change again.
+    #[tokio::test]
+    async fn the_lockfile_records_the_audience_applied() {
+        let server = MockServer::start().await;
+        accept_everything(&server).await;
+        let access = limited(&[Audience::Playtesters, Audience::Friends]);
+        let session = session_service(200).await;
+        let dir = tempfile::tempdir().expect("tempdir");
+        let mut lockfile = Lockfile::default();
+
+        apply_plan(
+            &client(&server, &session, &format!("live-{}", server.uri())),
+            &SyncPlan {
+                visibility_change: Some(access.clone()),
+                ..SyncPlan::default()
+            },
+            &crate::config::Game::default(),
+            ApplyTarget {
+                env: "test",
+                universe_id: UNIVERSE,
+                place_id: PLACE,
+            },
+            &mut lockfile,
+            &dir.path().join(LOCKFILE_NAME),
+        )
+        .await
+        .expect("apply_plan");
+
+        assert_eq!(lockfile.env_view("test").game.access(), Some(access));
+        assert_eq!(audiences_sent(&server).await, vec![json!([2, 3])]);
     }
 
     /// No visibility change means neither endpoint is touched. Sending one
@@ -1114,7 +1235,7 @@ mod ordering_tests {
                 body: json!({ "allowCopying": true }),
                 descriptions: vec!["allow_copying".into()],
             }),
-            visibility_change: Some(Visibility::Public),
+            visibility_change: Some(Access::Public),
             beta_mode_change: Some(true),
             ..SyncPlan::default()
         };
@@ -1211,7 +1332,7 @@ mod ordering_tests {
         apply_plan(
             &client,
             &SyncPlan {
-                visibility_change: Some(Visibility::Public),
+                visibility_change: Some(Access::Public),
                 universe_patch: universe_patch(),
                 ..SyncPlan::default()
             },

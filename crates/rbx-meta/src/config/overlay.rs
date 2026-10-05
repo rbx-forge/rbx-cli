@@ -5,6 +5,7 @@
 //! what the base said, present means replace it. That is the whole rule, and it
 //! is why these two live together.
 
+use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -90,6 +91,9 @@ pub struct EnvOverlay {
     pub visibility: Option<Visibility>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub audience: Option<BTreeSet<Audience>>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub studio_access_to_apis_allowed: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -134,6 +138,7 @@ impl EnvOverlay {
             && self.voice_chat.is_none()
             && self.allow_copying.is_none()
             && self.visibility.is_none()
+            && self.audience.is_none()
             && self.studio_access_to_apis_allowed.is_none()
             && self.beta_mode.is_none()
             && self.private_server.is_none()

@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use serde_json::Value;
 
-use crate::config::{Game, MediaConfig, Visibility};
+use crate::config::{Access, Game, MediaConfig};
 use crate::lockfile::{GameLock, MediaLockfile};
 
 mod media;
@@ -23,7 +23,7 @@ pub struct SyncPlan {
     pub place_patch: Option<PlacePatch>,
     pub place_legacy_patch: Option<PlaceLegacyPatch>,
     pub universe_legacy_patch: Option<UniverseLegacyPatch>,
-    pub visibility_change: Option<Visibility>,
+    pub visibility_change: Option<Access>,
     pub beta_mode_change: Option<bool>,
     pub icon: IconPlan,
     pub thumbnails: ThumbnailPlan,
@@ -175,6 +175,12 @@ pub fn config_to_lock(game: &Game) -> GameLock {
         voice_chat: game.voice_chat,
         allow_copying: game.allow_copying,
         visibility: game.visibility,
+        // Only beside `limited`, matching what `GameLock::set_access` writes,
+        // so a lock built here compares equal to one written by `sync`.
+        audience: match game.visibility {
+            Some(crate::config::Visibility::Limited) => game.audience.clone(),
+            _ => None,
+        },
         studio_access_to_apis_allowed: game.studio_access_to_apis_allowed,
         beta_mode: game.beta_mode,
         private_server: game.private_server.clone(),

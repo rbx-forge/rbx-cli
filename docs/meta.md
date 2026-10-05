@@ -1,6 +1,6 @@
 # rbx meta
 
-Declaratively manage Roblox game/universe metadata from a single TOML config: name, description, icon, thumbnails, devices, social links, private servers, server fill mode, copying permission, visibility, Studio API access, and Beta mode. Multi-env aware via a shared `rbxplace.toml`.
+Declaratively manage Roblox game/universe metadata from a single TOML config: name, description, icon, thumbnails, devices, social links, private servers, server fill mode, copying permission, visibility (public, limited or private, with the limited audience), Studio API access, and Beta mode. Multi-env aware via a shared `rbxplace.toml`.
 
 `rbx meta` syncs your local metadata to Roblox, tracks remote state in a per-env lockfile, detects media changes with [BLAKE3](https://github.com/BLAKE3-team/BLAKE3) hashing, and uses the Open Cloud API by default with an optional `.ROBLOSECURITY` cookie fallback for fields Open Cloud doesn't expose.
 
@@ -12,7 +12,7 @@ Declaratively manage Roblox game/universe metadata from a single TOML config: na
 - **Two-way sync** - Push local config to Roblox or pull remote state back into your toml + lockfile (comments preserved via [`toml_edit`](https://docs.rs/toml_edit))
 - **Open Cloud first** - Runs in CI with just an API key; cookie only needed for the handful of cookie-only fields
 - **Cookie fallback** - Auto-detects `.ROBLOSECURITY` from a local Roblox Studio install for `server_fill`, `allow_copying`, `visibility`, `studio_access_to_apis_allowed`, and `beta_mode`
-- **Smart visibility ordering** - When toggling private→public, `rbx meta` activates the experience *first* so dependent patches (e.g. paid private servers) don't 500
+- **Smart visibility ordering** - When making the experience public (or limited to friends), `rbx meta` applies the visibility *first* so dependent patches (e.g. paid private servers) don't 500, and when making it private (or limited to playtesters), *last*
 - **Preflight validations** - Refuses obviously-invalid combinations (e.g. `private_server.price` 1-9 Robux, or paid private servers on a private experience) before sending a request
 - **Per-env media namespacing** - `pull --accept-remote --env dev` saves to `<media.dir>/dev/icon.png` so envs never overwrite each other on disk
 - **Crash-safe lockfile** - Saved after every successful API call so a mid-sync crash never leaves remote and lockfile in disagreement
@@ -216,7 +216,8 @@ engine_avatar_settings = "avatar-settings.toml"   # cookie-only, opaque passthro
 # The fields below have no Open Cloud endpoint, so a `sync` whose plan touches
 # one needs a session cookie. Leave them out and the rest of this file syncs
 # with an API key alone. See "Cookie-only fields" further down.
-visibility = "public"                   # "public" | "private", write requires cookie
+visibility = "public"                   # "public" | "limited" | "private", write requires cookie
+# audience = ["playtesters", "friends"] # only with visibility = "limited"
 studio_access_to_apis_allowed = true    # cookie-only, Studio can call DataStore/Open Cloud
 beta_mode = false                       # cookie-only, true = hides from Home Recommendations
 
@@ -315,7 +316,8 @@ Scalar fields live directly under `[game]`. Grouped multi-field settings (device
 | `server_size` | `u32` | Open Cloud | Max concurrent players per server |
 | `voice_chat` | `bool` | Open Cloud | Enable in-experience voice chat |
 | `allow_copying` | `bool` | Cookie | Let anyone take a copy of this place from its Roblox page. Defaults to `false` and the only interesting value is `true`, for a place published deliberately as a template or as open source. It is **not** a protection: it governs a button on a page, not who can reach the file, so setting it to `false` hardens nothing that was not already the default |
-| `visibility` | `string` | Open Cloud read / Cookie write | `"public"` or `"private"` |
+| `visibility` | `string` | Anonymous read / Cookie write | The Creator Hub "Audience" setting: `"public"`, `"limited"` or `"private"`. See "Visibility and audience" below |
+| `audience` | `string[]` | Anonymous read / Cookie write | Who a `limited` experience is open to: `"playtesters"`, `"friends"`, or both. On a group-owned experience `"friends"` is Creator Hub's "Community Members". Required with `limited`, and an error beside any other visibility |
 | `studio_access_to_apis_allowed` | `bool` | Cookie | Allow Studio scripts to call Open Cloud / data store APIs |
 | `beta_mode` | `bool` | Cookie | Enable Experience Beta mode (hides from Home Recommendations) |
 | `engine_avatar_settings` | `string` | Cookie | Path to a `.toml` or `.json` file holding the modern avatar rules, relative to this config file. Passed through opaquely: see the section below |
@@ -597,7 +599,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `media.thumbnails[]` | Open Cloud | Up to 10, ordered |
 | `game.server_fill` | **Cookie** | `socialSlotType` + `customSocialSlotsCount` |
 | `game.allow_copying` | **Cookie** | `copyingAllowed` |
-| `game.visibility` | Open Cloud read / **Cookie** write | Legacy `activate` / `deactivate` |
+| `game.visibility`, `game.audience` | Anonymous read / **Cookie** write | `audiences` on legacy `/v2/universes/{id}/configuration`, plus `activate` / `deactivate`. Read from `GET /v1/universes/{id}` |
 | `game.studio_access_to_apis_allowed` | **Cookie** | Legacy `/v2/universes/{id}/configuration` |
 | `game.beta_mode` | **Cookie** | `apis.roblox.com/experience-releases/.../release_status` |
 | `game.genre` | **Cookie** | Legacy `/v2/universes/{id}/configuration`, read back from `/v1/.../configuration` |
@@ -608,11 +610,31 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.paid_access` | **Cookie** | `isForSale` + `price`, sent together |
 | `game.permissions.*` | **Cookie**, write-only | The `permissions` object. Not returned by any GET: see below |
 
+### Visibility and audience
+
+Creator Hub's "Audience" setting has three values, and so does `visibility`:
+
+| Creator Hub | `rbxmeta.toml` |
+| --- | --- |
+| Private | `visibility = "private"` |
+| Limited ⟩ Playtesters | `visibility = "limited"`, `audience = ["playtesters"]` |
+| Limited ⟩ Friends / Community Members | `visibility = "limited"`, `audience = ["friends"]` |
+| Limited, both boxes | `visibility = "limited"`, `audience = ["playtesters", "friends"]` |
+| Public | `visibility = "public"` |
+
+`audience` is required with `limited` and refused beside `public` or `private`, so a key that would do nothing never sits in the file looking applied. The check is per layer: an `[envs.prod] visibility = "public"` over a limited `[game]` is fine, because prod did not write an `audience` itself (and TOML gives it no way to unset the inherited one).
+
+Roblox stores this as a list, `audiences`: `1` editors, `2` playtesters, `3` friends, `4` public. `GET /v1/universes/{id}` returns it without any credential, so `pull` reads it even with no cookie. Open Cloud's `Universe.visibility` is not used for this: it still has only `PUBLIC` and `PRIVATE`, and reports Limited ⟩ Playtesters as `PRIVATE`.
+
+Writing it is two calls, in the order Creator Hub makes them. Limited ⟩ Playtesters is an *inactive* universe like private, and Limited ⟩ Friends an active one like public, so:
+
+- toward public or limited-with-friends: the `audiences` PATCH, then `activate`;
+- toward private or limited-to-playtesters: `deactivate`, then the `audiences` PATCH.
+
 ### Not supported
 
 Open Cloud does not expose these fields and `rbx meta` does not (yet) handle them via cookie:
 
-- Friends-only visibility (only `public` / `private` supported; the API field is `isFriendsOnly`)
 - Age rating (write)
 - `optInRegions` / `optOutRegions`. Declined rather than pending; the reasoning is in `TODO.md`. In short: the enum has one real value (`China`), it is write-only like the fields above, and whether an experience is actually available there is decided by a Roblox moderation status that no config file can set. A key that looked like a switch would be a request
 - Badges, game passes, developer products - use [rbx shop](./shop.md) instead
@@ -636,7 +658,7 @@ The Open Cloud API doesn't expose every metadata field. These fields require a c
 
 - `game.server_fill`
 - `game.allow_copying`
-- `game.visibility` (write only; read is via Open Cloud)
+- `game.visibility` and `game.audience` (write only; the read needs no credential at all)
 - `game.studio_access_to_apis_allowed`
 - `game.beta_mode`
 - `game.genre`
@@ -700,13 +722,13 @@ Standalone mode (no `--env`) writes under `[envs.default]`. Commit the lockfile 
 `sync --env <name>` resolves `(Game, MediaConfig)` for that env (base + overlay), builds a `SyncPlan` against `[envs.<name>]` in the lockfile, and applies it in this order:
 
 0. **Check the session** (cookie), only when the plan contains a cookie-only field. One call, before anything is sent, so a dead session changes nothing at all.
-1. **Activate** (legacy / cookie) if `visibility` is going from private to public. Must be first so dependent patches (like paid private servers) don't 500.
+1. **Audience, then activate** (legacy / cookie) if the visibility is changing to public or to limited with `friends`. Must be first so dependent patches (like paid private servers) don't 500.
 2. **PATCH universe** (Open Cloud): voice chat, private server price, devices, social links
 3. **PATCH place** (Open Cloud): name, description, server size
 4. **PATCH place legacy** (cookie): `server_fill`, `allow_copying`
 5. **PATCH universe configuration legacy** (cookie): `studio_access_to_apis_allowed`
 6. **POST experience-releases** (cookie): `beta_mode` toggle
-7. **Deactivate** (legacy / cookie) if `visibility` is going from public to private. Last so the universe stays in its permissive state until everything else is patched.
+7. **Deactivate, then audience** (legacy / cookie) if the visibility is changing to private or to limited with only `playtesters`. Last so the universe stays in its permissive state until everything else is patched.
 8. **Upload icon** if its BLAKE3 hash differs from the lockfile
 9. **Delete** thumbnails removed from config, **upload** new ones, **reorder** to match the toml order
 
@@ -718,6 +740,7 @@ Before sending any request, `rbx meta` validates locally:
 
 - `private_server.price` is `0` or `>= 10` (Roblox rejects 1-9 Robux)
 - `visibility = "private"` with `private_server.price > 0` is invalid (Roblox requires public)
+- `visibility = "limited"` needs a non-empty `audience`, and `audience` is refused beside `public` or `private` in the same layer
 - Referenced `media.icon` and `media.thumbnails[]` paths exist on disk
 
 When a Roblox call still fails for a known reason `rbx meta` couldn't detect locally (e.g. the 60-day cooldown on private server price changes), the error message includes a hint pointing to Creator Hub for the real diagnostic.

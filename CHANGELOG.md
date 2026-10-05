@@ -37,6 +37,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing. Which is also the flag's limit: no link carries an identity, so the
   place is joined as whoever is signed into the Roblox app.
 
+- **`visibility = "limited"` in `rbxmeta.toml`, with the new `audience` key**,
+  for Creator Hub's three-way Audience setting: `audience = ["playtesters"]`,
+  `["friends"]` (Community Members on a group-owned experience), or both.
+  `audience` is required with `limited` and refused beside `public` or
+  `private` in the same layer, so a key that would do nothing is an error
+  rather than silence. See [Visibility and audience](docs/meta.md#visibility-and-audience).
+
 ### Removed
 
 - **The per-tool `RBX<TOOL>_COOKIE` variable that outlived the merge into one
@@ -69,6 +76,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "legacy". The word described Roblox's older `assetdelivery.roblox.com` host,
   not a deprecation here: that backend is the default because it reaches more
   assets than Open Cloud does, and neither is on the way out.
+
+### Fixed
+
+- **`rbx meta pull` and `init` wrote `visibility = "private"` over a limited
+  experience.** They read Open Cloud's `Universe.visibility`, which still has
+  only `PUBLIC` and `PRIVATE` and reports Limited ⟩ Playtesters as `PRIVATE`.
+  They now read the `audiences` list from `develop.roblox.com`, which needs no
+  credential, so the setting is read even without a cookie.
 
 ## [0.8.0]
 

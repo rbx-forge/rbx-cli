@@ -1,11 +1,12 @@
 //! The primitives every write_* is built from: reach a table, set a value,
 //! remove one that is no longer set.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use toml_edit::{value, Array, DocumentMut, Item, Table};
 
-use crate::config::{Genre, ServerFill, SocialLink, Visibility};
+use crate::config::{Audience, Genre, ServerFill, SocialLink, Visibility};
 
 pub(super) fn ensure_table<'a>(doc: &'a mut DocumentMut, key: &str) -> &'a mut Table {
     if !doc.contains_key(key) {
@@ -205,7 +206,31 @@ pub(super) fn genre_str(v: Genre) -> &'static str {
 pub(super) fn visibility_str(v: Visibility) -> &'static str {
     match v {
         Visibility::Public => "public",
+        Visibility::Limited => "limited",
         Visibility::Private => "private",
+    }
+}
+
+pub(super) fn audience_str(a: Audience) -> &'static str {
+    match a {
+        Audience::Playtesters => "playtesters",
+        Audience::Friends => "friends",
+    }
+}
+
+/// `audience = [...]`, in the set's order, or removed when unset.
+pub(super) fn set_audience(t: &mut Table, audience: Option<&BTreeSet<Audience>>) {
+    match audience {
+        Some(set) => {
+            let mut arr = Array::new();
+            for a in set {
+                arr.push(audience_str(*a));
+            }
+            set_value(t, "audience", value(arr));
+        }
+        None => {
+            t.remove("audience");
+        }
     }
 }
 

@@ -376,8 +376,7 @@
           "minimum": 0.0
         },
         "regional_pricing": {
-          "description": "Deprecated by Roblox in favour of `managed_pricing`, which supersedes it. Kept because it is already in released configs.",
-          "default": false,
+          "description": "Deprecated by Roblox in favour of `managed_pricing`, which supersedes it. Kept because it is already in released configs. Not written when false: a config fresh from `init` would otherwise show the deprecated key and not its successor, which reads as pricing turned off.",
           "type": "boolean"
         }
       }
@@ -496,8 +495,7 @@
           "minimum": 0.0
         },
         "regional_pricing": {
-          "description": "Deprecated by Roblox in favour of `managed_pricing`. See `PassConfig`.",
-          "default": false,
+          "description": "Deprecated by Roblox in favour of `managed_pricing`. See `PassConfig`. Not written when false: a config fresh from `init` would otherwise show the deprecated key and not its successor, which reads as pricing turned off.",
           "type": "boolean"
         },
         "store_page": {

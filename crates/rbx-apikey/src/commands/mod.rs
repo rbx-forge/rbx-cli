@@ -64,6 +64,47 @@ pub fn missing_key_note(cfg: &config::Config, name: &str) -> String {
 /// a reader sees at a glance and the server will not say.
 ///
 /// Leaves any other error untouched.
+/// Name the scope entries a failed creation sent, when Roblox answers 5xx.
+///
+/// The key service does not reject a scope it cannot target. It throws, and
+/// the reply is `500 Internal Server Error: Exception was thrown by handler`,
+/// which names neither the scope nor the field. Finding out that `group` was
+/// the one scope whose target the embedded catalog had wrong cost a day of
+/// bisecting a four-line declaration.
+///
+/// The request is the one thing this side knows for certain, so it prints it.
+/// Client errors are left alone: a 400 says what it objected to.
+pub fn explain_opaque_server_error(
+    error: anyhow::Error,
+    scopes: &[crate::scope_builder::ScopeDef],
+) -> anyhow::Error {
+    match rbx_core::api::api_status(&error) {
+        Some(status) if status.is_server_error() => {}
+        _ => return error,
+    }
+
+    let sent = scopes
+        .iter()
+        .map(|s| {
+            format!(
+                "  {}:{} targetParts={:?}",
+                s.scope_type,
+                s.operations.join(","),
+                s.target_parts
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    error.context(format!(
+        "Roblox failed on this request rather than refusing it, so it names no \
+         field. These are the scope entries that were sent:\n{sent}\n\nA scope \
+         carrying a target part that it does not accept fails exactly this way. \
+         `rbx apikey scopes list` shows which target each scope takes, and \
+         `catalog regenerate` refreshes that from the key service."
+    ))
+}
+
 pub fn explain_invalid_name_or_description(
     error: anyhow::Error,
     name: &str,
@@ -236,6 +277,53 @@ mod tests {
         /// is to say it would test everything except the assumption.
         fn refusal(status: StatusCode, body: &str) -> anyhow::Error {
             rbx_core::api::roblox_error(status, body)
+        }
+
+        mod opaque_server_error {
+            use super::refusal;
+            use crate::commands::explain_opaque_server_error;
+            use crate::scope_builder::ScopeDef;
+            use reqwest::StatusCode;
+
+            fn group_entry() -> Vec<ScopeDef> {
+                vec![ScopeDef {
+                    scope_type: "group".to_string(),
+                    target_parts: vec!["G1234567890".to_string()],
+                    operations: vec!["read".to_string(), "write".to_string()],
+                }]
+            }
+
+            /// The body observed against `/cloud-authentication/v1/apiKey`
+            /// when a group scope carried a target part.
+            const OBSERVED: &str = "Exception was thrown by handler.";
+
+            #[test]
+            fn a_5xx_prints_the_scope_entries_that_were_sent() {
+                let explained = explain_opaque_server_error(
+                    refusal(StatusCode::INTERNAL_SERVER_ERROR, OBSERVED),
+                    &group_entry(),
+                );
+                let text = format!("{explained:#}");
+
+                assert!(text.contains("group:read,write"), "got: {text}");
+                assert!(text.contains("G1234567890"), "got: {text}");
+                // The original sentence has to survive the added context, or
+                // the reader loses what Roblox actually said.
+                assert!(text.contains(OBSERVED), "got: {text}");
+            }
+
+            /// A 400 says what it objected to, so adding the payload to it is
+            /// noise rather than help.
+            #[test]
+            fn a_client_error_is_left_alone() {
+                let explained = explain_opaque_server_error(
+                    refusal(StatusCode::BAD_REQUEST, "InvalidScopes"),
+                    &group_entry(),
+                );
+                let text = format!("{explained:#}");
+
+                assert!(!text.contains("targetParts"), "got: {text}");
+            }
         }
 
         /// The body observed on 2026-08-22 against

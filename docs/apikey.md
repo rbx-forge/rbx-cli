@@ -60,8 +60,18 @@ rbx apikey resolve <key>             # Print the raw secret (for scripts)
 rbx apikey scopes list               # All known scopes grouped by target type
 rbx apikey scopes show <scopeType>   # Details for one scope type
 rbx apikey scopes show universe --json          # The same, as a JSON document
-rbx apikey catalog regenerate [url]  # Regenerate scope catalog from openapi.json
+rbx apikey catalog regenerate [url]  # Refresh the catalog (maintainers)
 ```
+
+### Where a scope's target comes from
+
+`regenerate` reads two documents, because they answer different questions.
+
+`openapi.json` says which scopes exist and what they are for. It describes **endpoints**, so a scope's target there is inferred from the routes that mention it, and that inference is wrong for fourteen scopes: the group routes are annotated as creator resources, so `group` came out creator-targeted.
+
+The key service's own list, `cloud-authentication/v1/scopes`, says what a creation request may send. It is the document that accepts or rejects, so it wins on every `target_type` and on the operation lists. `rbx apikey scopes list` prints both URLs, and `regenerate` prints every correction it applied.
+
+The distinction is not cosmetic. Sending a target part for a scope that takes none does not come back as a rejection: the service throws, and `create` reports `500 Internal Server Error: Exception was thrown by handler`, naming neither the scope nor the field. When that happens, `create` now prints the scope entries it sent, which is the one thing it knows for certain.
 
 ### Commands explained
 

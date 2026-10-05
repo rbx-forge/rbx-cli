@@ -253,7 +253,8 @@ async fn create_one(
     let resp: CreateApiKeyResponse = client
         .create_api_key(&payload)
         .await
-        .map_err(|e| explain_invalid_name_or_description(e, &payload.name, &payload.description))?;
+        .map_err(|e| explain_invalid_name_or_description(e, &payload.name, &payload.description))
+        .map_err(|e| super::explain_opaque_server_error(e, &payload.scopes))?;
     let info = resp.cloud_auth_info;
     let secret = resp.apikey_secret;
     if info.id.is_empty() || secret.is_empty() {

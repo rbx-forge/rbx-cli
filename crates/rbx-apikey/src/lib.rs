@@ -277,9 +277,15 @@ pub enum ScopesAction {
 
 #[derive(Subcommand, Debug)]
 pub enum CatalogAction {
-    /// Regenerate catalog from Roblox openapi.json (uses default URL if not provided).
+    /// Regenerate catalog from Roblox openapi.json, reconciled against the key
+    /// service's scope list (uses default URLs if none is provided).
+    ///
+    /// The spec says which scopes exist; the key service says what a creation
+    /// request may send for each one, and the two disagree about fourteen of
+    /// them. The service wins, and every correction is printed.
     Regenerate {
-        /// Custom openapi.json URL.
+        /// Custom openapi.json URL. The key service's scope list is not
+        /// overridable: it is the thing being reconciled against.
         url: Option<String>,
     },
     // There was a `List` here that called the same function as

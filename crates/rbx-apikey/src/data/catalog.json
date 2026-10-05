@@ -1,19 +1,20 @@
 {
-  "version": "2026-09-01",
+  "version": "2026-10-05",
   "source_url": "https://github.com/Roblox/creator-docs/blob/d025c96bdb1c81570221997092fbe0ad94b5337c/content/en-us/reference/cloud/openapi.json",
+  "authority_url": "https://apis.roblox.com/cloud-authentication/v1/scopes",
   "scopes": {
     "ad.billing": {
       "operations": [
         "read"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "ad.campaign": {
       "operations": [
         "read",
         "write"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "asset": {
       "operations": [
@@ -27,21 +28,21 @@
       "operations": [
         "write"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "creator-store-product": {
       "operations": [
         "read",
         "write"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "creator-store-save": {
       "operations": [
         "read",
         "write"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "developer-product": {
       "operations": [
@@ -62,14 +63,15 @@
         "read",
         "write"
       ],
-      "target_type": "creator",
+      "target_type": "none",
       "description": "Group join requests, memberships, role assignments."
     },
     "group-forum": {
       "operations": [
-        "read"
+        "read",
+        "write"
       ],
-      "target_type": "creator",
+      "target_type": "none",
       "description": "Group forum categories, posts, comments."
     },
     "legacy-asset": {
@@ -136,7 +138,8 @@
     },
     "memory-store": {
       "operations": [
-        "flush"
+        "flush",
+        "get"
       ],
       "target_type": "universe"
     },
@@ -155,11 +158,17 @@
       ],
       "target_type": "universe"
     },
+    "studio-evaluations": {
+      "operations": [
+        "create"
+      ],
+      "target_type": "none"
+    },
     "thumbnail": {
       "operations": [
         "read"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "universe": {
       "operations": [
@@ -175,7 +184,7 @@
         "list",
         "snapshot"
       ],
-      "target_type": "universe-datastore"
+      "target_type": "universe"
     },
     "universe-datastores.objects": {
       "operations": [
@@ -258,7 +267,7 @@
       "operations": [
         "read"
       ],
-      "target_type": "universe"
+      "target_type": "none"
     },
     "universe.thumbnail": {
       "operations": [
@@ -278,25 +287,25 @@
       "operations": [
         "read"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "user.inventory-item": {
       "operations": [
         "read"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "user.social": {
       "operations": [
         "read"
       ],
-      "target_type": "creator"
+      "target_type": "none"
     },
     "user.user-notification": {
       "operations": [
         "write"
       ],
-      "target_type": "creator",
+      "target_type": "universe",
       "description": "Send user notifications."
     }
   }

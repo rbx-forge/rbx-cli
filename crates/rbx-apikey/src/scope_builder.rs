@@ -278,15 +278,36 @@ mod tests {
 
     #[test]
     fn creator_falls_back_to_wildcard_without_owners() {
-        let k = k("group", &["read"]);
+        let k = k("asset", &["read"]);
         let r = build(&k, &[], &[]);
         assert_eq!(r.scopes.len(), 1);
         assert_eq!(r.scopes[0].target_parts, vec!["*".to_string()]);
     }
 
+    /// The key that could not be created, as its TOML declared it.
+    ///
+    /// `group_ids` is pinned and the scope is `group:read,write`, which used to
+    /// emit `targetParts: ["G<id>"]`. The service takes no target for group
+    /// scopes and answered `500 Internal Server Error: Exception was thrown by
+    /// handler`, naming nothing. One entry with `["*"]` is what it accepts.
+    #[test]
+    fn a_group_scope_sends_no_target_even_with_group_ids_pinned() {
+        let mut k = k("group", &["read", "write"]);
+        k.group_ids = vec![1234567890];
+
+        let r = build(&k, &[], &[]);
+
+        assert_eq!(r.scopes.len(), 1, "{:?}", r.scopes);
+        assert_eq!(r.scopes[0].scope_type, "group");
+        assert_eq!(r.scopes[0].target_parts, vec!["*".to_string()]);
+        assert_eq!(r.scopes[0].operations, vec!["read", "write"]);
+    }
+
     #[test]
     fn creator_uses_explicit_group_ids_first() {
-        let mut k = k("group", &["read"]);
+        // `asset`, not `group`: the service says group scopes take no target,
+        // so they no longer reach this branch at all.
+        let mut k = k("asset", &["read"]);
         k.group_ids = vec![99];
         let r = build(
             &k,
@@ -303,7 +324,7 @@ mod tests {
 
     #[test]
     fn creator_uses_owners_when_no_explicit() {
-        let k = k("group", &["read"]);
+        let k = k("asset", &["read"]);
         let r = build(
             &k,
             &[],
@@ -477,10 +498,15 @@ mod tests {
         let universe_only = k("universe", &["read"]);
         assert!(!needs_owner_resolution(&universe_only));
 
-        let creator_no_explicit = k("group", &["read"]);
+        let creator_no_explicit = k("asset", &["read"]);
         assert!(needs_owner_resolution(&creator_no_explicit));
 
-        let mut creator_with_explicit = k("group", &["read"]);
+        // A key declaring only group scopes needs no owner at all now, which
+        // is one fewer permission lookup on every such create.
+        let group_only = k("group", &["read"]);
+        assert!(!needs_owner_resolution(&group_only));
+
+        let mut creator_with_explicit = k("asset", &["read"]);
         creator_with_explicit.group_ids = vec![1];
         assert!(!needs_owner_resolution(&creator_with_explicit));
     }

@@ -54,6 +54,11 @@ pub fn list() {
         format!("Scope catalog (version {})", scope_catalog::version()).cyan()
     );
     println!("Source: {}", scope_catalog::source_url());
+    // Named separately because it is what decides the target column below,
+    // and the spec it is reconciled against gets fourteen of them wrong.
+    if let Some(authority) = scope_catalog::authority_url() {
+        println!("Targets and operations: {}", authority);
+    }
     println!();
 
     let mut groups: BTreeMap<&'static str, Vec<String>> = BTreeMap::new();

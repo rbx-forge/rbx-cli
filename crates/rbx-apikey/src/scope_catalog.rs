@@ -18,6 +18,16 @@ pub struct ScopeInfo {
 pub struct Catalog {
     pub version: String,
     pub source_url: String,
+    /// The key service's scope list, which decides every `target_type` here.
+    ///
+    /// Separate from `source_url` because the two documents answer different
+    /// questions: the spec says which scopes exist and what they are for, the
+    /// service says what a creation request may send for them. They disagreed
+    /// about fourteen scopes, and only this one is authoritative.
+    ///
+    /// Optional so a catalog written before the reconciliation still loads.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub authority_url: Option<String>,
     pub scopes: BTreeMap<String, ScopeInfo>,
 }
 
@@ -36,6 +46,11 @@ pub fn version() -> &'static str {
 
 pub fn source_url() -> &'static str {
     &catalog().source_url
+}
+
+/// The key service's scope list, if this catalog was reconciled against it.
+pub fn authority_url() -> Option<&'static str> {
+    catalog().authority_url.as_deref()
 }
 
 #[derive(Debug, Clone)]
@@ -117,5 +132,30 @@ mod tests {
     fn unknown_ops_for_unknown_scope_is_empty() {
         let unk = unknown_operations("not-real", &["x".into()]);
         assert!(unk.is_empty());
+    }
+
+    /// Guards the shipped catalog, not the reconciliation logic.
+    ///
+    /// `group` targeted `creator` here once, and `apikey create` sent a target
+    /// part for a scope that takes none, which the service answered with a 500
+    /// naming nothing. A `regenerate` run against the endpoint spec alone
+    /// would put it back, so the assertion lives on the embedded file.
+    #[test]
+    fn group_scopes_take_no_target() {
+        for scope in ["group", "group-forum"] {
+            assert_eq!(
+                lookup(scope).target_type.as_deref(),
+                Some("none"),
+                "{scope} must take no target part"
+            );
+        }
+    }
+
+    /// The counterweight. `asset` really is creator-targeted, so a change that
+    /// made every scope targetless would pass the test above and break every
+    /// asset key on the account.
+    #[test]
+    fn asset_is_still_creator_targeted() {
+        assert_eq!(lookup("asset").target_type.as_deref(), Some("creator"));
     }
 }

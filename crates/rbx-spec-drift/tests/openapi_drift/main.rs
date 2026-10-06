@@ -199,6 +199,57 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
          operations it documents (only /v2/assets/batch, /v2/assets/{}/owners, \
          /v2/assets/{}/versions)",
     ),
+    // ── Documented once, then dropped by Roblox ───────────────────────────
+    //
+    // The five entries below are a different case from everything above, and
+    // the distinction is worth keeping: these paths ARE in the vendored
+    // document pinned at 2026-09-01, and Roblox removed them from the one
+    // published on 2026-10-02. They are not endpoints this document never
+    // described; they are endpoints it stopped describing.
+    //
+    // Each was probed anonymously on 2026-10-06 before being listed here,
+    // because the module doc is right that this list must not become a way to
+    // silence the test. A 404 would mean the route is gone; a 403, a 400 or a
+    // 200 means it answers. The control for that reading was a deliberately
+    // bogus path on the same host, which did return 404 on apis.roblox.com and
+    // games.roblox.com.
+    (
+        "https://apis.roblox.com",
+        "/asset-delivery-api/v1/assetId/{assetId}",
+        "documented until the 2026-09-01 spec, dropped from the 2026-10-02 one. Still \
+         answers: 403 anonymously where a bogus path on the same host gives 404. This is \
+         the default backend of `rbx download --source public`, which reaches more assets \
+         than Open Cloud does, so losing it would be a feature loss rather than a cleanup.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/asset-delivery-api/v1/assetId/{assetId}/version/{versionNumber}",
+        "the versioned form of the path above, dropped in the same refresh and answering \
+         the same way",
+    ),
+    (
+        "https://games.roblox.com",
+        "/v2/groups/{groupId}/gamesV2",
+        "documented until the 2026-09-01 spec, dropped from the 2026-10-02 one. Still \
+         answers 200 with real data anonymously. Used by `rbx init` to list a group's \
+         experiences.",
+    ),
+    (
+        "https://groups.roblox.com",
+        "/v2/users/{userId}/groups/roles",
+        "dropped in the same refresh, still answers 200 with real data anonymously. Used \
+         by `rbx init` to find which groups the caller can build in.",
+    ),
+    (
+        "https://groups.roblox.com",
+        "/v1/groups/create",
+        "dropped in the same refresh. **Not verified, and cannot be**: a GET is absorbed \
+         by the /v1/groups/{groupId} route, which answers identically for this path and \
+         for a bogus one, and the only honest probe is a POST that would create a group \
+         and spend Robux. Listed on the strength of the rest of the family on this host \
+         still answering, and of nothing in `rbx init create-group` having been reported \
+         broken. If group creation starts failing, this entry is the first place to look.",
+    ),
 ];
 
 /// A floor on how many endpoints extraction must find.

@@ -13,15 +13,12 @@ pub struct PriceInformation {
     ///
     /// This is the only place the remote reports regional pricing: there is
     /// no `isRegionalPricingEnabled` in any response.
+    /// Reported verbatim rather than reduced to a boolean per feature. Which
+    /// automation managed pricing turns on is Roblox's call, so the useful
+    /// answer is the list it gives, and `shop list --json` passes it through
+    /// as `pricing_features`.
     #[serde(rename = "enabledFeatures", default)]
     pub enabled_features: Vec<String>,
-}
-
-impl PriceInformation {
-    /// Whether Roblox lists regional pricing among the active features.
-    pub fn regional_pricing(&self) -> bool {
-        self.enabled_features.iter().any(|f| f == "RegionalPricing")
-    }
 }
 
 // ── Game Passes ──
@@ -47,13 +44,6 @@ pub struct GamePass {
 impl GamePass {
     pub fn price(&self) -> Option<u64> {
         self.price_information.as_ref()?.default_price_in_robux
-    }
-
-    /// Whether Roblox lists regional pricing among the active features.
-    pub fn regional_pricing(&self) -> bool {
-        self.price_information
-            .as_ref()
-            .is_some_and(PriceInformation::regional_pricing)
     }
 }
 
@@ -114,13 +104,6 @@ pub struct DeveloperProduct {
 impl DeveloperProduct {
     pub fn price(&self) -> Option<u64> {
         self.price_information.as_ref()?.default_price_in_robux
-    }
-
-    /// Whether Roblox lists regional pricing among the active features.
-    pub fn regional_pricing(&self) -> bool {
-        self.price_information
-            .as_ref()
-            .is_some_and(PriceInformation::regional_pricing)
     }
 }
 

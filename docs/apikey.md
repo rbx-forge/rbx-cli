@@ -73,6 +73,8 @@ The key service's own list, `cloud-authentication/v1/scopes`, says what a creati
 
 The distinction is not cosmetic. Sending a target part for a scope that takes none does not come back as a rejection: the service throws, and `create` reports `500 Internal Server Error: Exception was thrown by handler`, naming neither the scope nor the field. When that happens, `create` now prints the scope entries it sent, which is the one thing it knows for certain.
 
+Because the catalog is embedded at compile time and the service's list is live, the two can drift apart on a day `openapi.json` does not move. A daily workflow regenerates the catalog against the live list and opens a pull request when anything but the date stamp changed, so a stale target is caught before someone meets that 500.
+
 ### Commands explained
 
 **`list` command:**

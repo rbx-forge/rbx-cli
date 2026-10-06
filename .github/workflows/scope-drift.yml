@@ -1,0 +1,215 @@
+name: Scope catalog drift
+
+# Watches the one document the vendored spec cannot speak for: the key
+# service's own scope list.
+#
+# `update-openapi.yml` already regenerates the embedded catalog, but only on a
+# day `spec/openapi.json` itself moved. The catalog's targets and operations do
+# not come from that document: they come from
+# `cloud-authentication/v1/scopes`, which is live and can change on its own.
+# On such a day nothing here notices, and the catalog compiled into the binary
+# goes stale.
+#
+# Stale is expensive in a specific way. The service does not refuse a scope
+# carrying a target it does not accept, it throws, and `apikey create` reports
+# `500 Internal Server Error: Exception was thrown by handler` naming neither
+# the scope nor the field. That is what shipping a wrong target cost once
+# already, so this is the cheap alarm for the next time.
+#
+# This never pushes to main. A change arrives as a reviewable pull request.
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 06:47 UTC daily. Half an hour after the spec refresh, not alongside it:
+    # both workflows can rewrite the same catalog file, and staggering them
+    # means the common case is one PR rather than two racing. When both do
+    # open, they touch the same path on different branches, so whichever
+    # merges second needs a rebase. That is a rare morning and a cheap one.
+    - cron: "47 6 * * *"
+
+# Never let two runs race: the second would branch from a tree the first has
+# already changed. `cancel-in-progress: false` because a run that is already
+# opening a pull request should be allowed to finish.
+concurrency:
+  group: scope-drift
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check:
+    name: Compare the catalog against the key service
+    # Single Linux job on purpose: this repo is on the GitHub Free plan and CI
+    # is Linux-only to keep minutes affordable.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out this repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
+
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+
+      - name: Regenerate the catalog against the live scope list
+        id: catalog
+        # `file://` for the spec, so the vendored bytes are held fixed and the
+        # live service is the only moving part. A network fetch of the spec
+        # here would mix two causes into one diff, and the spec already has a
+        # workflow of its own.
+        #
+        # Run from the crate directory because the command writes to a path
+        # relative to itself, and it records the permalink from
+        # spec/source.json rather than this local path.
+        #
+        # The command prints one line per correction it applied. That output is
+        # the whole diagnostic, so it is kept for the pull request body.
+        run: |
+          set -euo pipefail
+          cd crates/rbx-apikey
+          cargo run -q -p rbx --bin rbx -- \
+            apikey catalog regenerate "file://../../spec/openapi.json" 2>&1 | tee ../../catalog.log
+          cd ../..
+          if git diff --quiet -- crates/rbx-apikey/src/data/catalog.json; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The catalog still matches the key service; nothing to do."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git --no-pager diff --stat -- crates/rbx-apikey/src/data/catalog.json
+          fi
+
+      # Only the `version` line moved: the generator stamps the current date
+      # on every run, so a catalog whose scopes are all unchanged still shows
+      # a one-line diff. Opening a pull request for that every morning would
+      # train everyone to ignore this workflow.
+      - name: Ignore a diff that is only the date stamp
+        id: substantive
+        if: steps.catalog.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          # Count changed lines that are not the version stamp. `git diff -U0`
+          # so only the touched lines appear, never surrounding context.
+          moved=$(git diff -U0 -- crates/rbx-apikey/src/data/catalog.json \
+            | grep -E '^[+-][^+-]' \
+            | grep -vE '^[+-]\s*"version":' \
+            | wc -l)
+          echo "Lines changed besides the date stamp: $moved"
+          if [ "$moved" -eq 0 ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Only the date stamp moved. Discarding."
+            git checkout -- crates/rbx-apikey/src/data/catalog.json
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check that the workspace still builds and passes its tests
+        id: verify
+        if: steps.substantive.outputs.changed == 'true'
+        # Non-fatal, for the reason the spec workflow gives: a failure here is
+        # the most valuable thing this run can find, so it has to reach a human
+        # through the pull request rather than die in a log nobody opens.
+        #
+        # `rbx-apikey` only: the catalog is embedded there, and its tests are
+        # the ones asserting that group scopes take no target and that `asset`
+        # still takes a creator one.
+        continue-on-error: true
+        run: |
+          set +e
+          cargo test -p rbx-apikey --locked 2>&1 | tee verify.log
+          echo "exit=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Compose the pull request body
+        if: steps.substantive.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.verify.outputs.exit }}" = "0" ]; then
+            verdict="\`rbx-apikey\` tests **passed** against the refreshed catalog."
+            action="Read the corrections below, confirm they describe a change Roblox actually made, then merge."
+          else
+            verdict="\`rbx-apikey\` tests **FAILED** against the refreshed catalog."
+            action="Do not merge until a human has decided what to do. A failure here usually means an assertion pinning a specific scope's target no longer holds, which is either Roblox changing that scope or this workflow reading the wrong document."
+          fi
+          {
+            echo "## The key service's scope list changed"
+            echo
+            echo "Source of record: \`https://apis.roblox.com/cloud-authentication/v1/scopes\`"
+            echo
+            echo "\`spec/openapi.json\` was held fixed for this run, so every change below"
+            echo "comes from the service and not from the vendored document."
+            echo
+            echo "$verdict"
+            echo
+            echo "### Why this matters more than a normal dependency bump"
+            echo
+            echo "The service does not reject a scope sent with a target it does not accept."
+            echo "It throws, and \`apikey create\` reports \`500 Internal Server Error:"
+            echo "Exception was thrown by handler\`, naming neither the scope nor the field."
+            echo "So a stale catalog does not fail loudly, it fails opaquely. $action"
+            echo
+            echo "<details><summary>Corrections the regeneration applied</summary>"
+            echo
+            echo '```'
+            cat catalog.log
+            echo '```'
+            echo
+            echo "</details>"
+            if [ "${{ steps.verify.outputs.exit }}" != "0" ]; then
+              echo
+              echo "<details><summary>Test output</summary>"
+              echo
+              echo '```'
+              cat verify.log
+              echo '```'
+              echo
+              echo "</details>"
+            fi
+          } > pr-body.md
+
+      # A pull request opened with the default GITHUB_TOKEN starts no workflow:
+      # GitHub refuses, so a bot cannot set off an endless chain of runs. The
+      # consequence is a PR that arrives with no CI until someone closes and
+      # reopens it by hand.
+      #
+      # A GitHub App token is not the bot, so its PR does start CI. Optional on
+      # purpose: with no app configured this workflow keeps working on the
+      # plain GITHUB_TOKEN. It reuses the same app as the spec refresh, so
+      # turning one on turns on both.
+      - name: Mint an app token, so the pull request can start CI
+        id: app-token
+        if: steps.substantive.outputs.changed == 'true' && vars.SPEC_BOT_APP_ID != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.SPEC_BOT_APP_ID }}
+          private-key: ${{ secrets.SPEC_BOT_PRIVATE_KEY }}
+
+      - name: Open a pull request
+        if: steps.substantive.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          # Falls back to the plain GITHUB_TOKEN when no app is configured.
+          token: ${{ steps.app-token.outputs.token || github.token }}
+          # The catalog only. `catalog.log` and `verify.log` are scratch files
+          # and must not be committed.
+          add-paths: |
+            crates/rbx-apikey/src/data/catalog.json
+          branch: chore/scope-catalog-drift
+          # Reuse the branch so a later run updates the open PR instead of
+          # opening a new one every morning.
+          delete-branch: true
+          commit-message: |
+            chore(apikey): refresh the scope catalog from the key service
+
+            The key service's scope list changed while spec/openapi.json did
+            not, so the embedded catalog no longer described what a creation
+            request may send.
+          title: "chore(apikey): refresh the scope catalog from the key service"
+          body-path: pr-body.md
+          labels: |
+            dependencies
+            api-drift

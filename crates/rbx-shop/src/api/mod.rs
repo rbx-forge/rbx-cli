@@ -352,3 +352,61 @@ struct CloudUniverseOwner {
     /// `groups/456` when a group does.
     group: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// One case per row of the table in `docs/shop.md`, which states what a
+    /// sync sends for each way the two pricing keys can be written.
+    ///
+    /// `sync`'s own tests reach this through an HTTP mock and cover three of
+    /// the four rows. They did not cover `managed_pricing = false`, the row
+    /// that turns off something Roblox enables by itself, which is the one
+    /// whose silence would be hardest to notice: a sync would report success
+    /// and change nothing.
+    #[test]
+    fn each_documented_combination_picks_the_field_the_doc_claims() {
+        // Nothing stated: send neither field and leave Roblox's own setting.
+        assert_eq!(Pricing::from_config(false, None), Pricing::Untouched);
+
+        // Managed pricing on, and off. Off is a real request, not a silence.
+        assert_eq!(
+            Pricing::from_config(false, Some(true)),
+            Pricing::Managed(true)
+        );
+        assert_eq!(
+            Pricing::from_config(false, Some(false)),
+            Pricing::Managed(false)
+        );
+
+        // The deprecated key still works for a config that already asks for it.
+        assert_eq!(Pricing::from_config(true, None), Pricing::Regional(true));
+    }
+
+    /// `validate_pricing` refuses this pair before a request is built, so this
+    /// pins the fallback only: however it is reached, the field Roblox still
+    /// maintains is the one sent, and never both.
+    #[test]
+    fn managed_pricing_wins_when_both_keys_somehow_arrive() {
+        assert_eq!(
+            Pricing::from_config(true, Some(true)),
+            Pricing::Managed(true)
+        );
+    }
+
+    /// The field names are Roblox's, and sending the wrong one is invisible:
+    /// the request succeeds and sets something else.
+    #[test]
+    fn each_variant_names_the_field_it_sends() {
+        assert_eq!(Pricing::Untouched.field(), None);
+        assert_eq!(
+            Pricing::Regional(true).field(),
+            Some(("isRegionalPricingEnabled", true))
+        );
+        assert_eq!(
+            Pricing::Managed(false).field(),
+            Some(("isManagedPricingEnabled", false))
+        );
+    }
+}

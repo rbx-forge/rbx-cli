@@ -44,6 +44,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `private` in the same layer, so a key that would do nothing is an error
   rather than silence. See [Visibility and audience](docs/meta.md#visibility-and-audience).
 
+- **`managed_pricing` on a pass or a product in `rbxshop.toml`**, for the
+  opt-in that superseded regional pricing on Roblox's side and bundles it with
+  price optimization. It has no default, which makes it the one boolean here
+  that can be genuinely absent: unset sends no pricing field and leaves
+  whatever Roblox has, which is not the same as `false`. Roblox turns managed
+  pricing on by itself for passes, so a `false` default would have undone that
+  on every run. Setting it beside `regional_pricing` is refused, because
+  Roblox accepts one of the two per write. See [Pricing](docs/shop.md#pricing).
+
+- **`[settings]` in `rbxshop.toml`, with `default_managed_pricing`**, which
+  every pass and product inherits unless it sets its own. Three layers, each
+  beating the one before it: the table, the item's key, then its
+  `[envs.<name>]` overlay. Derived `create_gift` twins inherit it like
+  anything else. One real config here carries 73 products, and the key would
+  otherwise be repeated on each of them to say one thing.
+
 ### Removed
 
 - **The per-tool `RBX<TOOL>_COOKIE` variable that outlived the merge into one
@@ -81,6 +97,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`"limited"`, `["playtesters"]`, `"r15"`) instead of the Rust names
   (`Limited`, `{Playtesters}`, `R15`).
 
+- **`rbx shop sync` no longer sends `isRegionalPricingEnabled` unless the
+  config asked for it.** An implicit `regional_pricing = false` used to write
+  the deprecated field as false on every sync. Roblox enables managed pricing
+  by itself on passes, so that was a tool quietly turning off something nobody
+  asked to turn off, in every project that never mentioned pricing. A config
+  that sets `regional_pricing = true` still sends exactly what it did.
+
+- `regional_pricing` is no longer written out when false. A config fresh from
+  `init` carried it beside no `managed_pricing` at all, which reads as pricing
+  turned off rather than as nothing stated.
+
+- `rbx shop list --json` reports `managed_pricing` and `pricing_features`, both
+  as Roblox returns them. The remote's own answer to "did my config land" was
+  being dropped at deserialization, so nothing could tell. `pricing_features`
+  is reported verbatim because which automation managed pricing turns on is
+  Roblox's call and is not writable anywhere in the API.
+
 ### Fixed
 
 - **`rbx meta pull` and `init` wrote `visibility = "private"` over a limited
@@ -88,6 +121,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   only `PUBLIC` and `PRIVATE` and reports Limited ⟩ Playtesters as `PRIVATE`.
   They now read the `audiences` list from `develop.roblox.com`, which needs no
   credential, so the setting is read even without a cookie.
+
+- **`rbx apikey create` returned `500 Internal Server Error: Exception was
+  thrown by handler` for any key declaring a group scope.** Two documents
+  describe scopes and they disagreed. `openapi.json` describes endpoints, so a
+  scope's target was inferred from the routes naming it, and the group routes
+  are annotated as creator resources: the catalog recorded `group` as
+  creator-targeted and the request carried `targetParts: ["G<groupId>"]` for a
+  scope that accepts none. The service threw rather than refusing it.
+
+  Targets and operations now come from the key service's own list, which is
+  what validates a creation. Seventeen entries were wrong, not one: eleven
+  scopes claimed `creator` and take no target, `user.user-notification` is
+  universe-targeted, `universe-datastores.control` is `universe` rather than
+  `universe-datastore`, `universe.subscription-product.subscription` takes
+  none, `group-forum` also accepts `write`, `memory-store` also accepts `get`,
+  and `studio-evaluations` was missing. `asset` stays creator-targeted, which
+  is asserted in both directions so a regeneration cannot quietly undo it.
+  A daily workflow now watches that list. See
+  [Where a scope's target comes from](docs/apikey.md#where-a-scopes-target-comes-from).
+
+- **Three messages named the operation and hid the reason.** `introspect
+  failed: introspecting the key`, the same on the post-create verification,
+  and `could not verify on Roblox:` with nothing after it. `{}` on an
+  `anyhow::Error` renders only the outermost frame, and the client wraps those
+  two calls in exactly that context. `introspect` also stated the JWT had
+  expired as the explanation rather than as a guess, for a key one minute old.
+
+- A 5xx from `rbx apikey create` now prints the scope entries it sent. The
+  service names neither the scope nor the field when it throws, and the
+  request is the one thing this side knows for certain.
 
 ## [0.8.0]
 

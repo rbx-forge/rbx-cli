@@ -279,3 +279,435 @@ impl ProductConfig {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── `is_empty`, and why it is worth this much test ──
+    //
+    // `pull` and `toml_write` both drop an overlay `is_empty` calls empty. So
+    // a field missing from one of these chains is not a cosmetic bug: it is an
+    // `[envs.<name>]` setting that disappears out of somebody's config file
+    // the next time they pull, with no diff line to notice.
+    //
+    // Each test below destructures the overlay **without `..`**, so adding a
+    // field stops this module compiling until someone states whether
+    // `is_empty` should see it. The assertions matter less than that: a list
+    // maintained by hand would rot the same way the function does.
+
+    #[test]
+    fn a_pass_overlay_is_not_empty_whichever_single_field_is_set() {
+        let PassOverlay {
+            name,
+            price,
+            description,
+            icon,
+            for_sale,
+            regional_pricing,
+            managed_pricing,
+            create_gift,
+            path,
+        } = PassOverlay {
+            name: Some("VIP Pass".into()),
+            price: Some(499),
+            description: Some("the good one".into()),
+            icon: Some("vip.png".into()),
+            for_sale: Some(false),
+            regional_pricing: Some(true),
+            managed_pricing: Some(true),
+            create_gift: Some(true),
+            path: Some("shop.specials".into()),
+        };
+
+        assert!(
+            PassOverlay::default().is_empty(),
+            "an overlay with nothing set is the one empty case"
+        );
+
+        let one_each = [
+            (
+                "name",
+                PassOverlay {
+                    name,
+                    ..Default::default()
+                },
+            ),
+            (
+                "price",
+                PassOverlay {
+                    price,
+                    ..Default::default()
+                },
+            ),
+            (
+                "description",
+                PassOverlay {
+                    description,
+                    ..Default::default()
+                },
+            ),
+            (
+                "icon",
+                PassOverlay {
+                    icon,
+                    ..Default::default()
+                },
+            ),
+            (
+                "for_sale",
+                PassOverlay {
+                    for_sale,
+                    ..Default::default()
+                },
+            ),
+            (
+                "regional_pricing",
+                PassOverlay {
+                    regional_pricing,
+                    ..Default::default()
+                },
+            ),
+            (
+                "managed_pricing",
+                PassOverlay {
+                    managed_pricing,
+                    ..Default::default()
+                },
+            ),
+            (
+                "create_gift",
+                PassOverlay {
+                    create_gift,
+                    ..Default::default()
+                },
+            ),
+            (
+                "path",
+                PassOverlay {
+                    path,
+                    ..Default::default()
+                },
+            ),
+        ];
+        for (field, overlay) in one_each {
+            assert!(
+                !overlay.is_empty(),
+                "a pass overlay setting only `{field}` would be dropped as empty"
+            );
+        }
+    }
+
+    #[test]
+    fn a_badge_overlay_is_not_empty_whichever_single_field_is_set() {
+        let BadgeOverlay {
+            name,
+            description,
+            icon,
+            enabled,
+            path,
+        } = BadgeOverlay {
+            name: Some("Welcome".into()),
+            description: Some("first win".into()),
+            icon: Some("welcome.png".into()),
+            enabled: Some(false),
+            path: Some("rewards".into()),
+        };
+
+        assert!(BadgeOverlay::default().is_empty());
+
+        let one_each = [
+            (
+                "name",
+                BadgeOverlay {
+                    name,
+                    ..Default::default()
+                },
+            ),
+            (
+                "description",
+                BadgeOverlay {
+                    description,
+                    ..Default::default()
+                },
+            ),
+            (
+                "icon",
+                BadgeOverlay {
+                    icon,
+                    ..Default::default()
+                },
+            ),
+            (
+                "enabled",
+                BadgeOverlay {
+                    enabled,
+                    ..Default::default()
+                },
+            ),
+            (
+                "path",
+                BadgeOverlay {
+                    path,
+                    ..Default::default()
+                },
+            ),
+        ];
+        for (field, overlay) in one_each {
+            assert!(
+                !overlay.is_empty(),
+                "a badge overlay setting only `{field}` would be dropped as empty"
+            );
+        }
+    }
+
+    #[test]
+    fn a_product_overlay_is_not_empty_whichever_single_field_is_set() {
+        let ProductOverlay {
+            name,
+            price,
+            description,
+            icon,
+            for_sale,
+            regional_pricing,
+            managed_pricing,
+            store_page,
+            create_gift,
+            path,
+        } = ProductOverlay {
+            name: Some("100 Coins".into()),
+            price: Some(99),
+            description: Some("coins".into()),
+            icon: Some("coins.png".into()),
+            for_sale: Some(false),
+            regional_pricing: Some(true),
+            managed_pricing: Some(true),
+            store_page: Some(true),
+            create_gift: Some(true),
+            path: Some("shop.items".into()),
+        };
+
+        assert!(ProductOverlay::default().is_empty());
+
+        let one_each = [
+            (
+                "name",
+                ProductOverlay {
+                    name,
+                    ..Default::default()
+                },
+            ),
+            (
+                "price",
+                ProductOverlay {
+                    price,
+                    ..Default::default()
+                },
+            ),
+            (
+                "description",
+                ProductOverlay {
+                    description,
+                    ..Default::default()
+                },
+            ),
+            (
+                "icon",
+                ProductOverlay {
+                    icon,
+                    ..Default::default()
+                },
+            ),
+            (
+                "for_sale",
+                ProductOverlay {
+                    for_sale,
+                    ..Default::default()
+                },
+            ),
+            (
+                "regional_pricing",
+                ProductOverlay {
+                    regional_pricing,
+                    ..Default::default()
+                },
+            ),
+            (
+                "managed_pricing",
+                ProductOverlay {
+                    managed_pricing,
+                    ..Default::default()
+                },
+            ),
+            (
+                "store_page",
+                ProductOverlay {
+                    store_page,
+                    ..Default::default()
+                },
+            ),
+            (
+                "create_gift",
+                ProductOverlay {
+                    create_gift,
+                    ..Default::default()
+                },
+            ),
+            (
+                "path",
+                ProductOverlay {
+                    path,
+                    ..Default::default()
+                },
+            ),
+        ];
+        for (field, overlay) in one_each {
+            assert!(
+                !overlay.is_empty(),
+                "a product overlay setting only `{field}` would be dropped as empty"
+            );
+        }
+    }
+
+    // ── `apply_overlay` ──
+    //
+    // Ten branches that each assign one field. The failure mode is a
+    // copy-paste: a branch reading one field and writing another. Nothing
+    // about that is visible at the call site, and the result is a sync sending
+    // the wrong value for one env only.
+
+    #[test]
+    fn every_pass_overlay_field_lands_on_its_own_target() {
+        let mut cfg = PassConfig {
+            name: None,
+            price: None,
+            description: None,
+            icon: None,
+            for_sale: true,
+            regional_pricing: false,
+            managed_pricing: None,
+            create_gift: false,
+            path: None,
+        };
+
+        cfg.apply_overlay(&PassOverlay {
+            name: Some("VIP Pass".into()),
+            price: Some(499),
+            description: Some("the good one".into()),
+            icon: Some("vip.png".into()),
+            // The three booleans are set away from their defaults, or an
+            // assignment to the wrong one would still read as correct.
+            for_sale: Some(false),
+            regional_pricing: Some(true),
+            managed_pricing: Some(true),
+            create_gift: Some(true),
+            path: Some("shop.specials".into()),
+        });
+
+        assert_eq!(cfg.name.as_deref(), Some("VIP Pass"));
+        assert_eq!(cfg.price, Some(499));
+        assert_eq!(cfg.description.as_deref(), Some("the good one"));
+        assert_eq!(cfg.icon.as_deref(), Some(Path::new("vip.png")));
+        assert!(!cfg.for_sale);
+        assert!(cfg.regional_pricing);
+        assert_eq!(cfg.managed_pricing, Some(true));
+        assert!(cfg.create_gift);
+        assert_eq!(cfg.path.as_deref(), Some("shop.specials"));
+    }
+
+    #[test]
+    fn every_product_overlay_field_lands_on_its_own_target() {
+        let mut cfg = ProductConfig {
+            name: None,
+            price: 1,
+            description: None,
+            icon: None,
+            for_sale: true,
+            regional_pricing: false,
+            managed_pricing: None,
+            store_page: false,
+            create_gift: false,
+            path: None,
+        };
+
+        cfg.apply_overlay(&ProductOverlay {
+            name: Some("100 Coins".into()),
+            price: Some(99),
+            description: Some("coins".into()),
+            icon: Some("coins.png".into()),
+            for_sale: Some(false),
+            regional_pricing: Some(true),
+            managed_pricing: Some(true),
+            store_page: Some(true),
+            create_gift: Some(true),
+            path: Some("shop.items".into()),
+        });
+
+        assert_eq!(cfg.name.as_deref(), Some("100 Coins"));
+        assert_eq!(cfg.price, 99);
+        assert_eq!(cfg.description.as_deref(), Some("coins"));
+        assert_eq!(cfg.icon.as_deref(), Some(Path::new("coins.png")));
+        assert!(!cfg.for_sale);
+        assert!(cfg.regional_pricing);
+        assert_eq!(cfg.managed_pricing, Some(true));
+        assert!(cfg.store_page);
+        assert!(cfg.create_gift);
+        assert_eq!(cfg.path.as_deref(), Some("shop.items"));
+    }
+
+    #[test]
+    fn every_badge_overlay_field_lands_on_its_own_target() {
+        let mut cfg = BadgeConfig {
+            name: None,
+            description: None,
+            icon: None,
+            enabled: true,
+            path: None,
+        };
+
+        cfg.apply_overlay(&BadgeOverlay {
+            name: Some("Welcome".into()),
+            description: Some("first win".into()),
+            icon: Some("welcome.png".into()),
+            enabled: Some(false),
+            path: Some("rewards".into()),
+        });
+
+        assert_eq!(cfg.name.as_deref(), Some("Welcome"));
+        assert_eq!(cfg.description.as_deref(), Some("first win"));
+        assert_eq!(cfg.icon.as_deref(), Some(Path::new("welcome.png")));
+        assert!(!cfg.enabled);
+        assert_eq!(cfg.path.as_deref(), Some("rewards"));
+    }
+
+    /// An overlay that states nothing leaves every field as it was. The
+    /// `if let Some(v)` guards are what make a partial overlay partial, and
+    /// without this the tests above would pass just as well if each branch
+    /// assigned unconditionally.
+    #[test]
+    fn an_empty_overlay_changes_nothing() {
+        let mut cfg = PassConfig {
+            name: Some("kept".into()),
+            price: Some(1),
+            description: Some("kept".into()),
+            icon: Some("kept.png".into()),
+            for_sale: false,
+            regional_pricing: true,
+            managed_pricing: Some(false),
+            create_gift: true,
+            path: Some("kept".into()),
+        };
+
+        cfg.apply_overlay(&PassOverlay::default());
+
+        assert_eq!(cfg.name.as_deref(), Some("kept"));
+        assert_eq!(cfg.price, Some(1));
+        assert_eq!(cfg.description.as_deref(), Some("kept"));
+        assert_eq!(cfg.icon.as_deref(), Some(Path::new("kept.png")));
+        assert!(!cfg.for_sale);
+        assert!(cfg.regional_pricing);
+        assert_eq!(cfg.managed_pricing, Some(false));
+        assert!(cfg.create_gift);
+        assert_eq!(cfg.path.as_deref(), Some("kept"));
+    }
+}

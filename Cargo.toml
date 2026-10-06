@@ -54,6 +54,26 @@ authors = ["rbx-forge"]
 keywords = ["roblox", "open-cloud", "cli", "deployment"]
 categories = ["command-line-utilities", "game-development"]
 
+# Dev profile tuned for disk rather than for a debugger.
+#
+# `target/debug/deps` had reached 261 GB, and the full debuginfo rustc emits by
+# default is most of it: every test binary in a 27-crate workspace carries a
+# complete description of every type it can see, and on Windows those sections
+# are not shared between binaries.
+#
+# `line-tables-only` keeps what is read: a panic still names the file and the
+# line, so `RUST_BACKTRACE=1` stays useful and so does every test failure. What
+# it drops is stepping through a variable in a debugger, which is not how
+# anything here gets diagnosed; the tests and the error messages are.
+#
+# Deliberately not `incremental = false`, which would bound the other half of
+# the directory. That cache is what makes a one-line edit rebuild in seconds
+# instead of a minute, and paying that on every edit to reclaim disk once is
+# the wrong trade. Clear it when it grows: `target/debug/incremental` is a
+# cache and deleting it costs one slower build.
+[profile.dev]
+debug = "line-tables-only"
+
 # Release profile tuned for a distributed CLI binary. Slower to compile,
 # but the resulting binary is ~30-50% smaller and starts faster.
 [profile.release]

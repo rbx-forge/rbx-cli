@@ -1778,7 +1778,6 @@ dependencies = [
  "assert_cmd",
  "clap",
  "clap_complete",
- "colored",
  "predicates",
  "rbx-ads",
  "rbx-analytics",
@@ -1968,7 +1967,6 @@ dependencies = [
  "rbx-apikey",
  "rbx-core",
  "reqwest",
- "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -1984,7 +1982,6 @@ dependencies = [
  "colored",
  "rbx-core",
  "reqwest",
- "serde",
  "serde_json",
  "tokio",
  "wiremock",
@@ -2216,7 +2213,6 @@ name = "rbx-servers"
 version = "0.8.0"
 dependencies = [
  "anyhow",
- "chrono",
  "clap",
  "colored",
  "rbx-core",

@@ -1772,7 +1772,7 @@ dependencies = [
 
 [[package]]
 name = "rbx"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1811,7 +1811,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-ads"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1828,7 +1828,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-analytics"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1845,7 +1845,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-apikey"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1865,7 +1865,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-ban"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1881,7 +1881,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-check"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1901,7 +1901,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-config"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1920,7 +1920,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-core"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -1942,7 +1942,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-data"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1959,7 +1959,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-doctor"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1975,7 +1975,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-download"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1989,7 +1989,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-env"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-import"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2025,7 +2025,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-init"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2043,7 +2043,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-memorystore"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2059,7 +2059,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-message"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2075,7 +2075,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-meta"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2095,7 +2095,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-open"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2106,7 +2106,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-place"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2126,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-probe"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2140,7 +2140,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-restart"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2156,7 +2156,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-rtbf"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2174,7 +2174,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-schema"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "boon",
@@ -2192,7 +2192,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-secret"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -2210,7 +2210,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-servers"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2225,7 +2225,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-shop"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2246,7 +2246,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-spec-drift"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "serde_json",
 ]

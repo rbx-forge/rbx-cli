@@ -581,7 +581,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `thumbnails` | `string[]` | `[]` | Up to 10 PNG thumbnail paths, displayed on Roblox in this order |
 | `dir` | `string` | `(unset)` | Destination directory used by `pull --accept-remote` to save downloaded icon and thumbnails |
 | `bleed` | `bool` | `true` | Apply alpha bleed to PNGs before upload |
-| `language_code` | `string` | `"en_us"` | Locale used for icon and thumbnail upload |
+| `language_code` | `string` | `"en_us"` | Which language's **translated** icon and thumbnails are written. See [Media is per language](#media-is-per-language) |
 
 </details>
 
@@ -595,8 +595,8 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.private_server.price` | Open Cloud | Omit table to disable |
 | `game.devices.*` | Open Cloud | desktop / mobile / tablet / console / vr |
 | `game.social_links.*` | Open Cloud | 7 platforms |
-| `media.icon` | Open Cloud | Localized via `legacy-game-internationalization` |
-| `media.thumbnails[]` | Open Cloud | Up to 10, ordered |
+| `media.icon` | Open Cloud | Per language, via `legacy-game-internationalization`. See below |
+| `media.thumbnails[]` | Open Cloud | Per language, up to 10, ordered. See below |
 | `game.server_fill` | **Cookie** | `socialSlotType` + `customSocialSlotsCount` |
 | `game.allow_copying` | **Cookie** | `copyingAllowed` |
 | `game.visibility`, `game.audience` | Anonymous read / **Cookie** write | `audiences` on legacy `/v2/universes/{id}/configuration`, plus `activate` / `deactivate`. Read from `GET /v1/universes/{id}` |
@@ -609,6 +609,16 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.engine_avatar_settings` | **Cookie**, write-only | `engineAvatarSettings`, a JSON string. Read from a `.toml` or `.json` file and passed through unmodelled |
 | `game.paid_access` | **Cookie** | `isForSale` + `price`, sent together |
 | `game.permissions.*` | **Cookie**, write-only | The `permissions` object. Not returned by any GET: see below |
+
+### Media is per language
+
+The icon and the thumbnails go through Roblox's localization API, `legacy-game-internationalization`, and every write names a `language_code`. What `sync` writes is therefore **that language's translated set**, not the experience's own:
+
+- A set for a language other than the experience's source language is shown only to players using that language. In the Creator Hub it sits under **Localization**, with that language's experience information, and the main thumbnails page stays as it was. A sync that reports thumbnails uploaded while that page shows none is this, not a failure.
+- The vendored OpenAPI document describes no endpoint that writes the source language's thumbnails. Those are set in the Creator Hub.
+- The **Home Page** thumbnails are a third, separate system (`thumbnail-personalization-api`), with its own uploads and A/B configurations. `rbx meta` does not touch it.
+
+So set `language_code` to the language you mean to translate into, and expect the default, `en_us`, to write English translations of your media rather than your media.
 
 ### Visibility and audience
 

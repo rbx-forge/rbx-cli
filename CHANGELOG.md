@@ -40,8 +40,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rather than a success recorded with nothing to find it by.
 
   A project hit by this has untracked copies on Roblox that no sync will
-  delete, since a sync only deletes images it has an id for. Remove them from
-  the Experience Detail Page thumbnails in the Creator Hub.
+  delete, since a sync only deletes images it has an id for. They are in the
+  translated set for the configured `language_code`, under Localization in the
+  Creator Hub, which is where to remove them.
+
+- **The docs presented `language_code` as a plain upload locale.** It picks
+  which language's *translated* icon and thumbnails `rbx meta` writes, through
+  Roblox's localization API. A set for any language but the source one is shown
+  only to players in that language and is filed under Localization, so a sync
+  that reported thumbnails uploaded could leave the main thumbnails page empty.
+  [Media is per language](docs/meta.md#media-is-per-language) says so now,
+  along with the two things `rbx meta` cannot write: the source language's
+  thumbnails, which no documented endpoint sets, and the Home Page thumbnails.
 
 ## [0.9.0] - 2026-10-09
 

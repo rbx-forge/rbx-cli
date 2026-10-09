@@ -232,8 +232,13 @@ scope catalog already names several capabilities it does not implement. Listed
 here so the audit is not repeated, and so the answer stays "no, on purpose"
 rather than "nobody looked".
 
-Declined, because a useful tool is not a catch-all. Two rows have since left
-this table, and both left for the same kind of reason.
+**Re-audited 2026-10-09**, by the document's own categories rather than by path.
+The coverage test cannot do this job: it only reports uncalled endpoints in a
+family the workspace already calls, so an area nothing calls yet, as groups
+were, never shows up in it.
+
+Declined, because a useful tool is not a catch-all. Three rows have since left
+this table, and all three left for the same kind of reason.
 
 `memory-store/*` rested on a scope classification that turned out to be a
 default rather than a finding. `universes/{id}:publishMessage` was declined as
@@ -246,12 +251,23 @@ were about the shape of the API rather than about who would be calling it.
 
 | Surface | Why not |
 | --- | --- |
-| `users/{id}/notifications` | A whole domain: needs notification templates configured in the experience and opted-in players. The `rbx-ops` blurb used to promise it; the blurb was the bug, and it has been fixed. |
+| `users/{id}/notifications` | A whole domain, and nothing has anything to send yet. Players of the game using this tool can now opt in, so the reason is no longer the missing audience: it is the missing message. Roblox only sends these through Open Cloud, from outside the experience, so the day there is something to send, the question is a command or a scheduled service. The `rbx-ops` blurb used to promise it; the blurb was the bug, and it has been fixed. |
 | `luau-execution-session-tasks` | Powerful (run Luau against a place or a version, with logs), but adequate tools already exist and duplicating one is not a reason to ship. The tool in use here is [jest-roblox-cli](https://github.com/christopher-buss/jest-roblox-cli), named so the claim is checkable rather than asserted. Reconfirmed 2026-08-15, when an MCP server covering the same endpoint prompted the question again. |
-| groups memberships/roles, `inventory-items`, subscriptions, `creator-store-products`, place `instances`, `:generateThumbnail`, `:translateText` | No demand, and each is a new domain rather than the completion of an existing command. |
+| `inventory-items`, subscriptions, `creator-store-products`, place `instances`, `:generateThumbnail`, `:translateText` | No demand, and each is a new domain rather than the completion of an existing command. |
+| `groups/{id}/join-requests` | Only meaningful for a group that approves its members. The group this tool manages admits anyone, so there is never a request to act on. Revisit if that changes. |
+| `place-version-history-api` (history filters, contributors, version notes) | `rbx place versions`, `upload` and `rollback` already list, publish and restore. Notes would only tie a published version to a commit, which git history and a deploy tag already do. |
+| Experiments, analytics alerts, matchmaking | All EXPERIMENTAL, and no game using this tool calls them. |
+| `virtual-events` (an experience's Events) | Not now rather than no. The Creator Hub is fine for an event now and then; a command earns its place only once events are created on a schedule, a weekly update say. EXPERIMENTAL. |
+| Localization: translated names, descriptions and icons for the experience, passes, products and badges; supported languages; localization tables | Not now rather than no. No experience using this tool is translated. The day one is, this is the largest and most natural extension of `meta` and `shop`. EXPERIMENTAL. |
 
 Taken instead: `data snapshot`, because it completes a command that already
 exists and makes a claim in its own documentation true.
+
+**Group memberships and roles have left this table.** They were declined as
+"no demand, and a new domain"; the demand turned up, from a game that ranks
+members by hand and generates a module from its roles. They shipped as
+`rbx group` (`roles`, `member`, `members`, `rank`, `unrank`), with `rbx user`
+alongside for the username lookup every one of them needs.
 
 **`ordered-data-stores` has left this table.** It was declined as "only earns
 its place in a tool whose users keep leaderboards", with "revisit on demand"

@@ -31,6 +31,7 @@ use clap::{Args, Subcommand};
 use colored::Colorize;
 use reqwest::{Client, StatusCode};
 use serde::Serialize;
+use std::collections::HashSet;
 
 use rbx_core::api::{
     build_client, encode_query_value, execute_json, execute_with_retry, explain_missing_scope,
@@ -43,8 +44,8 @@ use rbx_core::users::{self, UserRef};
 use rbx_core::GlobalFlags;
 
 use crate::model::{
-    pick_role, GroupMembership, GroupRole, ListGroupMembershipsResponse, ListGroupRolesResponse,
-    RoleAssignment, RoleRef,
+    pick_role, Cursor, GroupMembership, GroupRole, ListGroupMembershipsResponse,
+    ListGroupRolesResponse, RoleAssignment, RoleRef,
 };
 
 /// Roblox caps a page at 100 and defaults it to 10. The default is the trap:
@@ -167,11 +168,10 @@ enum Command {
         /// Only members holding this role: an id, its name, or `name:<name>`.
         role: Option<String>,
 
-        /// Stop once this many members have been found.
+        /// Return at most this many members.
         ///
-        /// Checked between pages, never inside one, so a run may return up to
-        /// a page more than asked: stopping mid-page would leave members that
-        /// no cursor could reach.
+        /// Exact: a run can stop in the middle of a page, and its cursor
+        /// resumes with the first member it held back.
         #[arg(long, default_value_t = DEFAULT_LIMIT, value_parser = clap::value_parser!(u64).range(1..))]
         limit: u64,
 
@@ -322,10 +322,12 @@ impl Api {
 
     /// One bounded stretch of the member list.
     ///
-    /// Reads from `cursor` until `limit` members have matched, the group ends,
-    /// or [`MAX_PAGES_PER_RUN`] pages have been read, whichever comes first,
-    /// and always stops on a page boundary so that `next_cursor` resumes with
-    /// the first member this run did not see.
+    /// Reads from `cursor` until exactly `limit` members have matched, the
+    /// group ends, or [`MAX_PAGES_PER_RUN`] pages have been read, whichever
+    /// comes first. Stopping inside a page is allowed: the cursor then names
+    /// that page again with how many of its matches were returned (see
+    /// [`Cursor`]), so the next run starts with the first one this run held
+    /// back.
     ///
     /// The role is matched here rather than by Roblox. The document gives no
     /// filter syntax for a role on this endpoint, and the one plausible field,
@@ -335,29 +337,59 @@ impl Api {
         &self,
         role_path: Option<&str>,
         limit: usize,
-        cursor: Option<String>,
+        cursor: Cursor,
     ) -> Result<MembersRun> {
-        let mut run = MembersRun {
-            found: Vec::new(),
-            scanned: 0,
-            next_cursor: cursor,
-        };
+        let mut found: Vec<GroupMembership> = Vec::new();
+        let mut scanned = 0usize;
+        let mut at = cursor;
         for _ in 0..MAX_PAGES_PER_RUN {
             let page = self
-                .memberships_page(None, run.next_cursor.as_deref())
+                .memberships_page(None, at.page_token.as_deref())
                 .await?;
-            run.scanned += page.group_memberships.len();
-            run.found.extend(
-                page.group_memberships
-                    .into_iter()
-                    .filter(|m| role_path.is_none_or(|path| m.holds(path))),
-            );
-            run.next_cursor = page.next_page_token.filter(|token| !token.is_empty());
-            if run.next_cursor.is_none() || run.found.len() >= limit {
+            scanned += page.group_memberships.len();
+            let matches: Vec<GroupMembership> = page
+                .group_memberships
+                .into_iter()
+                .filter(|m| role_path.is_none_or(|path| m.holds(path)))
+                .skip(at.skip)
+                .collect();
+
+            // `found` never exceeds `limit`, which is at least 1.
+            let room = limit - found.len();
+            if matches.len() > room {
+                found.extend(matches.into_iter().take(room));
+                let resume = Cursor {
+                    page_token: at.page_token,
+                    skip: at.skip + room,
+                };
+                return Ok(MembersRun {
+                    found,
+                    scanned,
+                    next_cursor: Some(resume.render()),
+                });
+            }
+            found.extend(matches);
+
+            let Some(token) = page.next_page_token.filter(|token| !token.is_empty()) else {
+                return Ok(MembersRun {
+                    found,
+                    scanned,
+                    next_cursor: None,
+                });
+            };
+            at = Cursor {
+                page_token: Some(token),
+                skip: 0,
+            };
+            if found.len() >= limit {
                 break;
             }
         }
-        Ok(run)
+        Ok(MembersRun {
+            found,
+            scanned,
+            next_cursor: Some(at.render()),
+        })
     }
 
     async fn assign(&self, membership_id: &str, role_path: &str, unassign: bool) -> Result<()> {
@@ -498,7 +530,7 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
                 .members_run(
                     wanted.map(|r| r.path.as_str()),
                     wanted_count,
-                    cursor.clone(),
+                    cursor.as_deref().map(Cursor::parse).unwrap_or_default(),
                 )
                 .await?;
 
@@ -535,7 +567,7 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
                 return Ok(());
             }
 
-            print_members(&members, &run, wanted, group_id);
+            print_members(&members, &run, wanted, &shared_names(&roles), group_id);
             if let Some(next) = &run.next_cursor {
                 let mut again = String::from("rbx group members");
                 if let Some(text) = role {
@@ -726,10 +758,28 @@ fn quote_arg(text: &str) -> String {
     }
 }
 
+/// Role names that more than one role of the group carries, lowercased, the
+/// way `pick_role` compares them.
+///
+/// Two roles called `Owner` otherwise print as `Owner, Owner` beside a member
+/// holding both, which says nothing about which is which.
+fn shared_names(roles: &[GroupRole]) -> HashSet<String> {
+    let mut seen = HashSet::new();
+    let mut shared = HashSet::new();
+    for role in roles {
+        let name = role.display_name.to_lowercase();
+        if !seen.insert(name.clone()) {
+            shared.insert(name);
+        }
+    }
+    shared
+}
+
 fn print_members(
     members: &[MemberView],
     run: &MembersRun,
     wanted: Option<&GroupRole>,
+    shared: &HashSet<String>,
     group_id: u64,
 ) {
     match wanted {
@@ -759,7 +809,12 @@ fn print_members(
             let roles = member
                 .roles
                 .iter()
-                .map(RoleView::name_text)
+                .map(|role| match (&role.name, role.rank) {
+                    (Some(name), Some(rank)) if shared.contains(&name.to_lowercase()) => {
+                        format!("{name} ({rank})")
+                    }
+                    _ => role.name_text(),
+                })
                 .collect::<Vec<_>>()
                 .join(", ");
             println!("{user:<36}  {roles}");

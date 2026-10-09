@@ -614,3 +614,114 @@ fn holding_a_role_reads_every_role_and_falls_back_to_the_highest() {
     assert!(single.holds("groups/42/roles/7"));
     assert_eq!(single.user_id(), Some(156));
 }
+
+/// The names lookup is the one call that carries exactly the members a run
+/// returns, so it is where a test can see which ones those were.
+async fn expect_names_for(server: &MockServer, ids: &[u64]) {
+    let data: Vec<serde_json::Value> = ids
+        .iter()
+        .map(|id| serde_json::json!({"id": id, "name": format!("user{id}"), "displayName": format!("user{id}")}))
+        .collect();
+    Mock::given(method("POST"))
+        .and(path("/v1/users"))
+        .and(body_json(serde_json::json!({
+            "userIds": ids, "excludeBannedUsers": false,
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "data": data })))
+        .expect(1)
+        .mount(server)
+        .await;
+}
+
+async fn mount_two_owners_page(api: &MockServer) {
+    mount_roles(api, vec![role("255", "Owner", 255)]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param_is_missing("pageToken"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [
+                membership_with("m-1", 1001, &["255"]),
+                membership_with("m-2", 1002, &["1"]),
+                membership_with("m-3", 1003, &["255"]),
+            ],
+            "nextPageToken": "page-2",
+        })))
+        .expect(1)
+        .mount(api)
+        .await;
+}
+
+#[tokio::test]
+async fn limit_one_returns_exactly_one_even_when_the_page_holds_two() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_two_owners_page(&api).await;
+    // Only the first Owner comes back; the second is held for the next run.
+    expect_names_for(&users, &[1001]).await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(
+            &["--group", &group, "members", "Owner", "--limit", "1"],
+            &api,
+            &users,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_cursor_that_stopped_inside_a_page_rereads_it_and_skips_what_was_returned() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_two_owners_page(&api).await;
+    // `1:` is "the first page, one match already returned": the second Owner.
+    expect_names_for(&users, &[1003]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param("pageToken", "page-2"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [],
+        })))
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(
+            &[
+                "--group", &group, "members", "Owner", "--limit", "1", "--cursor", "1:",
+            ],
+            &api,
+            &users,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[test]
+fn a_cursor_round_trips_and_a_bare_roblox_token_means_skip_nothing() {
+    use rbx_group::model::Cursor;
+
+    let bare = Cursor::parse("id_2zwAAAaERzCfcxBB7kFN");
+    assert_eq!(bare.page_token.as_deref(), Some("id_2zwAAAaERzCfcxBB7kFN"));
+    assert_eq!(bare.skip, 0);
+    assert_eq!(bare.render(), "id_2zwAAAaERzCfcxBB7kFN");
+
+    let inside = Cursor::parse("3:id_abc");
+    assert_eq!(inside.page_token.as_deref(), Some("id_abc"));
+    assert_eq!(inside.skip, 3);
+    assert_eq!(inside.render(), "3:id_abc");
+
+    // The first page has no token of its own.
+    let first = Cursor::parse("2:");
+    assert_eq!(first.page_token, None);
+    assert_eq!(first.skip, 2);
+    assert_eq!(first.render(), "2:");
+}

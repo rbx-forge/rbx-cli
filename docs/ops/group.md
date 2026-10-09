@@ -102,8 +102,10 @@ rbx group members Moderator --limit 500 --json
 More: rbx group members Moderator --cursor eyJvZmZzZXQiOjIwMDB9
 ```
 
-- `--limit <n>` stops once `n` members have been found, 100 by default. It is checked between pages, never inside one, so a run can return up to a page more than asked: stopping mid-page would leave members no cursor could reach.
-- `--cursor <token>` resumes exactly after the last page the previous run read. It is Roblox's own page token, valid for the same group and nothing else.
+- `--limit <n>` returns at most `n` members, 100 by default, exactly. A run may stop in the middle of a page.
+- `--cursor <token>` resumes with the first member the previous run held back. It is Roblox's own page token, prefixed with `<n>:` when the previous run stopped inside a page, meaning "read that page again and skip the `n` already returned". It is valid for the same group and the same role, and nothing else. If the group changes between two runs, that skip can be off by as many members as joined or left on that page; a paged listing of a live group is never a snapshot.
+
+Where two roles share a name, a member's roles print with their rank, `Owner (255), Owner (254)`, since the name alone would not say which.
 
 With a role, the matching happens on this side, against **every** role a member holds. Roblox documents no way to filter this listing by role, and the one field such a filter could plausibly read holds only a member's highest role, which would drop everybody holding the role beside a higher one. The cost is that a rare role in a large group may take several runs that each find nobody, which the summary line makes visible rather than hiding behind a long wait.
 

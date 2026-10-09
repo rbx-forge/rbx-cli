@@ -153,6 +153,55 @@ impl GroupMembership {
     }
 }
 
+/// Where a `members` run resumes.
+///
+/// Roblox's page token alone points at the *next* page, so a run that stops
+/// inside a page could only resume after it, and the matches it had not yet
+/// returned would be out of every cursor's reach. That is why `--limit` used to
+/// overshoot by up to a page. Carrying how many matches of the current page
+/// were already returned lets a run stop exactly at `--limit`: the next one
+/// reads that page again and skips them.
+///
+/// Rendered as the bare Roblox token when nothing is skipped, which is the
+/// common case, and as `<skip>:<token>` otherwise (`<skip>:` for the first
+/// page, which has no token). Roblox's tokens are base64url and never start
+/// with digits followed by a colon, so the two cannot be confused.
+///
+/// If the group changes between two runs, the skipped page may hold different
+/// members by then, and the skip is off by as many. A paged listing of a live
+/// group is never a snapshot; this makes it no worse than that.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Cursor {
+    pub page_token: Option<String>,
+    pub skip: usize,
+}
+
+impl Cursor {
+    pub fn parse(text: &str) -> Self {
+        if let Some((count, token)) = text.split_once(':') {
+            if !count.is_empty() && count.chars().all(|c| c.is_ascii_digit()) {
+                if let Ok(skip) = count.parse() {
+                    return Self {
+                        page_token: (!token.is_empty()).then(|| token.to_string()),
+                        skip,
+                    };
+                }
+            }
+        }
+        Self {
+            page_token: Some(text.to_string()),
+            skip: 0,
+        }
+    }
+
+    pub fn render(&self) -> String {
+        match (self.skip, &self.page_token) {
+            (0, Some(token)) => token.clone(),
+            (skip, token) => format!("{skip}:{}", token.as_deref().unwrap_or_default()),
+        }
+    }
+}
+
 /// How a role was named on the command line.
 ///
 /// The same shape as `rbx_core::users::UserRef`, and for the same reason: the

@@ -54,9 +54,9 @@ workspace, and a new crate does not get its own.
   changes with `cargo insta review` and let the diff be reviewed.
 - **Docs move with the code.** A user-visible change updates the relevant
   `docs/*.md` page and adds a `## [Unreleased]` line to
-  [CHANGELOG.md](./CHANGELOG.md). Features documented in `docs/` get a
-  `**(X.Y.Z+)**` tag at release time; `docs/` describes `main`, and readers
-  land there from search engines with no version context.
+  [CHANGELOG.md](./CHANGELOG.md). That entry is what the release notes are
+  built from, so write it for somebody deciding whether to upgrade rather than
+  as a summary of the commit. `docs/` describes `main`.
 - **No new dead code.** Dead code is denied crate-wide; something deliberately
   unused carries a narrow `#[allow(dead_code)]` with a reason.
 

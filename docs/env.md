@@ -286,7 +286,7 @@ local envs: { EnvironmentInfo } = { ... }
 return envs
 ```
 
-`rootPlaceId` **(0.9.0+)** is the id of the env's start place (see [`root`](#root)), so game code can tell whether it is running there without looking a name up in `placeIds`. It is optional in the types and left out of an env that declares no start place: a guessed id would be worse than none.
+`rootPlaceId` is the id of the env's start place (see [`root`](#root)), so game code can tell whether it is running there without looking a name up in `placeIds`. It is optional in the types and left out of an env that declares no start place: a guessed id would be worse than none.
 
 The optional `env` key in `rbxplace.toml` overrides the name game code matches on (it defaults to the section name):
 
@@ -308,7 +308,7 @@ Envs and places are emitted in name order, so regenerating from an unchanged `rb
 <details markdown="1">
 <summary><code>rbx env set</code></summary>
 
-**(0.8.0+)** Write one local setting into `rbxplace.toml`, preserving comments and key order.
+Write one local setting into `rbxplace.toml`, preserving comments and key order.
 
 ```sh
 rbx env set owner --type group --id 1234567890
@@ -434,13 +434,11 @@ codegen = false                      # tooling env: keep it out of the module
 | --- | --- | --- | --- |
 | `universe_id` | integer | **required** | The universe this env targets |
 | `places` | table | `{}` | Place name → place id. The start place is the default when `--place` is omitted |
-| `root` **(0.9.0+)** | string | `main` | Which entry of `places` is the universe's start place. See [`root`](#root) |
+| `root` | string | `main` | Which entry of `places` is the universe's start place. See [`root`](#root) |
 | `confirm` | bool | `false` | Prompt before write operations on this env (`upload`, `sync`, `rollback`, `promote`) |
 | `env` | string | the section name | What game code matches on. A **rename**, not an alias: two envs resolving to the same name is an error |
 | `owner` | table | the top-level `[owner]` | Per-env owner override, for the rare env living under a different account |
 | `codegen` | bool | `true` | `false` keeps the env out of the generated modules: see below |
-
-Where a field carries a **(X.Y.Z+)** tag, it needs at least that release. This page describes `main`, which is where a feature lands before it ships (and `/blob/main/docs/env.md` is the URL links and search results hand you) so a tagged field is newer than whatever `rokit.toml` pins until you check `rbx --version`. `root` is the one tagged field today: every other field here is in the latest release.
 
 ### `root`
 
@@ -471,7 +469,7 @@ Marking every env `codegen = false` is refused rather than emitting a module who
 
 ### Groups
 
-**(0.5.0+)** A group is a **name for a set of envs, and nothing more**.
+A group is a **name for a set of envs, and nothing more**.
 
 ```toml
 [groups]

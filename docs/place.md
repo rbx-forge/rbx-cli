@@ -74,7 +74,7 @@ If the target place has an active Team Create session, the upload fails immediat
 
 If the environment has `confirm = true`, a confirmation prompt is shown before uploading.
 
-### `--env all` and groups **(0.5.0+)**
+### `--env all` and groups
 
 A plural `--env` uploads the same file to every env it names, one after another: `all` walks the file's envs in alphabetical order, a group walks its members in the order they were declared. `--place` and `--all-places` are resolved inside each env, so `--all-places` over `--env all` is every place of every env.
 
@@ -466,12 +466,12 @@ rbx place fetch --env prod --universe-id 9876543210 --write  # override universe
 | `source_place` / `source_place_id` | string | Where a `promote` read its bytes, after `--place` defaulting. **Absent** otherwise |
 | `source_version` | string | The version the new one was made from: the promoted source version, or the version rolled back to. **Absent** for `upload`, whose source is a local file |
 | `place_id` / `version` | string | The single-target shortcut: the place written and the version it received. **Absent** under `--all-places`, and absent when nothing was written |
-| `created` **(0.7.0+)** | boolean | Whether `version` is a version this run made, rather than one the place already had. See the first rule below. **Absent** when the run could not tell |
+| `created` | boolean | Whether `version` is a version this run made, rather than one the place already had. See the first rule below. **Absent** when the run could not tell |
 | `results` | array of objects | One entry per place that got a new version, in write order. Empty when the first target failed |
 | `results[].place` | string | The `rbxplace.toml` key |
 | `results[].place_id` | string | The place id |
 | `results[].version` | string | The version Roblox assigned to this write |
-| `results[].created` **(0.7.0+)** | boolean | The same question, per place |
+| `results[].created` | boolean | The same question, per place |
 | `error` | string | Why the run stopped. **Absent** when `ok` is true. The same text is on stderr, where it is the process's error message |
 
 Four rules are worth stating outright, because scripts depend on them:
@@ -499,7 +499,7 @@ rbx servers list --env prod --version "$VERSION" --json
 
 ### One document per env, under `--env all`
 
-**(0.5.0+)** `upload` is the only write here that fans out, and a plural `--env` gives it several receipts to report. They go out under their own envelope rather than as a widened `WriteDocument`: `promote` and `rollback` act on one env by construction, and every consumer already reads `env` and `universe_id` as single values. Widening them would break those readers in order to describe a case they never asked about.
+`upload` is the only write here that fans out, and a plural `--env` gives it several receipts to report. They go out under their own envelope rather than as a widened `WriteDocument`: `promote` and `rollback` act on one env by construction, and every consumer already reads `env` and `universe_id` as single values. Widening them would break those readers in order to describe a case they never asked about.
 
 So the rule above holds here too, at one level up: **the shape follows the invocation.** One env emits the receipt itself, unchanged, whatever else `rbxplace.toml` holds. `all` or a group emits this:
 

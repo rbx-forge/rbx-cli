@@ -126,9 +126,38 @@ jobs:
           merge-multiple: true
       - name: Generate SHA256 checksums
         run: sha256sum rbx*.zip > SHA256SUMS
+      # The release page says what changed in the words CHANGELOG.md already
+      # uses, rather than in a second wording that has to be kept in step with
+      # it. Everything from this version's heading to the next one, heading
+      # included, because it carries the date.
+      #
+      # The second exit is for the oldest section, which has no `## [` after
+      # it: without it the extraction runs to end of file and takes the link
+      # definition block (`[0.8.0]: https://.../compare/...`) with it.
+      - name: Read this version's section out of the changelog
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          awk -v want="## [$version]" '
+            index($0, want) == 1 { inside = 1; print; next }
+            inside && /^## \[/   { exit }
+            inside && /^\[[^]]+\]: / { exit }
+            inside               { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md has no '## [$version]' section, so this release" >&2
+            echo "would be published with an empty body. Step 2 of \"Cutting a" >&2
+            echo "release\" in README.md is what moves [Unreleased] to it." >&2
+            exit 1
+          fi
+          printf '\n---\n' >> release-notes.md
+          cat release-notes.md
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3
         with:
+          body_path: release-notes.md
+          # Prepends the body above, so the curated section comes first and
+          # GitHub's pull request list and compare link follow it.
           generate_release_notes: true
           files: |
             rbx*.zip

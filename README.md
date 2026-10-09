@@ -572,13 +572,15 @@ have to show real Roblox changes and nothing else.
 1. Bump `[workspace.package].version` in `Cargo.toml`, then `cargo check` to refresh `Cargo.lock`
 2. Move `## [Unreleased]` content to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no `v` in the heading)
 
-   Then check that every `docs/` page describing something in that section tags
-   it `**(X.Y.Z+)**` with the version you just cut. `docs/` describes `main`,
-   and `/blob/main/docs/<page>.md` is the URL links and search results hand
-   people, so an untagged feature reads as available to everyone landing there
-   from outside, while `CHANGELOG.md` says `[Unreleased]`. The two sources then
-   contradict each other depending on which one is read first. That cost a
-   consuming repo a wrong diagnosis and a wrong design in 2026-08.
+   The heading spelling is load-bearing: `release.yml` reads the section back
+   out of this file by matching `## [X.Y.Z]` against the tag it was pushed
+   with, and publishes it as the release body, with GitHub's generated pull
+   request list appended under it. So `CHANGELOG.md` is the release notes, and
+   the two cannot drift apart into two wordings of the same change.
+
+   A tag whose version has no section here fails the release job before
+   anything is published, rather than putting a release on the page with an
+   empty body.
 3. Commit, then tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --follow-tags`
 
    The `-a` is not optional. `--follow-tags` pushes **annotated** tags only, so a

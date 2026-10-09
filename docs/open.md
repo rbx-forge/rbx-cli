@@ -54,7 +54,7 @@ rbx open [ENV] [PLACE] [--play]
 
 - `--play` - Join the place in the Roblox client instead of opening it in Studio. See [Playing instead of editing](#playing-instead-of-editing-090)
 
-### Playing instead of editing **(0.9.0+)**
+### Playing instead of editing
 
 ```sh
 rbx open prod main --play      # join the place in the Roblox client
@@ -77,7 +77,7 @@ rbx open --place-id 123456789
 
 Worth having here more than anywhere: this command builds a `roblox-studio:` URI out of one number and makes no network call at all, so reading a config file to find that number was the only thing tying it to a project.
 
-### A file on disk **(0.3.0+)**
+### A file on disk
 
 ```sh
 rbx open game.rbxl
@@ -94,7 +94,7 @@ which both a Windows path and any filename containing a `+` would break. Studio
 ends up in the same place either way; its log says
 `createAndShowIDEDoc with task EditFile`.
 
-### A new place, with no project and no id **(0.3.0+)**
+### A new place, with no project and no id
 
 ```sh
 rbx open --new              # pick a template, then open it

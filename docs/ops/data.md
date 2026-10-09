@@ -82,7 +82,7 @@ Two situations justify it. After [`data snapshot`](#snapshots), Roblox keeps the
 
 Outside those, it throws away the only way back. The command says so on every run rather than only in this page, and the two flags cannot be combined: one names where the copy goes, the other says there is none.
 
-## Removing an entry **(0.6.0+)**
+## Removing an entry
 
 `RemoveAsync`, from outside the game.
 
@@ -118,7 +118,7 @@ rbx data --datastore PlayerData increment Coins_156 --by 500 --env prod --apply
 
 An overwrite **keeps the entry's `users` and `attributes`** unless you pass `--drop-metadata`. `users` is the association Roblox uses to answer a player's data request, and sending only `value` would sever it silently.
 
-## Finding stores **(0.6.0+)**
+## Finding stores
 
 The command to run when you do not yet know what to put in `--datastore`.
 
@@ -131,7 +131,7 @@ Experience-wide, so it takes neither `--datastore` nor `--scope`. Needs `univers
 
 A store exists **from its first write**, not from the first `GetDataStore`, so a name that is absent here is a store the game has never written to. That also explains the names you did not choose: a game running in Studio writes wherever its own wrapper points, so a `-studio` twin of the live store is normal, and a wrapper library keeps its bookkeeping in a store of its own next to the data it manages.
 
-## Removing a store **(0.7.0+)**
+## Removing a store
 
 The level above `delete-key`, and it exists to close an asymmetry. A store comes into being from the first write to a name nobody created, so this tool could make one by accident and could not remove one at all: until 0.7.0 the only way back was the Creator Hub.
 
@@ -305,7 +305,7 @@ They read real player data, so they say no more than the human form already says
 | `value` | any | The stored value, nested. **Absent** under `--out` and when there is no entry. A present `null` is a real answer: a stored `null` and an entry with no value cannot be told apart, and the game cannot tell either |
 | `out` | string | Where `--out` wrote the value. **Absent** without `--out` |
 
-### `data stores --json` **(0.6.0+)**
+### `data stores --json`
 
 ```json
 {
@@ -323,7 +323,7 @@ They read real player data, so they say no more than the human form already says
 
 No `datastore` or `scope` key: this is the document you read before you have either. `id` is what every other subcommand takes as `--datastore`. `create_time` is **absent** when the response omitted it. `deleted` is only ever true with `--show-deleted`, since nothing else returns a soft-deleted store.
 
-### `data set --json`, and `reset`, `restore`, `delete` **(0.6.0+)**
+### `data set --json`, and `reset`, `restore`, `delete`
 
 ```json
 {
@@ -343,7 +343,7 @@ No `datastore` or `scope` key: this is the document you read before you have eit
 
 `action` is the verb you asked for, not the one they share internally: `set`, `reset`, `restore`, `copy` or `delete`. `applied` is false for a dry run, which is a success that changed nothing, and telling those apart from the exit code alone is impossible. `existed` says whether the key was there before, so `set` reports whether it created one and `delete` reports whether it found anything to remove. `revision_id` is **absent** on a dry run and on a delete, and it is the field this document exists for: it is what `data revisions --revision` takes. `backup` is **absent** under `--no-backup` and when there was no previous value to copy.
 
-### `data delete-store --json`, and `restore-store` **(0.7.0+)**
+### `data delete-store --json`, and `restore-store`
 
 ```json
 {

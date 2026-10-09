@@ -37,7 +37,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 # Verified, not aspirational: 1.88 is the lowest toolchain that compiles the
 # workspace and its test targets. It is set by a dependency, not by our code:

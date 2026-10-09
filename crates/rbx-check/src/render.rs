@@ -115,7 +115,7 @@ pub fn status(report: &Report) {
         println!();
         match env {
             Some(name) => println!("  {} {}", mark(worst), name.bold()),
-            // Not an env: `env/gen-module` compares a generated file, and
+            // Not an env: `env/codegen` compares a generated file, and
             // `apikey/status` answers for the credential. Naming the group
             // rather than inventing an env for it keeps the two apart.
             None => println!("  {} {}", mark(worst), "repository".bold()),
@@ -263,7 +263,7 @@ mod tests {
         }
 
         let mut mixed = Report::default();
-        mixed.push(ToolReport::new("env", "gen-module", Outcome::Clean, "ok"));
+        mixed.push(ToolReport::new("env", "codegen", Outcome::Clean, "ok"));
         mixed.push(
             ToolReport::new("shop", "lockfile", Outcome::Drift, "1 to create")
                 .env("prod")
@@ -292,7 +292,7 @@ mod tests {
         status(&Report::default());
 
         let mut mixed = Report::default();
-        mixed.push(row("env", "gen-module", Outcome::Clean));
+        mixed.push(row("env", "codegen", Outcome::Clean));
         mixed.push(row("shop", "lockfile", Outcome::Drift).env("prod"));
         mixed.push(row("config", "live", Outcome::Error).env("prod"));
         mixed.push(row("meta", "lockfile", Outcome::Skipped).env("dev"));
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn grouping_puts_the_repo_wide_rows_first_and_keeps_the_engines_env_order() {
         let mut report = Report::default();
-        report.push(row("env", "gen-module", Outcome::Clean));
+        report.push(row("env", "codegen", Outcome::Clean));
         report.push(row("shop", "lockfile", Outcome::Clean).env("dev"));
         report.push(row("shop", "lockfile", Outcome::Clean).env("prod"));
         report.push(row("meta", "lockfile", Outcome::Clean).env("dev"));
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn a_clean_verdict_does_not_swallow_the_skipped_rows() {
         let mut report = Report::default();
-        report.push(row("env", "gen-module", Outcome::Clean));
+        report.push(row("env", "codegen", Outcome::Clean));
         report.push(row("apikey", "status", Outcome::Skipped));
 
         let line = verdict(&report);
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn a_wholly_clean_run_still_says_everything_matches() {
         let mut report = Report::default();
-        report.push(row("env", "gen-module", Outcome::Clean));
+        report.push(row("env", "codegen", Outcome::Clean));
 
         assert_eq!(
             verdict(&report),
@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn the_env_count_counts_envs_not_groups() {
         let mut report = report_over(&["dev", "prod"]);
-        report.push(row("env", "gen-module", Outcome::Clean));
+        report.push(row("env", "codegen", Outcome::Clean));
 
         assert_eq!(
             verdict(&report),
@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn a_run_with_no_env_flag_claims_no_env_count() {
         let mut report = Report::default();
-        report.push(row("env", "gen-module", Outcome::Clean));
+        report.push(row("env", "codegen", Outcome::Clean));
 
         assert!(!verdict(&report).contains("env"), "{}", verdict(&report));
     }

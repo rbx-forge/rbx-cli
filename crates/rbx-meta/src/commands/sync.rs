@@ -430,13 +430,13 @@ async fn apply_plan(
         let mut new_image_ids: Vec<Option<u64>> = Vec::with_capacity(plan.thumbnails.uploads.len());
         for upload in &plan.thumbnails.uploads {
             println!("  Uploading {}", upload.path.display());
-            let resp = client.upload_thumbnail(upload.bytes.clone()).await?;
+            let image_id = client.upload_thumbnail(upload.bytes.clone()).await?;
             lockfile.env_mut(env).media.thumbnails.push(MediaLock {
                 hash: upload.hash.clone(),
-                image_id: resp.image_id,
+                image_id: Some(image_id),
             });
             lockfile.save(lockfile_path)?;
-            new_image_ids.push(resp.image_id);
+            new_image_ids.push(Some(image_id));
         }
 
         // Post-op order = whatever the lockfile reflects right now (deletes

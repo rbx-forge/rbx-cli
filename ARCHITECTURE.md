@@ -17,7 +17,7 @@ crates/
   # Reconciling what a repo declares
   rbx-init       # bootstrap groups / universes / places   -> rbx init
   rbx-import     # adopt an existing universe wholesale    -> rbx import
-  rbx-env        # read rbxplace.toml (list/get/gen-module)-> rbx env
+  rbx-env        # read rbxplace.toml (list/get/codegen)-> rbx env
   rbx-apikey     # Open Cloud API key lifecycle            -> rbx apikey
   rbx-place      # place files: upload/download/promote    -> rbx place
   rbx-meta       # universe & place metadata               -> rbx meta
@@ -207,7 +207,7 @@ allowed crate-wide; intentionally-unused items carry a narrow, documented
 ### Snapshot tests
 
 The two crates that emit generated modules for user game code (`rbx-shop`
-(`codegen.rs`) and `rbx-env` (`gen-module`)) assert their output with `insta`
+(`codegen.rs`) and `rbx-env` (`codegen`)) assert their output with `insta`
 snapshots of the **whole** file, not `contains()` on fragments: the emitted
 Luau and TypeScript is a contract with code that runs in a live experience, and
 a fragment assertion passes while everything around it degrades.

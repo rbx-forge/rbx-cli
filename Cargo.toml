@@ -10,6 +10,7 @@ members = [
     "crates/rbx-ads",
     "crates/rbx-analytics",
     "crates/rbx-ban",
+    "crates/rbx-group",
     "crates/rbx-restart",
     "crates/rbx-data",
     "crates/rbx-memorystore",
@@ -28,6 +29,7 @@ members = [
     "crates/rbx-init",
     "crates/rbx-open",
     "crates/rbx-download",
+    "crates/rbx-user",
     "crates/rbx-spec-drift",
     # Dev tool, never released: writes schemas/*.json from the serde models.
     # Built from source, so `schemars` stays out of the shipped binary.
@@ -35,7 +37,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 # Verified, not aspirational: 1.88 is the lowest toolchain that compiles the
 # workspace and its test targets. It is set by a dependency, not by our code:

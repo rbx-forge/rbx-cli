@@ -79,6 +79,7 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | `rbx shop` | Game passes, badges, developer products. Typed Luau codegen with runtime env dispatch, regenerable offline. | [docs/shop.md](./docs/shop.md) |
 | `rbx open` | Launch Roblox Studio at a specific place by env name. | [docs/open.md](./docs/open.md) |
 | `rbx download` | Download assets by id (public endpoint or Open Cloud). | [docs/download.md](./docs/download.md) |
+| `rbx user` | A username to a user id and back, several at once, no API key. `--id` prints the bare value for use inside another command. | [docs/user.md](./docs/user.md) |
 
 ### Live operations
 
@@ -89,6 +90,7 @@ The commands above reconcile state you declared in your repo, and are safe to ru
 | `rbx servers` | Live and terminated servers, and the logs of one that crashed. Roblox keeps 30 days. | [docs/ops/servers.md](./docs/ops/servers.md) |
 | `rbx analytics` | Query your own metrics: players, retention, ARPPU. CSV for charting elsewhere. | [docs/ops/analytics.md](./docs/ops/analytics.md) |
 | `rbx ban` | Inspect and change player restrictions. Resolves usernames, dry-run and prompt before writing. | [docs/ops/ban.md](./docs/ops/ban.md) |
+| `rbx group` | A group's roles and who holds them: list roles, show a member's roles, list a role's holders page by page, give and take roles. | [docs/ops/group.md](./docs/ops/group.md) |
 | `rbx restart` | Roll servers onto a published version, with Roblox's own impact forecast as the dry run. | [docs/ops/restart.md](./docs/ops/restart.md) |
 | `rbx data` | Read, overwrite, copy and recover a data store entry; and `data ordered` for leaderboards. | [docs/ops/data.md](./docs/ops/data.md) |
 | `rbx memorystore` | Write cache values from outside Roblox that servers read through `MemoryStoreService`, with a TTL. | [docs/ops/memorystore.md](./docs/ops/memorystore.md) |
@@ -260,7 +262,7 @@ writing:
 
 ```sh
 rbx shop codegen --check     # against rbxshop.toml + rbxshop.lock.toml
-rbx env gen-module --check   # against rbxplace.toml
+rbx env codegen --check   # against rbxplace.toml
 ```
 
 No API key, no network: the inputs are local, so this runs in a pre-commit
@@ -390,11 +392,11 @@ release, not about where code lives: the two-binary split was tried and
 reversed (see the live-operations section above).
 
 **Core.** A bug here blocks a release: `place`, `shop`, `meta`, `config`,
-`apikey`, `env`, `init`, and every live-ops command (`data`, `ban`, `restart`,
-`servers`, `analytics`, `memorystore`, `message`). These are the commands
-people put in CI and point at production.
+`apikey`, `env`, `init`, and every live-ops command (`data`, `ban`, `group`,
+`restart`, `servers`, `analytics`, `memorystore`, `message`). These are the
+commands people put in CI and point at production.
 
-**Tier 2.** A bug here never blocks a release: `open`, `download`, `ads`. Local
+**Tier 2.** A bug here never blocks a release: `open`, `download`, `user`, `ads`. Local
 conveniences and one-off utilities. It gets fixed, just not on the critical
 path, and this is also what makes a platform gap acceptable rather than
 embarrassing: `open` dispatches a `roblox-studio:` URI and so is only as

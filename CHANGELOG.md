@@ -7,6 +7,88 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rbx group rank` and `unrank` are a dry run without `--apply`**, the
+  contract every other live command keeps and the README states for all of
+  them. 0.10.0 wrote after a confirmation alone. Without `--apply` they now
+  resolve the user, the role and the membership, print what would change, and
+  send nothing. A member already holding the role, or not holding it for
+  `unrank`, is reported and left alone even with `--apply`, rather than sent a
+  call Roblox would accept and ignore.
+
+## [0.10.0] - 2026-10-09
+
+### Added
+
+- **`rbx group`**, for a group's roles and who holds them. `rbx group roles`
+  lists every role with its rank, member count and id, and `--json` passes
+  each role through as Roblox sent it, `permissions` included, for a generator
+  to consume. `rbx group rank <user> <role>` gives a member a role and
+  `rbx group unrank` takes one away, through Open Cloud's `:assignRole` and
+  `:unassignRole`. `rbx group member <user>` shows every role a member holds,
+  and `rbx group members [role]` lists who holds one, a bounded stretch at a
+  time: at most twenty pages of a hundred per run, with a `--cursor` to carry
+  on, so a group of a million members costs the same per run as one of a
+  hundred. The role is matched against every role a member holds, not only the
+  highest. With a Roblox session, `members <role>` reads the Creator Hub's own
+  per-role listing instead, which returns the role's holders and nobody else;
+  without one, it reads the Open Cloud membership list, which has no role
+  filter.
+
+  The user is named the way `rbx ban` names one (an id, a username, `name:`,
+  `@`, or a profile link), and the role by id or by name. A name two roles
+  share is refused with both ids rather than resolved to whichever came first.
+  `rank` adds a role and leaves the member's others in place, so a multi-role
+  group works. The group comes from `--group`, or from `rbxplace.toml`'s
+  `[owner]` when that is a group, so the command needs no file at all.
+
+  Roles stay read-only: Open Cloud has no endpoint to create, rename or delete
+  one. Every group endpoint is marked BETA by Roblox. See
+  [rbx group](docs/ops/group.md).
+
+- **`rbx user`**, a username to a user id or an id to a username, several at
+  once, with no API key. `--id` and `--name` print the bare value one per line
+  in the order given, so it composes with what takes an id inside something
+  else, which only the game knows the shape of:
+  `rbx data get --datastore PlayerData "User_$(rbx user builderman --id)"`.
+  An unknown name or id is an error naming it, never a missing line. See
+  [rbx user](docs/user.md).
+
+### Changed
+
+- **`rbx env gen-module` is `rbx env codegen`**, the name `rbx shop codegen`
+  already had for the same job. No alias: the old spelling is gone. The banner
+  of the generated module names the command, so the first `--check` after
+  upgrading reports that one line as drift; regenerate once and commit. The
+  `rbx check` row is `env/codegen` accordingly.
+
+### Fixed
+
+- **`rbx meta sync` uploaded the same thumbnails again on every run.** Roblox
+  answers a thumbnail upload with the new id as a JSON string
+  (`{"mediaAssetId": "…"}`), which was read as a number. The reply failed to
+  parse, the failure was swallowed, and each upload went into
+  `rbxmeta.lock.toml` with no `image_id`. The next sync could match none of
+  them, dropped the entries as stale, and uploaded every image again, while
+  Roblox kept each copy. The id is now read in either form, and an upload whose
+  reply carries no id is an error that says the image is already on Roblox,
+  rather than a success recorded with nothing to find it by.
+
+  A project hit by this has untracked copies on Roblox that no sync will
+  delete, since a sync only deletes images it has an id for. They are in the
+  translated set for the configured `language_code`, under Localization in the
+  Creator Hub, which is where to remove them.
+
+- **The docs presented `language_code` as a plain upload locale.** It picks
+  which language's *translated* icon and thumbnails `rbx meta` writes, through
+  Roblox's localization API. A set for any language but the source one is shown
+  only to players in that language and is filed under Localization, so a sync
+  that reported thumbnails uploaded could leave the main thumbnails page empty.
+  [Media is per language](docs/meta.md#media-is-per-language) says so now,
+  along with the two things `rbx meta` cannot write: the source language's
+  thumbnails, which no documented endpoint sets, and the Home Page thumbnails.
+
 ## [0.9.0] - 2026-10-09
 
 ### Added
@@ -973,7 +1055,8 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.6.0...v0.7.0

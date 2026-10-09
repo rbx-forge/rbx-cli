@@ -17,7 +17,7 @@ Upload, download, and rollback Roblox place files via the Open Cloud API.
 - **Fetch** - Auto-populate `rbxplace.toml` from live Roblox universe
 - **JSON** - `--json` on `versions`, `places`, `upload`, `promote` and `rollback` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
 
-> Generating the env module lives in [`rbx env gen-module`](./env.md), the command that owns `rbxplace.toml`.
+> Generating the env module lives in [`rbx env codegen`](./env.md), the command that owns `rbxplace.toml`.
 
 ## Quick start
 

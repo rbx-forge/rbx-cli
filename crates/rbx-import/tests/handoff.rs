@@ -131,7 +131,7 @@ fn the_written_file_has_no_unrecognised_keys() {
 }
 
 /// An import into a file somebody else wrote leaves their `[codegen]` block
-/// alone: `rbx env gen-module --check` compares against a path declared
+/// alone: `rbx env codegen --check` compares against a path declared
 /// there, and losing it silently turns that check into a no-op.
 #[test]
 fn an_existing_codegen_block_survives_an_import() {

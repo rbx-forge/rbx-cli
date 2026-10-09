@@ -178,7 +178,7 @@ fn apply(
         SetCommands::CodegenOutput { path } => {
             let change = describe(
                 // A `[codegen]` table with no `output` reads as "not set"
-                // rather than as an empty path: that is what `gen-module`
+                // rather than as an empty path: that is what `codegen`
                 // does with it, which is the behaviour worth agreeing with.
                 before
                     .codegen

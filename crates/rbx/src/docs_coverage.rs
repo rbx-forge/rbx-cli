@@ -54,9 +54,11 @@ const PAGES: &[(&str, &str)] = &[
     ("shop", "shop.md"),
     ("open", "open.md"),
     ("download", "download.md"),
+    ("user", "user.md"),
     ("servers", "ops/servers.md"),
     ("analytics", "ops/analytics.md"),
     ("ban", "ops/ban.md"),
+    ("group", "ops/group.md"),
     ("restart", "ops/restart.md"),
     ("data", "ops/data.md"),
     ("memorystore", "ops/memorystore.md"),
@@ -89,6 +91,13 @@ const UNDOCUMENTED_ON_PURPOSE: &[(&str, &str)] = &[
          named twice. Listed separately rather than folded in, because a reader \
          of this list should not have to know that `ban` has two hosts to \
          understand why two flags are here.",
+    ),
+    (
+        "--groups-url",
+        "The same seam again, for the third host `rbx group` talks to: \
+         `groups.roblox.com`, which lists a role's holders through a session. \
+         A test that mocks Open Cloud must not have this route answered by the \
+         same mock, since which of the two a run takes is the thing under test.",
     ),
 ];
 

@@ -162,7 +162,7 @@ impl Report {
     /// Turn the aggregate into the process result.
     ///
     /// Drift becomes `Err(Drift)` because that is what the binary maps to exit
-    /// code 2: the same channel `rbx env gen-module --check` already uses, so
+    /// code 2: the same channel `rbx env codegen --check` already uses, so
     /// there is one definition of "exit 2" in the tree rather than two.
     pub fn into_result(&self) -> anyhow::Result<()> {
         match self.worst() {

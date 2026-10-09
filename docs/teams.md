@@ -149,7 +149,7 @@ and expensive in production. Do not lean on it.
 | the codegen folder | neither; take either side to clear the marker | `rbx shop codegen`, then `rbx shop codegen --check` and re-stage |
 
 Generated Luau never needs a semantic merge: `rbx shop codegen` and
-`rbx env gen-module` rebuild it offline from `rbxshop.toml`, `rbxshop.lock.toml`
+`rbx env codegen` rebuild it offline from `rbxshop.toml`, `rbxshop.lock.toml`
 and `rbxplace.toml`. See
 [Guarding generated files](shop.md#guarding-generated-files).
 

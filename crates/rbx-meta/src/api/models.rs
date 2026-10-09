@@ -114,10 +114,41 @@ pub struct IconUploadResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ThumbnailUploadResponse {
-    #[serde(default, alias = "mediaAssetId", alias = "imageId", alias = "targetId")]
+    /// Roblox sends this as a JSON **string**: the document gives the response
+    /// as `{mediaAssetId: string}`. Read as a plain `u64`, the whole body failed
+    /// to parse, the failure was swallowed, and every upload was recorded in
+    /// the lockfile without an id. The next sync then saw nothing it could
+    /// match, uploaded the same images again, and Roblox kept every copy.
+    /// A number is accepted too, in case Roblox ever sends one.
+    #[serde(
+        default,
+        alias = "mediaAssetId",
+        alias = "imageId",
+        alias = "targetId",
+        deserialize_with = "id_from_string_or_number"
+    )]
     pub image_id: Option<u64>,
-    /// Parsed from the response but not consumed today.
-    #[serde(default, rename = "languageCode")]
-    #[allow(dead_code)]
-    pub language_code: Option<String>,
+}
+
+/// An id that may arrive as `"123"` or as `123`.
+fn id_from_string_or_number<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Raw {
+        Number(u64),
+        Text(String),
+    }
+
+    match Option::<Raw>::deserialize(deserializer)? {
+        None => Ok(None),
+        Some(Raw::Number(id)) => Ok(Some(id)),
+        Some(Raw::Text(text)) => text
+            .trim()
+            .parse()
+            .map(Some)
+            .map_err(|_| serde::de::Error::custom(format!("{text:?} is not a media asset id"))),
+    }
 }

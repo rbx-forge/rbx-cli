@@ -1,5 +1,5 @@
 ---
-source: crates/rbx-env/src/commands/gen_module.rs
+source: crates/rbx-env/src/commands/codegen.rs
 expression: generate_json(&envs).unwrap()
 ---
 [

@@ -119,7 +119,7 @@ fn env_label(env: Option<&str>) -> String {
 // env / rbxplace.toml
 // ---------------------------------------------------------------------------
 
-/// The comparison `rbx env gen-module --check` runs.
+/// The comparison `rbx env codegen --check` runs.
 ///
 /// Offline and credential-free by construction: it re-renders from
 /// `rbxplace.toml` and compares bytes.
@@ -129,14 +129,14 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
         Err(err) => {
             return vec![ToolReport::new(
                 "env",
-                "gen-module",
+                "codegen",
                 Outcome::Error,
                 one_line(&err),
             )]
         }
     };
 
-    // Not every repo generates the module, and `gen-module` bails when there
+    // Not every repo generates the module, and `codegen` bails when there
     // is nowhere to write. "Not configured" is not a failing check.
     if places
         .codegen
@@ -146,7 +146,7 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
     {
         return vec![ToolReport::new(
             "env",
-            "gen-module",
+            "codegen",
             Outcome::Skipped,
             "no [codegen].output in rbxplace.toml",
         )];
@@ -157,7 +157,7 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
         Err(err) => {
             return vec![ToolReport::new(
                 "env",
-                "gen-module",
+                "codegen",
                 Outcome::Error,
                 one_line(&err),
             )]
@@ -168,7 +168,7 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
         Err(err) => {
             return vec![ToolReport::new(
                 "env",
-                "gen-module",
+                "codegen",
                 Outcome::Error,
                 one_line(&err),
             )]
@@ -179,7 +179,7 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
 
     // The one cause where regenerating is the wrong move: an ignored key is
     // one this binary did not apply, so the render just compared against is
-    // itself the misreading. `gen-module --check` carries the same caveat.
+    // itself the misreading. `codegen --check` carries the same caveat.
     if outcome == Outcome::Drift && !places.unknown.is_empty() {
         details.push(format!(
             "{} key{} in {} ignored, if one of them was meant to change what is generated, \
@@ -195,12 +195,12 @@ pub fn env(places_path: &Path) -> Vec<ToolReport> {
         ));
     }
 
-    vec![ToolReport::new("env", "gen-module", outcome, summary).details(details)]
+    vec![ToolReport::new("env", "codegen", outcome, summary).details(details)]
 }
 
 /// The start place on file against the one Roblox reports.
 ///
-/// The one online question about `rbxplace.toml`, kept out of `gen-module` so
+/// The one online question about `rbxplace.toml`, kept out of `codegen` so
 /// that check stays offline: the module is generated from the file, and this
 /// row is what says whether the file is still right. The listing it reads
 /// answers without any credential, so no key is asked for.
@@ -215,7 +215,7 @@ pub async fn env_root(
     offline: bool,
     develop: &rbx_core::api::ApiBase,
 ) -> Vec<ToolReport> {
-    // A file that does not load is already the `gen-module` row's error.
+    // A file that does not load is already the `codegen` row's error.
     let Ok(places) = PlacesFile::load(places_path) else {
         return Vec::new();
     };

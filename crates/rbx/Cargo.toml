@@ -32,6 +32,7 @@ rbx-import = { path = "../rbx-import" }
 rbx-init = { path = "../rbx-init" }
 rbx-open = { path = "../rbx-open" }
 rbx-download = { path = "../rbx-download" }
+rbx-user = { path = "../rbx-user" }
 
 # Live operations. One binary: Rokit resolves one artifact per repository, so
 # two binaries from one repo cannot both be installed. See docs/ops.md.
@@ -39,6 +40,7 @@ rbx-servers = { path = "../rbx-servers" }
 rbx-analytics = { path = "../rbx-analytics" }
 rbx-ads = { path = "../rbx-ads" }
 rbx-ban = { path = "../rbx-ban" }
+rbx-group = { path = "../rbx-group" }
 rbx-restart = { path = "../rbx-restart" }
 rbx-data = { path = "../rbx-data" }
 rbx-memorystore = { path = "../rbx-memorystore" }

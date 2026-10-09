@@ -46,7 +46,7 @@ pub struct PlacesConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owner: Option<Owner>,
 
-    /// Reserved top-level `[codegen]` block (`rbx env gen-module`'s output
+    /// Reserved top-level `[codegen]` block (`rbx env codegen`'s output
     /// path). Like `owner`: not acted on here, but it must be claimed as a
     /// known key so it isn't read as an env, and preserved across `save()`
     /// so `rbx place fetch --write` doesn't drop it.

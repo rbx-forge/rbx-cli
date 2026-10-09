@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-09
+
 ### Added
 
 - **`home_thumbnails` in `rbxmeta.toml`**, for the Home Page thumbnails, up to
@@ -1101,7 +1103,8 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.1...HEAD
+[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.8.0...v0.9.0

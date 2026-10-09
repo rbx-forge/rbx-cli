@@ -104,15 +104,8 @@ mod tests {
     const UNIVERSE: u64 = 66778899001;
 
     fn client(server: &MockServer) -> RbxClient {
-        RbxClient::new(
-            Some("test-key".into()),
-            None,
-            UNIVERSE,
-            1,
-            false,
-            "en-us".into(),
-        )
-        .with_base_url(server.uri())
+        RbxClient::new(Some("test-key".into()), None, UNIVERSE, 1, false, None)
+            .with_base_url(server.uri())
     }
 
     #[tokio::test]
@@ -217,7 +210,7 @@ mod tests {
     #[tokio::test]
     async fn a_missing_api_key_fails_before_any_request() {
         let server = MockServer::start().await;
-        let error = RbxClient::new(None, None, UNIVERSE, 1, false, "en-us".into())
+        let error = RbxClient::new(None, None, UNIVERSE, 1, false, None)
             .with_base_url(server.uri())
             .get_universe()
             .await

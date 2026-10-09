@@ -2,10 +2,10 @@ use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::api::RbxClient;
-use crate::config::Config;
+use crate::config::{Config, MediaConfig, MediaSet};
 use crate::ctx::MetaCtx;
 use crate::diff::{build_plan, desired_order, IconPlan, SyncPlan};
-use crate::lockfile::{Lockfile, MediaLock, LOCKFILE_NAME, LOCKFILE_VERSION};
+use crate::lockfile::{Lockfile, MediaLock, MediaLockfile, LOCKFILE_NAME, LOCKFILE_VERSION};
 use rbx_core::confirm::confirm_destructive;
 use rbx_core::places::PlacesFile;
 
@@ -51,7 +51,28 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
             super::Repoint::Nothing,
         )?;
 
-        let plan = build_plan(&game, &media, &env_lock.game, &env_lock.media, &config_dir)?;
+        // The media set this env writes, and whether the lockfile's ids belong
+        // to it. Ids recorded for another set, or by a version that did not
+        // say which, are planned around rather than acted on: deleting or
+        // reordering them through this set's routes would hit nothing, or the
+        // wrong image.
+        let target = media.target();
+        let has_media = media.icon.is_some() || !media.thumbnails.is_empty();
+        let mut lock_media = env_lock.media.clone();
+        if has_media && !lock_media.belongs_to(&target) {
+            report_foreign_media(&lock_media, &target);
+            lock_media = MediaLockfile::default();
+        }
+
+        // The two public reads this planning pass makes, and the only ones:
+        // they have to land before anything is written, and belong in a dry
+        // run too. Neither sends a credential.
+        if has_media {
+            check_media_target(*universe_id, *place_id, &media, &lock_media).await?;
+        }
+
+        let mut plan = build_plan(&game, &media, &env_lock.game, &lock_media, &config_dir)?;
+        plan.media_needs_cookie = target == MediaSet::Own && plan.has_media_work();
         print_plan(&plan, env);
 
         // Lockfile bookkeeping, before the "nothing to do" exit and outside the
@@ -194,7 +215,7 @@ struct PendingEnv {
     universe_id: u64,
     place_id: u64,
     game: crate::config::Game,
-    media: crate::config::MediaConfig,
+    media: MediaConfig,
     plan: SyncPlan,
 }
 
@@ -393,6 +414,20 @@ async fn apply_plan(
         println!("  {} visibility set to {}", "✓".green(), access);
     }
 
+    // Before the first media write, the lockfile's media section is claimed
+    // for the set being written. A section recorded for another set was
+    // planned around (see `report_foreign_media`), so its entries are dropped
+    // here rather than left to be read as this set's.
+    if plan.has_media_work() {
+        let target = client.media_target();
+        let section = &mut lockfile.env_mut(env).media;
+        if !section.belongs_to(&target) {
+            *section = MediaLockfile::default();
+        }
+        section.written_for = Some(target.lock_key());
+        lockfile.save(lockfile_path)?;
+    }
+
     // Icon.
     if let IconPlan::Upload { bytes, hash, path } = &plan.icon {
         println!("\n{} icon: {}", "Uploading".cyan().bold(), path.display());
@@ -493,6 +528,121 @@ fn prune_imageless_thumbnails(thumbnails: &mut Vec<MediaLock>) -> usize {
 ///
 /// Counted separately so `--dry-run` can report the number without writing,
 /// and so the "nothing to do" line is not printed on a run that did something.
+/// Say that the lockfile's media ids are being planned around, and where the
+/// images they name actually are.
+///
+/// Those images stay on Roblox: `sync` cannot delete what it cannot address,
+/// and guessing would be worse. Naming them is what lets somebody remove them
+/// by hand rather than discover them later.
+fn report_foreign_media(lock: &MediaLockfile, target: &MediaSet) {
+    let ids: Vec<String> = lock
+        .thumbnails
+        .iter()
+        .filter_map(|m| m.image_id)
+        .map(|id| id.to_string())
+        .collect();
+    let recorded_for = match lock.written_for.as_deref() {
+        Some("own") => "the experience's own media".to_string(),
+        Some(code) => format!("the {code} translation"),
+        // Before 0.10.1 every sync wrote a translation, for the
+        // `language_code` then in effect, `en_us` unless set otherwise.
+        None => "a translation (en_us unless language_code said otherwise), by a version \
+                 before 0.10.1"
+            .to_string(),
+    };
+    println!(
+        "\n{} the lockfile's media was recorded for {recorded_for}, and this sync writes {}. \
+         Those images are left on Roblox untouched{}, and {} is uploaded from scratch. \
+         Remove the old ones in the Creator Hub if you do not want them.",
+        "Media:".yellow().bold(),
+        target.describe(),
+        if ids.is_empty() {
+            String::new()
+        } else {
+            format!(" (thumbnail ids {})", ids.join(", "))
+        },
+        target.describe(),
+    );
+}
+
+/// The checks that need Roblox's answer, made before anything is written.
+///
+/// A translation for the experience's source language is refused here, with
+/// the way out, rather than by Roblox halfway through a sync. Thumbnails
+/// Roblox holds in the target set that the lockfile does not know of are
+/// reported: they are what a failed or interrupted sync leaves behind, and
+/// nothing else will ever mention them.
+///
+/// Both reads are anonymous, and a failure of either is reported and does not
+/// stop the sync: they guard against a mistake, they are not the write.
+async fn check_media_target(
+    universe_id: u64,
+    place_id: u64,
+    media: &MediaConfig,
+    lock: &MediaLockfile,
+) -> Result<()> {
+    let reader = RbxClient::new(
+        None,
+        None,
+        universe_id,
+        place_id,
+        media.bleed,
+        media.language_code.clone(),
+    );
+    let target = media.target();
+
+    if let MediaSet::Translation(code) = &target {
+        match reader.source_language().await {
+            Ok(source) if source.eq_ignore_ascii_case(code) => bail!(
+                "language_code = \"{code}\" is this experience's source language, and Roblox \
+                 refuses translations for the source language (400 \"You can't update \
+                 translations for source language\"). The experience's own media is what \
+                 `rbx meta` writes with language_code left unset: remove the key."
+            ),
+            Ok(source) => println!(
+                "{}",
+                format!(
+                    "media: writing the {code} translation, shown only to players in that \
+                     language. The experience's own media (source language {source}) is \
+                     written with language_code left unset."
+                )
+                .dimmed()
+            ),
+            Err(e) => println!(
+                "{}",
+                format!("media: could not read the source language ({e:#}); carrying on").dimmed()
+            ),
+        }
+    }
+
+    match reader.remote_thumbnail_ids().await {
+        Ok(remote) => {
+            let tracked: Vec<u64> = lock.thumbnails.iter().filter_map(|m| m.image_id).collect();
+            let untracked: Vec<String> = remote
+                .iter()
+                .filter(|id| !tracked.contains(id))
+                .map(|id| id.to_string())
+                .collect();
+            if !untracked.is_empty() {
+                println!(
+                    "\n{} {} thumbnail(s) in {} are not in the lockfile, so no sync will order \
+                     or delete them: {}. Remove them in the Creator Hub, or Roblox keeps them \
+                     beside the ones this file declares.",
+                    "Media:".yellow().bold(),
+                    untracked.len(),
+                    target.describe(),
+                    untracked.join(", ")
+                );
+            }
+        }
+        Err(e) => println!(
+            "{}",
+            format!("media: could not list the thumbnails on Roblox ({e:#}); carrying on").dimmed()
+        ),
+    }
+    Ok(())
+}
+
 fn imageless_thumbnails(thumbnails: &[MediaLock]) -> usize {
     thumbnails.iter().filter(|m| m.image_id.is_none()).count()
 }
@@ -850,7 +1000,7 @@ mod ordering_tests {
             UNIVERSE,
             PLACE,
             false,
-            "en-us".into(),
+            None,
         )
         .with_base_url(server.uri())
         .with_legacy_base_url(server.uri())
@@ -1323,7 +1473,7 @@ mod ordering_tests {
             UNIVERSE,
             PLACE,
             false,
-            "en-us".into(),
+            None,
         )
         .with_base_url(server.uri())
         .with_legacy_base_url(server.uri())

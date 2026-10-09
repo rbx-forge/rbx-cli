@@ -647,9 +647,11 @@
           ]
         },
         "language_code": {
-          "description": "Language code used for localized icon/thumbnail upload (default: \"en_us\").",
-          "default": "en_us",
-          "type": "string"
+          "description": "Write a *translation* of the icon and thumbnails, for this language, instead of the experience's own.\n\nUnset, the default, means the experience's own media: what the Creator Hub's thumbnails page shows and every player sees unless a translation replaces it. Set, the media goes through Roblox's localization API as that language's translation, which is shown only to players in that language and is filed under Localization. The experience's source language cannot be named here: Roblox refuses it on that API.\n\nThis defaulted to `\"en_us\"` until 0.10.1, which quietly made every project's media an English (US) translation rather than its own.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "thumbnails": {
           "description": "Up to 10 thumbnail PNG paths, in display order.",

@@ -31,9 +31,20 @@ pub struct MediaConfig {
     #[serde(default = "default_true")]
     pub bleed: bool,
 
-    /// Language code used for localized icon/thumbnail upload (default: "en_us").
-    #[serde(default = "default_language")]
-    pub language_code: String,
+    /// Write a *translation* of the icon and thumbnails, for this language,
+    /// instead of the experience's own.
+    ///
+    /// Unset, the default, means the experience's own media: what the Creator
+    /// Hub's thumbnails page shows and every player sees unless a translation
+    /// replaces it. Set, the media goes through Roblox's localization API as
+    /// that language's translation, which is shown only to players in that
+    /// language and is filed under Localization. The experience's source
+    /// language cannot be named here: Roblox refuses it on that API.
+    ///
+    /// This defaulted to `"en_us"` until 0.10.1, which quietly made every
+    /// project's media an English (US) translation rather than its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language_code: Option<String>,
 }
 
 impl Default for MediaConfig {
@@ -43,7 +54,7 @@ impl Default for MediaConfig {
             thumbnails: Vec::new(),
             dir: None,
             bleed: true,
-            language_code: default_language(),
+            language_code: None,
         }
     }
 }
@@ -54,16 +65,50 @@ impl MediaConfig {
             && self.thumbnails.is_empty()
             && self.dir.is_none()
             && self.bleed
-            && self.language_code == default_language()
+            && self.language_code.is_none()
+    }
+
+    /// Which set of media this configuration writes.
+    pub fn target(&self) -> MediaSet {
+        match &self.language_code {
+            None => MediaSet::Own,
+            Some(code) => MediaSet::Translation(code.clone()),
+        }
+    }
+}
+
+/// The two sets of media an experience has, which Roblox stores and serves
+/// through unrelated endpoints, and whose ids mean nothing to each other.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MediaSet {
+    /// The experience's own icon and thumbnails, in its source language.
+    Own,
+    /// A translation for one language code.
+    Translation(String),
+}
+
+impl MediaSet {
+    /// How the lockfile records it: `own`, or the language code.
+    pub fn lock_key(&self) -> String {
+        match self {
+            Self::Own => "own".to_string(),
+            Self::Translation(code) => code.clone(),
+        }
+    }
+
+    /// For a human: where this set lives in the Creator Hub.
+    pub fn describe(&self) -> String {
+        match self {
+            Self::Own => "the experience's own media".to_string(),
+            Self::Translation(code) => {
+                format!("the {code} translation (Creator Hub: Localization)")
+            }
+        }
     }
 }
 
 fn default_true() -> bool {
     true
-}
-
-fn default_language() -> String {
-    "en_us".to_string()
 }
 
 /// Per-env overlay layered on top of `[game]` + `[media]` when the matching

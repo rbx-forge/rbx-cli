@@ -19,6 +19,18 @@ pub(crate) const LEGACY_HOST: &str = "https://develop.roblox.com";
 /// cookie-authenticated write. See `rbx_core::session`.
 pub(crate) const USERS_HOST: &str = "https://users.roblox.com";
 
+/// Where the Creator Hub uploads an experience's own icon and thumbnails.
+/// Cookie and CSRF, like `develop.roblox.com`, and never in Roblox's OpenAPI
+/// document.
+pub(crate) const PUBLISH_HOST: &str = "https://publish.roblox.com";
+
+/// Public reads of an experience's own media list. No credential.
+pub(crate) const GAMES_HOST: &str = "https://games.roblox.com";
+
+/// Public reads of the localization service: the experience's source
+/// language, and the translated thumbnails stored per language.
+pub(crate) const INTL_HOST: &str = "https://gameinternationalization.roblox.com";
+
 pub struct RbxClient {
     client: Client,
     api_key: Option<String>,
@@ -29,7 +41,9 @@ pub struct RbxClient {
     /// Reserved: meta does not currently apply icon bleed (unlike rbx-shop).
     #[allow(dead_code)]
     bleed: bool,
-    pub language_code: String,
+    /// `None` writes the experience's own media; `Some` writes that
+    /// language's translation. See `MediaConfig::language_code`.
+    pub language_code: Option<String>,
     /// Where the `apis.roblox.com` endpoints live.
     ///
     /// Injectable so the request shaping can be exercised against a mock
@@ -61,6 +75,15 @@ pub struct RbxClient {
     /// session check silently answered by the same mock: the whole point of
     /// the check is that it is a separate question with a separate answer.
     users_base: ApiBase,
+
+    /// `publish.roblox.com`, `games.roblox.com` and
+    /// `gameinternationalization.roblox.com`: the experience's own media,
+    /// written, listed, and told apart from its translations. Separate bases
+    /// for the reason `users_base` is one: separate services, each mocked on
+    /// its own so a test cannot have one answered by another's mock.
+    publish_base: ApiBase,
+    games_base: ApiBase,
+    intl_base: ApiBase,
 }
 
 impl RbxClient {
@@ -70,7 +93,7 @@ impl RbxClient {
         universe_id: u64,
         place_id: u64,
         bleed: bool,
-        language_code: String,
+        language_code: Option<String>,
     ) -> Self {
         Self {
             client: rbx_core::api::build_client(),
@@ -84,6 +107,34 @@ impl RbxClient {
             base: ApiBase::default(),
             legacy_base: ApiBase::new(LEGACY_HOST),
             users_base: ApiBase::new(USERS_HOST),
+            publish_base: ApiBase::new(PUBLISH_HOST),
+            games_base: ApiBase::new(GAMES_HOST),
+            intl_base: ApiBase::new(INTL_HOST),
+        }
+    }
+
+    /// Point `publish`, `games` and `gameinternationalization` at a mock.
+    /// Tests only, for the same reason as `RbxClient::with_base_url`. One
+    /// setter for three hosts because no test of the media sets mocks one of
+    /// them without the others.
+    #[cfg(test)]
+    pub fn with_media_hosts(
+        mut self,
+        publish: impl Into<String>,
+        games: impl Into<String>,
+        intl: impl Into<String>,
+    ) -> Self {
+        self.publish_base = ApiBase::new(publish);
+        self.games_base = ApiBase::new(games);
+        self.intl_base = ApiBase::new(intl);
+        self
+    }
+
+    /// Which set of media this client writes.
+    pub fn media_target(&self) -> crate::config::MediaSet {
+        match &self.language_code {
+            None => crate::config::MediaSet::Own,
+            Some(code) => crate::config::MediaSet::Translation(code.clone()),
         }
     }
 

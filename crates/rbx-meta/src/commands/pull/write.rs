@@ -363,11 +363,7 @@ pub(super) fn write_media_block(doc: &mut DocumentMut, key: &str, media: &MediaC
     } else {
         set_value(t, "bleed", value(false));
     }
-    if media.language_code == "en_us" {
-        t.remove("language_code");
-    } else {
-        set_value(t, "language_code", value(media.language_code.clone()));
-    }
+    set_opt_str(t, "language_code", media.language_code.as_deref());
 }
 
 /// Write or update `[envs.<name>]` overlays in the doc. Removes envs that
@@ -667,7 +663,7 @@ mod tests {
                 // their default value, so a default-valued test would pass even
                 // if the mirror never wrote them at all.
                 bleed: false,
-                language_code: "fr_fr".to_string(),
+                language_code: Some("fr_fr".to_string()),
             },
             envs,
         }
@@ -697,7 +693,7 @@ mod tests {
     fn omitted_media_defaults_reparse_to_the_same_values() {
         let mut config = fully_populated_config();
         config.media.bleed = true;
-        config.media.language_code = "en_us".to_string();
+        config.media.language_code = None;
         // Clear the env media overlay too, so the assertions below can look at
         // the whole file rather than having to isolate the base `[media]` table.
         config

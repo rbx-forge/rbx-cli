@@ -753,6 +753,7 @@ fn media_with(thumbnails: &[&str]) -> MediaConfig {
 
 fn locked(entries: &[(&str, Option<u64>)]) -> MediaLockfile {
     MediaLockfile {
+        written_for: None,
         icon: None,
         thumbnails: entries
             .iter()
@@ -793,6 +794,7 @@ mod icon {
             ..MediaConfig::default()
         };
         let media_lock = MediaLockfile {
+            written_for: None,
             icon: Some(MediaLock {
                 hash,
                 image_id: Some(1),
@@ -816,6 +818,7 @@ mod icon {
             ..MediaConfig::default()
         };
         let media_lock = MediaLockfile {
+            written_for: None,
             icon: Some(MediaLock {
                 hash: stale,
                 image_id: Some(1),
@@ -835,6 +838,7 @@ mod icon {
     fn no_icon_in_the_config_is_not_a_deletion() {
         let dir = tempfile::tempdir().expect("tempdir");
         let media_lock = MediaLockfile {
+            written_for: None,
             icon: Some(MediaLock {
                 hash: "whatever".into(),
                 image_id: Some(1),

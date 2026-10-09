@@ -85,15 +85,8 @@ mod tests {
     const PLACE: u64 = 77889900112233;
 
     fn client(server: &MockServer) -> RbxClient {
-        RbxClient::new(
-            Some("test-key".into()),
-            None,
-            UNIVERSE,
-            PLACE,
-            false,
-            "en-us".into(),
-        )
-        .with_base_url(server.uri())
+        RbxClient::new(Some("test-key".into()), None, UNIVERSE, PLACE, false, None)
+            .with_base_url(server.uri())
     }
 
     /// A place is addressed under its universe, not on its own. Getting that
@@ -141,7 +134,7 @@ mod tests {
     #[tokio::test]
     async fn a_missing_api_key_fails_before_any_request() {
         let server = MockServer::start().await;
-        let error = RbxClient::new(None, None, UNIVERSE, PLACE, false, "en-us".into())
+        let error = RbxClient::new(None, None, UNIVERSE, PLACE, false, None)
             .with_base_url(server.uri())
             .get_place()
             .await

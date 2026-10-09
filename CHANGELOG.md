@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`rbx meta` writes the experience's own icon and thumbnails**, the ones the
+  Creator Hub's thumbnails page shows and players see. Until now it could only
+  write a *translation*: every write went through Roblox's localization API,
+  `language_code` defaulted to `"en_us"`, and Roblox refuses the source
+  language there. So a sync reported thumbnails uploaded while the thumbnails
+  page stayed empty, the images filed as an English (US) translation. The own
+  set goes through the Creator Hub's routes (`publish.roblox.com` to upload,
+  `develop.roblox.com` to order and delete), which need the cookie and are not
+  in Roblox's OpenAPI document.
+
+  `language_code` now defaults to unset, meaning the own set; set, it still
+  writes that language's translation, and naming the source language is
+  refused before anything is sent. The lockfile records which set its ids
+  belong to (`written_for`), and ids from another set, or from a lockfile
+  written before this, are planned around and named rather than deleted or
+  reordered through the wrong routes. `sync` also reports thumbnails Roblox
+  holds in the target set that the lockfile does not know of. `pull` reads the
+  same set `sync` writes; before, it read the own set while `sync` wrote a
+  translation. See [Media](docs/meta.md#media-the-experiences-own-or-a-translation).
+
 - **`rbx group rank` and `unrank` are a dry run without `--apply`**, the
   contract every other live command keeps and the README states for all of
   them. 0.10.0 wrote after a confirmation alone. Without `--apply` they now
@@ -85,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Roblox's localization API. A set for any language but the source one is shown
   only to players in that language and is filed under Localization, so a sync
   that reported thumbnails uploaded could leave the main thumbnails page empty.
-  [Media is per language](docs/meta.md#media-is-per-language) says so now,
+  [Media](docs/meta.md#media-the-experiences-own-or-a-translation) says so now,
   along with the two things `rbx meta` cannot write: the source language's
   thumbnails, which no documented endpoint sets, and the Home Page thumbnails.
 

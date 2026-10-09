@@ -390,8 +390,10 @@ impl MediaConfig {
         if let Some(v) = overlay.bleed {
             self.bleed = v;
         }
+        // An overlay can switch an env to a translation, not back to the
+        // experience's own media: TOML has no way to say "unset" here.
         if let Some(v) = &overlay.language_code {
-            self.language_code = v.clone();
+            self.language_code = Some(v.clone());
         }
     }
 }

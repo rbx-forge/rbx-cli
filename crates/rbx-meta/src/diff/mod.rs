@@ -27,6 +27,10 @@ pub struct SyncPlan {
     pub beta_mode_change: Option<bool>,
     pub icon: IconPlan,
     pub thumbnails: ThumbnailPlan,
+    /// The icon or thumbnails are written to the experience's own media,
+    /// which only the Creator Hub's cookie routes can do. Set by `sync`, which
+    /// knows the target set; `build_plan` only sees what changed.
+    pub media_needs_cookie: bool,
 }
 
 impl SyncPlan {
@@ -43,9 +47,9 @@ impl SyncPlan {
 
     /// Whether applying this plan sends anything the cookie authenticates.
     ///
-    /// The four cookie-only pieces of a sync: the two legacy patches, the
-    /// visibility flip, and beta mode. Everything else goes to Open Cloud with
-    /// the API key.
+    /// The cookie-only pieces of a sync: the two legacy patches, the
+    /// visibility flip, beta mode, and media written to the experience's own
+    /// set. Everything else goes to Open Cloud with the API key.
     ///
     /// A method rather than the expression it replaced in `sync::run`, because
     /// it is now asked twice (once to refuse early, once inside `apply_plan`
@@ -56,6 +60,12 @@ impl SyncPlan {
             || self.universe_legacy_patch.is_some()
             || self.visibility_change.is_some()
             || self.beta_mode_change.is_some()
+            || self.media_needs_cookie
+    }
+
+    /// Whether the icon or any thumbnail is written.
+    pub fn has_media_work(&self) -> bool {
+        !matches!(self.icon, IconPlan::None) || !self.thumbnails.is_empty()
     }
 }
 
@@ -163,6 +173,7 @@ pub fn build_plan(
         beta_mode_change: build_beta_mode_change(game, game_lock),
         icon: build_icon_plan(media, media_lock, config_dir)?,
         thumbnails: build_thumbnail_plan(media, media_lock, config_dir)?,
+        media_needs_cookie: false,
     })
 }
 

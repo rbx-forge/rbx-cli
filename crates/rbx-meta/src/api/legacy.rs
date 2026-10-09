@@ -397,14 +397,14 @@ impl RbxClient {
         Ok(response.text().await.unwrap_or_default())
     }
 
-    async fn send_with_csrf<F>(&self, build: F) -> Result<()>
+    pub(crate) async fn send_with_csrf<F>(&self, build: F) -> Result<()>
     where
         F: Fn() -> RequestBuilder,
     {
         self.send_response_with_csrf(build).await.map(|_| ())
     }
 
-    async fn send_response_with_csrf<F>(&self, build: F) -> Result<reqwest::Response>
+    pub(crate) async fn send_response_with_csrf<F>(&self, build: F) -> Result<reqwest::Response>
     where
         F: Fn() -> RequestBuilder,
     {

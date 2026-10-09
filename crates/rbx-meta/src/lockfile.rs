@@ -156,6 +156,17 @@ impl GameLock {
 
 #[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct MediaLockfile {
+    /// Which set the ids below belong to: `own` for the experience's own
+    /// media, or the language code of a translation. See `MediaSet`.
+    ///
+    /// Recorded because the two sets do not share ids, and acting on one
+    /// set's id through the other's routes deletes or reorders nothing, or the
+    /// wrong thing. Absent in every lockfile written before 0.10.1, whose ids
+    /// are then not trusted for either set: `sync` leaves them alone and says
+    /// where they are.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub written_for: Option<String>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<MediaLock>,
 
@@ -166,6 +177,12 @@ pub struct MediaLockfile {
 impl MediaLockfile {
     pub fn is_empty(&self) -> bool {
         self.icon.is_none() && self.thumbnails.is_empty()
+    }
+
+    /// Whether these ids can be acted on for `target`. An empty lock always
+    /// can: there is nothing in it to misdirect.
+    pub fn belongs_to(&self, target: &crate::config::MediaSet) -> bool {
+        self.is_empty() || self.written_for.as_deref() == Some(target.lock_key().as_str())
     }
 }
 

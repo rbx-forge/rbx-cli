@@ -384,6 +384,9 @@ impl MediaConfig {
         if let Some(v) = &overlay.thumbnails {
             self.thumbnails = v.clone();
         }
+        if let Some(v) = &overlay.home_thumbnails {
+            self.home_thumbnails = v.clone();
+        }
         if let Some(v) = &overlay.dir {
             self.dir = Some(v.clone());
         }
@@ -537,6 +540,24 @@ impl Config {
                     full.display()
                 );
             }
+        }
+        for (idx, thumb) in media.home_thumbnails.iter().enumerate() {
+            let full = config_dir.join(thumb);
+            if !full.exists() {
+                bail!(
+                    "Home Page thumbnail #{}: path does not exist: {}",
+                    idx + 1,
+                    full.display()
+                );
+            }
+        }
+        // The document: "Up to five are supported" in a personalization
+        // configuration, which is where every Home Page thumbnail ends up.
+        if media.home_thumbnails.len() > 5 {
+            bail!(
+                "Roblox allows at most 5 Home Page thumbnails (found {})",
+                media.home_thumbnails.len()
+            );
         }
         if media.thumbnails.len() > 10 {
             bail!(

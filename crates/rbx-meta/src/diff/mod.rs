@@ -27,6 +27,7 @@ pub struct SyncPlan {
     pub beta_mode_change: Option<bool>,
     pub icon: IconPlan,
     pub thumbnails: ThumbnailPlan,
+    pub home_thumbnails: HomeThumbnailPlan,
     /// The icon or thumbnails are written to the experience's own media,
     /// which only the Creator Hub's cookie routes can do. Set by `sync`, which
     /// knows the target set; `build_plan` only sees what changed.
@@ -43,6 +44,7 @@ impl SyncPlan {
             && self.beta_mode_change.is_none()
             && matches!(self.icon, IconPlan::None)
             && self.thumbnails.is_empty()
+            && self.home_thumbnails.is_empty()
     }
 
     /// Whether applying this plan sends anything the cookie authenticates.
@@ -137,6 +139,41 @@ impl ThumbnailPlan {
     }
 }
 
+/// The Home Page thumbnails: what to upload, what to remove, and whether the
+/// active personalization configuration has to be pointed at a new list.
+#[derive(Debug, Default)]
+pub struct HomeThumbnailPlan {
+    /// Files with no matching lockfile entry, in declared order.
+    pub uploads: Vec<HomeUpload>,
+    /// `homepageThumbnailId`s in the lockfile that no declared file matches.
+    /// Removed only after the configuration stops listing them.
+    pub deletes: Vec<String>,
+    /// Every declared file, in order: an id already known, or an upload.
+    pub slots: Vec<HomeSlot>,
+    /// The declared list differs from the lockfile's, in membership or
+    /// order. Uploads and deletes imply it.
+    pub needs_update: bool,
+}
+
+impl HomeThumbnailPlan {
+    pub fn is_empty(&self) -> bool {
+        self.uploads.is_empty() && self.deletes.is_empty() && !self.needs_update
+    }
+}
+
+#[derive(Debug)]
+pub struct HomeUpload {
+    pub bytes: Vec<u8>,
+    pub hash: String,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HomeSlot {
+    Keep { hash: String, id: String },
+    New { hash: String },
+}
+
 #[derive(Debug)]
 pub struct ThumbUpload {
     pub bytes: Vec<u8>,
@@ -173,6 +210,7 @@ pub fn build_plan(
         beta_mode_change: build_beta_mode_change(game, game_lock),
         icon: build_icon_plan(media, media_lock, config_dir)?,
         thumbnails: build_thumbnail_plan(media, media_lock, config_dir)?,
+        home_thumbnails: build_home_thumbnail_plan(media, media_lock, config_dir)?,
         media_needs_cookie: false,
     })
 }

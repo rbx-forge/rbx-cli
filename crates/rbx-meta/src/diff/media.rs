@@ -129,3 +129,67 @@ pub(crate) fn build_thumbnail_plan(
 
     Ok(plan)
 }
+
+/// The Home Page thumbnails, matched by hash against the lockfile like the
+/// experience's thumbnails, each lockfile entry consumed at most once so a
+/// duplicated file is uploaded twice rather than listed twice.
+pub(crate) fn build_home_thumbnail_plan(
+    media: &MediaConfig,
+    media_lock: &MediaLockfile,
+    config_dir: &Path,
+) -> Result<HomeThumbnailPlan> {
+    let mut plan = HomeThumbnailPlan::default();
+    let mut used = vec![false; media_lock.home_thumbnails.len()];
+
+    for file in &media.home_thumbnails {
+        let bytes = process_image(&config_dir.join(file), media.bleed)?;
+        let hash = hash_bytes(&bytes);
+        let matched = media_lock
+            .home_thumbnails
+            .iter()
+            .enumerate()
+            .find(|(i, entry)| !used[*i] && entry.hash == hash);
+        match matched {
+            Some((i, entry)) => {
+                used[i] = true;
+                plan.slots.push(HomeSlot::Keep {
+                    hash,
+                    id: entry.homepage_thumbnail_id.clone(),
+                });
+            }
+            None => {
+                plan.slots.push(HomeSlot::New { hash: hash.clone() });
+                plan.uploads.push(HomeUpload {
+                    bytes,
+                    hash,
+                    path: file.clone(),
+                });
+            }
+        }
+    }
+
+    plan.deletes = media_lock
+        .home_thumbnails
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !used[*i])
+        .map(|(_, entry)| entry.homepage_thumbnail_id.clone())
+        .collect();
+
+    let kept: Vec<&str> = plan
+        .slots
+        .iter()
+        .filter_map(|slot| match slot {
+            HomeSlot::Keep { id, .. } => Some(id.as_str()),
+            HomeSlot::New { .. } => None,
+        })
+        .collect();
+    let locked: Vec<&str> = media_lock
+        .home_thumbnails
+        .iter()
+        .map(|entry| entry.homepage_thumbnail_id.as_str())
+        .collect();
+    plan.needs_update = !plan.uploads.is_empty() || !plan.deletes.is_empty() || kept != locked;
+
+    Ok(plan)
+}

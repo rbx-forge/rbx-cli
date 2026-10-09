@@ -754,6 +754,7 @@ fn media_with(thumbnails: &[&str]) -> MediaConfig {
 fn locked(entries: &[(&str, Option<u64>)]) -> MediaLockfile {
     MediaLockfile {
         written_for: None,
+        home_thumbnails: Vec::new(),
         icon: None,
         thumbnails: entries
             .iter()
@@ -795,6 +796,7 @@ mod icon {
         };
         let media_lock = MediaLockfile {
             written_for: None,
+            home_thumbnails: Vec::new(),
             icon: Some(MediaLock {
                 hash,
                 image_id: Some(1),
@@ -819,6 +821,7 @@ mod icon {
         };
         let media_lock = MediaLockfile {
             written_for: None,
+            home_thumbnails: Vec::new(),
             icon: Some(MediaLock {
                 hash: stale,
                 image_id: Some(1),
@@ -839,6 +842,7 @@ mod icon {
         let dir = tempfile::tempdir().expect("tempdir");
         let media_lock = MediaLockfile {
             written_for: None,
+            home_thumbnails: Vec::new(),
             icon: Some(MediaLock {
                 hash: "whatever".into(),
                 image_id: Some(1),
@@ -1743,5 +1747,115 @@ mod universe_legacy {
 
         assert!(error.contains(".toml or .json"), "{error}");
         assert!(error.contains("avatar.yaml"), "{error}");
+    }
+}
+
+mod home_thumbnails {
+    use super::*;
+    use crate::lockfile::HomeThumbnailLock;
+
+    fn media(files: &[&str]) -> MediaConfig {
+        MediaConfig {
+            home_thumbnails: files.iter().map(PathBuf::from).collect(),
+            ..MediaConfig::default()
+        }
+    }
+
+    fn lock(entries: &[(&str, &str)]) -> MediaLockfile {
+        MediaLockfile {
+            home_thumbnails: entries
+                .iter()
+                .map(|(hash, id)| HomeThumbnailLock {
+                    hash: (*hash).to_string(),
+                    homepage_thumbnail_id: (*id).to_string(),
+                })
+                .collect(),
+            ..MediaLockfile::default()
+        }
+    }
+
+    fn plan(dir: &Path, media: &MediaConfig, lock: &MediaLockfile) -> HomeThumbnailPlan {
+        build_home_thumbnail_plan(media, lock, dir).expect("plan")
+    }
+
+    #[test]
+    fn a_first_sync_uploads_everything_and_sets_the_configuration() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        put_image(dir.path(), "a.png", RED);
+        put_image(dir.path(), "b.png", GREEN);
+
+        let p = plan(dir.path(), &media(&["a.png", "b.png"]), &lock(&[]));
+
+        assert_eq!(p.uploads.len(), 2);
+        assert!(p.deletes.is_empty());
+        assert!(p.needs_update);
+    }
+
+    #[test]
+    fn nothing_changes_when_the_lockfile_already_lists_them_in_order() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let a = put_image(dir.path(), "a.png", RED);
+        let b = put_image(dir.path(), "b.png", GREEN);
+
+        let p = plan(
+            dir.path(),
+            &media(&["a.png", "b.png"]),
+            &lock(&[(&a, "home-a"), (&b, "home-b")]),
+        );
+
+        assert!(p.is_empty(), "nothing to do: {p:?}");
+    }
+
+    /// Removed from the file: dropped from the configuration and deleted, in
+    /// that order, which `sync` guarantees and the plan makes possible by
+    /// listing it apart from the kept ones.
+    #[test]
+    fn a_dropped_file_is_deleted_and_the_configuration_updated() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let a = put_image(dir.path(), "a.png", RED);
+        let b = put_image(dir.path(), "b.png", GREEN);
+
+        let p = plan(
+            dir.path(),
+            &media(&["a.png"]),
+            &lock(&[(&a, "home-a"), (&b, "home-b")]),
+        );
+
+        assert_eq!(p.deletes, vec!["home-b".to_string()]);
+        assert!(p.uploads.is_empty());
+        assert!(p.needs_update);
+    }
+
+    #[test]
+    fn a_new_order_alone_updates_the_configuration() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let a = put_image(dir.path(), "a.png", RED);
+        let b = put_image(dir.path(), "b.png", GREEN);
+
+        let p = plan(
+            dir.path(),
+            &media(&["b.png", "a.png"]),
+            &lock(&[(&a, "home-a"), (&b, "home-b")]),
+        );
+
+        assert!(p.uploads.is_empty() && p.deletes.is_empty());
+        assert!(p.needs_update, "the order changed: {p:?}");
+    }
+
+    /// Home Page entries have no language, so a lockfile switching between
+    /// the experience's own media and a translation keeps them.
+    #[test]
+    fn changing_the_language_set_keeps_the_home_page_list() {
+        let mut section = lock(&[("h", "home-a")]);
+        section.written_for = Some("en_us".to_string());
+        section.thumbnails = vec![MediaLock {
+            hash: "t".to_string(),
+            image_id: Some(1),
+        }];
+
+        assert!(!section.belongs_to(&crate::config::MediaSet::Own));
+        let kept = section.without_language_set();
+        assert!(kept.thumbnails.is_empty());
+        assert_eq!(kept.home_thumbnails.len(), 1);
     }
 }

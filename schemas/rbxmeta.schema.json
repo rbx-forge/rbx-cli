@@ -639,6 +639,13 @@
             "null"
           ]
         },
+        "home_thumbnails": {
+          "description": "Up to 5 PNG paths for the **Home Page** thumbnails, a set separate from `thumbnails` (the experience's page). Roblox serves them through a personalization configuration that picks one per player and keeps statistics; `sync` replaces the images in the active configuration, which keeps those statistics, and creates one only when none is active.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "icon": {
           "description": "Path to the game icon PNG (relative to the config file).",
           "type": [
@@ -676,6 +683,16 @@
             "string",
             "null"
           ]
+        },
+        "home_thumbnails": {
+          "description": "`Some(vec)` overrides base Home Page thumbnails; `None` means inherit.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
         },
         "icon": {
           "type": [

@@ -61,7 +61,7 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
         let mut lock_media = env_lock.media.clone();
         if has_media && !lock_media.belongs_to(&target) {
             report_foreign_media(&lock_media, &target);
-            lock_media = MediaLockfile::default();
+            lock_media = lock_media.without_language_set();
         }
 
         // The two public reads this planning pass makes, and the only ones:
@@ -422,7 +422,7 @@ async fn apply_plan(
         let target = client.media_target();
         let section = &mut lockfile.env_mut(env).media;
         if !section.belongs_to(&target) {
-            *section = MediaLockfile::default();
+            *section = section.without_language_set();
         }
         section.written_for = Some(target.lock_key());
         lockfile.save(lockfile_path)?;
@@ -502,7 +502,110 @@ async fn apply_plan(
         println!("  {} thumbnails synced", "✓".green());
     }
 
+    if !plan.home_thumbnails.is_empty() {
+        apply_home_thumbnails(client, &plan.home_thumbnails, lockfile, lockfile_path, env).await?;
+    }
+
     println!("\n{}", "Sync complete.".green().bold());
+    Ok(())
+}
+
+/// The Home Page: upload, point the active configuration at the declared list,
+/// then remove what it no longer lists.
+///
+/// In that order, so that at no point does the configuration name a thumbnail
+/// that is gone. The lockfile is written after the configuration call rather
+/// than per upload: an uploaded image that never made it into the
+/// configuration is not one `sync` should consider in place.
+async fn apply_home_thumbnails(
+    client: &RbxClient,
+    plan: &crate::diff::HomeThumbnailPlan,
+    lockfile: &mut Lockfile,
+    lockfile_path: &std::path::Path,
+    env: &str,
+) -> Result<()> {
+    use crate::diff::HomeSlot;
+    use crate::lockfile::HomeThumbnailLock;
+
+    println!("\n{} home page thumbnails...", "Syncing".cyan().bold());
+
+    // One request for every new file. The names only have to be unique
+    // within it, and are what the reply is keyed by.
+    let files: Vec<(String, Vec<u8>)> = plan
+        .uploads
+        .iter()
+        .enumerate()
+        .map(|(i, upload)| (format!("home_{}.png", i + 1), upload.bytes.clone()))
+        .collect();
+    // The ids made for each hash, in upload order. A file declared twice is
+    // uploaded twice, so its hash queues two ids and each `New` slot below
+    // takes the next one.
+    let mut pending: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
+    if !files.is_empty() {
+        for upload in &plan.uploads {
+            println!("  Uploading {}", upload.path.display());
+        }
+        let uploaded = client.upload_home_thumbnails(&files).await?;
+        for ((name, _), upload) in files.iter().zip(&plan.uploads) {
+            let id = uploaded
+                .get(name)
+                .and_then(|u| u.homepage_thumbnail_id.clone())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("Roblox returned no id for {}", upload.path.display())
+                })?;
+            pending.entry(upload.hash.clone()).or_default().push(id);
+        }
+    }
+    let mut entries: Vec<HomeThumbnailLock> = Vec::new();
+    for slot in &plan.slots {
+        match slot {
+            HomeSlot::Keep { hash, id } => entries.push(HomeThumbnailLock {
+                hash: hash.clone(),
+                homepage_thumbnail_id: id.clone(),
+            }),
+            HomeSlot::New { hash } => {
+                let id = pending
+                    .get_mut(hash)
+                    .and_then(|ids| (!ids.is_empty()).then(|| ids.remove(0)))
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("no uploaded id for a declared Home Page file")
+                    })?;
+                entries.push(HomeThumbnailLock {
+                    hash: hash.clone(),
+                    homepage_thumbnail_id: id,
+                });
+            }
+        }
+    }
+    let ids: Vec<String> = entries
+        .iter()
+        .map(|e| e.homepage_thumbnail_id.clone())
+        .collect();
+
+    let active = client.active_home_config().await?;
+    match &active {
+        Some(config) if config.homepage_thumbnail_ids == ids => {
+            println!("  · the active configuration already lists these");
+        }
+        Some(_) => {
+            println!("  Updating the active personalization configuration");
+            client.set_home_config(active.as_ref(), &ids).await?;
+        }
+        None => {
+            println!("  Creating a personalization configuration (none was active)");
+            client.set_home_config(None, &ids).await?;
+        }
+    }
+    lockfile.env_mut(env).media.home_thumbnails = entries;
+    lockfile.save(lockfile_path)?;
+
+    if !plan.deletes.is_empty() {
+        println!("  Removing {} home page thumbnail(s)", plan.deletes.len());
+        client.delete_home_thumbnails(&plan.deletes).await?;
+    }
+
+    println!("  {} home page thumbnails synced", "✓".green());
     Ok(())
 }
 
@@ -722,6 +825,21 @@ fn print_plan(plan: &SyncPlan, env: &str) {
         if plan.thumbnails.needs_reorder {
             println!("    • reorder to match config order");
         }
+    }
+
+    let home = &plan.home_thumbnails;
+    if !home.is_empty() {
+        println!("\n  {} home page thumbnails:", "▸".cyan());
+        for upload in &home.uploads {
+            println!("    • upload {}", upload.path.display());
+        }
+        for id in &home.deletes {
+            println!("    • remove {id}");
+        }
+        println!(
+            "    • set the active personalization configuration to these {}",
+            home.slots.len()
+        );
     }
 }
 

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`home_thumbnails` in `rbxmeta.toml`**, for the Home Page thumbnails, up to
+  five: a set apart from the experience's page thumbnails, with no language.
+  Roblox serves them through a personalization configuration that picks one
+  per player and keeps statistics, so `sync` uploads new images and waits for
+  Roblox to process them, then **updates** the active configuration to the
+  declared list, keeping its statistics, and creates one only when none is
+  active. Images the configuration stops listing are deleted after it stops.
+  Through the documented `thumbnail-personalization-api` and the API key, but
+  Roblox marks every operation EXPERIMENTAL. See
+  [Home Page thumbnails](docs/meta.md#home-page-thumbnails).
+
 ## [0.10.1] - 2026-10-09
 
 ### Changed

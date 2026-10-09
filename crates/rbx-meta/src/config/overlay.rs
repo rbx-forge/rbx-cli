@@ -23,6 +23,14 @@ pub struct MediaConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub thumbnails: Vec<PathBuf>,
 
+    /// Up to 5 PNG paths for the **Home Page** thumbnails, a set separate
+    /// from `thumbnails` (the experience's page). Roblox serves them through
+    /// a personalization configuration that picks one per player and keeps
+    /// statistics; `sync` replaces the images in the active configuration,
+    /// which keeps those statistics, and creates one only when none is active.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub home_thumbnails: Vec<PathBuf>,
+
     /// Destination directory for `pull --accept-remote` downloads.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dir: Option<PathBuf>,
@@ -55,6 +63,7 @@ impl Default for MediaConfig {
         Self {
             icon: None,
             thumbnails: Vec::new(),
+            home_thumbnails: Vec::new(),
             dir: None,
             bleed: true,
             language_code: None,
@@ -66,6 +75,7 @@ impl MediaConfig {
     pub(crate) fn is_default(&self) -> bool {
         self.icon.is_none()
             && self.thumbnails.is_empty()
+            && self.home_thumbnails.is_empty()
             && self.dir.is_none()
             && self.bleed
             && self.language_code.is_none()
@@ -212,6 +222,10 @@ pub struct MediaOverlay {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnails: Option<Vec<PathBuf>>,
 
+    /// `Some(vec)` overrides base Home Page thumbnails; `None` means inherit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub home_thumbnails: Option<Vec<PathBuf>>,
+
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dir: Option<PathBuf>,
 
@@ -226,6 +240,7 @@ impl MediaOverlay {
     pub fn is_empty(&self) -> bool {
         self.icon.is_none()
             && self.thumbnails.is_none()
+            && self.home_thumbnails.is_none()
             && self.dir.is_none()
             && self.bleed.is_none()
             && self.language_code.is_none()

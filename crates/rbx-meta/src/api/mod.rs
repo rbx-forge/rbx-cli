@@ -1,4 +1,5 @@
 pub mod experience_releases;
+pub mod home;
 pub mod legacy;
 pub mod media;
 pub mod models;

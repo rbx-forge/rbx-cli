@@ -357,6 +357,7 @@ pub(super) fn write_media_block(doc: &mut DocumentMut, key: &str, media: &MediaC
     let t = ensure_table(doc, key);
     set_opt_path(t, "icon", media.icon.as_deref());
     set_path_array(t, "thumbnails", &media.thumbnails);
+    set_path_array(t, "home_thumbnails", &media.home_thumbnails);
     set_opt_path(t, "dir", media.dir.as_deref());
     if media.bleed {
         t.remove("bleed");
@@ -455,6 +456,12 @@ pub(super) fn write_media_overlay(doc: &mut DocumentMut, parent: &str, media: &M
         Some(thumbs) => set_path_array(t, "thumbnails", thumbs),
         None => {
             t.remove("thumbnails");
+        }
+    }
+    match &media.home_thumbnails {
+        Some(thumbs) => set_path_array(t, "home_thumbnails", thumbs),
+        None => {
+            t.remove("home_thumbnails");
         }
     }
     set_opt_path(t, "dir", media.dir.as_deref());
@@ -600,6 +607,7 @@ mod tests {
                         PathBuf::from("assets/prod/one.png"),
                         PathBuf::from("assets/prod/two.png"),
                     ]),
+                    home_thumbnails: Some(vec![PathBuf::from("assets/prod/home.png")]),
                     dir: Some(PathBuf::from("assets/prod")),
                     bleed: Some(false),
                     language_code: Some("de_de".to_string()),
@@ -657,6 +665,10 @@ mod tests {
                 thumbnails: vec![
                     PathBuf::from("assets/one.png"),
                     PathBuf::from("assets/two.png"),
+                ],
+                home_thumbnails: vec![
+                    PathBuf::from("assets/home_a.png"),
+                    PathBuf::from("assets/home_b.png"),
                 ],
                 dir: Some(PathBuf::from("assets")),
                 // Both deliberately non-default: the mirror omits these keys at

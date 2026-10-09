@@ -284,6 +284,7 @@ price = 25                   # Robux, only with mode = "paid"
 [media]
 icon = "assets/icon.png"
 thumbnails = ["assets/thumb1.png", "assets/thumb2.png"]
+home_thumbnails = ["assets/home1.png"]  # the Home Page, up to 5
 dir = "assets"               # destination for `pull --accept-remote` downloads
 bleed = true
 # language_code = "fr_fr"  # write a translation instead of the experience's own media
@@ -579,6 +580,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | --- | --- | --- | --- |
 | `icon` | `string` | `(unset)` | Path to a PNG icon (relative to the config file) |
 | `thumbnails` | `string[]` | `[]` | Up to 10 PNG thumbnail paths, displayed on Roblox in this order |
+| `home_thumbnails` | `string[]` | `[]` | Up to 5 PNG paths for the **Home Page**. See [Home Page thumbnails](#home-page-thumbnails) |
 | `dir` | `string` | `(unset)` | Destination directory used by `pull --accept-remote` to save downloaded icon and thumbnails |
 | `bleed` | `bool` | `true` | Apply alpha bleed to PNGs before upload |
 | `language_code` | `string` | *unset* | Unset writes the experience's own icon and thumbnails; set, that language's **translation**. See [Media: the experience's own, or a translation](#media-the-experiences-own-or-a-translation) |
@@ -597,6 +599,7 @@ Omit a section to remove that link from Roblox. Available platforms: `facebook`,
 | `game.social_links.*` | Open Cloud | 7 platforms |
 | `media.icon` | **Cookie** (own) / Open Cloud (translation) | See below |
 | `media.thumbnails[]` | **Cookie** (own) / Open Cloud (translation) | Up to 10, ordered. See below |
+| `media.home_thumbnails[]` | Open Cloud, `EXPERIMENTAL` | Up to 5. See below |
 | `game.server_fill` | **Cookie** | `socialSlotType` + `customSocialSlotsCount` |
 | `game.allow_copying` | **Cookie** | `copyingAllowed` |
 | `game.visibility`, `game.audience` | Anonymous read / **Cookie** write | `audiences` on legacy `/v2/universes/{id}/configuration`, plus `activate` / `deactivate`. Read from `GET /v1/universes/{id}` |
@@ -638,7 +641,24 @@ DELETE /legacy-game-internationalization/v1/game-thumbnails/games/<universe>/lan
 
 The lockfile records which set its ids belong to (`written_for = "own"`, or a language code), and ids recorded for another set are planned around rather than acted on.
 
-The **Home Page** thumbnails are a third set again (`thumbnail-personalization-api`, with A/B configurations Roblox serves from). `rbx meta` does not write them.
+### Home Page thumbnails
+
+`home_thumbnails` is a third set, unrelated to both above: the images Roblox shows for the experience on its Home Page. They have no language, so `language_code` does not apply and switching it never touches them.
+
+```toml
+[media]
+home_thumbnails = ["assets/home1.png", "assets/home2.png"]
+```
+
+Roblox does not show them in an order. It serves them through a **personalization configuration**, which picks one image per player and keeps statistics on which works. So a `sync` that changes the list:
+
+1. uploads the new images, in one request, and waits until Roblox has processed each (a minute at most; an image rejected in moderation is an error naming it);
+2. **updates** the active configuration to the declared list, which keeps its statistics, or creates one only when none is active, since creating starts the statistics over;
+3. deletes the images the configuration no longer lists, after it has stopped listing them.
+
+At most 5, the document's limit for a configuration. Images are matched by content like the other media: reordering the list or renaming a file uploads nothing.
+
+This goes through `thumbnail-personalization-api` with the API key (scopes `universe.thumbnail:read` and `universe.thumbnail:write`). It is documented, but every operation is marked `EXPERIMENTAL` by Roblox, a step below the BETA most of Open Cloud carries. Home Page images set by hand in the Creator Hub, and not in the lockfile, are not deleted: the configuration simply stops listing them.
 
 ### Visibility and audience
 
@@ -771,7 +791,7 @@ Before sending any request, `rbx meta` validates locally:
 - `private_server.price` is `0` or `>= 10` (Roblox rejects 1-9 Robux)
 - `visibility = "private"` with `private_server.price > 0` is invalid (Roblox requires public)
 - `visibility = "limited"` needs a non-empty `audience`, and `audience` is refused beside `public` or `private` in the same layer
-- Referenced `media.icon` and `media.thumbnails[]` paths exist on disk
+- Referenced `media.icon`, `media.thumbnails[]` and `media.home_thumbnails[]` paths exist on disk
 
 When a Roblox call still fails for a known reason `rbx meta` couldn't detect locally (e.g. the 60-day cooldown on private server price changes), the error message includes a hint pointing to Creator Hub for the real diagnostic.
 

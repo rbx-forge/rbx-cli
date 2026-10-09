@@ -172,18 +172,46 @@ pub struct MediaLockfile {
 
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub thumbnails: Vec<MediaLock>,
+
+    /// The Home Page thumbnails, in declared order. Not part of either set
+    /// above: they have no language, so `written_for` says nothing about them
+    /// and changing it never touches this list.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub home_thumbnails: Vec<HomeThumbnailLock>,
 }
 
 impl MediaLockfile {
     pub fn is_empty(&self) -> bool {
-        self.icon.is_none() && self.thumbnails.is_empty()
+        self.icon.is_none() && self.thumbnails.is_empty() && self.home_thumbnails.is_empty()
     }
 
-    /// Whether these ids can be acted on for `target`. An empty lock always
-    /// can: there is nothing in it to misdirect.
+    /// Whether the icon and thumbnail ids can be acted on for `target`. An
+    /// empty section always can: there is nothing in it to misdirect. The
+    /// Home Page list is not looked at, since it belongs to no language set.
     pub fn belongs_to(&self, target: &crate::config::MediaSet) -> bool {
-        self.is_empty() || self.written_for.as_deref() == Some(target.lock_key().as_str())
+        (self.icon.is_none() && self.thumbnails.is_empty())
+            || self.written_for.as_deref() == Some(target.lock_key().as_str())
     }
+
+    /// This section with the icon and thumbnails dropped and the Home Page
+    /// list kept: what is left once a different language set is written.
+    pub fn without_language_set(&self) -> Self {
+        Self {
+            home_thumbnails: self.home_thumbnails.clone(),
+            ..Self::default()
+        }
+    }
+}
+
+/// One Home Page thumbnail `sync` uploaded.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+pub struct HomeThumbnailLock {
+    /// blake3 hash of the processed PNG, as for the other media.
+    pub hash: String,
+    /// The `homepageThumbnailId` Roblox assigned once the upload was
+    /// processed: what a personalization configuration lists, and what a
+    /// delete takes. A string in Roblox's API.
+    pub homepage_thumbnail_id: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]

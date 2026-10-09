@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one. Every group endpoint is marked BETA by Roblox. See
   [rbx group](docs/ops/group.md).
 
+### Changed
+
+- **`rbx env gen-module` is `rbx env codegen`**, the name `rbx shop codegen`
+  already had for the same job. No alias: the old spelling is gone. The banner
+  of the generated module names the command, so the first `--check` after
+  upgrading reports that one line as drift; regenerate once and commit. The
+  `rbx check` row is `env/codegen` accordingly.
+
 ### Fixed
 
 - **`rbx meta sync` uploaded the same thumbnails again on every run.** Roblox

@@ -1,7 +1,7 @@
 //! `rbx check` and `rbx status`: every configured tool's check in one pass.
 //!
 //! A full CI integration used to mean knowing and chaining a handful of
-//! commands (`env gen-module --check`, `shop check`, `shop codegen --check`,
+//! commands (`env codegen --check`, `shop check`, `shop codegen --check`,
 //! `meta check`, `config check`, `rtbf check`, `apikey status`) and getting the
 //! exit-code handling right for each. This is that list, discovered from the
 //! repo rather than configured, with one aggregated exit code.
@@ -268,7 +268,7 @@ mod tests {
             .await
             .expect_err("the env module was never generated, which is drift");
 
-        assert!(format!("{err:#}").contains("env/gen-module"), "{err:#}");
+        assert!(format!("{err:#}").contains("env/codegen"), "{err:#}");
     }
 
     /// The other half of the rule: a shared env file named outright is not
@@ -291,7 +291,7 @@ mod tests {
             .await
             .expect_err("the env module was never generated, which is drift");
 
-        assert!(format!("{err:#}").contains("env/gen-module"), "{err:#}");
+        assert!(format!("{err:#}").contains("env/codegen"), "{err:#}");
     }
 
     /// A directory with no rbx config files is not a failure. Running `rbx
@@ -425,7 +425,7 @@ mod tests {
         let mut report = Report::default();
         report.push(ToolReport::new(
             "env",
-            "gen-module",
+            "codegen",
             Outcome::Clean,
             "1 generated file up to date",
         ));

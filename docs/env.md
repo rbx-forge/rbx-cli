@@ -9,7 +9,7 @@ Every other subcommand resolves `--env` against this file. `rbx env` is the read
 - **List** - See every env, its universe id, and its places, rendered in the file's own TOML shape
 - **Get** - Print one bare value to stdout, ready for `$(...)` capture in scripts and CI
 - **Set** - Write the settings nothing on Roblox can produce: `[owner]`, `[codegen]`, `[groups]`, and the per-env `codegen` / `confirm`
-- **Gen-module** - Export the whole map as a Luau/Lua/JSON/TypeScript module for your game code, with `--check` to prove the committed copy was never hand-edited
+- **Codegen** - Export the whole map as a Luau/Lua/JSON/TypeScript module for your game code, with `--check` to prove the committed copy was never hand-edited
 - **JSON** - `--json` on `list` and `get` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
 - **Completions** - The env and place names in this file are what `--env <TAB>` and `--place <TAB>` offer, in bash, zsh, fish and PowerShell
 - **Same resolution as everything else** - Delegates to the shared resolver, so `rbx env get place-id --env prod` prints the exact id `rbx place upload --env prod` would write to
@@ -106,7 +106,7 @@ One JSON document on stdout, nothing else. Diagnostics (the unknown-key warning 
 | `envs[].env` | string | The `env` rename. **Absent** when unset, in which case `name` is the answer |
 | `envs[].owner` | object | The per-env `[<env>.owner]` override. **Absent** when the env inherits the top-level one |
 | `envs[].confirm` | boolean | Whether writes to this env prompt first |
-| `envs[].codegen` | boolean | Whether `rbx env gen-module` emits this env |
+| `envs[].codegen` | boolean | Whether `rbx env codegen` emits this env |
 | `envs[].places` | object | Place name to place id. Empty for envs used only at universe scope |
 | `envs[].root` | string | The `root` field: which place is the start place. **Absent** when unset, in which case it is `main` if `places` has one |
 
@@ -229,15 +229,15 @@ rbx env get place-id --env all --json | jq -r '.results[] | "\(.env)=\(.value)"'
 </details>
 
 <details markdown="1">
-<summary><code>rbx env gen-module</code></summary>
+<summary><code>rbx env codegen</code></summary>
 
 Export the env map as a module your game code can import, so runtime code branches on the env it's running in instead of hardcoding ids.
 
 ```sh
-rbx env gen-module --out src/types/EnvironmentInfo.luau
-rbx env gen-module --out src/environments.lua
-rbx env gen-module --out config/environments.json
-rbx env gen-module --out src/types/EnvironmentInfo.ts
+rbx env codegen --out src/types/EnvironmentInfo.luau
+rbx env codegen --out src/environments.lua
+rbx env codegen --out config/environments.json
+rbx env codegen --out src/types/EnvironmentInfo.ts
 ```
 
 | Flag | Description |
@@ -258,8 +258,8 @@ universe_id = 9876543210
 ```
 
 ```sh
-rbx env gen-module           # writes src/shared/Envs.luau
-rbx env gen-module --check   # verifies the same file
+rbx env codegen           # writes src/shared/Envs.luau
+rbx env codegen --check   # verifies the same file
 ```
 
 This is the form to prefer wherever the check runs. A `--check` spelled with a different path than the generator passes green while verifying a file nobody consumes: the one failure mode a drift guard cannot afford. An explicit `--out` still wins when passed.
@@ -378,7 +378,7 @@ Emptying one of those lists is reported rather than done quietly, because it cha
 
 Everything is planned before anything is written, so a file that fails to parse stops the run rather than leaving the project half-edited. Comments and key order survive: the files are edited as documents, not reserialised through the config model.
 
-The aggregate generated files (`init.luau`, the type module, whatever `rbx env gen-module` writes) are *regenerated*, not deleted, so the command names them at the end instead of touching them.
+The aggregate generated files (`init.luau`, the type module, whatever `rbx env codegen` writes) are *regenerated*, not deleted, so the command names them at the end instead of touching them.
 
 **Nothing is deleted on Roblox, and nothing could be.** A game pass or a developer product cannot be deleted there at all, only taken off sale; a badge can only be disabled; a universe can be deactivated and is still there. A command called `destroy` would be describing something it does not do, on resources people paid money for. This removes the env, which is the part that really can be removed.
 
@@ -397,7 +397,7 @@ An env that is not in `rbxplace.toml` is refused, and the error names the ones t
 type = "group"                       # "user" or "group"
 id = 1234567
 
-[codegen]                            # where `rbx env gen-module` writes
+[codegen]                            # where `rbx env codegen` writes
 output = "src/shared/Envs.luau"      # relative to this file
 
 [groups]                             # named subsets of the envs below
@@ -425,7 +425,7 @@ codegen = false                      # tooling env: keep it out of the module
 | --- | --- | --- | --- | --- |
 | `[owner]` | `type` | `"user"` \| `"group"` | - | Who owns the project. Tools without their own owner field fall back to this |
 | `[owner]` | `id` | integer | - | The user or group id |
-| `[codegen]` | `output` | path | - | Where `rbx env gen-module` writes, relative to this file. Omit and `--out` becomes required |
+| `[codegen]` | `output` | path | - | Where `rbx env codegen` writes, relative to this file. Omit and `--out` becomes required |
 | `[groups]` | *(any name)* | array of env names | - | A named subset of the envs, usable anywhere `--env` is. See [Groups](#groups) |
 
 ### Env fields
@@ -457,7 +457,7 @@ places.lobby = 234567890999999
 - **An env with neither `root` nor `main` has no start place.** A single place under another name is not taken for it: it may be a second place whose start place was never recorded.
 - **It is the default target** of every command run without `--place`.
 
-`rbx env gen-module` stays offline and emits the id as `rootPlaceId`. Whether the file is still right is a question for Roblox, which `rbx check --env <name>` asks in its [`env/root`](./check.md) row.
+`rbx env codegen` stays offline and emits the id as `rootPlaceId`. Whether the file is still right is a question for Roblox, which `rbx check --env <name>` asks in its [`env/root`](./check.md) row.
 
 ### `codegen = false`
 
@@ -541,10 +541,10 @@ version that introduces it before assuming it took effect.
 
 It stays a warning rather than an error on purpose. Every tool in the suite reads this one file into its own narrower struct, and a key must survive an rbx older than the release that introduced it: otherwise adopting a new field would mean upgrading every machine in the same instant. What it must not do is pass for *applied*: from the outside, an ignored key and an honoured one produced the same silent exit 0.
 
-`gen-module --check` carries the same fact into its failure. Its normal advice (regenerate and commit) assumes the committed module is the stale side. When a key was ignored, the check itself is reading the inputs wrong, the committed file may be the correct one, and regenerating would bake the misreading in. So the check names that possibility instead of stating the fix unconditionally:
+`codegen --check` carries the same fact into its failure. Its normal advice (regenerate and commit) assumes the committed module is the stale side. When a key was ignored, the check itself is reading the inputs wrong, the committed file may be the correct one, and regenerating would bake the misreading in. So the check names that possibility instead of stating the fix unconditionally:
 
 ```
-1 generated file no longer matches rbxplace.toml. Run `rbx env gen-module`
+1 generated file no longer matches rbxplace.toml. Run `rbx env codegen`
 and commit the result, unless one of the following applies.
 
 1 key in rbxplace.toml was ignored (listed above). If one of them was meant

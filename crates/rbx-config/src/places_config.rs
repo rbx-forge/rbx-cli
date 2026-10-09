@@ -17,7 +17,7 @@ pub struct PlacesConfig {
     #[allow(dead_code)]
     pub owner: Option<Owner>,
 
-    /// Reserved top-level `[codegen]` block (`rbx env gen-module`'s output
+    /// Reserved top-level `[codegen]` block (`rbx env codegen`'s output
     /// path). Same deal as `owner`: unused here, but it has to be claimed as a
     /// known key or the flattened map below would try to read it as an env and
     /// fail on the missing `universe_id`.

@@ -260,7 +260,7 @@ writing:
 
 ```sh
 rbx shop codegen --check     # against rbxshop.toml + rbxshop.lock.toml
-rbx env gen-module --check   # against rbxplace.toml
+rbx env codegen --check   # against rbxplace.toml
 ```
 
 No API key, no network: the inputs are local, so this runs in a pre-commit

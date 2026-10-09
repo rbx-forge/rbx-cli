@@ -264,7 +264,7 @@ pub enum PlaceCommands {
         write: bool,
     },
 
-    /// Moved to `rbx env gen-module`.
+    /// Moved to `rbx env codegen`.
     ///
     /// Kept as a hidden stub purely so the old invocation gets a message
     /// naming its replacement, instead of clap's "unrecognized subcommand".
@@ -472,11 +472,11 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
 
         PlaceCommands::GenEnvModule { out } => {
             let replacement = match out.as_deref() {
-                Some(path) => format!("rbx env gen-module --out {path}"),
-                None => "rbx env gen-module --out <path>".to_string(),
+                Some(path) => format!("rbx env codegen --out {path}"),
+                None => "rbx env codegen --out <path>".to_string(),
             };
             anyhow::bail!(
-                "`rbx place gen-env-module` moved to `rbx env gen-module`, which owns \
+                "`rbx place gen-env-module` moved to `rbx env codegen`, which owns \
                  rbxplace.toml.\nRun: {}",
                 replacement
             )

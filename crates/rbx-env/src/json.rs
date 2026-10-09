@@ -51,7 +51,7 @@ pub struct Env {
     pub owner: Option<Owner>,
     /// Whether writes to this env prompt first.
     pub confirm: bool,
-    /// Whether `rbx env gen-module` emits this env. False marks a universe
+    /// Whether `rbx env codegen` emits this env. False marks a universe
     /// that only ever receives uploads.
     pub codegen: bool,
     /// Place name to place id. An object, not an array: `--place` names an

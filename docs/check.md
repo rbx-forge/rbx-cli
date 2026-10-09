@@ -67,7 +67,7 @@ files the import just wrote:
 
 | Config file | Check | Network |
 |---|---|---|
-| `rbxplace.toml` | `env/gen-module`: the committed env module still matches | no |
+| `rbxplace.toml` | `env/codegen`: the committed env module still matches | no |
 | `rbxplace.toml` | `env/root`: each env's start place is still Roblox's | **yes**, no credential |
 | `rbxshop.toml` | `shop/lockfile`: declared passes/badges/products against the lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed shop modules still match | no |
@@ -89,7 +89,7 @@ published set is cut.
 without a key or a cookie, so it needs the network and nothing else. It only
 appears for an env named with `--env` that has places: `rbxplace.toml` has no
 standalone block, and an env used at universe scope has no start place to get
-wrong. It is kept apart from `env/gen-module` so that the generated module
+wrong. It is kept apart from `env/codegen` so that the generated module
 stays a function of the file alone.
 
 So `config/live` and `rtbf/live` are the only rows that need credentials, and
@@ -177,7 +177,7 @@ status (whichever suits) and get the same answer.
   "checks": [
     {
       "tool": "env",
-      "check": "gen-module",
+      "check": "codegen",
       "outcome": "skipped",
       "summary": "no [codegen].output in rbxplace.toml"
     },
@@ -208,7 +208,7 @@ changing meaning or disappearing bumps `schema_version`.
 | `totals.clean` / `.drift` / `.error` / `.skipped` | integer | Counts by outcome. |
 | `checks` | array of objects | One entry per check, in run order. |
 | `checks[].tool` | string | `env`, `shop`, `meta`, `rtbf`, `config`, `apikey`. |
-| `checks[].check` | string | Which check within the tool: `gen-module`, `lockfile`, `codegen`, `templates`, `live`, `status`. |
+| `checks[].check` | string | Which check within the tool: `codegen`, `lockfile`, `templates`, `live`, `status`. |
 | `checks[].env` | string | The env. **Absent** on checks that are not per-env. |
 | `checks[].outcome` | string | `clean`, `drift`, `error`, `skipped`. |
 | `checks[].summary` | string | One line, the same text the human renderer shows. |
@@ -252,7 +252,7 @@ stop and ask do not carry the flag at all.
 ```
 $ rbx check --env all --offline
 rbx check
-  - env/gen-module        no [codegen].output in rbxplace.toml
+  - env/codegen        no [codegen].output in rbxplace.toml
   ✓ shop/lockfile [dev]   everything in sync
   ! shop/lockfile [prod]  1 to create, 0 to update: run `rbx shop sync`
   ✓ shop/codegen          generated modules match rbxshop.toml
@@ -265,7 +265,7 @@ rbx check
 ! 2 checks found drift (2 clean, 3 skipped). Exit code 2.
 ```
 
-The checks that compose an existing command (`env/gen-module`, `shop/codegen`)
+The checks that compose an existing command (`env/codegen`, `shop/codegen`)
 print their own per-file detail above this summary, since that detail is what
 tells you which generated file went stale.
 
@@ -286,7 +286,7 @@ $ rbx status --env all --offline
 rbx status
 
   - repository
-      - env/gen-module  no [codegen].output in rbxplace.toml
+      - env/codegen  no [codegen].output in rbxplace.toml
 
   ! dev
       ! meta/lockfile   1 pending change: run `rbx meta sync`
@@ -307,7 +307,7 @@ for, and the last line says which one it would be. A repository it cannot read
 at all is no exception: an unreadable or env-less `rbxplace.toml` prints as an
 `env/discovery` error row, and the command still exits 0.
 
-The `repository` block holds the checks that are not per-env (`env/gen-module`
+The `repository` block holds the checks that are not per-env (`env/codegen`
 compares a generated file, `apikey/status` answers for the credential).
 Environments follow it in alphabetical order, which is the order `--env all`
 expands them in.
@@ -331,5 +331,5 @@ jq -r '.checks[] | select(.outcome != "clean") | "\(.env // "repo") \(.tool)/\(.
 
 ## Related
 
-- `docs/env.md`: `rbx env gen-module --check` and the ignored-key policy
+- `docs/env.md`: `rbx env codegen --check` and the ignored-key policy
 - `docs/ops.md`, which commands touch live state

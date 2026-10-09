@@ -12,7 +12,7 @@
 //! - `set`: write one of the settings that has no counterpart on Roblox, so
 //!   nothing else in the suite could ever produce it. See `commands::set` for
 //!   why that rule is the whole scope of the verb.
-//! - `gen-module`: the same data as a Luau/Lua/JSON/TS module for game code.
+//! - `codegen`: the same data as a Luau/Lua/JSON/TS module for game code.
 //! - `rm`: take an env out of every file that mentions it.
 //!
 //! `set` and `rm` are the two that write, and they write only local files:
@@ -30,13 +30,11 @@ use clap::{Args, Subcommand, ValueEnum};
 
 use rbx_core::GlobalFlags;
 
-/// Re-exported so `rbx check` can run the same comparison `gen-module --check`
+/// Re-exported so `rbx check` can run the same comparison `codegen --check`
 /// runs, without going through the command, which prints as it goes, and
 /// stdout belongs to the document under `--json`. Visibility only: neither
 /// function's body changed.
-pub use commands::gen_module::{
-    render as render_env_module, resolve_out as resolve_env_module_out,
-};
+pub use commands::codegen::{render as render_env_module, resolve_out as resolve_env_module_out};
 pub use commands::get::resolve_field;
 
 #[derive(Args, Debug)]
@@ -107,7 +105,7 @@ pub enum EnvCommands {
     /// The output format follows the extension: `.luau` (typed), `.lua`,
     /// `.json`, or `.ts`. Envs and places are emitted in name order, so
     /// regenerating an unchanged rbxplace.toml produces an identical file.
-    GenModule {
+    Codegen {
         /// Output file path (`.lua`, `.luau`, `.json`, or `.ts`).
         ///
         /// Optional when `[codegen].output` is set in rbxplace.toml, which is
@@ -200,7 +198,7 @@ pub enum SetCommands {
         id: u64,
     },
 
-    /// `[codegen] output`: where `rbx env gen-module` writes its module.
+    /// `[codegen] output`: where `rbx env codegen` writes its module.
     CodegenOutput {
         /// Path, with the extension choosing the format (`.luau`, `.lua`,
         /// `.json`, `.ts`).
@@ -293,8 +291,8 @@ pub async fn run(cli: EnvCli, global: &GlobalFlags) -> Result<()> {
             json,
         } => commands::list::run(global, commands::list::Mode::new(names, place_names, json)),
         EnvCommands::Get { field, json } => commands::get::run(global, field, json),
-        EnvCommands::GenModule { out, check } => {
-            commands::gen_module::run(&global.places, out.as_deref(), check)
+        EnvCommands::Codegen { out, check } => {
+            commands::codegen::run(&global.places, out.as_deref(), check)
         }
         EnvCommands::Set(cli) => commands::set::run(global, cli),
         EnvCommands::Rm { name, dry_run, yes } => {

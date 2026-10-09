@@ -236,7 +236,7 @@ jobs:
     # field added without regenerating leaves editors validating a file format
     # that no longer exists, and silently, since a stale schema still loads.
     #
-    # Same contract as `rbx env gen-module --check`: exit 2 means "the
+    # Same contract as `rbx env codegen --check`: exit 2 means "the
     # committed file is stale, regenerate and commit", distinct from 1 meaning
     # "the command blew up". The failure names the command that fixes it.
     name: Schemas up to date

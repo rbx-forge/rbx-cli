@@ -50,7 +50,7 @@ workspace, and a new crate does not get its own.
   was parsed: a client that sends the wrong body against a permissive mock is
   the failure mode that matters.
 - **Generated output changes go through `insta`.** `rbx shop codegen` and
-  `rbx env gen-module` snapshot the whole emitted file; accept intentional
+  `rbx env codegen` snapshot the whole emitted file; accept intentional
   changes with `cargo insta review` and let the diff be reviewed.
 - **Docs move with the code.** A user-visible change updates the relevant
   `docs/*.md` page and adds a `## [Unreleased]` line to

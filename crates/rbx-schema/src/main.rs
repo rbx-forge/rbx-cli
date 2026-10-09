@@ -45,7 +45,7 @@ use rbx_core::generated::{CheckReport, GeneratedFile};
     long_about = "Writes one JSON Schema per config file into schemas/.\n\n\
                   Run with --check in CI to fail when the committed schemas no \
                   longer match the models. Exits 2 on drift, matching \
-                  `rbx env gen-module --check`."
+                  `rbx env codegen --check`."
 )]
 struct Cli {
     /// Compare against the committed schemas instead of writing them.

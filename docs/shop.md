@@ -974,7 +974,7 @@ The generated modules carry an `It is not intended for manual editing` header, b
 
 ```sh
 rbx shop codegen --check                        # rbxshop.toml + rbxshop.lock.toml
-rbx env gen-module --out src/Envs.luau --check  # rbxplace.toml
+rbx env codegen --out src/Envs.luau --check  # rbxplace.toml
 ```
 
 Both are **offline** (no API key, no network) which is what makes them usable from a git hook and from CD.
@@ -999,7 +999,7 @@ pre-commit:
 - name: Generated files match their inputs
   run: |
     rbx shop codegen --check
-    rbx env gen-module --out src/shared/Envs.luau --check
+    rbx env codegen --out src/shared/Envs.luau --check
 ```
 
 ### What it does and does not prove

@@ -324,7 +324,7 @@ fn strip(doc: &mut DocumentMut, at: &Location, env: &str) -> bool {
 /// longer exists, and `rbx shop codegen --check` would go on accepting it
 /// because the folder still matches a lockfile that no longer mentions the
 /// env. The aggregate modules (`init.luau`, the type module, and whatever
-/// `rbx env gen-module` writes) are *regenerated* rather than deleted, so
+/// `rbx env codegen` writes) are *regenerated* rather than deleted, so
 /// they are named in the closing hint instead of touched here.
 fn shop_env_module(dir: &Path, env: &str) -> Result<Option<PathBuf>> {
     let Some(doc) = load(&dir.join("rbxshop.toml"))? else {
@@ -504,7 +504,7 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
     println!("{} env '{}' removed.", "✓".green(), env);
     println!(
         "{}",
-        "  Regenerate the aggregate modules: rbx shop codegen, rbx env gen-module.".dimmed()
+        "  Regenerate the aggregate modules: rbx shop codegen, rbx env codegen.".dimmed()
     );
 
     Ok(())

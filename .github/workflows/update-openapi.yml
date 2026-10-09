@@ -117,6 +117,13 @@ jobs:
         # thing this workflow can find, so it must still open the PR that
         # reports it rather than dying here where nobody is watching.
         continue-on-error: true
+        env:
+          # `drift.log` is pasted verbatim into a Markdown code block in the
+          # pull request body below, and GitHub does not interpret ANSI there:
+          # cargo's color codes arrive as `ESC[1mESC[92m Compiling` in front
+          # of every progress line, which is the first thing a reader sees of
+          # the one output this workflow exists to show them.
+          CARGO_TERM_COLOR: never
         run: |
           set +e
           cargo test -p rbx-spec-drift --test openapi_drift -- --nocapture 2>&1 | tee drift.log

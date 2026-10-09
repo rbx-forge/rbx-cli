@@ -14,7 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each role through as Roblox sent it, `permissions` included, for a generator
   to consume. `rbx group rank <user> <role>` gives a member a role and
   `rbx group unrank` takes one away, through Open Cloud's `:assignRole` and
-  `:unassignRole`.
+  `:unassignRole`. `rbx group member <user>` shows every role a member holds,
+  and `rbx group members [role]` lists who holds one, a bounded stretch at a
+  time: at most twenty pages of a hundred per run, with a `--cursor` to carry
+  on, so a group of a million members costs the same per run as one of a
+  hundred. The role is matched against every role a member holds, not only the
+  highest.
 
   The user is named the way `rbx ban` names one (an id, a username, `name:`,
   `@`, or a profile link), and the role by id or by name. A name two roles

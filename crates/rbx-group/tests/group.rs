@@ -413,3 +413,204 @@ async fn a_user_owner_is_refused_rather_than_read_as_a_group() {
     .unwrap_err();
     assert!(format!("{err:#}").contains("not a group"), "{err:#}");
 }
+
+/// A member holding `roles` (every one of them, not only the highest).
+fn membership_with(id: &str, user: u64, roles: &[&str]) -> serde_json::Value {
+    let paths: Vec<String> = roles
+        .iter()
+        .map(|r| format!("groups/{GROUP}/roles/{r}"))
+        .collect();
+    serde_json::json!({
+        "path": format!("groups/{GROUP}/memberships/{id}"),
+        "user": format!("users/{user}"),
+        "role": paths.first().cloned().unwrap_or_default(),
+        "roles": paths,
+    })
+}
+
+async fn mount_names(server: &MockServer) {
+    Mock::given(method("POST"))
+        .and(path("/v1/users"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "data": [{"id":156,"name":"builderman","displayName":"builderman","hasVerifiedBadge":true}],
+        })))
+        .mount(server)
+        .await;
+}
+
+#[tokio::test]
+async fn members_of_a_role_count_a_role_held_beside_a_higher_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_roles(
+        &api,
+        vec![role("7", "Moderator", 50), role("9", "Admin", 200)],
+    )
+    .await;
+
+    // 156 holds Moderator *under* Admin, so `role` (the highest) says Admin.
+    // Matching on `role` alone would miss them, which is the whole reason the
+    // match reads `roles`.
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param_is_missing("filter"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [
+                membership_with("m-15", 15, &["9"]),
+                membership_with("m-156", 156, &["9", "7"]),
+            ],
+        })))
+        .expect(1)
+        .mount(&api)
+        .await;
+
+    // Names come in one batch call for the page, not one call per member.
+    Mock::given(method("POST"))
+        .and(path("/v1/users"))
+        .and(body_json(serde_json::json!({
+            "userIds": [156], "excludeBannedUsers": false,
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "data": [{"id":156,"name":"builderman","displayName":"builderman","hasVerifiedBadge":true}],
+        })))
+        .expect(1)
+        .mount(&users)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(&["--group", &group, "members", "Moderator"], &api, &users),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_run_never_reads_more_than_twenty_pages() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_names(&users).await;
+    mount_roles(&api, vec![role("7", "Moderator", 50)]).await;
+
+    // A group that never ends and never holds the role: the shape of a rare
+    // role in a million-member group. Without the ceiling this loops until
+    // Roblox rate-limits it.
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [membership_with("m-15", 15, &["1"])],
+            "nextPageToken": "more",
+        })))
+        .expect(20)
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(&["--group", &group, "members", "Moderator"], &api, &users),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn the_limit_stops_on_a_page_boundary_and_the_cursor_resumes_after_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_names(&users).await;
+    mount_roles(&api, vec![role("7", "Moderator", 50)]).await;
+
+    // A run given a cursor starts there, and never re-reads the first page.
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param_is_missing("pageToken"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param("pageToken", "page-2"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [membership_with("m-156", 156, &["7"])],
+            "nextPageToken": "page-3",
+        })))
+        .expect(1)
+        .mount(&api)
+        .await;
+    // `--limit 1` is met on page 2, so page 3 is left to the next run.
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param("pageToken", "page-3"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(
+            &[
+                "--group", &group, "members", "--limit", "1", "--cursor", "page-2",
+            ],
+            &api,
+            &users,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn member_reads_every_role_including_one_the_key_cannot_see() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_user_by_id(&users).await;
+    // Role 404 is held but not in the listing this key gets back.
+    mount_roles(&api, vec![role("7", "Moderator", 50)]).await;
+
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .and(query_param("filter", "user == 'users/156'"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [membership_with("m-156", 156, &["7", "404"])],
+        })))
+        .expect(1)
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(&["--group", &group, "member", "156"], &api, &users),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[test]
+fn holding_a_role_reads_every_role_and_falls_back_to_the_highest() {
+    use rbx_group::model::GroupMembership;
+
+    let multi: GroupMembership =
+        serde_json::from_value(membership_with("m", 156, &["9", "7"])).unwrap();
+    assert!(multi.holds(&format!("groups/{GROUP}/roles/7")));
+    assert!(multi.holds(&format!("groups/{GROUP}/roles/9")));
+
+    // No `roles` at all: the one role Roblox did name still counts.
+    let single: GroupMembership = serde_json::from_value(serde_json::json!({
+        "path": "groups/42/memberships/m",
+        "user": "users/156",
+        "role": "groups/42/roles/7",
+    }))
+    .unwrap();
+    assert!(single.holds("groups/42/roles/7"));
+    assert_eq!(single.user_id(), Some(156));
+}

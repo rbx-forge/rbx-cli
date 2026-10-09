@@ -30,6 +30,7 @@ use anyhow::{bail, Context, Result};
 use clap::{Args, Subcommand};
 use colored::Colorize;
 use reqwest::{Client, StatusCode};
+use serde::Serialize;
 
 use rbx_core::api::{
     build_client, encode_query_value, execute_json, execute_with_retry, explain_missing_scope,
@@ -57,6 +58,19 @@ const MAX_PAGE_SIZE: u32 = 100;
 /// paged 100 at a time is thousands of requests. Stopping with "say which
 /// membership" beats hammering Roblox until a rate limit says no.
 const MAX_MEMBERSHIP_PAGES: usize = 50;
+
+/// How many pages one `rbx group members` run reads before handing back a
+/// cursor, whatever `--limit` says.
+///
+/// The bound that makes a million-member group workable. Looking for a rare
+/// role means reading members that do not hold it, and nothing documented
+/// lets Roblox do that filtering, so without a ceiling one invocation could be
+/// ten thousand requests. Twenty pages is two thousand members read per run,
+/// a few seconds, and the cursor carries on from exactly where it stopped.
+const MAX_PAGES_PER_RUN: usize = 20;
+
+/// `--limit`'s default: one screen of members.
+const DEFAULT_LIMIT: u64 = 100;
 
 #[derive(Args, Debug)]
 pub struct GroupCli {
@@ -130,6 +144,41 @@ enum Command {
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
+    },
+
+    /// Show the roles one member holds
+    ///
+    /// Every role, not only the highest: a member of a multi-role group is
+    /// listed with all of them, highest rank first.
+    Member {
+        /// The member: an id, a username, `@name`, `name:<name>`, or a pasted
+        /// profile link.
+        user: String,
+    },
+
+    /// List members, optionally only those holding a role
+    ///
+    /// Paged, never exhaustive. One run reads at most 20 pages of 100 members
+    /// and prints a `--cursor` to carry on, so a group of a million costs the
+    /// same per run as a group of a hundred. A role is matched against every
+    /// role a member holds, so somebody holding it beside a higher one is
+    /// listed too.
+    Members {
+        /// Only members holding this role: an id, its name, or `name:<name>`.
+        role: Option<String>,
+
+        /// Stop once this many members have been found.
+        ///
+        /// Checked between pages, never inside one, so a run may return up to
+        /// a page more than asked: stopping mid-page would leave members that
+        /// no cursor could reach.
+        #[arg(long, default_value_t = DEFAULT_LIMIT, value_parser = clap::value_parser!(u64).range(1..))]
+        limit: u64,
+
+        /// Carry on from where an earlier run stopped. Printed at the end of
+        /// every run that did not reach the end of the group.
+        #[arg(long)]
+        cursor: Option<String>,
     },
 
     /// Take a role away from a member
@@ -271,6 +320,46 @@ impl Api {
         )
     }
 
+    /// One bounded stretch of the member list.
+    ///
+    /// Reads from `cursor` until `limit` members have matched, the group ends,
+    /// or [`MAX_PAGES_PER_RUN`] pages have been read, whichever comes first,
+    /// and always stops on a page boundary so that `next_cursor` resumes with
+    /// the first member this run did not see.
+    ///
+    /// The role is matched here rather than by Roblox. The document gives no
+    /// filter syntax for a role on this endpoint, and the one plausible field,
+    /// `role`, holds only a member's highest role: a server-side `role ==`
+    /// would quietly drop everybody who holds the role beside a higher one.
+    async fn members_run(
+        &self,
+        role_path: Option<&str>,
+        limit: usize,
+        cursor: Option<String>,
+    ) -> Result<MembersRun> {
+        let mut run = MembersRun {
+            found: Vec::new(),
+            scanned: 0,
+            next_cursor: cursor,
+        };
+        for _ in 0..MAX_PAGES_PER_RUN {
+            let page = self
+                .memberships_page(None, run.next_cursor.as_deref())
+                .await?;
+            run.scanned += page.group_memberships.len();
+            run.found.extend(
+                page.group_memberships
+                    .into_iter()
+                    .filter(|m| role_path.is_none_or(|path| m.holds(path))),
+            );
+            run.next_cursor = page.next_page_token.filter(|token| !token.is_empty());
+            if run.next_cursor.is_none() || run.found.len() >= limit {
+                break;
+            }
+        }
+        Ok(run)
+    }
+
     async fn assign(&self, membership_id: &str, role_path: &str, unassign: bool) -> Result<()> {
         // Two literal paths rather than one with `:{verb}` interpolated: the
         // drift check reads these strings, and `{membership_id}:{verb}` would
@@ -356,8 +445,117 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
         api_key: require_api_key(global.api_key.as_deref())?.to_string(),
         group_id,
     };
+    let users_host = cli
+        .users_url
+        .clone()
+        .unwrap_or_else(|| "https://users.roblox.com".to_string());
 
     match &cli.command {
+        Command::Member { user } => {
+            let user_ref = UserRef::parse(user)?;
+            let resolved =
+                users::resolve_with_host(&api.client, std::slice::from_ref(&user_ref), &users_host)
+                    .await?;
+            let target = resolved.first().with_context(|| {
+                format!("Roblox returned no user for {user:?}, which it should not do")
+            })?;
+            let roles = api.roles().await?;
+            let membership = api.membership_of(target.id).await?;
+            let held = role_views(&membership, &roles);
+
+            if cli.json {
+                let doc = serde_json::json!({
+                    "group_id": group_id.to_string(),
+                    "user_id": target.id.to_string(),
+                    "username": target.name,
+                    "display_name": target.display_name,
+                    "roles": held,
+                });
+                println!("{}", serde_json::to_string_pretty(&doc)?);
+                return Ok(());
+            }
+
+            println!("{} in group {group_id}", target.label().bold());
+            println!("{:>5}  {}", "RANK".bold(), "ROLE".bold());
+            for role in &held {
+                println!("{:>5}  {}", role.rank_text(), role.name_text());
+            }
+            Ok(())
+        }
+
+        Command::Members {
+            role,
+            limit,
+            cursor,
+        } => {
+            let roles = api.roles().await?;
+            let wanted = match role {
+                Some(text) => Some(pick_role(&roles, &RoleRef::parse(text)?)?),
+                None => None,
+            };
+            let wanted_count = usize::try_from(*limit).unwrap_or(usize::MAX);
+            let run = api
+                .members_run(
+                    wanted.map(|r| r.path.as_str()),
+                    wanted_count,
+                    cursor.clone(),
+                )
+                .await?;
+
+            let ids: Vec<u64> = run
+                .found
+                .iter()
+                .filter_map(GroupMembership::user_id)
+                .collect();
+            let names = users::names_for_ids_with_host(&api.client, &ids, &users_host).await?;
+
+            let members: Vec<MemberView> = run
+                .found
+                .iter()
+                .map(|m| {
+                    let user = m.user_id().and_then(|id| names.get(&id));
+                    MemberView {
+                        user_id: m.user_id().map(|id| id.to_string()).unwrap_or_default(),
+                        username: user.map(|u| u.name.clone()),
+                        display_name: user.map(|u| u.display_name.clone()),
+                        roles: role_views(m, &roles),
+                    }
+                })
+                .collect();
+
+            if cli.json {
+                let doc = serde_json::json!({
+                    "group_id": group_id.to_string(),
+                    "role": wanted.map(RoleView::of),
+                    "members": members,
+                    "scanned": run.scanned,
+                    "next_cursor": run.next_cursor,
+                });
+                println!("{}", serde_json::to_string_pretty(&doc)?);
+                return Ok(());
+            }
+
+            print_members(&members, &run, wanted, group_id);
+            if let Some(next) = &run.next_cursor {
+                let mut again = String::from("rbx group members");
+                if let Some(text) = role {
+                    again.push(' ');
+                    again.push_str(&quote_arg(text));
+                }
+                if let Some(id) = cli.group {
+                    again.push_str(&format!(" --group {id}"));
+                }
+                if *limit != DEFAULT_LIMIT {
+                    again.push_str(&format!(" --limit {limit}"));
+                }
+                again.push_str(&format!(" --cursor {}", quote_arg(next)));
+                println!("{} {again}", "More:".bold());
+            } else {
+                println!("{}", "End of the group.".dimmed());
+            }
+            Ok(())
+        }
+
         Command::Roles => {
             let roles = api.roles().await?;
             if cli.json {
@@ -382,10 +580,6 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
             let user_ref = UserRef::parse(user)?;
             let role_ref = RoleRef::parse(role)?;
 
-            let users_host = cli
-                .users_url
-                .clone()
-                .unwrap_or_else(|| "https://users.roblox.com".to_string());
             let resolved =
                 users::resolve_with_host(&api.client, std::slice::from_ref(&user_ref), &users_host)
                     .await?;
@@ -435,6 +629,150 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
             Ok(())
         }
     }
+}
+
+/// What one bounded run of `members` found.
+struct MembersRun {
+    found: Vec<GroupMembership>,
+    /// Members read, matching or not, so a run that found nobody can still say
+    /// how much of the group it covered.
+    scanned: usize,
+    /// `None` once the group is exhausted.
+    next_cursor: Option<String>,
+}
+
+/// A role as `member` and `members` report it.
+///
+/// `name` and `rank` are optional because a member can hold a role the
+/// listing did not return to this key. The id is still known, off the path,
+/// and printing it beats dropping the role.
+#[derive(Debug, Serialize)]
+struct RoleView {
+    id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rank: Option<u32>,
+}
+
+impl RoleView {
+    fn of(role: &GroupRole) -> Self {
+        Self {
+            id: role.id.clone(),
+            name: Some(role.display_name.clone()),
+            rank: Some(role.rank),
+        }
+    }
+
+    fn rank_text(&self) -> String {
+        self.rank
+            .map_or_else(|| "?".to_string(), |rank| rank.to_string())
+    }
+
+    fn name_text(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => format!("(role {}, not visible to this key)", self.id),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct MemberView {
+    user_id: String,
+    /// Absent when Roblox no longer returns the account, which a listing
+    /// reports rather than fails on.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    display_name: Option<String>,
+    roles: Vec<RoleView>,
+}
+
+/// Every role a member holds, highest rank first, named from the listing.
+fn role_views(membership: &GroupMembership, roles: &[GroupRole]) -> Vec<RoleView> {
+    let mut views: Vec<RoleView> = membership
+        .role_paths()
+        .into_iter()
+        .map(|path| match roles.iter().find(|role| role.path == path) {
+            Some(role) => RoleView::of(role),
+            None => RoleView {
+                id: path.rsplit_once('/').map_or(path, |(_, id)| id).to_string(),
+                name: None,
+                rank: None,
+            },
+        })
+        .collect();
+    // Unknown ranks sort last: they are the roles this key cannot see.
+    views.sort_by_key(|view| std::cmp::Reverse(view.rank));
+    views
+}
+
+/// An argument as it can be pasted back into a shell, for the `More:` line.
+///
+/// Single quotes mean the same thing in bash and in PowerShell, which double
+/// quotes do not (both expand `$` inside them). A value holding a single quote
+/// falls back to double quotes, the one case where the two shells disagree.
+fn quote_arg(text: &str) -> String {
+    let plain = text
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || "-_./:=+".contains(c));
+    if plain {
+        text.to_string()
+    } else if text.contains('\'') {
+        format!("\"{text}\"")
+    } else {
+        format!("'{text}'")
+    }
+}
+
+fn print_members(
+    members: &[MemberView],
+    run: &MembersRun,
+    wanted: Option<&GroupRole>,
+    group_id: u64,
+) {
+    match wanted {
+        Some(role) => println!(
+            "{}",
+            format!(
+                "Members of group {group_id} holding {} (rank {})",
+                role.display_name, role.rank
+            )
+            .bold()
+        ),
+        None => println!("{}", format!("Members of group {group_id}").bold()),
+    }
+
+    if !members.is_empty() {
+        println!("{:<36}  {}", "USER".bold(), "ROLES".bold());
+        for member in members {
+            let user = match &member.username {
+                Some(name) if member.display_name.as_deref() != Some(name.as_str()) => format!(
+                    "{name} \"{}\" ({})",
+                    member.display_name.as_deref().unwrap_or_default(),
+                    member.user_id
+                ),
+                Some(name) => format!("{name} ({})", member.user_id),
+                None => format!("({})", member.user_id),
+            };
+            let roles = member
+                .roles
+                .iter()
+                .map(RoleView::name_text)
+                .collect::<Vec<_>>()
+                .join(", ");
+            println!("{user:<36}  {roles}");
+        }
+        println!();
+    }
+
+    let summary = format!(
+        "{} found, {} member(s) read this run.",
+        members.len(),
+        run.scanned
+    );
+    println!("{}", summary.dimmed());
 }
 
 fn print_roles(roles: &[GroupRole], group_id: u64) {

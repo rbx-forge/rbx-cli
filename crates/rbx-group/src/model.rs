@@ -74,8 +74,7 @@ pub struct GroupMembership {
     pub user: String,
     /// The member's **highest-ranked** role only. The document is explicit
     /// that this does not reflect the others when somebody holds several, so
-    /// nothing here reads it to answer "which roles does this member have".
-    /// Kept because `--json` should report what Roblox reports.
+    /// it is read only when `roles` is empty, as the one role Roblox did say.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub role: Option<String>,
     /// Every role assigned to the member. The document calls this "the
@@ -119,14 +118,38 @@ impl GroupMembership {
         }
     }
 
-    /// Whether this membership belongs to `user_id`.
+    /// The member's user id, off `users/{id}`.
     ///
-    /// Compares the whole last segment rather than asking whether the path
+    /// Parses the whole last segment rather than asking whether the path
     /// *contains* the digits: `users/15` must not match `users/156`.
-    pub fn is_user(&self, user_id: u64) -> bool {
+    pub fn user_id(&self) -> Option<u64> {
         self.user
             .rsplit_once('/')
-            .is_some_and(|(_, id)| id == user_id.to_string())
+            .and_then(|(_, id)| id.parse().ok())
+    }
+
+    /// Whether this membership belongs to `user_id`.
+    pub fn is_user(&self, user_id: u64) -> bool {
+        self.user_id() == Some(user_id)
+    }
+
+    /// Every role the member holds, as resource paths.
+    ///
+    /// `roles` when Roblox sent it, which is every role; otherwise the single
+    /// highest one in `role`, rather than nothing.
+    pub fn role_paths(&self) -> Vec<&str> {
+        if self.roles.is_empty() {
+            self.role.as_deref().into_iter().collect()
+        } else {
+            self.roles.iter().map(String::as_str).collect()
+        }
+    }
+
+    /// Whether the member holds `role_path`, counting a role that is not their
+    /// highest. Asking `role` alone would miss every member of a multi-role
+    /// group who holds this one beside a higher one.
+    pub fn holds(&self, role_path: &str) -> bool {
+        self.role_paths().contains(&role_path)
     }
 }
 

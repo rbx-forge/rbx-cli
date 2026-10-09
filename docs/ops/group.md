@@ -65,7 +65,51 @@ Every role, lowest rank first. The listing follows Roblox's page token to the en
 
 `permissions` is passed through unread rather than modelled field by field. Roblox describes thirty of them today, and a typed copy would turn one it renames into a silent `false`, which for a permission reads as "cannot". `createTime` and `updateTime` appear only for the group's owner.
 
+**`permissions` is missing from some roles, and that is Roblox deciding what the key may see**, not a role without permissions. The rule, per role, follows the account that created the API key:
+
+| Role | `permissions` returned |
+| --- | --- |
+| The guest role | always, no scope needed |
+| The key creator's own role, when they are a member | with `group:read` |
+| Every role | only when the key creator **owns** the group, with `group:read` |
+| Anything else | the field is left out |
+
+So a listing with permissions on the guest role and one other came from a member's key, and one with permissions everywhere came from the owner's. A generator reading this must treat a missing `permissions` as *unknown*, never as "no rights": the safe move is to refuse to generate, not to write roles that can do nothing.
+
 This is the output to feed a generator. Turning roles into a module for game code belongs to the game, which knows what it wants the module to look like.
+
+## rbx group member
+
+```bash
+rbx group member builderman
+rbx group member name:12345 --json
+```
+
+Every role the member holds, highest rank first, not only the highest one. A role the key cannot see in the listing is still shown, by id, rather than dropped. The member is found the way [`rank`](#rbx-group-rank-and-unrank) finds one, so the same key scopes apply.
+
+## rbx group members
+
+```bash
+rbx group members                       # everybody, a page at a time
+rbx group members Moderator             # only those holding Moderator
+rbx group members Moderator --limit 500 --json
+```
+
+**Paged, never exhaustive.** A group can have a million members, so one run reads at most twenty pages of a hundred and stops, and every run that did not reach the end prints the command that carries on:
+
+```text
+2 found, 2000 member(s) read this run.
+More: rbx group members Moderator --cursor eyJvZmZzZXQiOjIwMDB9
+```
+
+- `--limit <n>` stops once `n` members have been found, 100 by default. It is checked between pages, never inside one, so a run can return up to a page more than asked: stopping mid-page would leave members no cursor could reach.
+- `--cursor <token>` resumes exactly after the last page the previous run read. It is Roblox's own page token, valid for the same group and nothing else.
+
+With a role, the matching happens on this side, against **every** role a member holds. Roblox documents no way to filter this listing by role, and the one field such a filter could plausibly read holds only a member's highest role, which would drop everybody holding the role beside a higher one. The cost is that a rare role in a large group may take several runs that each find nobody, which the summary line makes visible rather than hiding behind a long wait.
+
+Names come from one batched call per page, not one per member. A member whose account Roblox no longer returns is listed by id.
+
+`--json` prints `members` (each with `user_id`, `username`, `display_name` and every role), `scanned`, and `next_cursor`, which is `null` at the end of the group.
 
 ## rbx group rank and unrank
 

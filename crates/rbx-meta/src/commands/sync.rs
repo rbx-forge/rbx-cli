@@ -599,14 +599,16 @@ async fn check_media_target(
                  translations for source language\"). The experience's own media is what \
                  `rbx meta` writes with language_code left unset: remove the key."
             ),
+            // Not dimmed. This is the line that says the thumbnails will not be
+            // on the Creator Hub's thumbnails page, and a grey line is one
+            // that gets skipped: it was, the first time it existed.
             Ok(source) => println!(
-                "{}",
-                format!(
-                    "media: writing the {code} translation, shown only to players in that \
-                     language. The experience's own media (source language {source}) is \
-                     written with language_code left unset."
-                )
-                .dimmed()
+                "\n{} this env writes the {code} {}, shown only to players in that language \
+                 and filed under Localization. The thumbnails page shows the experience's own \
+                 media (source language {source}), which is written with language_code left \
+                 unset.",
+                "Media:".yellow().bold(),
+                "translation".bold(),
             ),
             Err(e) => println!(
                 "{}",

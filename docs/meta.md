@@ -616,7 +616,7 @@ An experience has two sets of icon and thumbnails, and Roblox keeps them apart: 
 
 | | `language_code` unset (default) | `language_code = "fr_fr"` |
 | --- | --- | --- |
-| Writes | **the experience's own media**: the Creator Hub's thumbnails page, what players see | that language's **translation**, shown only to players in it, filed under Localization |
+| Writes | **the experience's own media**: the Creator Hub's thumbnails page, what players see | that language's **translation**, served to players in it in place of the own media. Visible in the Creator Hub only for a language added under Localization: a locale such as `en_us` appears nowhere there |
 | Endpoints | `publish.roblox.com` to upload, `develop.roblox.com` to order and delete: the Creator Hub's own routes, not in Roblox's OpenAPI document | `legacy-game-internationalization`, documented |
 | Credential | the cookie | the API key |
 
@@ -625,7 +625,14 @@ The experience's **source language** cannot be a `language_code`: Roblox refuses
 Before 0.10.1 `language_code` defaulted to `"en_us"`, so every project's media was quietly an English (US) translation: a sync reported thumbnails uploaded, and the Creator Hub's thumbnails page stayed empty. If that is in your history:
 
 - Remove `language_code = "en_us"` from `rbxmeta.toml` unless a translation is what you meant.
-- The next `sync` says the lockfile's media was recorded for a translation, leaves those images on Roblox untouched, and uploads the own set from scratch. Delete the old ones under Localization in the Creator Hub.
+- The next `sync` says the lockfile's media was recorded for a translation, leaves those images on Roblox untouched, and uploads the own set from scratch. Delete the old ones, which the Creator Hub may not show at all: see below.
+
+A translation for a locale the Creator Hub does not offer, `en_us` above all, cannot be removed there: it has no page. It is still served, and to most English-speaking players, in place of the own thumbnails. Remove it through the documented endpoint, one image at a time, with `rbx probe` and the API key (scope `legacy-universe:manage`); the ids come from the public listing:
+
+```text
+GET    https://gameinternationalization.roblox.com/v1/game-thumbnails/games/<universe>/images
+DELETE /legacy-game-internationalization/v1/game-thumbnails/games/<universe>/language-codes/en_us/images/<id>
+```
 
 `sync` also reports thumbnails Roblox holds in the target set that the lockfile does not know of, which is what an interrupted or failed sync leaves behind. No sync deletes those; the message names their ids.
 

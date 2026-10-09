@@ -38,7 +38,10 @@ pub struct MediaConfig {
     /// Hub's thumbnails page shows and every player sees unless a translation
     /// replaces it. Set, the media goes through Roblox's localization API as
     /// that language's translation, which is shown only to players in that
-    /// language and is filed under Localization. The experience's source
+    /// language in place of the experience's own. The Creator Hub shows it
+    /// only for a language added under Localization, and offers no locale such
+    /// as `en_us` there, so a set can be served to players and appear nowhere in
+    /// the Creator Hub. The experience's source
     /// language cannot be named here: Roblox refuses it on that API.
     ///
     /// This defaulted to `"en_us"` until 0.10.1, which quietly made every
@@ -101,7 +104,7 @@ impl MediaSet {
         match self {
             Self::Own => "the experience's own media".to_string(),
             Self::Translation(code) => {
-                format!("the {code} translation (Creator Hub: Localization)")
+                format!("the {code} translation")
             }
         }
     }

@@ -19,6 +19,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `develop.roblox.com` to order and delete), which need the cookie and are not
   in Roblox's OpenAPI document.
 
+  A translation is not invisible, as it looks from the Creator Hub: it is
+  served to players in that locale in place of the own media. Measured on the
+  project this was found on, the public thumbnails service returned twelve
+  `en_us` duplicates instead of its three thumbnails. And a locale the Creator
+  Hub does not offer, `en_us` included, has no page there to remove it from;
+  the docs give the endpoint that does.
+
   `language_code` now defaults to unset, meaning the own set; set, it still
   writes that language's translation, and naming the source language is
   refused before anything is sent. The lockfile records which set its ids

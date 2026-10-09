@@ -22,14 +22,14 @@ pub(crate) const USERS_HOST: &str = "https://users.roblox.com";
 /// Where the Creator Hub uploads an experience's own icon and thumbnails.
 /// Cookie and CSRF, like `develop.roblox.com`, and never in Roblox's OpenAPI
 /// document.
-pub(crate) const PUBLISH_HOST: &str = "https://publish.roblox.com";
+const PUBLISH_HOST: &str = "https://publish.roblox.com";
 
 /// Public reads of an experience's own media list. No credential.
-pub(crate) const GAMES_HOST: &str = "https://games.roblox.com";
+const GAMES_HOST: &str = "https://games.roblox.com";
 
 /// Public reads of the localization service: the experience's source
 /// language, and the translated thumbnails stored per language.
-pub(crate) const INTL_HOST: &str = "https://gameinternationalization.roblox.com";
+const INTL_HOST: &str = "https://gameinternationalization.roblox.com";
 
 pub struct RbxClient {
     client: Client,
@@ -81,9 +81,9 @@ pub struct RbxClient {
     /// written, listed, and told apart from its translations. Separate bases
     /// for the reason `users_base` is one: separate services, each mocked on
     /// its own so a test cannot have one answered by another's mock.
-    publish_base: ApiBase,
-    games_base: ApiBase,
-    intl_base: ApiBase,
+    publish: ApiBase,
+    games: ApiBase,
+    intl: ApiBase,
 }
 
 impl RbxClient {
@@ -107,9 +107,9 @@ impl RbxClient {
             base: ApiBase::default(),
             legacy_base: ApiBase::new(LEGACY_HOST),
             users_base: ApiBase::new(USERS_HOST),
-            publish_base: ApiBase::new(PUBLISH_HOST),
-            games_base: ApiBase::new(GAMES_HOST),
-            intl_base: ApiBase::new(INTL_HOST),
+            publish: ApiBase::new(PUBLISH_HOST),
+            games: ApiBase::new(GAMES_HOST),
+            intl: ApiBase::new(INTL_HOST),
         }
     }
 
@@ -124,9 +124,9 @@ impl RbxClient {
         games: impl Into<String>,
         intl: impl Into<String>,
     ) -> Self {
-        self.publish_base = ApiBase::new(publish);
-        self.games_base = ApiBase::new(games);
-        self.intl_base = ApiBase::new(intl);
+        self.publish = ApiBase::new(publish);
+        self.games = ApiBase::new(games);
+        self.intl = ApiBase::new(intl);
         self
     }
 

@@ -604,7 +604,8 @@ async fn check_media_target(
             // that gets skipped: it was, the first time it existed.
             Ok(source) => println!(
                 "\n{} this env writes the {code} {}, shown only to players in that language \
-                 and filed under Localization. The thumbnails page shows the experience's own \
+                 in place of the experience's own, and visible in the Creator Hub only if that \
+                 language was added under Localization. The thumbnails page shows the experience's own \
                  media (source language {source}), which is written with language_code left \
                  unset.",
                 "Media:".yellow().bold(),

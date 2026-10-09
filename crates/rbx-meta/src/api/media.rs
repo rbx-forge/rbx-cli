@@ -100,9 +100,8 @@ pub struct RemoteMedia {
 impl RbxClient {
     /// The experience's source language, e.g. `en`. Public.
     pub async fn source_language(&self) -> Result<String> {
-        let url = self
-            .intl_base
-            .join(&format!("/v1/source-language/games/{}", self.universe_id));
+        let intl = &self.intl;
+        let url = intl.join(&format!("/v1/source-language/games/{}", self.universe_id));
         let parsed: SourceLanguage = self
             .execute_json(|| {
                 let request = self.client.get(&url);
@@ -118,9 +117,8 @@ impl RbxClient {
     pub async fn remote_thumbnail_ids(&self) -> Result<Vec<u64>> {
         match &self.language_code {
             None => {
-                let url = self
-                    .games_base
-                    .join(&format!("/v1/games/{}/media", self.universe_id));
+                let games = &self.games;
+                let url = games.join(&format!("/v1/games/{}/media", self.universe_id));
                 let parsed: OwnMediaList = self
                     .execute_json(|| {
                         let request = self.client.get(&url);
@@ -140,7 +138,8 @@ impl RbxClient {
     }
 
     async fn translated_thumbnails(&self, code: &str) -> Result<Vec<TranslatedAsset>> {
-        let url = self.intl_base.join(&format!(
+        let intl = &self.intl;
+        let url = intl.join(&format!(
             "/v1/game-thumbnails/games/{}/images",
             self.universe_id
         ));
@@ -182,9 +181,8 @@ impl RbxClient {
     /// Upload (or replace) the icon of the set this client writes.
     pub async fn upload_icon(&self, png_bytes: Vec<u8>) -> Result<IconUploadResponse> {
         let Some(code) = &self.language_code else {
-            let url = self
-                .publish_base
-                .join(&format!("/v1/games/{}/icon", self.universe_id));
+            let publish = &self.publish;
+            let url = publish.join(&format!("/v1/games/{}/icon", self.universe_id));
             let body = self
                 .publish_png(&url, "icon.png", &png_bytes)
                 .await
@@ -241,9 +239,8 @@ impl RbxClient {
             // `{"targetId": <id>}` comes back here, `mediaAssetId` on the
             // translation route; `ThumbnailUploadResponse` reads either.
             None => {
-                let url = self
-                    .publish_base
-                    .join(&format!("/v1/games/{}/thumbnail/image", self.universe_id));
+                let publish = &self.publish;
+                let url = publish.join(&format!("/v1/games/{}/thumbnail/image", self.universe_id));
                 self.publish_png(&url, "thumbnail.png", &png_bytes)
                     .await
                     .context("uploading a thumbnail")?

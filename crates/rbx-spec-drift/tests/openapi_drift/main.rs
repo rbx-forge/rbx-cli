@@ -211,6 +211,34 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
          equivalent: its membership listing documents no role filter, so without this the \
          command reads the whole group to find one role.",
     ),
+    (
+        "https://publish.roblox.com",
+        "/v1/games/{}/thumbnail/image",
+        "the experience's own thumbnail upload, the Creator Hub's route, used by `rbx meta \
+         sync` when `language_code` is unset. The documented thumbnail endpoints are \
+         localization ones, and Roblox refuses the source language there (400 \"You can't \
+         update translations for source language\"), so this is the only way to write the \
+         thumbnails the Creator Hub's page shows. Probed on 2026-10-09: 403 \"XSRF token \
+         invalid\" anonymously, where a bogus path on the same host gives 404; then used for \
+         real the same day, and the three thumbnails appeared on that page.",
+    ),
+    (
+        "https://publish.roblox.com",
+        "/v1/games/{}/icon",
+        "the experience's own icon upload, the sibling of the thumbnail route above and \
+         undocumented for the same reason. Probed on 2026-10-09: 403 \"XSRF token invalid\" \
+         anonymously, where a bogus path gives 404. Not yet exercised by a real write.",
+    ),
+    (
+        "https://games.roblox.com",
+        "/v1/games/{}/media",
+        "the experience's own media list, read by `rbx meta sync` to find thumbnails the \
+         lockfile does not know of. The documented /v2/games/{}/media is not a substitute, \
+         measured on 2026-10-09: it serves the media localized for whoever asks (anonymously, \
+         an en_us translation), and keys it by image asset id, where v1 lists the \
+         experience's own entries by the thumbnail id that the upload returns and the \
+         delete and order calls take.",
+    ),
     // ── Documented once, then dropped by Roblox ───────────────────────────
     //
     // The five entries below are a different case from everything above, and

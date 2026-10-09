@@ -160,6 +160,11 @@ enum Command {
         /// digits.
         role: String,
 
+        /// Actually give the role. Without this you see what would change and
+        /// nothing is sent, the contract every live command keeps.
+        #[arg(long)]
+        apply: bool,
+
         /// Skip the confirmation prompt.
         #[arg(long)]
         yes: bool,
@@ -208,6 +213,11 @@ enum Command {
         /// The role: an id, its name, or `name:<name>` when the name is all
         /// digits.
         role: String,
+
+        /// Actually take the role away. Without this you see what would
+        /// change and nothing is sent.
+        #[arg(long)]
+        apply: bool,
 
         /// Skip the confirmation prompt.
         #[arg(long)]
@@ -770,7 +780,18 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
             Ok(())
         }
 
-        Command::Rank { user, role, yes } | Command::Unrank { user, role, yes } => {
+        Command::Rank {
+            user,
+            role,
+            apply,
+            yes,
+        }
+        | Command::Unrank {
+            user,
+            role,
+            apply,
+            yes,
+        } => {
             let unassign = matches!(cli.command, Command::Unrank { .. });
 
             // Both lookups happen before anything is written, so a typo in
@@ -792,8 +813,47 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
             let membership = api.membership_of(target.id).await?;
             let membership_id = membership.id()?;
 
+            // Already in the state asked for: say so on both paths, and send
+            // nothing even with `--apply`. Roblox would accept the call and do
+            // nothing, and a "done" for it would claim a change that never was.
+            let holds = membership.holds(&role.path);
+            if holds != unassign {
+                let state = if unassign {
+                    "does not hold"
+                } else {
+                    "already holds"
+                };
+                println!(
+                    "{}",
+                    format!(
+                        "{} {state} {} (rank {}). Nothing to change.",
+                        target.label(),
+                        role.display_name,
+                        role.rank
+                    )
+                    .green()
+                );
+                return Ok(());
+            }
+
             let verb = if unassign { "Remove" } else { "Give" };
             let preposition = if unassign { "from" } else { "to" };
+            if !*apply {
+                println!(
+                    "{}",
+                    format!(
+                        "Nothing sent. `--apply` would {} role {} (rank {}) {preposition} {} in \
+                         group {group_id}.",
+                        verb.to_lowercase(),
+                        role.display_name,
+                        role.rank,
+                        target.label(),
+                    )
+                    .yellow()
+                );
+                return Ok(());
+            }
+
             confirm_always(
                 &format!(
                     "{verb} role {} (rank {}) {preposition} {} in group {group_id}?",
@@ -814,14 +874,16 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
                 role.display_name,
                 role.rank
             );
-            if !unassign && membership.roles.len() > 1 {
+            // The roles held before, which the role just given never was among
+            // (that case returned above).
+            let others = membership.role_paths().len();
+            if !unassign && others > 0 {
                 println!(
                     "{}",
                     format!(
-                        "{} already held {} other role(s). This adds one rather than \
-                         replacing them.",
+                        "{} keeps the {others} role(s) they already held: `rank` adds one, \
+                         it never replaces.",
                         target.name,
-                        membership.roles.len()
                     )
                     .dimmed()
                 );

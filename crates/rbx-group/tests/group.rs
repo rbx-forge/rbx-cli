@@ -187,6 +187,7 @@ async fn rank_sends_the_role_as_a_resource_path_to_the_filtered_membership() {
                 "rank",
                 "builderman",
                 "Moderator",
+                "--apply",
                 "--yes",
             ],
             &api,
@@ -209,7 +210,7 @@ async fn unrank_hits_unassign_role() {
     Mock::given(method("GET"))
         .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "groupMemberships": [membership("m-156", 156)],
+            "groupMemberships": [membership_with("m-156", 156, &["1", "7"])],
         })))
         .mount(&api)
         .await;
@@ -228,7 +229,7 @@ async fn unrank_hits_unassign_role() {
     let group = GROUP.to_string();
     run(
         cli(
-            &["--group", &group, "unrank", "156", "7", "--yes"],
+            &["--group", &group, "unrank", "156", "7", "--apply", "--yes"],
             &api,
             &users,
         ),
@@ -291,7 +292,15 @@ async fn a_refused_filter_falls_back_to_walking_the_members() {
     let group = GROUP.to_string();
     run(
         cli(
-            &["--group", &group, "rank", "builderman", "7", "--yes"],
+            &[
+                "--group",
+                &group,
+                "rank",
+                "builderman",
+                "7",
+                "--apply",
+                "--yes",
+            ],
             &api,
             &users,
         ),
@@ -323,7 +332,15 @@ async fn an_ambiguous_role_name_never_reaches_the_write() {
     let group = GROUP.to_string();
     let err = run(
         cli(
-            &["--group", &group, "rank", "builderman", "owner", "--yes"],
+            &[
+                "--group",
+                &group,
+                "rank",
+                "builderman",
+                "owner",
+                "--apply",
+                "--yes",
+            ],
             &api,
             &users,
         ),
@@ -709,10 +726,10 @@ async fn a_cursor_that_stopped_inside_a_page_rereads_it_and_skips_what_was_retur
 fn a_cursor_round_trips_and_a_bare_roblox_token_means_skip_nothing() {
     use rbx_group::model::Cursor;
 
-    let bare = Cursor::parse("id_2zwAAAaERzCfcxBB7kFN");
-    assert_eq!(bare.page_token.as_deref(), Some("id_2zwAAAaERzCfcxBB7kFN"));
+    let bare = Cursor::parse("id_aaaaBBBBccccDDDD");
+    assert_eq!(bare.page_token.as_deref(), Some("id_aaaaBBBBccccDDDD"));
     assert_eq!(bare.skip, 0);
-    assert_eq!(bare.render(), "id_2zwAAAaERzCfcxBB7kFN");
+    assert_eq!(bare.render(), "id_aaaaBBBBccccDDDD");
 
     let inside = Cursor::parse("3:id_abc");
     assert_eq!(inside.page_token.as_deref(), Some("id_abc"));
@@ -911,4 +928,80 @@ fn a_session_cursor_is_always_marked() {
         session: true,
     };
     assert_eq!(next.render(), "S0:eyJr");
+}
+
+#[tokio::test]
+async fn rank_without_apply_resolves_everything_and_sends_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_user(&users).await;
+    mount_roles(&api, vec![role("7", "Moderator", 50)]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [membership("m-156", 156)],
+        })))
+        .expect(1)
+        .mount(&api)
+        .await;
+    // The live-operations contract: no `--apply`, no write.
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(
+            &["--group", &group, "rank", "builderman", "Moderator"],
+            &api,
+            &users,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_role_already_held_is_not_given_again_even_with_apply() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    mount_user(&users).await;
+    mount_roles(&api, vec![role("7", "Moderator", 50)]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "groupMemberships": [membership_with("m-156", 156, &["1", "7"])],
+        })))
+        .mount(&api)
+        .await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli(
+            &[
+                "--group",
+                &group,
+                "rank",
+                "builderman",
+                "Moderator",
+                "--apply",
+                "--yes",
+            ],
+            &api,
+            &users,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
 }

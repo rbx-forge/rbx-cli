@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rbx group rank` and `unrank` are a dry run without `--apply`**, the
+  contract every other live command keeps and the README states for all of
+  them. 0.10.0 wrote after a confirmation alone. Without `--apply` they now
+  resolve the user, the role and the membership, print what would change, and
+  send nothing. A member already holding the role, or not holding it for
+  `unrank`, is reported and left alone even with `--apply`, rather than sent a
+  call Roblox would accept and ignore.
+
 ## [0.10.0] - 2026-10-09
 
 ### Added

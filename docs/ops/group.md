@@ -7,8 +7,8 @@ See [ops.md](../ops.md) for install, keys and the safety model.
 ```bash
 rbx group roles                          # the group in rbxplace.toml's [owner]
 rbx group roles --group 1234567 --json   # any group, no file needed
-rbx group rank builderman Moderator      # give a member a role
-rbx group unrank name:12345 2788109      # take one away, by role id
+rbx group rank builderman Moderator      # what would change, nothing sent
+rbx group rank builderman Moderator --apply   # give a member a role
 ```
 
 ## Which group
@@ -131,8 +131,8 @@ Names come with the session listing, and from one batched call per page on the O
 ## rbx group rank and unrank
 
 ```text
-rbx group rank <USER> <ROLE> [--yes]
-rbx group unrank <USER> <ROLE> [--yes]
+rbx group rank <USER> <ROLE> [--apply] [--yes]
+rbx group unrank <USER> <ROLE> [--apply] [--yes]
 ```
 
 `<USER>` takes everything [`rbx ban`](ban.md#naming-a-player) takes: an id, a username, `name:<name>`, `@<name>`, or a pasted profile link. On PowerShell, use `name:` rather than `@`.
@@ -150,7 +150,7 @@ Two roles can share a name, and picking whichever came back first is a mistake n
 
 `rank` **adds** a role; it does not replace the member's others. That is what makes a multi-role group possible, and when the member already held other roles the output says so. Roblox does nothing when the member already has the role.
 
-Both ask before writing. `--yes` skips the prompt.
+Like every live command, both are a dry run without `--apply`: the user, the role and the membership are all resolved, and you see what would change, with nothing sent. With `--apply` they ask before writing, and `--yes` skips the prompt. A member already holding the role (for `rank`) or not holding it (for `unrank`) is reported and left alone, even with `--apply`.
 
 ### Finding the member
 

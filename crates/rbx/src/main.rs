@@ -102,6 +102,11 @@ enum Tool {
     Open(rbx_open::OpenCli),
     /// Download Roblox assets by id (public or Open Cloud)
     Download(rbx_download::DownloadCli),
+    /// Turn a username into a user id, or an id into a username
+    ///
+    /// `--id` and `--name` print the bare value, one per line, so it composes:
+    /// `rbx data get --datastore PlayerData "User_$(rbx user builderman --id)"`.
+    User(rbx_user::UserCli),
 
     /// Live: servers currently up, and how the stopped ones ended
     Servers(rbx_servers::ServersCli),
@@ -216,6 +221,7 @@ async fn dispatch() -> Result<()> {
         Tool::Shop(c) => rbx_shop::run(c, &cli.global).await,
         Tool::Open(c) => rbx_open::run(c, &cli.global).await,
         Tool::Download(c) => rbx_download::run(c, &cli.global).await,
+        Tool::User(c) => rbx_user::run(c, &cli.global).await,
 
         Tool::Servers(c) => rbx_servers::run(c, &cli.global).await,
         Tool::Analytics(c) => rbx_analytics::run(c, &cli.global).await,

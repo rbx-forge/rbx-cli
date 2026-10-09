@@ -54,6 +54,7 @@ const PAGES: &[(&str, &str)] = &[
     ("shop", "shop.md"),
     ("open", "open.md"),
     ("download", "download.md"),
+    ("user", "user.md"),
     ("servers", "ops/servers.md"),
     ("analytics", "ops/analytics.md"),
     ("ban", "ops/ban.md"),

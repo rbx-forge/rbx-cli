@@ -1804,6 +1804,7 @@ dependencies = [
  "rbx-secret",
  "rbx-servers",
  "rbx-shop",
+ "rbx-user",
  "serde_json",
  "tempfile",
  "tokio",
@@ -2266,6 +2267,18 @@ name = "rbx-spec-drift"
 version = "0.9.0"
 dependencies = [
  "serde_json",
+]
+
+[[package]]
+name = "rbx-user"
+version = "0.9.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "rbx-core",
+ "serde_json",
+ "tokio",
+ "wiremock",
 ]
 
 [[package]]

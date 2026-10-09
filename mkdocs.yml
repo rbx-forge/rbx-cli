@@ -160,6 +160,7 @@ nav:
   - Local utilities:
       - rbx open: open.md
       - rbx download: download.md
+      - rbx user: user.md
       - rbx completions: completions.md
 
   - Guides:

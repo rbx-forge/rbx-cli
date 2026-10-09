@@ -29,6 +29,7 @@ members = [
     "crates/rbx-init",
     "crates/rbx-open",
     "crates/rbx-download",
+    "crates/rbx-user",
     "crates/rbx-spec-drift",
     # Dev tool, never released: writes schemas/*.json from the serde models.
     # Built from source, so `schemars` stays out of the shipped binary.

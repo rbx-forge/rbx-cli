@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one. Every group endpoint is marked BETA by Roblox. See
   [rbx group](docs/ops/group.md).
 
+- **`rbx user`**, a username to a user id or an id to a username, several at
+  once, with no API key. `--id` and `--name` print the bare value one per line
+  in the order given, so it composes with what takes an id inside something
+  else, which only the game knows the shape of:
+  `rbx data get --datastore PlayerData "User_$(rbx user builderman --id)"`.
+  An unknown name or id is an error naming it, never a missing line. See
+  [rbx user](docs/user.md).
+
 ### Changed
 
 - **`rbx env gen-module` is `rbx env codegen`**, the name `rbx shop codegen`

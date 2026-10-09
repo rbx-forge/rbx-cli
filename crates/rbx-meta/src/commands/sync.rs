@@ -802,12 +802,25 @@ fn print_plan(plan: &SyncPlan, env: &str) {
 
     match &plan.icon {
         IconPlan::None => {}
-        IconPlan::Upload { path, .. } => {
+        IconPlan::Upload { path, bytes, .. } => {
             println!(
                 "\n  {} icon: upload {}",
                 "▸".cyan(),
                 path.display().to_string().yellow()
             );
+            // Roblox takes a non-square icon without complaint and fits it
+            // into a square, leaving the rest empty: a 16:9 image becomes an
+            // icon whose bottom half is blank. Said here, before the upload,
+            // because nothing after it will.
+            if let Ok((width, height)) = rbx_core::image::dimensions(bytes) {
+                if width != height {
+                    println!(
+                        "    {} the icon is {width} x {height}, not square. Roblox fits it into \
+                         a square and leaves the rest empty; 512 x 512 is the size it shows.",
+                        "warning:".yellow().bold()
+                    );
+                }
+            }
         }
     }
 

@@ -227,7 +227,8 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
         "/v1/games/{}/icon",
         "the experience's own icon upload, the sibling of the thumbnail route above and \
          undocumented for the same reason. Probed on 2026-10-09: 403 \"XSRF token invalid\" \
-         anonymously, where a bogus path gives 404. Not yet exercised by a real write.",
+         anonymously, where a bogus path gives 404; then used for real the same day, and the \
+         public icon service served the uploaded image.",
     ),
     (
         "https://games.roblox.com",

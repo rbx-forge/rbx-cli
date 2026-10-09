@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Roblox marks every operation EXPERIMENTAL. See
   [Home Page thumbnails](docs/meta.md#home-page-thumbnails).
 
+- **`rbx meta sync` warns when the icon is not square**, with its size. Roblox
+  accepts any shape and fits it into a square, so a 16:9 image becomes an icon
+  whose bottom half is empty, and nothing after the upload says so.
+
 ## [0.10.1] - 2026-10-09
 
 ### Changed

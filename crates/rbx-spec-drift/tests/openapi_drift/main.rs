@@ -358,6 +358,21 @@ const NOT_CALLED_ON_PURPOSE: &[(&str, &str, &str)] = &[
     ),
     (
         "https://apis.roblox.com",
+        "/cloud/v2/groups/{group_id}/roles/{role_id}",
+        "One role by id. `rbx group` lists the roles every time it needs one, \
+         because a role name has to be matched against all of them anyway and \
+         an id has to be checked against the group rather than trusted.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/groups/{group_id}/memberships/{membership_id}",
+        "The PATCH that replaces a member's role. Marked **Deprecated** in the \
+         document itself, in favour of the `:assignRole` and `:unassignRole` \
+         actions `rbx group rank` and `unrank` use, which also handle a member \
+         holding several roles.",
+    ),
+    (
+        "https://apis.roblox.com",
         "/cloud/v2/universes/{universe_id}:translateText",
         "Machine translation of a string. Same reason: this tool moves and \
          configures what a project already has.",

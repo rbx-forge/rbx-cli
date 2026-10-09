@@ -149,6 +149,7 @@ nav:
       - rbx servers: ops/servers.md
       - rbx analytics: ops/analytics.md
       - rbx ban: ops/ban.md
+      - rbx group: ops/group.md
       - rbx restart: ops/restart.md
       - rbx data: ops/data.md
       - rbx memorystore: ops/memorystore.md

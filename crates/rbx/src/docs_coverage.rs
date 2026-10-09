@@ -57,6 +57,7 @@ const PAGES: &[(&str, &str)] = &[
     ("servers", "ops/servers.md"),
     ("analytics", "ops/analytics.md"),
     ("ban", "ops/ban.md"),
+    ("group", "ops/group.md"),
     ("restart", "ops/restart.md"),
     ("data", "ops/data.md"),
     ("memorystore", "ops/memorystore.md"),

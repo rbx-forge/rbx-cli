@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx group`**, for a group's roles and who holds them. `rbx group roles`
+  lists every role with its rank, member count and id, and `--json` passes
+  each role through as Roblox sent it, `permissions` included, for a generator
+  to consume. `rbx group rank <user> <role>` gives a member a role and
+  `rbx group unrank` takes one away, through Open Cloud's `:assignRole` and
+  `:unassignRole`.
+
+  The user is named the way `rbx ban` names one (an id, a username, `name:`,
+  `@`, or a profile link), and the role by id or by name. A name two roles
+  share is refused with both ids rather than resolved to whichever came first.
+  `rank` adds a role and leaves the member's others in place, so a multi-role
+  group works. The group comes from `--group`, or from `rbxplace.toml`'s
+  `[owner]` when that is a group, so the command needs no file at all.
+
+  Roles stay read-only: Open Cloud has no endpoint to create, rename or delete
+  one. Every group endpoint is marked BETA by Roblox. See
+  [rbx group](docs/ops/group.md).
+
 ## [0.9.0] - 2026-10-09
 
 ### Added

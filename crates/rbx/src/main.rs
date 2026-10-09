@@ -109,6 +109,12 @@ enum Tool {
     Analytics(rbx_analytics::AnalyticsCli),
     /// Live: inspect and change player restrictions
     Ban(rbx_ban::BanCli),
+    /// Live: list a group's roles and move members between them
+    ///
+    /// Beside `ban` because both act on people rather than on servers or
+    /// data. Roles themselves are read-only: Open Cloud can list them and
+    /// assign them, and nothing else.
+    Group(rbx_group::GroupCli),
     /// Live: forecast and launch a rolling server restart
     Restart(rbx_restart::RestartCli),
     /// Live: read and overwrite a data store entry
@@ -214,6 +220,7 @@ async fn dispatch() -> Result<()> {
         Tool::Servers(c) => rbx_servers::run(c, &cli.global).await,
         Tool::Analytics(c) => rbx_analytics::run(c, &cli.global).await,
         Tool::Ban(c) => rbx_ban::run(c, &cli.global).await,
+        Tool::Group(c) => rbx_group::run(c, &cli.global).await,
         Tool::Restart(c) => rbx_restart::run(c, &cli.global).await,
         Tool::Data(c) => rbx_data::run(c, &cli.global).await,
         Tool::Memorystore(c) => rbx_memorystore::run(c, &cli.global).await,

@@ -10,6 +10,7 @@ members = [
     "crates/rbx-ads",
     "crates/rbx-analytics",
     "crates/rbx-ban",
+    "crates/rbx-group",
     "crates/rbx-restart",
     "crates/rbx-data",
     "crates/rbx-memorystore",

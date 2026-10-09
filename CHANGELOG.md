@@ -27,6 +27,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one. Every group endpoint is marked BETA by Roblox. See
   [rbx group](docs/ops/group.md).
 
+### Fixed
+
+- **`rbx meta sync` uploaded the same thumbnails again on every run.** Roblox
+  answers a thumbnail upload with the new id as a JSON string
+  (`{"mediaAssetId": "…"}`), which was read as a number. The reply failed to
+  parse, the failure was swallowed, and each upload went into
+  `rbxmeta.lock.toml` with no `image_id`. The next sync could match none of
+  them, dropped the entries as stale, and uploaded every image again, while
+  Roblox kept each copy. The id is now read in either form, and an upload whose
+  reply carries no id is an error that says the image is already on Roblox,
+  rather than a success recorded with nothing to find it by.
+
+  A project hit by this has untracked copies on Roblox that no sync will
+  delete, since a sync only deletes images it has an id for. Remove them from
+  the Experience Detail Page thumbnails in the Creator Hub.
+
 ## [0.9.0] - 2026-10-09
 
 ### Added

@@ -45,7 +45,7 @@ use rbx_core::GlobalFlags;
 
 use crate::model::{
     pick_role, Cursor, GroupMembership, GroupRole, ListGroupMembershipsResponse,
-    ListGroupRolesResponse, RoleAssignment, RoleRef,
+    ListGroupRolesResponse, RoleAssignment, RoleRef, RoleUser, RoleUsersPage,
 };
 
 /// Roblox caps a page at 100 and defaults it to 10. The default is the trap:
@@ -73,6 +73,12 @@ const MAX_PAGES_PER_RUN: usize = 20;
 /// `--limit`'s default: one screen of members.
 const DEFAULT_LIMIT: u64 = 100;
 
+/// The legacy groups service, for the one thing Open Cloud cannot do: list
+/// the holders of a role without reading everybody else. Named `GROUPS_HOST`
+/// and reached through a field called `groups` so the drift check resolves
+/// `self.groups.join(..)` to this host.
+const GROUPS_HOST: &str = "https://groups.roblox.com";
+
 #[derive(Args, Debug)]
 pub struct GroupCli {
     #[command(subcommand)]
@@ -99,9 +105,21 @@ pub struct GroupCli {
     /// a mock server, the same seam `rbx ban` has.
     #[arg(long, hide = true, global = true)]
     users_url: Option<String>,
+
+    /// Override `groups.roblox.com`, for the session route. For testing
+    /// against a mock server.
+    #[arg(long, hide = true, global = true)]
+    groups_url: Option<String>,
 }
 
 impl GroupCli {
+    /// Tests only.
+    #[doc(hidden)]
+    pub fn with_groups_url(mut self, url: String) -> Self {
+        self.groups_url = Some(url);
+        self
+    }
+
     /// Tests only.
     #[doc(hidden)]
     pub fn with_base_url(mut self, url: String) -> Self {
@@ -202,9 +220,96 @@ struct Api {
     base: ApiBase,
     api_key: String,
     group_id: u64,
+    groups: ApiBase,
 }
 
 impl Api {
+    /// One page of a role's holders, through the signed-in session.
+    async fn role_users_page(
+        &self,
+        cookie: &str,
+        role_id: &str,
+        cursor: Option<&str>,
+    ) -> Result<RoleUsersPage> {
+        // `limit` takes 10, 25, 50 or 100, and defaults to 10: the same trap
+        // as Open Cloud's page size, so it is always asked for in full.
+        let mut url = self.groups.join(&format!(
+            "/v1/groups/{}/roles/{role_id}/users?limit=100&sortOrder=Asc",
+            self.group_id
+        ));
+        if let Some(cursor) = cursor {
+            url.push_str("&cursor=");
+            url.push_str(&encode_query_value(cursor));
+        }
+        let header = rbx_core::session::cookie_header(cookie);
+        execute_json(|| {
+            let request = self.client.get(&url).header("Cookie", &header);
+            async move { request.send().await.map_err(Into::into) }
+        })
+        .await
+        .context(
+            "listing a role's members through the Roblox session. A 400 saying the user is \
+             invalid means the session was not accepted: sign in to Studio again, or pass \
+             `--no-auto-cookie` to use the slower Open Cloud walk instead",
+        )
+    }
+
+    /// One bounded stretch of a role's holders, through the session.
+    ///
+    /// The same contract as [`Api::members_run`]: exact `limit`, at most
+    /// [`MAX_PAGES_PER_RUN`] pages, a cursor that resumes with the first holder
+    /// held back. Every entry is a holder, so nothing is read to be discarded.
+    async fn role_users_run(
+        &self,
+        cookie: &str,
+        role_id: &str,
+        limit: usize,
+        cursor: Cursor,
+    ) -> Result<SessionRun> {
+        let mut found: Vec<RoleUser> = Vec::new();
+        let mut at = cursor;
+        for _ in 0..MAX_PAGES_PER_RUN {
+            let page = self
+                .role_users_page(cookie, role_id, at.page_token.as_deref())
+                .await?;
+            let entries: Vec<RoleUser> = page.data.into_iter().skip(at.skip).collect();
+
+            let room = limit - found.len();
+            if entries.len() > room {
+                found.extend(entries.into_iter().take(room));
+                let resume = Cursor {
+                    page_token: at.page_token,
+                    skip: at.skip + room,
+                    session: true,
+                };
+                return Ok(SessionRun {
+                    found,
+                    next_cursor: Some(resume.render()),
+                });
+            }
+            found.extend(entries);
+
+            let Some(token) = page.next_page_cursor.filter(|token| !token.is_empty()) else {
+                return Ok(SessionRun {
+                    found,
+                    next_cursor: None,
+                });
+            };
+            at = Cursor {
+                page_token: Some(token),
+                skip: 0,
+                session: true,
+            };
+            if found.len() >= limit {
+                break;
+            }
+        }
+        Ok(SessionRun {
+            found,
+            next_cursor: Some(at.render()),
+        })
+    }
+
     /// Every role, following `nextPageToken` to the end.
     async fn roles(&self) -> Result<Vec<GroupRole>> {
         let mut all: Vec<GroupRole> = Vec::new();
@@ -361,6 +466,7 @@ impl Api {
                 let resume = Cursor {
                     page_token: at.page_token,
                     skip: at.skip + room,
+                    session: false,
                 };
                 return Ok(MembersRun {
                     found,
@@ -380,6 +486,7 @@ impl Api {
             at = Cursor {
                 page_token: Some(token),
                 skip: 0,
+                session: false,
             };
             if found.len() >= limit {
                 break;
@@ -476,6 +583,7 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
         },
         api_key: require_api_key(global.api_key.as_deref())?.to_string(),
         group_id,
+        groups: ApiBase::new(cli.groups_url.as_deref().unwrap_or(GROUPS_HOST)),
     };
     let users_host = cli
         .users_url
@@ -526,49 +634,105 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
                 None => None,
             };
             let wanted_count = usize::try_from(*limit).unwrap_or(usize::MAX);
-            let run = api
-                .members_run(
-                    wanted.map(|r| r.path.as_str()),
-                    wanted_count,
-                    cursor.as_deref().map(Cursor::parse).unwrap_or_default(),
-                )
-                .await?;
+            let start = cursor.as_deref().map(Cursor::parse).unwrap_or_default();
 
-            let ids: Vec<u64> = run
-                .found
-                .iter()
-                .filter_map(GroupMembership::user_id)
-                .collect();
-            let names = users::names_for_ids_with_host(&api.client, &ids, &users_host).await?;
+            // The session route lists a role's holders directly, so it is
+            // asked for only when there is a role (without one, the Open Cloud
+            // listing is already direct), and only through `resolve_cookie`,
+            // which is what asks before a Studio session found on the machine
+            // is sent anywhere.
+            let session = match wanted {
+                Some(_) => global.resolve_cookie(),
+                None => None,
+            };
 
-            let members: Vec<MemberView> = run
-                .found
-                .iter()
-                .map(|m| {
-                    let user = m.user_id().and_then(|id| names.get(&id));
-                    MemberView {
-                        user_id: m.user_id().map(|id| id.to_string()).unwrap_or_default(),
-                        username: user.map(|u| u.name.clone()),
-                        display_name: user.map(|u| u.display_name.clone()),
-                        roles: role_views(m, &roles),
+            let (members, scanned, next_cursor, source) = match (wanted, session) {
+                (Some(role), Some(cookie)) => {
+                    if cursor.is_some() && !start.session {
+                        bail!(
+                            "this cursor came from the Open Cloud walk, and this run has a \
+                             Roblox session, which lists the role another way. Carry on with \
+                             `--no-auto-cookie`, or start over without `--cursor`."
+                        );
                     }
-                })
-                .collect();
+                    let run = api
+                        .role_users_run(&cookie, &role.id, wanted_count, start)
+                        .await?;
+                    let scanned = run.found.len();
+                    let members: Vec<MemberView> = run
+                        .found
+                        .into_iter()
+                        .map(|user| MemberView {
+                            user_id: user.user_id.to_string(),
+                            username: (!user.username.is_empty()).then_some(user.username),
+                            display_name: (!user.display_name.is_empty())
+                                .then_some(user.display_name),
+                            // This listing says who holds the role and
+                            // nothing about their other roles.
+                            roles: None,
+                        })
+                        .collect();
+                    (members, scanned, run.next_cursor, Source::Session)
+                }
+                _ => {
+                    if start.session {
+                        bail!(
+                            "this cursor came from the session route, and this run has no \
+                             Roblox session. Rerun signed in to Studio or with `--cookie`, or \
+                             start over without `--cursor`."
+                        );
+                    }
+                    let run = api
+                        .members_run(wanted.map(|r| r.path.as_str()), wanted_count, start)
+                        .await?;
+
+                    let ids: Vec<u64> = run
+                        .found
+                        .iter()
+                        .filter_map(GroupMembership::user_id)
+                        .collect();
+                    let names =
+                        users::names_for_ids_with_host(&api.client, &ids, &users_host).await?;
+
+                    let members: Vec<MemberView> = run
+                        .found
+                        .iter()
+                        .map(|m| {
+                            let user = m.user_id().and_then(|id| names.get(&id));
+                            MemberView {
+                                user_id: m.user_id().map(|id| id.to_string()).unwrap_or_default(),
+                                username: user.map(|u| u.name.clone()),
+                                display_name: user.map(|u| u.display_name.clone()),
+                                roles: Some(role_views(m, &roles)),
+                            }
+                        })
+                        .collect();
+                    (members, run.scanned, run.next_cursor, Source::OpenCloud)
+                }
+            };
 
             if cli.json {
                 let doc = serde_json::json!({
                     "group_id": group_id.to_string(),
                     "role": wanted.map(RoleView::of),
+                    "source": source,
                     "members": members,
-                    "scanned": run.scanned,
-                    "next_cursor": run.next_cursor,
+                    "scanned": scanned,
+                    "next_cursor": next_cursor,
                 });
                 println!("{}", serde_json::to_string_pretty(&doc)?);
                 return Ok(());
             }
 
-            print_members(&members, &run, wanted, &shared_names(&roles), group_id);
-            if let Some(next) = &run.next_cursor {
+            print_members(
+                &members,
+                scanned,
+                source,
+                wanted,
+                &shared_names(&roles),
+                group_id,
+            );
+            if let Some(next) = &next_cursor {
                 let mut again = String::from("rbx group members");
                 if let Some(text) = role {
                     again.push(' ');
@@ -583,7 +747,11 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
                 again.push_str(&format!(" --cursor {}", quote_arg(next)));
                 println!("{} {again}", "More:".bold());
             } else {
-                println!("{}", "End of the group.".dimmed());
+                let end = match source {
+                    Source::Session => "End of this role's members.",
+                    Source::OpenCloud => "End of the group.",
+                };
+                println!("{}", end.dimmed());
             }
             Ok(())
         }
@@ -663,6 +831,22 @@ pub async fn run(cli: GroupCli, global: &GlobalFlags) -> Result<()> {
     }
 }
 
+/// Which listing a `members` run read.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "kebab-case")]
+enum Source {
+    /// `/cloud/v2/groups/{id}/memberships`, read in full and matched here.
+    OpenCloud,
+    /// `groups.roblox.com/.../roles/{id}/users`, the role's holders only.
+    Session,
+}
+
+/// What one bounded run of the session route found.
+struct SessionRun {
+    found: Vec<RoleUser>,
+    next_cursor: Option<String>,
+}
+
 /// What one bounded run of `members` found.
 struct MembersRun {
     found: Vec<GroupMembership>,
@@ -718,7 +902,11 @@ struct MemberView {
     username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     display_name: Option<String>,
-    roles: Vec<RoleView>,
+    /// Every role the member holds, when the listing says. The session route
+    /// says only that they hold the one asked about, and an incomplete list
+    /// here would read as complete, so it is left out rather than guessed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    roles: Option<Vec<RoleView>>,
 }
 
 /// Every role a member holds, highest rank first, named from the listing.
@@ -777,7 +965,8 @@ fn shared_names(roles: &[GroupRole]) -> HashSet<String> {
 
 fn print_members(
     members: &[MemberView],
-    run: &MembersRun,
+    scanned: usize,
+    source: Source,
     wanted: Option<&GroupRole>,
     shared: &HashSet<String>,
     group_id: u64,
@@ -793,6 +982,14 @@ fn print_members(
         ),
         None => println!("{}", format!("Members of group {group_id}").bold()),
     }
+    if matches!(source, Source::Session) {
+        println!(
+            "{}",
+            "Listed through your Roblox session, the Creator Hub's own listing: it names \
+             this role's holders and nothing about their other roles."
+                .dimmed()
+        );
+    }
 
     if !members.is_empty() {
         println!("{:<36}  {}", "USER".bold(), "ROLES".bold());
@@ -806,26 +1003,27 @@ fn print_members(
                 Some(name) => format!("{name} ({})", member.user_id),
                 None => format!("({})", member.user_id),
             };
-            let roles = member
-                .roles
-                .iter()
-                .map(|role| match (&role.name, role.rank) {
-                    (Some(name), Some(rank)) if shared.contains(&name.to_lowercase()) => {
-                        format!("{name} ({rank})")
-                    }
-                    _ => role.name_text(),
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
+            let roles = match &member.roles {
+                Some(roles) => roles
+                    .iter()
+                    .map(|role| match (&role.name, role.rank) {
+                        (Some(name), Some(rank)) if shared.contains(&name.to_lowercase()) => {
+                            format!("{name} ({rank})")
+                        }
+                        _ => role.name_text(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                None => "-".to_string(),
+            };
             println!("{user:<36}  {roles}");
         }
         println!();
     }
 
     let summary = format!(
-        "{} found, {} member(s) read this run.",
-        members.len(),
-        run.scanned
+        "{} found, {scanned} member(s) read this run.",
+        members.len()
     );
     println!("{}", summary.dimmed());
 }

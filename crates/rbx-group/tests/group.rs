@@ -725,3 +725,190 @@ fn a_cursor_round_trips_and_a_bare_roblox_token_means_skip_nothing() {
     assert_eq!(first.skip, 2);
     assert_eq!(first.render(), "2:");
 }
+
+fn flags_with_session(places: &str) -> GlobalFlags {
+    GlobalFlags {
+        cookie: Some("test-cookie".into()),
+        ..flags(places)
+    }
+}
+
+fn cli_with_groups(
+    args: &[&str],
+    api: &MockServer,
+    users: &MockServer,
+    groups: &MockServer,
+) -> GroupCli {
+    cli(args, api, users).with_groups_url(groups.uri())
+}
+
+#[tokio::test]
+async fn with_a_session_a_role_is_listed_directly_and_open_cloud_is_not_walked() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    let groups = MockServer::start().await;
+    mount_roles(&api, vec![role("7", "Tester", 10)]).await;
+
+    // The whole point of the route: nobody is read to be discarded.
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+    // Names arrive with the listing, so there is no lookup either.
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&users)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/groups/{GROUP}/roles/7/users")))
+        .and(query_param("limit", "100"))
+        .and(query_param_is_missing("cursor"))
+        .and(header("Cookie", ".ROBLOSECURITY=test-cookie"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "previousPageCursor": null,
+            "nextPageCursor": null,
+            "data": [
+                {"userId": 1001, "username": "first", "displayName": "First", "hasVerifiedBadge": false},
+                {"userId": 1002, "username": "second", "displayName": "second", "hasVerifiedBadge": false},
+            ],
+        })))
+        .expect(1)
+        .mount(&groups)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli_with_groups(
+            &["--group", &group, "members", "Tester"],
+            &api,
+            &users,
+            &groups,
+        ),
+        &flags_with_session(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_session_cursor_resumes_on_the_session_route_and_skips_what_was_returned() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    let groups = MockServer::start().await;
+    mount_roles(&api, vec![role("7", "Tester", 10)]).await;
+
+    Mock::given(method("GET"))
+        .and(path(format!("/v1/groups/{GROUP}/roles/7/users")))
+        .and(query_param("cursor", "page-b"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "nextPageCursor": null,
+            "data": [
+                {"userId": 1001, "username": "first", "displayName": "first"},
+                {"userId": 1002, "username": "second", "displayName": "second"},
+            ],
+        })))
+        .expect(1)
+        .mount(&groups)
+        .await;
+
+    let group = GROUP.to_string();
+    run(
+        cli_with_groups(
+            &[
+                "--group",
+                &group,
+                "members",
+                "Tester",
+                "--cursor",
+                "S1:page-b",
+            ],
+            &api,
+            &users,
+            &groups,
+        ),
+        &flags_with_session(&no_file(dir.path())),
+    )
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn a_cursor_is_refused_on_the_route_it_did_not_come_from() {
+    let dir = tempfile::tempdir().unwrap();
+    let api = MockServer::start().await;
+    let users = MockServer::start().await;
+    let groups = MockServer::start().await;
+    mount_roles(&api, vec![role("7", "Tester", 10)]).await;
+    Mock::given(method("GET"))
+        .and(path(format!("/cloud/v2/groups/{GROUP}/memberships")))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&api)
+        .await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(0)
+        .mount(&groups)
+        .await;
+
+    let group = GROUP.to_string();
+    // An Open Cloud token, replayed while a session is available.
+    let err = run(
+        cli_with_groups(
+            &["--group", &group, "members", "Tester", "--cursor", "id_abc"],
+            &api,
+            &users,
+            &groups,
+        ),
+        &flags_with_session(&no_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("Open Cloud walk"), "{err:#}");
+
+    // A session token, replayed with no session.
+    let err = run(
+        cli_with_groups(
+            &[
+                "--group",
+                &group,
+                "members",
+                "Tester",
+                "--cursor",
+                "S0:page-b",
+            ],
+            &api,
+            &users,
+            &groups,
+        ),
+        &flags(&no_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+    assert!(format!("{err:#}").contains("session route"), "{err:#}");
+}
+
+#[test]
+fn a_session_cursor_is_always_marked() {
+    use rbx_group::model::Cursor;
+
+    let resumed = Cursor::parse("S2:eyJrZXkiOiIwIn0=");
+    assert!(resumed.session);
+    assert_eq!(resumed.skip, 2);
+    assert_eq!(resumed.page_token.as_deref(), Some("eyJrZXkiOiIwIn0="));
+    assert_eq!(resumed.render(), "S2:eyJrZXkiOiIwIn0=");
+
+    // Even with nothing to skip, so it can never pass for an Open Cloud one.
+    let next = Cursor {
+        page_token: Some("eyJr".into()),
+        skip: 0,
+        session: true,
+    };
+    assert_eq!(next.render(), "S0:eyJr");
+}

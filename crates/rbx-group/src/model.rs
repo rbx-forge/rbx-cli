@@ -164,42 +164,90 @@ impl GroupMembership {
 ///
 /// Rendered as the bare Roblox token when nothing is skipped, which is the
 /// common case, and as `<skip>:<token>` otherwise (`<skip>:` for the first
-/// page, which has no token). Roblox's tokens are base64url and never start
-/// with digits followed by a colon, so the two cannot be confused.
+/// page, which has no token). Open Cloud's tokens start `id_`, never with
+/// digits and a colon, so the two cannot be confused.
 ///
 /// If the group changes between two runs, the skipped page may hold different
 /// members by then, and the skip is off by as many. A paged listing of a live
 /// group is never a snapshot; this makes it no worse than that.
+///
+/// A cursor from the session route ([`RoleUsersPage`]) is a different kind of
+/// token over a different listing, so it is marked `S`, always:
+/// `S<skip>:<token>`. Replaying it against the Open Cloud walk, or the reverse,
+/// would read the wrong list from the wrong place, and the mark is what lets
+/// that be refused instead.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Cursor {
     pub page_token: Option<String>,
     pub skip: usize,
+    /// From the session route rather than the Open Cloud walk.
+    pub session: bool,
 }
 
 impl Cursor {
     pub fn parse(text: &str) -> Self {
-        if let Some((count, token)) = text.split_once(':') {
-            if !count.is_empty() && count.chars().all(|c| c.is_ascii_digit()) {
-                if let Ok(skip) = count.parse() {
-                    return Self {
-                        page_token: (!token.is_empty()).then(|| token.to_string()),
-                        skip,
-                    };
-                }
-            }
-        }
-        Self {
-            page_token: Some(text.to_string()),
-            skip: 0,
+        let (session, rest) = match text.strip_prefix('S') {
+            Some(rest) if Self::split_skip(rest).is_some() => (true, rest),
+            _ => (false, text),
+        };
+        match Self::split_skip(rest) {
+            Some((skip, token)) => Self {
+                page_token: (!token.is_empty()).then(|| token.to_string()),
+                skip,
+                session,
+            },
+            None => Self {
+                page_token: Some(text.to_string()),
+                skip: 0,
+                session: false,
+            },
         }
     }
 
+    /// `<digits>:<rest>`, the skip and the token.
+    fn split_skip(text: &str) -> Option<(usize, &str)> {
+        let (count, token) = text.split_once(':')?;
+        if count.is_empty() || !count.chars().all(|c| c.is_ascii_digit()) {
+            return None;
+        }
+        Some((count.parse().ok()?, token))
+    }
+
     pub fn render(&self) -> String {
-        match (self.skip, &self.page_token) {
-            (0, Some(token)) => token.clone(),
-            (skip, token) => format!("{skip}:{}", token.as_deref().unwrap_or_default()),
+        let token = self.page_token.as_deref().unwrap_or_default();
+        match (self.session, self.skip) {
+            (true, skip) => format!("S{skip}:{token}"),
+            (false, 0) if self.page_token.is_some() => token.to_string(),
+            (false, skip) => format!("{skip}:{token}"),
         }
     }
+}
+
+/// One page of `groups.roblox.com/v1/groups/{group}/roles/{role}/users`.
+///
+/// The route behind the Creator Hub's Members tab. It lists the holders of one
+/// role directly, which Open Cloud cannot, and it counts a role held beside a
+/// higher one: verified on 2026-10-09 against a group where a member holding
+/// Owner and Tester appears in the Tester list. It needs a signed-in session;
+/// anonymously it answers 400 "The user is invalid or does not exist" even for
+/// a public role.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleUsersPage {
+    #[serde(default)]
+    pub data: Vec<RoleUser>,
+    #[serde(default)]
+    pub next_page_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RoleUser {
+    pub user_id: u64,
+    #[serde(default)]
+    pub username: String,
+    #[serde(default)]
+    pub display_name: String,
 }
 
 /// How a role was named on the command line.

@@ -19,7 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   time: at most twenty pages of a hundred per run, with a `--cursor` to carry
   on, so a group of a million members costs the same per run as one of a
   hundred. The role is matched against every role a member holds, not only the
-  highest.
+  highest. With a Roblox session, `members <role>` reads the Creator Hub's own
+  per-role listing instead, which returns the role's holders and nobody else;
+  without one, it reads the Open Cloud membership list, which has no role
+  filter.
 
   The user is named the way `rbx ban` names one (an id, a username, `name:`,
   `@`, or a profile link), and the role by id or by name. A name two roles

@@ -107,11 +107,26 @@ More: rbx group members Moderator --cursor eyJvZmZzZXQiOjIwMDB9
 
 Where two roles share a name, a member's roles print with their rank, `Owner (255), Owner (254)`, since the name alone would not say which.
 
-With a role, the matching happens on this side, against **every** role a member holds. Roblox documents no way to filter this listing by role, and the one field such a filter could plausibly read holds only a member's highest role, which would drop everybody holding the role beside a higher one. The cost is that a rare role in a large group may take several runs that each find nobody, which the summary line makes visible rather than hiding behind a long wait.
+### Two ways to list a role
 
-Names come from one batched call per page, not one per member. A member whose account Roblox no longer returns is listed by id.
+With a role, there are two listings, and which one a run uses depends on whether it has a Roblox session:
 
-`--json` prints `members` (each with `user_id`, `username`, `display_name` and every role), `scanned`, and `next_cursor`, which is `null` at the end of the group.
+| | With a session | Without one |
+| --- | --- | --- |
+| Listing | `groups.roblox.com/v1/groups/{id}/roles/{role}/users`, the Creator Hub's own Members tab | Open Cloud's `/memberships`, every member |
+| Reads | the role's holders only | everybody, keeping the holders |
+| A rare role in a million members | one call per hundred holders | up to 500 runs that mostly find nobody |
+| Each member's other roles | not reported, so `ROLES` shows `-` and `--json` leaves `roles` out | all of them |
+
+The session is the one `rbx` already knows how to use: `--cookie`, `RBX_COOKIE`, or a signed-in Studio, which it asks about before sending (`--auto-cookie` to stop asking, `--no-auto-cookie` to refuse). Both listings count a role held beside a higher one. The session route is not in Roblox's OpenAPI document, so the drift check cannot watch it; it is listed as known-undocumented, with what was probed.
+
+Without a session, the role is matched on this side, against **every** role a member holds. Roblox documents no way to filter the Open Cloud listing by role, and the one field such a filter could plausibly read holds only a member's highest role, which would drop everybody holding the role beside a higher one. A rare role in a large group may then take several runs that each find nobody, which the summary line makes visible rather than hiding behind a long wait.
+
+A cursor belongs to the listing it came from. A session cursor starts with `S` (`S0:<token>`), and replaying one on the other listing is refused: it would page through the wrong list.
+
+Names come with the session listing, and from one batched call per page on the Open Cloud one. A member whose account Roblox no longer returns is listed by id.
+
+`--json` prints `source` (`session` or `open-cloud`), `members` (each with `user_id`, `username`, `display_name`, and `roles` when the listing reports them), `scanned`, and `next_cursor`, which is `null` at the end.
 
 ## rbx group rank and unrank
 

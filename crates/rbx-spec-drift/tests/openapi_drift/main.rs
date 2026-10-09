@@ -199,6 +199,18 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
          operations it documents (only /v2/assets/batch, /v2/assets/{}/owners, \
          /v2/assets/{}/versions)",
     ),
+    (
+        "https://groups.roblox.com",
+        "/v1/groups/{}/roles/{}/users",
+        "the holders of one role, the listing behind the Creator Hub's Members tab, used \
+         by `rbx group members <role>` when a session is available. Never in the document. \
+         Probed on 2026-10-09: anonymously it answers 400 \"The user is invalid or does not \
+         exist\" for a private and a public role alike, where a bogus path on the same host \
+         gives 404, so the route exists and wants a session; signed in, it lists the role's \
+         holders including one holding it beside a higher role. Open Cloud has no \
+         equivalent: its membership listing documents no role filter, so without this the \
+         command reads the whole group to find one role.",
+    ),
     // ── Documented once, then dropped by Roblox ───────────────────────────
     //
     // The five entries below are a different case from everything above, and

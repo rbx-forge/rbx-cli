@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-08",
+  "version": "2026-10-09",
   "source_url": "https://github.com/Roblox/creator-docs/blob/a0fce044c480e8c580dc99b0645d127ad83a3873/content/en-us/reference/cloud/openapi.json",
   "authority_url": "https://apis.roblox.com/cloud-authentication/v1/scopes",
   "scopes": {
@@ -217,7 +217,15 @@
     },
     "universe.analytics": {
       "operations": [
-        "read"
+        "read",
+        "write"
+      ],
+      "target_type": "universe"
+    },
+    "universe.analytics.alert": {
+      "operations": [
+        "read",
+        "write"
       ],
       "target_type": "universe"
     },

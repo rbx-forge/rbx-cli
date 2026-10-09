@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-05",
-  "source_url": "https://github.com/Roblox/creator-docs/blob/d025c96bdb1c81570221997092fbe0ad94b5337c/content/en-us/reference/cloud/openapi.json",
+  "version": "2026-10-08",
+  "source_url": "https://github.com/Roblox/creator-docs/blob/a0fce044c480e8c580dc99b0645d127ad83a3873/content/en-us/reference/cloud/openapi.json",
   "authority_url": "https://apis.roblox.com/cloud-authentication/v1/scopes",
   "scopes": {
     "ad.billing": {

@@ -1,6 +1,6 @@
 {
-  "version": "2026-10-09",
-  "source_url": "https://github.com/Roblox/creator-docs/blob/4fc8478587ee7c1a412403d76baff4d0ede578d4/content/en-us/reference/cloud/openapi.json",
+  "version": "2026-10-31",
+  "source_url": "https://github.com/Roblox/creator-docs/blob/46be165f526ec23305394ac0c56a95edd2d7f7d9/content/en-us/reference/cloud/openapi.json",
   "authority_url": "https://apis.roblox.com/cloud-authentication/v1/scopes",
   "scopes": {
     "ad.billing": {
@@ -45,6 +45,13 @@
       "target_type": "none"
     },
     "developer-product": {
+      "operations": [
+        "read",
+        "write"
+      ],
+      "target_type": "universe"
+    },
+    "extended-services": {
       "operations": [
         "read",
         "write"

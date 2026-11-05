@@ -17,6 +17,27 @@ pub(crate) fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+/// The vendored document as JSON, for the checks that read schemas rather than
+/// the path index.
+pub(crate) fn load_document(root: &Path) -> Value {
+    let path = root.join("spec/openapi.json");
+    let raw =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+    serde_json::from_str(&raw)
+        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()))
+}
+
+/// Follow a schema's `$ref` chain to the schema it names.
+pub(crate) fn resolve<'a>(spec: &'a Value, schema: &'a Value) -> &'a Value {
+    match schema["$ref"].as_str() {
+        Some(reference) => {
+            let name = reference.rsplit('/').next().unwrap_or_default();
+            resolve(spec, &spec["components"]["schemas"][name])
+        }
+        None => schema,
+    }
+}
+
 /// `(host, normalised segments)` -> the spec path that produced it.
 pub(crate) type SpecIndex = BTreeMap<(String, Vec<String>), String>;
 

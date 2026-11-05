@@ -131,7 +131,7 @@ pub(super) async fn pull_one_env(
     for pass in &remote_passes {
         let display_name = pass.name.as_deref().unwrap_or("unnamed");
         let Some(id) = pass.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Pass, display_name);
+            crate::commands::warn_no_id(ResourceKind::Pass, display_name);
             continue;
         };
         let key = pass_id_to_key
@@ -195,7 +195,7 @@ pub(super) async fn pull_one_env(
     for badge in &remote_badges {
         let display_name = badge.name.as_deref().unwrap_or("unnamed");
         let Some(id) = badge.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Badge, display_name);
+            crate::commands::warn_no_id(ResourceKind::Badge, display_name);
             continue;
         };
         seen_badge_ids.insert(id);
@@ -288,7 +288,7 @@ pub(super) async fn pull_one_env(
     for product in &remote_products {
         let display_name = product.name.as_deref().unwrap_or("unnamed");
         let Some(id) = product.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Product, display_name);
+            crate::commands::warn_no_id(ResourceKind::Product, display_name);
             continue;
         };
         let key = product_id_to_key

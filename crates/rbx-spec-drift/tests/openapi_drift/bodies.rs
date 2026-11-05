@@ -105,11 +105,7 @@ pub(crate) fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
 #[test]
 fn every_request_body_matches_the_schema_the_spec_documents() {
     let root = repo_root();
-    let path = root.join("spec/openapi.json");
-    let raw =
-        fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-    let spec: Value = serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    let spec = load_document(&root);
 
     for (file, struct_name, schema_name, omitted) in REQUEST_BODIES {
         let source = root.join(file);

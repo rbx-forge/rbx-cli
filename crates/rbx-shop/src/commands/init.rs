@@ -75,7 +75,7 @@ pub async fn run(
     for pass in &remote_passes {
         let name = pass.name.as_deref().unwrap_or("unnamed");
         let Some(id) = pass.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Pass, name);
+            super::warn_no_id(ResourceKind::Pass, name);
             continue;
         };
 
@@ -152,7 +152,7 @@ pub async fn run(
     for badge in &remote_badges {
         let name = badge.name.as_deref().unwrap_or("unnamed");
         let Some(id) = badge.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Badge, name);
+            super::warn_no_id(ResourceKind::Badge, name);
             continue;
         };
 
@@ -209,7 +209,7 @@ pub async fn run(
     for product in &remote_products {
         let name = product.name.as_deref().unwrap_or("unnamed");
         let Some(id) = product.id else {
-            crate::lockfile::warn_no_id(ResourceKind::Product, name);
+            super::warn_no_id(ResourceKind::Product, name);
             continue;
         };
 

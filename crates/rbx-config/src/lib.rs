@@ -106,6 +106,11 @@ pub enum ConfigCommands {
         /// Skip confirmation prompt.
         #[arg(long, short)]
         yes: bool,
+
+        /// Publish even though the live config changed since this repository
+        /// last synced or pulled it, replacing those changes with this file.
+        #[arg(long)]
+        overwrite_newer: bool,
     },
 
     /// Pull the live config into rbxconfig.toml (live is authoritative).
@@ -223,6 +228,7 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
             strategy,
             dry_run,
             yes,
+            overwrite_newer,
         } => {
             commands::sync::run(
                 &ctx,
@@ -231,6 +237,7 @@ pub async fn run(cli: ConfigCli, global: &GlobalFlags) -> Result<()> {
                 &strategy,
                 dry_run,
                 yes,
+                overwrite_newer,
             )
             .await
         }

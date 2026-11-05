@@ -265,9 +265,121 @@ async fn sync_writes_to_the_default_repository() {
         &Strategy::Immediate,
         false,
         true,
+        false,
     )
     .await
     .expect("sync");
+}
+
+/// The lockfile as a sync or pull at `version` would have left it.
+fn recorded_at(dir: &TempDir, version: u64) {
+    let mut lock = crate::lock::LockFile::default();
+    lock.update_env(
+        "dev",
+        UNIVERSE,
+        format!("v{version}"),
+        std::collections::BTreeMap::new(),
+    );
+    lock.save(&dir.path().join(crate::lock::LOCKFILE_NAME))
+        .expect("save the lockfile");
+}
+
+/// Somebody published v3 after this repository last saw v2. Publishing this
+/// file would remove what they added, so nothing is written, the dry run
+/// included, and the refusal says how to bring their changes in.
+#[tokio::test]
+async fn sync_refuses_a_live_config_published_since_the_last_sync() {
+    for dry_run in [true, false] {
+        let dir = repo();
+        recorded_at(&dir, 2);
+        let server = published(json!({})).await;
+
+        let err = super::sync::run(
+            &ctx(&dir, &server, None),
+            None,
+            true,
+            &Strategy::Immediate,
+            dry_run,
+            true,
+            false,
+        )
+        .await
+        .expect_err("live moved from v2 to v3");
+
+        let message = err.to_string();
+        assert!(
+            message.contains("v2") && message.contains("v3"),
+            "{message}"
+        );
+        assert!(message.contains("rbx config pull"), "{message}");
+        let requests = server.received_requests().await.unwrap();
+        assert!(
+            requests
+                .iter()
+                .all(|r| r.method == wiremock::http::Method::GET),
+            "nothing may be written"
+        );
+    }
+}
+
+/// The same lockfile, with the flag that says replacing them is the intent.
+#[tokio::test]
+async fn sync_with_overwrite_newer_publishes_over_a_newer_live_config() {
+    let dir = repo();
+    recorded_at(&dir, 2);
+    let server = published(json!({})).await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REPO_PATH}/draft")))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&server)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path(format!("{REPO_PATH}/draft:overwrite")))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "draftHash": "aaaaBBBBccccDDDD" })),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REPO_PATH}/publish")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "configVersion": 4 })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    super::sync::run(
+        &ctx(&dir, &server, None),
+        None,
+        true,
+        &Strategy::Immediate,
+        false,
+        true,
+        true,
+    )
+    .await
+    .expect("the flag lets it through");
+}
+
+/// The everyday case: the lockfile is at the live version, so this repository
+/// has seen everything that is live, and the sync goes ahead.
+#[tokio::test]
+async fn sync_from_the_live_version_is_not_refused() {
+    let dir = repo();
+    recorded_at(&dir, 3);
+    let server = published(json!({ "features.new_popup": true })).await;
+
+    super::sync::run(
+        &ctx(&dir, &server, None),
+        None,
+        true,
+        &Strategy::Immediate,
+        true,
+        true,
+        false,
+    )
+    .await
+    .expect("nothing was published since");
 }
 
 /// A staged draft is overwritten, not treated as a reason to stop: a pipeline
@@ -309,6 +421,7 @@ async fn sync_over_a_staged_draft_publishes_and_does_not_refuse() {
         &Strategy::Immediate,
         false,
         true,
+        false,
     )
     .await
     .expect("a staged draft is replaced, not a refusal");

@@ -188,13 +188,16 @@ rbx config sync --env dev --strategy gradual-rollout
 | Flag | Description |
 | --- | --- |
 | `--message` / `--no-message` | Publish message, or publish without one |
+| `--strategy` | `immediate` (default) or `gradual-rollout` |
+| `--dry-run` | Show diff without publishing |
+| `--yes` | Skip confirmation prompt |
+| `--overwrite-newer` | Publish even though the live config changed since this repository last synced or pulled it |
 
 **`--yes` answers the message question too.** `sync` asks twice on a terminal: once to confirm, once for a publish message. `--yes` means "do not ask me anything", so it covers both and publishes with an empty message: pass `--message` alongside it if the message matters.
 
 Off a terminal with none of the three, the run refuses and names them. It used to reach the prompt anyway and fail with `not a terminal`, which is a fact about the stream rather than about the flag that fixes it.
-| `--strategy` | `immediate` (default) or `gradual-rollout` |
-| `--dry-run` | Show diff without publishing |
-| `--yes` | Skip confirmation prompt |
+
+**A config published by somebody else is not overwritten by accident.** `rbxconfig.lock.toml` records the `configVersion` this repository last synced or pulled. When the live version is another one, someone published since, from another branch, another machine or the Creator Hub, and publishing this file would remove what they changed. The run prints the diff, then refuses, `--dry-run` included, and names the two versions. `rbx config pull` brings their changes in; `--overwrite-newer` replaces them on purpose. A `rollback` moves the live version too, so the next sync after one asks the same question. A lockfile written before versions were recorded this way does not block.
 
 A publish stages the entries as the draft and then publishes that draft, handing Roblox the hash of whatever draft was already there. If somebody had staged edits in the Creator Hub, they are replaced, and the run says so and names the keys the discarded draft held. It is a line of output rather than a refusal: a pipeline that publishes on every merge legitimately overwrites a staged draft, and stopping it would be the wrong end of the trade.
 

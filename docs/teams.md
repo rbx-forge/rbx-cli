@@ -231,14 +231,18 @@ a time.
 ### `rbx config sync`: last-writer-wins over the whole document
 
 `rbx config sync` calls the API's overwrite-and-publish operation with the full
-local entry set. It fetches the live config first, but only to print the diff
-for your approval: nothing compares the lockfile's `revision_id` against the
-live one, and nothing refuses on a mismatch. The `revision_id` in
-`rbxconfig.lock.toml` is written and never read back as a precondition.
+local entry set, which replaces the document rather than merging into it. So
+**a sync from a branch that does not have your colleague's entries would remove
+them from the live config.**
 
-The practical consequence: **if you sync from a branch that does not have your
-colleague's entries, those entries are removed from the live config**, silently,
-because the publish replaces the document rather than merging into it.
+It refuses that case: the `revision_id` in `rbxconfig.lock.toml` records the
+`configVersion` this repository last synced or pulled, and a live version other
+than that one means somebody published since. The refusal comes after the diff,
+so you see what would have gone. `rbx config pull` brings their changes in, and
+`--overwrite-newer` replaces them when that is the intent.
+
+What it does not cover is two syncs racing from the same version: both see the
+version they recorded, and the second one wins.
 
 Recovery exists and is the reason this is a warning rather than a prohibition:
 `rbx config versions` lists past revisions and `rbx config rollback` restores

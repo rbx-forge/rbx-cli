@@ -341,8 +341,9 @@ impl RbxClient {
                 "Failed to activate universe {} (public, or limited to friends).\n  \
                  Roblox returns the same 403 for both of:\n    \
                  1. Cookie account lacks 'Configure all places' permission in the owning group.\n    \
-                 2. Experience isn't eligible for public access yet (e.g. missing maturity label).\n  \
-                 Check Creator Hub > <experience> > Basic Info for prerequisites.",
+                 2. The experience's content questionnaire has not been filed, which Roblox \
+                 needs before it can be opened.\n  \
+                 Check Creator Hub > <experience> > Audience for what is still missing.",
                 universe_id
             )
         })

@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A refused activation now names the content questionnaire.** Roblox answers 403
+  "not authorized" when it has not been filed, which reads like a permissions
+  problem. Measured: filing it was what let the same call through.
+
 - **`rbx apikey delete` no longer forgets a key it failed to delete.** Any failure
   from Roblox still removed the lockfile entry and offered to delete the secret,
   then printed `✓ deleted`, so a key could stay live with no local trace of it. The

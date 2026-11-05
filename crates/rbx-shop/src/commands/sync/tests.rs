@@ -1018,6 +1018,55 @@ async fn allow_duplicate_names_creates_anyway() {
     assert_eq!(shop.env_lock().passes["VIP"].id, 111);
 }
 
+/// The pass exists on Roblox by now. Recording it as id 0 would point every
+/// later sync at nothing, so the run stops with no entry and says what to do.
+#[tokio::test]
+async fn a_create_reply_without_an_id_is_not_recorded_as_zero() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mock(&server, "POST", pass_collection(), json!({})).await;
+
+    let err = shop.sync(&server, false).await.unwrap_err();
+
+    let shown = format!("{err:#}");
+    assert!(shown.contains("carried no id"), "{shown}");
+    assert!(shown.contains("rbx shop pull"), "{shown}");
+    let lock = std::fs::read_to_string(shop.dir.path().join(crate::lockfile::LOCKFILE_NAME))
+        .unwrap_or_default();
+    assert!(!lock.contains("VIP"), "{lock}");
+}
+
+/// A reply that does not parse comes after a create that succeeded, and the
+/// message has to say that rather than read like a failed request.
+#[tokio::test]
+async fn an_unreadable_create_reply_says_the_resource_exists() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    Mock::given(method("POST"))
+        .and(path_matcher(pass_collection()))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+        .mount(&server)
+        .await;
+
+    let err = shop.sync(&server, false).await.unwrap_err();
+
+    let shown = format!("{err:#}");
+    assert!(shown.contains("accepted the new pass"), "{shown}");
+    assert!(shown.contains("rbx shop pull"), "{shown}");
+}
+
 fn badge_quota() -> String {
     format!("/v1/universes/{UNIVERSE}/free-badges-quota")
 }

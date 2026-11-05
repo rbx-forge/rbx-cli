@@ -16,6 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-zero `--badge-cost` gets a note and carries on, and a quota that cannot be
   read gets a warning.
 
+### Fixed
+
+- **`rbx init create-universe` and `create-place` record what they made before
+  trying to name it.** A name refused by moderation used to stop the run before
+  `rbxplace.toml` was written, leaving something on the account that nothing
+  pointed at, and that cannot be deleted. It is now recorded first, and the error
+  says it exists and names the rename command.
+
+- **`rbx shop sync` no longer records id `0`** when the reply to a create carries
+  no id, and an unreadable reply says the resource exists. Both stop the run and
+  point at `rbx shop pull`.
+
 ## [0.11.0] - 2026-10-09
 
 ### Added

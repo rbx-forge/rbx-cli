@@ -36,6 +36,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`rbx shop sync` refuses a lockfile recorded for another universe.** Repointing
+  an env used to overwrite the recorded universe and keep the old ids under it, so
+  the plan read up to date and generated code handed the game ids from another
+  experience. `check` and `rbx check` now exit `2` on it, which is new for a
+  pipeline in that state, and `pull` rebuilds the section instead of carrying the
+  old badges across.
+
+- **`rbx shop pull` and `init --from-remote` skip a listed resource with no id**
+  and say so, rather than recording it as id `0`.
+
 - **`rbx ads` no longer sends edits to completed campaigns.** `cancel`, `pause`,
   `resume`, `budget` and `rename` selected them and Roblox refused, while the dry
   run promised the change. They are now left out and counted, and `list` shows

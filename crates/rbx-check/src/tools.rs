@@ -296,7 +296,7 @@ pub async fn env_root(
 // shop / rbxshop.toml
 // ---------------------------------------------------------------------------
 
-pub fn shop(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
+pub fn shop(config_path: &Path, envs: &[Option<String>], global: &GlobalFlags) -> Vec<ToolReport> {
     use rbx_shop::config::Config;
     use rbx_shop::diff::{build_sync_plan, Action};
     use rbx_shop::lockfile::{EnvLock, Lockfile, LOCKFILE_NAME};
@@ -354,6 +354,28 @@ pub fn shop(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
 
         let default_lock = EnvLock::default();
         let env_lock = lockfile.env(&label).unwrap_or(&default_lock);
+
+        // `shop sync` refuses this, so reading it as clean would approve a run
+        // that cannot happen, and comparing against another universe's ids
+        // would say nothing. An env that does not resolve is reported elsewhere.
+        let target = env
+            .as_deref()
+            .and_then(|e| resolve_universe(global, e).ok());
+        if target.is_some_and(|universe| env_lock.tracks_another_universe(universe)) {
+            reports.push(
+                ToolReport::new(
+                    "shop",
+                    "lockfile",
+                    Outcome::Drift,
+                    format!(
+                        "lockfile tracks another universe ({}): `rbx shop pull` if the env moved",
+                        env_lock.universe_id
+                    ),
+                )
+                .env(&label),
+            );
+            continue;
+        }
 
         let plan = match build_sync_plan(&resolved, env_lock, config_dir) {
             Ok(p) => p,

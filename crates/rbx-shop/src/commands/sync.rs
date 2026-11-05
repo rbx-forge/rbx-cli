@@ -15,7 +15,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::api::{Pricing, RbxClient};
@@ -46,6 +46,28 @@ pub async fn run(
     lockfile.version = crate::lockfile::LOCKFILE_VERSION;
 
     let envs = ctx.resolve_envs(&config)?;
+
+    // Ahead of every write and of the dry run, and for every env before the
+    // first one starts, so `--env all` cannot apply half a run and then refuse.
+    //
+    // Letting this through overwrites the recorded universe with the new one and
+    // keeps the old ids under it. Nothing fails after that: the plan says up to
+    // date, and generated code hands the game ids from another experience.
+    for target in &envs {
+        if let Some(lock) = lockfile.env(&target.name) {
+            if lock.tracks_another_universe(target.universe_id) {
+                bail!(
+                    "Lockfile env '{}' tracks universe {}, but it now resolves to {}. The ids it \
+                     holds belong to the other universe. If this env moved, `rbx shop pull --env \
+                     {}` rebuilds the section from the new one. If not, fix rbxplace.toml.",
+                    target.name,
+                    lock.universe_id,
+                    target.universe_id,
+                    target.name
+                );
+            }
+        }
+    }
 
     // For a multi-env sync (--env all), confirm once up front if ANY target
     // env has `confirm = true` in rbxplace.toml: there's no per-env per-plan

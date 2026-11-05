@@ -205,11 +205,11 @@ run. Two runs against the same universe are a different matter.
   a run that dies halfway keeps the ids of what it already created. That is
   crash safety, not concurrency safety: it makes an interrupted run resumable,
   it does not stop a second run from creating duplicates.
-- **`rbx shop sync` does not refuse when the lockfile's recorded `universe_id`
-  disagrees with the env it resolved.** It overwrites the recorded value.
-  `rbx shop check` prints the mismatch, and `rbx meta sync` and `rbx config sync`
-  refuse outright, so shop is the odd one out here. After a merge that could
-  have mixed env sections, run `rbx shop check` before `rbx shop sync`.
+- **`rbx shop sync` refuses when the lockfile's recorded `universe_id` disagrees
+  with the env it resolved**, before anything is written and before any env of an
+  `--env all` run starts, and `rbx shop check` and `rbx check` exit `2` on it. The
+  ids in that section belong to the other universe. If the env really moved,
+  `rbx shop pull --env <name>` rebuilds the section from the new one.
 
 ### `rbx meta sync`: last-writer-wins, no duplication
 

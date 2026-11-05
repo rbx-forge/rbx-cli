@@ -342,6 +342,56 @@ fn one_locked_pass(lock: PassLock) -> EnvLock {
     }
 }
 
+/// `sync` sends people here when an env moved. The section describes the old
+/// universe, so nothing in it may reach the new one: a badge is fetched by id,
+/// which would carry it across and hand the game an id from another experience.
+#[tokio::test]
+async fn a_section_for_another_universe_is_rebuilt_rather_than_carried_over() {
+    const OTHER_UNIVERSE: u64 = 11223344;
+    let shop = Pulled::new(ONE_PASS);
+    shop.write_lock(EnvLock {
+        universe_id: OTHER_UNIVERSE,
+        passes: BTreeMap::from([("VIP".to_string(), locked_pass(777, "VIP", 499))]),
+        badges: BTreeMap::from([("Old".to_string(), locked_badge(999, "Old", true))]),
+        ..Default::default()
+    });
+    let server = MockServer::start().await;
+    mount_remote(&server, 499).await;
+
+    shop.pull(&server).await.unwrap();
+
+    let env = shop.env_lock();
+    assert_eq!(env.universe_id, UNIVERSE);
+    assert_eq!(env.passes["VIP"].id, 111);
+    assert!(env.badges.is_empty(), "{:?}", env.badges);
+    assert_eq!(count(&server, "/v1/badges/999").await, 0);
+}
+
+/// An id of 0 would point every later sync at nothing, while the real resource
+/// sat unmanaged.
+#[tokio::test]
+async fn a_listed_resource_with_no_id_is_skipped_rather_than_recorded_as_zero() {
+    let shop = Pulled::new(ONE_PASS);
+    let server = MockServer::start().await;
+    mount_lists(
+        &server,
+        json!([
+            { "gamePassId": 111, "name": "VIP", "isForSale": true,
+              "priceInformation": { "defaultPriceInRobux": 499 } },
+            { "name": "No Id", "isForSale": true }
+        ]),
+        json!([]),
+        json!([]),
+    )
+    .await;
+
+    shop.pull(&server).await.unwrap();
+
+    let env = shop.env_lock();
+    assert_eq!(env.passes.keys().collect::<Vec<_>>(), vec!["VIP"]);
+    assert_eq!(env.passes["VIP"].id, 111);
+}
+
 /// A resource is tracked by its id, not by its display name. Renaming a
 /// pass on the website has to update the entry the lockfile already points
 /// at: keying off the new name instead would strand the old key and add a

@@ -55,16 +55,21 @@ pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
         };
         let env_lock = lockfile.env(&env_target.name).unwrap_or(&default_lock);
 
-        if lockfile_exists
-            && env_lock.universe_id != 0
-            && env_lock.universe_id != env_target.universe_id
-        {
+        if lockfile_exists && env_lock.tracks_another_universe(env_target.universe_id) {
             println!(
                 "{} Universe ID mismatch: target={}, lockfile={}",
                 "✗".red(),
                 env_target.universe_id,
                 env_lock.universe_id
             );
+            // `sync` refuses this, so a check that passed on it would approve a
+            // run that cannot happen. Comparing the entries against another
+            // universe's ids says nothing, so the env stops here.
+            drifted.push(format!(
+                "{} (lockfile tracks another universe: `rbx shop pull --env {}` if it moved)",
+                env_target.name, env_target.name
+            ));
+            continue;
         }
 
         let plan = build_sync_plan(&resources, env_lock, config_dir)?;
@@ -232,6 +237,24 @@ price = 99
             "drift must exit 2, not 1: {err:#}"
         );
         assert!(format!("{err:#}").contains("rbx shop forget"), "{err:#}");
+    }
+
+    /// `sync` refuses this, so `check` passing on it would be approving nothing.
+    #[tokio::test]
+    async fn a_lockfile_for_another_universe_exits_2() {
+        let dir = synced_repo();
+        std::fs::write(
+            dir.path().join("rbxshop.toml"),
+            IN_SYNC.replace("universe_id = 100", "universe_id = 200"),
+        )
+        .expect("write");
+
+        let err = check(&dir).await.expect_err("the env moved");
+        assert!(
+            err.chain().any(|cause| cause.is::<Drift>()),
+            "drift must exit 2, not 1: {err:#}"
+        );
+        assert!(format!("{err:#}").contains("another universe"), "{err:#}");
     }
 
     /// A repo that never synced is the same drift, reached the other way.

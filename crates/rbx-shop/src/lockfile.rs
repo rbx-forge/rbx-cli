@@ -130,6 +130,20 @@ impl Lockfile {
     }
 }
 
+impl EnvLock {
+    /// Whether this section's ids belong to a universe other than `universe_id`.
+    /// Zero is a section that has never been written, not a universe.
+    pub fn tracks_another_universe(&self, universe_id: u64) -> bool {
+        self.universe_id != 0 && self.universe_id != universe_id
+    }
+}
+
+/// A listed resource Roblox gave no id for is not recorded: an id of 0 would
+/// send every later sync at nothing, and leave the real one unmanaged.
+pub(crate) fn warn_no_id(kind: crate::config::ResourceKind, name: &str) {
+    eprintln!("warning: Roblox listed {kind} '{name}' with no id, so it was skipped.");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

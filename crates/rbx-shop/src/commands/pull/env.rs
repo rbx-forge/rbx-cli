@@ -99,8 +99,13 @@ pub(super) async fn pull_one_env(
         universe_id: env_target.universe_id,
         ..Default::default()
     };
+    // A section recorded for another universe says nothing about this one, and
+    // this is the command `sync` sends people to when an env moves. Read as it
+    // stands, its ids would key resources by chance and its badges would be
+    // fetched by id and carried across.
     let old_env_lock = old_lockfile
         .env(&env_target.name)
+        .filter(|lock| !lock.tracks_another_universe(env_target.universe_id))
         .unwrap_or(&default_env_lock);
 
     // Build ID → key indexes from existing lockfile section
@@ -125,7 +130,10 @@ pub(super) async fn pull_one_env(
     let mut pass_locks = BTreeMap::new();
     for pass in &remote_passes {
         let display_name = pass.name.as_deref().unwrap_or("unnamed");
-        let id = pass.id.unwrap_or(0);
+        let Some(id) = pass.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Pass, display_name);
+            continue;
+        };
         let key = pass_id_to_key
             .get(&id)
             .cloned()
@@ -186,7 +194,10 @@ pub(super) async fn pull_one_env(
     let mut seen_badge_ids = HashSet::new();
     for badge in &remote_badges {
         let display_name = badge.name.as_deref().unwrap_or("unnamed");
-        let id = badge.id.unwrap_or(0);
+        let Some(id) = badge.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Badge, display_name);
+            continue;
+        };
         seen_badge_ids.insert(id);
         let key = badge_id_to_key
             .get(&id)
@@ -276,7 +287,10 @@ pub(super) async fn pull_one_env(
     let mut product_locks = BTreeMap::new();
     for product in &remote_products {
         let display_name = product.name.as_deref().unwrap_or("unnamed");
-        let id = product.id.unwrap_or(0);
+        let Some(id) = product.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Product, display_name);
+            continue;
+        };
         let key = product_id_to_key
             .get(&id)
             .cloned()

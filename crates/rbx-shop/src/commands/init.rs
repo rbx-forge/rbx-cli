@@ -74,7 +74,10 @@ pub async fn run(
     let mut pass_locks = std::collections::BTreeMap::new();
     for pass in &remote_passes {
         let name = pass.name.as_deref().unwrap_or("unnamed");
-        let id = pass.id.unwrap_or(0);
+        let Some(id) = pass.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Pass, name);
+            continue;
+        };
 
         let key = if passes.contains_key(name) {
             let kept = pass_locks.get(name).map(|l: &PassLock| l.id);
@@ -148,7 +151,10 @@ pub async fn run(
     let mut badge_locks = std::collections::BTreeMap::new();
     for badge in &remote_badges {
         let name = badge.name.as_deref().unwrap_or("unnamed");
-        let id = badge.id.unwrap_or(0);
+        let Some(id) = badge.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Badge, name);
+            continue;
+        };
 
         let key = if badges.contains_key(name) {
             let kept = badge_locks.get(name).map(|l: &BadgeLock| l.id);
@@ -202,7 +208,10 @@ pub async fn run(
     let mut product_locks = std::collections::BTreeMap::new();
     for product in &remote_products {
         let name = product.name.as_deref().unwrap_or("unnamed");
-        let id = product.id.unwrap_or(0);
+        let Some(id) = product.id else {
+            crate::lockfile::warn_no_id(ResourceKind::Product, name);
+            continue;
+        };
 
         let key = if products.contains_key(name) {
             let kept = product_locks.get(name).map(|l: &ProductLock| l.id);

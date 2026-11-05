@@ -1067,6 +1067,32 @@ price = 499
     assert!(shown.contains("rbx shop pull"), "{shown}");
 }
 
+/// An env repointed at another universe, with nothing in the plan to do. The
+/// old sync called this up to date and rewrote the recorded universe, which left
+/// the old ids reading as the new universe's for good.
+#[tokio::test]
+async fn a_lockfile_recorded_for_another_universe_is_refused_and_left_alone() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+    let recorded = format!(
+        "version = {}\n\n[envs.{ENV}]\nuniverse_id = 11223344\n\n[envs.{ENV}.passes.VIP]\nid = 555\nname = \"VIP\"\nprice = 499\nfor_sale = true\n",
+        crate::lockfile::LOCKFILE_VERSION
+    );
+    shop.write_lock(&recorded);
+    let server = MockServer::start().await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(err.contains("11223344"), "{err}");
+    assert!(err.contains("rbx shop pull"), "{err}");
+    assert!(requests(&server).await.is_empty(), "nothing may be sent");
+    assert_eq!(shop.env_lock().universe_id, 11223344);
+}
+
 fn badge_quota() -> String {
     format!("/v1/universes/{UNIVERSE}/free-badges-quota")
 }

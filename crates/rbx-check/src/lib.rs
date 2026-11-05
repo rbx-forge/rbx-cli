@@ -207,7 +207,7 @@ async fn gather(dir: &Path, offline: bool, global: &GlobalFlags) -> Result<Repor
                 rows.extend(tools::env_root(&entry.path, &envs, offline, &develop).await);
                 rows
             }
-            discovery::Tool::Shop => tools::shop(&entry.path, &envs),
+            discovery::Tool::Shop => tools::shop(&entry.path, &envs, global),
             discovery::Tool::Meta => tools::meta(&entry.path, &envs),
             discovery::Tool::Config => tools::config(&entry.path, &envs, global, offline).await,
             discovery::Tool::Rtbf => tools::rtbf(&entry.path, global, offline).await,

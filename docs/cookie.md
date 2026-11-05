@@ -30,6 +30,25 @@ Two details the table would otherwise flatten:
 - **`rbx import` does not auto-detect for its own call.** It passes `--cookie` / `RBX_COOKIE` straight through to the place listing. That used to be described here as a limitation; it is not one, because the listing answers without a credential either way. The `meta` step that `import` runs afterwards is an ordinary `rbx meta` invocation and does resolve the cookie normally, auto-detection included.
 - **`rbx apikey introspect` resolves a cookie it does not send.** It shares the client constructor with the rest of `rbx apikey`, but the introspect endpoint authenticates with the key secret itself. So the command can print the auto-detection notice without a cookie ever leaving the process.
 
+## What would let a command stop using it
+
+Every cookie call above exists because Roblox publishes no key route for it. These are the open feature requests on the DevForum, so a change there is worth checking against this table. The daily spec refresh shows a new route when one appears.
+
+| What `rbx` writes with the cookie | Feature request |
+| --- | --- |
+| The experience's own icon | [Updating experience icons](https://devforum.roblox.com/t/add-open-cloud-support-for-updating-experience-icons/4529017) |
+| `genre` | [Experience genre](https://devforum.roblox.com/t/experience-genre-cant-be-kept-consistent-across-environments-or-managed-in-automated-deployments/4892081) |
+| Paid access | [Paid access settings](https://devforum.roblox.com/t/paid-access-settings-cant-be-kept-consistent-across-environments-or-managed-in-automated-deployments/4892088) |
+| `studio_access_to_apis_allowed` | [Studio access to API services](https://devforum.roblox.com/t/enable-studio-access-to-api-services-cant-be-managed-per-environment-in-automated-deployments/4892091) |
+| Third-party permissions | [Third-party sales and teleports](https://devforum.roblox.com/t/third-party-sales-and-teleport-permissions-cant-be-managed-in-automated-deployments/4892096) |
+| `audience`, friends | [Friends-only access](https://devforum.roblox.com/t/friends-only-access-cant-be-managed-in-automated-deployments/4892105) |
+| Avatar settings | [Experience avatar settings](https://devforum.roblox.com/t/experience-avatar-settings-cant-be-kept-consistent-across-environments-or-managed-in-automated-deployments/4892110) |
+| `allow_copying` | [A place's Allow Copying](https://devforum.roblox.com/t/a-places-allow-copying-setting-cant-be-read-or-enforced-in-automated-deployments/4892136) |
+| `server_fill` | [A place's server fill](https://devforum.roblox.com/t/a-places-server-fill-settings-cant-be-kept-consistent-across-environments-or-managed-in-automated-deployments/4892162) |
+| `rbx init create-universe` | [Universe creation API](https://devforum.roblox.com/t/v1-universe-creation-api-is-not-documented/4355237) |
+
+**`visibility` is the partial case.** A key holding `legacy-universe:manage` can switch an experience on and off through `/legacy-develop/v1/universes/{id}/activate` and `/deactivate`, measured on 2026-11-05. `rbx` still uses the cookie, for three reasons: those routes cannot choose an audience, and the `audiences` write that can has no key route; the scope has no universe target, so the key reaches every universe its owner can manage; and `activate` answered 504 on a call that worked, so its status cannot be trusted alone. `activate` also needs the content questionnaire filed first: without it, it answers 403 with `You are not authorized to configure this universe`, which does not mention the questionnaire.
+
 ## What the cookie does not protect
 
 This page is about a credential, so it is worth being exact about one thing it

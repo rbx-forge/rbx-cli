@@ -73,7 +73,8 @@ infrastructure:
   - `build_client()` / `build_client_with_user_agent()`: the one place a
     `reqwest::Client` is constructed (gzip + request timeout).
   - `execute_with_retry` / `execute_json` / `RetryPolicy`: retry on 429/5xx
-    and transient network errors, with `retry-after` support, then JSON-parse
+    and transient network errors, waiting as long as `retry-after` or
+    `x-ratelimit-reset` asks on a 429, whichever is longer, then JSON-parse
     with the raw body kept in the error message.
   - `download_asset`: Open Cloud asset download.
 - **`places`** / **`owner`** / **`env`**: `rbxplace.toml` parsing, the shared

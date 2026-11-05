@@ -19,6 +19,28 @@ fn remote(pairs: &[(&str, u64)]) -> Vec<(String, u64)> {
     pairs.iter().map(|(n, id)| (n.to_string(), *id)).collect()
 }
 
+/// Exactly the quota is enough: the check is on what is left after the last
+/// create, not on reaching zero.
+#[test]
+fn a_quota_covering_every_create_is_enough() {
+    assert_eq!(quota_verdict(5, 5, 0), QuotaVerdict::Enough);
+    assert_eq!(quota_verdict(1, 5, 0), QuotaVerdict::Enough);
+}
+
+#[test]
+fn one_create_past_the_quota_is_refused_when_nothing_is_paid() {
+    assert_eq!(quota_verdict(6, 5, 0), QuotaVerdict::Refuse);
+    assert_eq!(quota_verdict(1, 0, 0), QuotaVerdict::Refuse);
+}
+
+/// `--badge-cost` is the developer saying they expect to pay, so a shortfall
+/// is theirs to accept. Only the free path is refused.
+#[test]
+fn a_shortfall_is_not_refused_when_a_cost_was_declared() {
+    assert_eq!(quota_verdict(6, 5, 100), QuotaVerdict::ShortButPaying);
+    assert_eq!(quota_verdict(5, 5, 100), QuotaVerdict::Enough);
+}
+
 #[test]
 fn an_empty_experience_collides_with_nothing() {
     let found = collide(

@@ -51,6 +51,19 @@ impl RbxClient {
         Ok(all_badges)
     }
 
+    /// How many badges the universe can still create for free.
+    ///
+    /// The body is a bare integer and the route takes no credential, so this
+    /// adds no scope to a key that syncs a shop.
+    pub async fn free_badge_quota(&self, universe_id: u64) -> Result<u64> {
+        let url = {
+            let badges = &self.hosts.badges;
+            badges.join(&format!("/v1/universes/{}/free-badges-quota", universe_id))
+        };
+
+        rbx_core::api::execute_json(|| async { Ok(self.client.get(&url).send().await?) }).await
+    }
+
     pub async fn get_badge(&self, badge_id: u64) -> Result<Badge> {
         let api_key = self.api_key_header()?.to_string();
         let url = self.hosts.badges.join(&format!("/v1/badges/{}", badge_id));

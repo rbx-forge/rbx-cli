@@ -327,6 +327,8 @@ Apply the resolved (base + overlay) config to Roblox.
 | `--yes` / `-y` | Skip the confirmation prompt. What CI passes |
 | `--allow-duplicate-names` | Create resources even when Roblox already has one by that name. See [Duplicate names](#duplicate-names) |
 
+When the plan creates badges, `sync` first reads how many this universe can still create for free, a request that needs no scope. With `--badge-cost` at `0` and too few left, it stops before its first write, since passes are applied before badges and products after them, and finding out from Roblox would leave the env half done. With a non-zero `--badge-cost` it says so and carries on. A quota it cannot read is reported and not treated as zero.
+
 `--yes` is worth thinking about once rather than reaching for. `sync` is the command that issues `Create`, Roblox has no delete verb for passes, badges or products, and badge creation spends Robux, so this flag is what turns a reviewed plan into an unattended one. Put `--dry-run` in the pull request and `--yes` in the job that was approved, not the other way round. See [Working in a team](teams.md#habits-that-keep-this-from-happening).
 
 Use `--env <name>` for a specific env, `--env all` for every env in `rbxplace.toml`, or no flag to fall back to `[experience]`.

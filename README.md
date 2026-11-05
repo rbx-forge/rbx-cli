@@ -6,7 +6,7 @@ Add it to your project's `rokit.toml`, then run `rokit install`:
 
 ```toml
 [tools]
-rbx = "rbx-forge/rbx-cli@0.2.0"
+rbx = "rbx-forge/rbx-cli@0.11.0"
 ```
 
 The command is `rbx`: short, because you type it all day. The repository

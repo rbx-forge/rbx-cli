@@ -83,17 +83,22 @@ pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
             }
         }
 
-        if creates == 0 && updates == 0 {
+        // A resource dropped from the config stays on sale. `sync` cannot fix
+        // that and only warns, so a warning in a CI log was all anyone got.
+        let undeclared = plan.warnings.len();
+
+        if creates == 0 && updates == 0 && undeclared == 0 {
             println!("{} Everything is in sync.", "✓".green());
         } else {
             println!(
-                "{} Out of sync: {} to create, {} to update. Run `rbx shop sync` for details.",
+                "{} Out of sync: {} to create, {} to update, {} no longer declared.",
                 "!".yellow(),
                 creates,
-                updates
+                updates,
+                undeclared
             );
             drifted.push(format!(
-                "{} ({creates} to create, {updates} to update)",
+                "{} ({creates} to create, {updates} to update, {undeclared} no longer declared)",
                 env_target.name
             ));
         }
@@ -104,7 +109,8 @@ pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
     }
 
     Err(Drift::new(format!(
-        "{} env{} out of sync with {}: {}. Run `rbx shop sync` to apply.",
+        "{} env{} out of sync with {}: {}. `rbx shop sync` applies creates and updates; \
+         `rbx shop forget` stops tracking what is no longer declared.",
         drifted.len(),
         if drifted.len() == 1 { " is" } else { "s are" },
         lockfile_path.display(),
@@ -205,6 +211,27 @@ price = 99
             "drift must exit 2, not 1: {err:#}"
         );
         assert!(format!("{err:#}").contains("rbx shop sync"), "{err:#}");
+    }
+
+    /// A pass taken out of the config stays on sale, and `sync` cannot change
+    /// that, so this is the one place it can fail a pipeline.
+    #[tokio::test]
+    async fn a_resource_no_longer_declared_exits_2_and_names_the_way_out() {
+        let dir = synced_repo();
+        std::fs::write(
+            dir.path().join("rbxshop.toml"),
+            "[experience]\nuniverse_id = 100\n",
+        )
+        .expect("write");
+
+        let err = check(&dir)
+            .await
+            .expect_err("the pass fell out of the config");
+        assert!(
+            err.chain().any(|cause| cause.is::<Drift>()),
+            "drift must exit 2, not 1: {err:#}"
+        );
+        assert!(format!("{err:#}").contains("rbx shop forget"), "{err:#}");
     }
 
     /// A repo that never synced is the same drift, reached the other way.

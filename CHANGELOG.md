@@ -7,7 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rbx shop check` and `rbx check` now exit `2` on a resource no longer
+  declared.** Removing a pass from `rbxshop.toml` leaves it on sale, and a warning
+  in a log was all that said so. A pipeline that passed with one in its lockfile
+  starts failing: clear it with `rbx shop forget`.
+
 ### Added
+
+- **`rbx shop forget <resource> <key>`**: stop tracking a resource the config no
+  longer declares. Local only, it stays on Roblox as it is, and the command prints
+  its id. Refused while the key is still declared.
 
 - **`rbx shop sync` checks the free badge quota before its first write.** A plan
   creating more badges than the universe has left, with `--badge-cost` at `0`,

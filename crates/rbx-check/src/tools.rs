@@ -375,8 +375,16 @@ pub fn shop(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
             }
         }
 
-        let report = if creates == 0 && updates == 0 {
+        let undeclared = plan.warnings.len();
+        let report = if creates == 0 && updates == 0 && undeclared == 0 {
             ToolReport::new("shop", "lockfile", Outcome::Clean, "everything in sync")
+        } else if creates == 0 && updates == 0 {
+            ToolReport::new(
+                "shop",
+                "lockfile",
+                Outcome::Drift,
+                format!("{undeclared} no longer declared: run `rbx shop forget`"),
+            )
         } else {
             ToolReport::new(
                 "shop",

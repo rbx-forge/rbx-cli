@@ -1,0 +1,60 @@
+name: Report a failed scheduled run
+
+# A scheduled run that fails tells nobody. The weekly supply-chain check was red
+# for three weeks on six advisories before anyone looked, because a red mark on
+# a run nobody opened is not a notification.
+#
+# So a failed scheduled run opens an issue, which is something that arrives.
+# One issue per workflow: a run that fails again while it is open comments on
+# it instead of opening another, so a week of failures is one thread.
+#
+# Only scheduled runs. A push or a pull request already has somebody looking at
+# its checks, and reporting those too would be noise.
+
+on:
+  workflow_run:
+    workflows:
+      - Supply chain
+      - Update OpenAPI spec
+      - Scope catalog drift
+    types: [completed]
+
+permissions:
+  issues: write
+
+jobs:
+  report:
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Nothing is checked out and nothing from the failed run is executed: the
+      # inputs are the workflow's name and the run's URL, passed as variables
+      # rather than written into the script.
+      - name: Open or update the issue for this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          WORKFLOW: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+          title="Scheduled run failing: ${WORKFLOW}"
+          # The title is compared as data by awk rather than spliced into a jq
+          # program, so nothing in a workflow's name can change what runs.
+          existing=$(gh issue list --repo "$REPO" --state open --limit 100 \
+            --json number,title --jq '.[] | "\(.number)\t\(.title)"' \
+            | awk -F'\t' -v want="$title" '$2 == want { print $1; exit }')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "$REPO" \
+              --body "Failed again: ${RUN_URL}"
+            echo "Commented on #${existing}."
+          else
+            gh issue create --repo "$REPO" --label bug --title "$title" \
+              --body "The scheduled run of \`${WORKFLOW}\` failed: ${RUN_URL}
+
+          This issue was opened automatically. Later failures of the same workflow comment here until it is closed."
+            echo "Opened an issue."
+          fi

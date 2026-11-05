@@ -112,16 +112,6 @@ const RESPONSES: &[(&str, Source)] = &[
     ),
 ];
 
-fn resolve<'a>(spec: &'a Value, schema: &'a Value) -> &'a Value {
-    match schema["$ref"].as_str() {
-        Some(reference) => {
-            let name = reference.rsplit('/').next().unwrap_or_default();
-            resolve(spec, &spec["components"]["schemas"][name])
-        }
-        None => schema,
-    }
-}
-
 /// The properties a schema documents, following `$ref` and `allOf`.
 fn property_names(spec: &Value, schema: &Value) -> BTreeSet<String> {
     let schema = resolve(spec, schema);
@@ -168,11 +158,7 @@ fn unknown_keys(keys: &[String], documented: &BTreeSet<String>) -> Vec<String> {
 #[test]
 fn every_shop_model_reads_only_what_the_spec_documents() {
     let root = repo_root();
-    let path = root.join("spec/openapi.json");
-    let raw =
-        fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-    let spec: Value = serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    let spec = load_document(&root);
     let src = fs::read_to_string(root.join(MODELS))
         .unwrap_or_else(|e| panic!("cannot read {MODELS}: {e}"));
     let src = strip_tests(&src);

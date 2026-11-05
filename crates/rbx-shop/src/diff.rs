@@ -28,7 +28,18 @@ pub struct SyncPlan {
     pub passes: Vec<ResourceAction>,
     pub badges: Vec<ResourceAction>,
     pub products: Vec<ResourceAction>,
-    pub warnings: Vec<String>,
+    /// One message per lockfile entry the config no longer declares. Their own
+    /// field rather than general warnings, because `check` counts them as drift
+    /// and must not count anything else.
+    pub undeclared: Vec<String>,
+}
+
+/// How many of each action a plan holds.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Counts {
+    pub creates: usize,
+    pub updates: usize,
+    pub unchanged: usize,
 }
 
 #[derive(Debug)]
@@ -85,23 +96,25 @@ impl SyncPlan {
             .any(|a| !matches!(a.action, Action::Skip))
     }
 
-    pub fn summary(&self) -> String {
-        let mut creates = 0;
-        let mut updates = 0;
-        let mut skips = 0;
-
+    pub fn counts(&self) -> Counts {
+        let mut counts = Counts::default();
         for action in ResourceKind::ALL.iter().flat_map(|k| self.actions(*k)) {
             match &action.action {
-                Action::Create => creates += 1,
-                Action::Update { .. } => updates += 1,
-                Action::Skip => skips += 1,
+                Action::Create => counts.creates += 1,
+                Action::Update { .. } => counts.updates += 1,
+                Action::Skip => counts.unchanged += 1,
             }
         }
+        counts
+    }
 
-        format!(
-            "{} to create, {} to update, {} unchanged",
-            creates, updates, skips
-        )
+    pub fn summary(&self) -> String {
+        let Counts {
+            creates,
+            updates,
+            unchanged,
+        } = self.counts();
+        format!("{creates} to create, {updates} to update, {unchanged} unchanged")
     }
 }
 
@@ -115,16 +128,16 @@ pub fn build_sync_plan(
     env_lock: &EnvLock,
     config_dir: &Path,
 ) -> Result<SyncPlan> {
-    let mut warnings = Vec::new();
-    orphan_warnings::<PassKind>(resources, env_lock, &mut warnings);
-    orphan_warnings::<BadgeKind>(resources, env_lock, &mut warnings);
-    orphan_warnings::<ProductKind>(resources, env_lock, &mut warnings);
+    let mut undeclared = Vec::new();
+    orphan_warnings::<PassKind>(resources, env_lock, &mut undeclared);
+    orphan_warnings::<BadgeKind>(resources, env_lock, &mut undeclared);
+    orphan_warnings::<ProductKind>(resources, env_lock, &mut undeclared);
 
     Ok(SyncPlan {
         passes: diff_kind::<PassKind>(resources, env_lock, config_dir)?,
         badges: diff_kind::<BadgeKind>(resources, env_lock, config_dir)?,
         products: diff_kind::<ProductKind>(resources, env_lock, config_dir)?,
-        warnings,
+        undeclared,
     })
 }
 

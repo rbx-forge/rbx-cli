@@ -13,7 +13,7 @@ use rbx_core::generated::Drift;
 
 use crate::config::Config;
 use crate::ctx::ShopCtx;
-use crate::diff::{build_sync_plan, Action};
+use crate::diff::{build_sync_plan, Counts};
 use crate::lockfile::{EnvLock, Lockfile};
 
 pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
@@ -74,23 +74,16 @@ pub async fn run(ctx: &ShopCtx<'_>) -> Result<()> {
 
         let plan = build_sync_plan(&resources, env_lock, config_dir)?;
 
-        for warning in &plan.warnings {
-            println!("{} {}", "!".yellow(), warning);
+        for message in &plan.undeclared {
+            println!("{} {}", "!".yellow(), message);
         }
 
-        let mut creates = 0;
-        let mut updates = 0;
-        for action in plan.passes.iter().chain(&plan.badges).chain(&plan.products) {
-            match &action.action {
-                Action::Create => creates += 1,
-                Action::Update { .. } => updates += 1,
-                Action::Skip => {}
-            }
-        }
-
+        let Counts {
+            creates, updates, ..
+        } = plan.counts();
         // A resource dropped from the config stays on sale. `sync` cannot fix
         // that and only warns, so a warning in a CI log was all anyone got.
-        let undeclared = plan.warnings.len();
+        let undeclared = plan.undeclared.len();
 
         if creates == 0 && updates == 0 && undeclared == 0 {
             println!("{} Everything is in sync.", "✓".green());

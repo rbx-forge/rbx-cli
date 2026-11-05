@@ -49,7 +49,7 @@ fn rendered(plan: &SyncPlan) -> (Vec<String>, Vec<String>, Vec<String>, Vec<Stri
         render(&plan.passes),
         render(&plan.badges),
         render(&plan.products),
-        plan.warnings.clone(),
+        plan.undeclared.clone(),
     )
 }
 

@@ -298,7 +298,7 @@ pub async fn env_root(
 
 pub fn shop(config_path: &Path, envs: &[Option<String>], global: &GlobalFlags) -> Vec<ToolReport> {
     use rbx_shop::config::Config;
-    use rbx_shop::diff::{build_sync_plan, Action};
+    use rbx_shop::diff::{build_sync_plan, Counts};
     use rbx_shop::lockfile::{EnvLock, Lockfile, LOCKFILE_NAME};
 
     let mut reports = Vec::new();
@@ -387,17 +387,10 @@ pub fn shop(config_path: &Path, envs: &[Option<String>], global: &GlobalFlags) -
             }
         };
 
-        let mut creates = 0;
-        let mut updates = 0;
-        for action in plan.passes.iter().chain(&plan.badges).chain(&plan.products) {
-            match &action.action {
-                Action::Create => creates += 1,
-                Action::Update { .. } => updates += 1,
-                Action::Skip => {}
-            }
-        }
-
-        let undeclared = plan.warnings.len();
+        let Counts {
+            creates, updates, ..
+        } = plan.counts();
+        let undeclared = plan.undeclared.len();
         let report = if creates == 0 && updates == 0 && undeclared == 0 {
             ToolReport::new("shop", "lockfile", Outcome::Clean, "everything in sync")
         } else if creates == 0 && updates == 0 {
@@ -415,7 +408,7 @@ pub fn shop(config_path: &Path, envs: &[Option<String>], global: &GlobalFlags) -
                 format!("{creates} to create, {updates} to update: run `rbx shop sync`"),
             )
         };
-        reports.push(report.env(&label).details(plan.warnings.clone()));
+        reports.push(report.env(&label).details(plan.undeclared.clone()));
     }
 
     reports.push(shop_codegen(&config, &lockfile, config_dir, &lockfile_path));

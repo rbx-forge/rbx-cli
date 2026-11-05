@@ -138,12 +138,6 @@ impl EnvLock {
     }
 }
 
-/// A listed resource Roblox gave no id for is not recorded: an id of 0 would
-/// send every later sync at nothing, and leave the real one unmanaged.
-pub(crate) fn warn_no_id(kind: crate::config::ResourceKind, name: &str) {
-    eprintln!("warning: Roblox listed {kind} '{name}' with no id, so it was skipped.");
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

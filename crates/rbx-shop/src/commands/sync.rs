@@ -154,8 +154,8 @@ async fn sync_one_env(
 
     let plan = build_sync_plan(&resources, &env_lock_snapshot, config_dir)?;
 
-    for warning in &plan.warnings {
-        println!("{} {}", "!".yellow(), warning);
+    for message in &plan.undeclared {
+        println!("{} {}", "!".yellow(), message);
     }
 
     if !plan.has_changes() {

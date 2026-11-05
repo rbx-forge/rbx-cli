@@ -136,16 +136,6 @@ fn sent_fields(body: &str) -> Vec<String> {
     fields
 }
 
-fn resolve<'a>(spec: &'a Value, schema: &'a Value) -> &'a Value {
-    match schema["$ref"].as_str() {
-        Some(reference) => {
-            let name = reference.rsplit('/').next().unwrap_or_default();
-            resolve(spec, &spec["components"]["schemas"][name])
-        }
-        None => schema,
-    }
-}
-
 /// What is wrong with sending `fields` to `operation`, as readable sentences.
 fn problems(
     spec: &Value,
@@ -210,11 +200,7 @@ fn problems(
 #[test]
 fn every_shop_write_sends_only_what_the_spec_documents() {
     let root = repo_root();
-    let path = root.join("spec/openapi.json");
-    let raw =
-        fs::read_to_string(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-    let spec: Value = serde_json::from_str(&raw)
-        .unwrap_or_else(|e| panic!("{} is not valid JSON: {e}", path.display()));
+    let spec = load_document(&root);
 
     let pricing = fs::read_to_string(root.join(PRICING_SOURCE))
         .unwrap_or_else(|e| panic!("cannot read {PRICING_SOURCE}: {e}"));

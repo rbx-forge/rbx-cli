@@ -571,8 +571,9 @@ have to show real Roblox changes and nothing else.
 
 ### Cutting a release
 
-1. Bump `[workspace.package].version` in `Cargo.toml`, then `cargo check` to refresh `Cargo.lock`
-2. Move `## [Unreleased]` content to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no `v` in the heading)
+1. Run the live checks against a test universe. CI never talks to Roblox ([#91](https://github.com/rbx-forge/rbx-cli/issues/91)), so this is what proves the build against the real API: the read commands, an upload of an unchanged place, and write, read and delete round trips on `memorystore` and `data`. Nothing that cannot be deleted gets created. The script stays out of the repository because it holds a real universe id, and it has to run locally because the key it uses is limited to one IP.
+2. Bump `[workspace.package].version` in `Cargo.toml`, then `cargo check` to refresh `Cargo.lock`
+3. Move `## [Unreleased]` content to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no `v` in the heading)
 
    The heading spelling is load-bearing: `release.yml` reads the section back
    out of this file by matching `## [X.Y.Z]` against the tag it was pushed
@@ -583,13 +584,13 @@ have to show real Roblox changes and nothing else.
    A tag whose version has no section here fails the release job before
    anything is published, rather than putting a release on the page with an
    empty body.
-3. Commit, then tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --follow-tags`
+4. Commit, then tag and push: `git tag -a vX.Y.Z -m "vX.Y.Z" && git push origin main --follow-tags`
 
    The `-a` is not optional. `--follow-tags` pushes **annotated** tags only, so a
    plain `git tag vX.Y.Z` is created locally, silently skipped by the push, and
    `release.yml` never fires: the commit lands on `main` and nothing else
    happens. Every release from v0.2.0 on is annotated.
-4. `release.yml` picks up the tag and publishes the binaries
+5. `release.yml` picks up the tag and publishes the binaries
 
 If you delete a release, delete its tag too (`git push origin :vX.Y.Z`).
 Re-pushing an existing tag re-triggers `release.yml` against stale code: that

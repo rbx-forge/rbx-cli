@@ -33,10 +33,11 @@ const REQUEST_BODIES: &[(&str, &str, &str, &[&str])] = &[
 ///
 /// Text rather than reflection because this crate compiles against nothing in
 /// the workspace on purpose (see the module docs), so the alternative is no
-/// check at all. It models the two things the request bodies here use, a bare
-/// field name and `#[serde(rename = "...")]`, and refuses anything else it is
-/// shown: a `rename_all` or a `flatten` changes the whole key set, and a
-/// scanner that shrugged at one would compare a key set nobody sends.
+/// check at all. It models what the structs here use: a bare field name,
+/// `#[serde(rename = "...")]`, `#[serde(rename_all = "camelCase")]` and
+/// `#[serde(skip...)]`. It refuses anything else it is shown, because another
+/// `rename_all` or a `flatten` changes the whole key set, and a scanner that
+/// shrugged at one would compare a key set nobody sends.
 pub(crate) fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
     let lines: Vec<&str> = src.lines().collect();
     let declaration = format!("struct {struct_name}");
@@ -45,25 +46,32 @@ pub(crate) fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
         .position(|line| {
             let trimmed = line.trim_start();
             (trimmed.starts_with("struct ") || trimmed.starts_with("pub struct "))
+                && trimmed
+                    .split([' ', '{', '<', '('])
+                    .any(|word| word == struct_name)
                 && trimmed.contains(&declaration)
         })
         .unwrap_or_else(|| panic!("no `{declaration}` in the source scanned for it"));
 
+    let mut camel_case = false;
     for line in lines[..at].iter().rev() {
         let trimmed = line.trim_start();
         if !trimmed.starts_with("#[") {
             break;
         }
-        assert!(
-            !trimmed.contains("rename_all"),
-            "{struct_name} carries {trimmed}, which renames every field: this scan reads \
-             field names and `rename` attributes only, so it would report a key set that \
-             is not the one being sent."
-        );
+        if trimmed.contains("rename_all") {
+            assert!(
+                trimmed.contains(r#"rename_all = "camelCase""#),
+                "{struct_name} carries {trimmed}: this scan knows `camelCase` and no other \
+                 `rename_all`, so it would report a key set that is not the one on the wire."
+            );
+            camel_case = true;
+        }
     }
 
     let mut keys = Vec::new();
     let mut rename: Option<String> = None;
+    let mut skip = false;
     for line in &lines[at + 1..] {
         let trimmed = line.trim();
         if trimmed.starts_with('}') {
@@ -81,19 +89,54 @@ pub(crate) fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
             if let Some((_, after)) = trimmed.split_once("rename = ") {
                 rename = string_literals(after).into_iter().next();
             }
+            // `skip`, `skip_serializing` and `skip_deserializing` take the field
+            // off the wire. `skip_serializing_if` only omits an empty value, so
+            // the options are read one by one rather than matched as text.
+            skip |= trimmed
+                .trim_start_matches("#[serde(")
+                .trim_end_matches(")]")
+                .split(',')
+                .map(str::trim)
+                .any(|option| matches!(option, "skip" | "skip_serializing" | "skip_deserializing"));
             continue;
         }
         let Some((name, _)) = trimmed.split_once(':') else {
             continue;
         };
+        if std::mem::take(&mut skip) {
+            rename = None;
+            continue;
+        }
         // Response models have public fields, and the request bodies do not.
         let field = name
             .trim()
             .trim_start_matches("pub(crate) ")
             .trim_start_matches("pub ");
-        keys.push(rename.take().unwrap_or_else(|| field.to_string()));
+        let key = match rename.take() {
+            Some(explicit) => explicit,
+            None if camel_case => to_camel_case(field),
+            None => field.to_string(),
+        };
+        keys.push(key);
     }
     keys
+}
+
+/// What `rename_all = "camelCase"` makes of a snake_case field name.
+pub(crate) fn to_camel_case(field: &str) -> String {
+    let mut out = String::with_capacity(field.len());
+    let mut upper = false;
+    for c in field.chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// What the tool sends and what the endpoint accepts, compared against the

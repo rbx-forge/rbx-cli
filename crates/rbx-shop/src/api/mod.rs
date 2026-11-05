@@ -35,8 +35,8 @@ const ICON_SIZE: &str = "512x512";
 /// The shared default (3 retries, about 7 s) is sized for reads. A sync sends
 /// one write per resource back to back, and a run creating about sixty
 /// products was stopped by a 429 partway through. Five retries from 2 s wait
-/// roughly a minute (2 + 4 + 8 + 16 + 32), unless Roblox sends `retry-after`,
-/// which wins.
+/// roughly a minute (2 + 4 + 8 + 16 + 32), unless the response says how long the
+/// limit lasts, which wins.
 pub(crate) const WRITE_POLICY: RetryPolicy = RetryPolicy {
     max_retries: 5,
     base_backoff_secs: 2,

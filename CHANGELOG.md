@@ -18,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A rate limit now waits as long as Roblox says it lasts.** Only `retry-after`
+  was read, and it can be far off: a route measured with `Retry-After: 5` reopened
+  after 52 seconds, as its `x-ratelimit-reset` said, so a command spent its retries
+  inside the window and failed. A 429 now waits for the longer of the two, with a
+  line on stderr when that is a while. A window over two minutes stops at once and
+  says how long it is.
+
 - **`rbx init create-universe` and `create-place` record what they made before
   trying to name it.** A name refused by moderation used to stop the run before
   `rbxplace.toml` was written, leaving something on the account that nothing

@@ -12,7 +12,7 @@ Everything below is version-pinned in the repository, so a new machine and a CI 
 
 ```toml title="rokit.toml"
 [tools]
-rbx = "rbx-forge/rbx-cli@0.11.0"
+rbx = "rbx-forge/rbx-cli@0.12.0"
 rojo = "rojo-rbx/rojo@7.7.0"
 ```
 

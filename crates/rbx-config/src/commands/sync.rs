@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::config::ConfigsFile;
@@ -18,6 +18,7 @@ pub async fn run(
     strategy: &Strategy,
     dry_run: bool,
     yes: bool,
+    overwrite_newer: bool,
 ) -> Result<()> {
     let (env, universe_id, confirm_required) = ctx.resolve_target()?;
     let file = &ctx.config;
@@ -63,6 +64,27 @@ pub async fn run(
     println!("Changes:");
     let diff = Diff::compute(&local_entries, &snapshot.entries);
     diff.print();
+
+    // After the diff, so whoever is refused has already seen what the publish
+    // would have removed. Before the dry run returns, so a preview cannot report
+    // a plan the real run would refuse.
+    let recorded = LockFile::load(&lock_path)
+        .ok()
+        .and_then(|lock| lock.envs.get(&env).map(|e| e.revision_id.clone()));
+    if !overwrite_newer {
+        if let Some(recorded) = recorded {
+            if published_since(&recorded, snapshot.metadata.config_version) {
+                bail!(
+                    "[{env}] was published since this repository last synced or pulled it: \
+                     {LOCKFILE_NAME} records {recorded}, live is v{}. Publishing would replace \
+                     those changes with this file, and the diff above shows what would go.\n  \
+                     Bring them in with `rbx config pull --env {env}`, or pass \
+                     --overwrite-newer to replace them.",
+                    snapshot.metadata.config_version
+                );
+            }
+        }
+    }
 
     if dry_run {
         println!();
@@ -137,10 +159,44 @@ pub async fn run(
     Ok(())
 }
 
+/// Whether the live config moved past the version this repository last wrote
+/// or read.
+///
+/// `sync` and `pull` record `v<configVersion>`. A value in any other form was
+/// written before that, says nothing comparable, and does not block.
+fn published_since(recorded: &str, live: u64) -> bool {
+    recorded
+        .strip_prefix('v')
+        .and_then(|n| n.parse::<u64>().ok())
+        .is_some_and(|version| version != live)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use rbx_core::api::MAX_KEYS_PER_REPOSITORY;
+
+    #[test]
+    fn a_live_version_past_the_recorded_one_is_published_since() {
+        assert!(published_since("v3", 4));
+        assert!(!published_since("v4", 4));
+    }
+
+    /// A rollback moves the live version backwards, and the file is just as
+    /// stale against it.
+    #[test]
+    fn a_live_version_behind_the_recorded_one_counts_too() {
+        assert!(published_since("v5", 4));
+    }
+
+    /// Older lockfiles hold values that are not `v<n>`, and must not block a
+    /// sync on a comparison that means nothing.
+    #[test]
+    fn a_recorded_value_in_another_form_does_not_block() {
+        assert!(!published_since("rev-1", 4));
+        assert!(!published_since("7", 4));
+        assert!(!published_since("", 4));
+    }
 
     /// A dry run reports what a publish would do, so it has to refuse what a
     /// publish would be refused for. It used to print a clean plan for an
@@ -169,7 +225,7 @@ mod tests {
             base_url: None,
         };
 
-        let err = run(&ctx, None, true, &Strategy::Immediate, true, true)
+        let err = run(&ctx, None, true, &Strategy::Immediate, true, true, false)
             .await
             .expect_err("101 keys is over Roblox's limit");
         let message = err.to_string();

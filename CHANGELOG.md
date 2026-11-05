@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`rbx config sync` no longer removes changes published since the last sync.**
+  The publish replaces the whole document, and the version the lockfile recorded
+  was never compared, so a sync from a branch without a colleague's entries removed
+  them. It now refuses when the live version moved, after printing the diff and
+  before writing, `--dry-run` included. `rbx config pull` brings the changes in,
+  and `--overwrite-newer` replaces them on purpose.
+
 - **`rbx shop sync` refuses a lockfile recorded for another universe.** Repointing
   an env used to overwrite the recorded universe and keep the old ids under it, so
   the plan read up to date and generated code handed the game ids from another

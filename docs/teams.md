@@ -62,26 +62,34 @@ before you read a diff:
 `rbx shop` builds its plan by walking the resolved config and looking each key
 up in the lockfile's env section. No entry for that key is the entire test for
 "this does not exist yet", and the action it produces is `Create`, which is a
-bare `POST` to Roblox. Nothing looks for an existing remote resource with the
-same name first.
+bare `POST` to Roblox.
+
+Before its first write, `sync` lists what exists and stops if a create would
+reuse a display name already there, comparing without regard to case.
+`--allow-duplicate-names` skips this. It is a check on the name and not on
+identity: a resource renamed on either side since it was last synced gets past
+it.
 
 Roblox does not make display names unique. `rbx shop pull` carries a whole
 duplicate-name resolution path precisely because two passes called `VIP` in the
-same universe are a state Roblox is happy to be in. So a `Create` issued for a
-resource that already exists does not fail. It succeeds, and you now own two.
+same universe are a state Roblox is happy to be in. So a `Create` that reaches
+Roblox for a resource that already exists does not fail. It succeeds, and you
+now own two.
 
 Three consequences:
 
 1. **Never resolve a `rbxshop.lock.toml` conflict by deleting entries.** Every
-   entry you drop is one `Create` on the next sync.
+   entry you drop becomes a planned `Create`, and only its display name stands
+   between that and a duplicate.
 2. **`git checkout --ours` / `--theirs` on the whole file is only safe when one
    side is a strict superset of the other.** If each side recorded ids the other
    lacks, taking one side whole throws away real ids.
 3. **Deleting the lockfile and re-running `sync` is the worst version of the
    same mistake.** For `rbx meta` and `rbx config` that is merely wasteful
-   (both re-send state they already had). For `rbx shop` it recreates every
-   pass, badge and product in the config. Badge creation in particular is a
-   billable operation on Roblox's side: the create call carries an
+   (both re-send state they already had). For `rbx shop` every pass, badge and
+   product in the config becomes a create: the name guard stops the run if
+   their names still match, and anything renamed since is created again. Badge
+   creation in particular is a billable operation on Roblox's side: the create call carries an
    `expectedCost`, `rbx shop sync` exposes it as `--badge-cost` (default `0`),
    and the scope the call needs is named `manage-and-spend-robux`. The command
    that rebuilds a shop lockfile from reality is `rbx shop pull`, not `sync`.
@@ -131,8 +139,10 @@ price = 499
 With no lock entry, pull has no id to match on. It files the remote resource
 under its display name, `VIP Access`, and adds *that* as a new config entry.
 Your original `VIPPass` key still has no lock entry. The next `rbx shop sync`
-therefore creates a second pass, and now `VIP Access` and `VIPPass` are two
-paid products in the same universe.
+plans a create for it, and the name guard refuses, because `VIP Access` already
+exists. The way past that refusal is the mistake: with
+`--allow-duplicate-names`, `VIP Access` and `VIPPass` are two paid products in
+the same universe.
 
 When the config key and the display name happen to be identical, the fallback
 lands on the right key and pull does reconstruct the entry correctly. That is
@@ -181,9 +191,9 @@ The whole workspace is sequential by design (see
 run. Two runs against the same universe are a different matter.
 
 - **Two runs that both plan `Create` for the same key produce two remote
-  resources.** This is the failure that matters. There is no pre-flight
-  existence check, no uniqueness constraint on Roblox's side, and no way to
-  delete the loser afterwards.
+  resources.** This is the failure that matters. The name guard does not close
+  it, because both runs can list before either creates. There is no uniqueness
+  constraint on Roblox's side, and no way to delete the loser afterwards.
 - **Updates are addressed by the id in the lockfile, so they cannot duplicate
   anything.** Two concurrent updates to the same resource are last-writer-wins
   per call: whichever `update_game_pass` lands second is the state you keep.

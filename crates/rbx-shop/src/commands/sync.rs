@@ -432,6 +432,21 @@ fn explain_rate_limit(error: anyhow::Error) -> anyhow::Error {
     }
 }
 
+/// The id Roblox gave a resource it just created.
+///
+/// A reply without one is not recorded as `0`: every later sync would address
+/// a resource that does not exist, while the real one sat unmanaged. Stopping
+/// leaves no lock entry, and the name guard then keeps the next sync from
+/// making a second one.
+fn created_id(id: Option<u64>, kind: ResourceKind, name: &str) -> Result<u64> {
+    id.ok_or_else(|| {
+        anyhow::anyhow!(
+            "Roblox created {kind} '{name}' but its reply carried no id, so it is not in the \
+             lockfile.\n  Adopt it with `rbx shop pull` rather than syncing again."
+        )
+    })
+}
+
 // ---------------------------------------------------------------------------
 // The three kinds
 // ---------------------------------------------------------------------------
@@ -485,7 +500,7 @@ impl Appliable for PassKind {
             )
             .await?;
         Ok(PassLock {
-            id: result.id.unwrap_or(0),
+            id: created_id(result.id, Self::KIND, display_name)?,
             name: display_name.to_string(),
             price: cfg.price,
             description: cfg.description.clone(),
@@ -588,7 +603,7 @@ impl Appliable for ProductKind {
             )
             .await?;
         Ok(ProductLock {
-            id: result.id.unwrap_or(0),
+            id: created_id(result.id, Self::KIND, display_name)?,
             name: display_name.to_string(),
             price: cfg.price,
             description: cfg.description.clone(),
@@ -691,7 +706,7 @@ impl Appliable for BadgeKind {
             )
             .await?;
         Ok(BadgeLock {
-            id: result.id.unwrap_or(0),
+            id: created_id(result.id, Self::KIND, display_name)?,
             name: display_name.to_string(),
             description: cfg.description.clone(),
             enabled: cfg.enabled,

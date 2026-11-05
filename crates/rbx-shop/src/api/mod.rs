@@ -3,7 +3,7 @@ pub mod models;
 pub mod passes;
 pub mod products;
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use reqwest::{multipart, Client};
 
 use rbx_core::api::{ApiBase, RetryPolicy};
@@ -41,6 +41,20 @@ pub(crate) const WRITE_POLICY: RetryPolicy = RetryPolicy {
     max_retries: 5,
     base_backoff_secs: 2,
 };
+
+/// Read the reply to a create Roblox has already accepted.
+///
+/// A parse failure here is not a failed create: the resource exists, and it
+/// cannot be deleted. Without saying so, the natural next step is another sync.
+fn parse_created<T: serde::de::DeserializeOwned>(what: &str, body: &str) -> Result<T> {
+    serde_json::from_str(body).with_context(|| {
+        format!(
+            "Roblox accepted the new {what}, but its reply could not be read, so the {what} \
+             exists and is not in the lockfile.\n  Adopt it with `rbx shop pull` rather than \
+             syncing again.\n  Reply: {body}"
+        )
+    })
+}
 
 /// Which pricing automation a write enforces.
 ///

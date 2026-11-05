@@ -125,7 +125,7 @@ impl RbxClient {
         )
         .await?;
 
-        Ok(serde_json::from_str(&response.text().await?)?)
+        super::parse_created("badge", &response.text().await?)
     }
 
     pub async fn update_badge(

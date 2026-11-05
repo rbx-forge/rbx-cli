@@ -98,7 +98,7 @@ impl RbxClient {
         )
         .await?;
 
-        Ok(serde_json::from_str(&response.text().await?)?)
+        super::parse_created("pass", &response.text().await?)
     }
 
     #[allow(clippy::too_many_arguments)]

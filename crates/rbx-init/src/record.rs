@@ -36,6 +36,29 @@ use rbx_core::places::{
 /// obvious answer.
 const DEFAULT_PLACE: &str = "main";
 
+/// What a refused name means once the resource exists.
+///
+/// Re-running the create is the natural reaction to an error and the wrong one
+/// here: it would make a second resource, which cannot be deleted either. So
+/// the message says the first one is fine and names the command that finishes
+/// the job.
+pub fn name_not_applied(
+    error: anyhow::Error,
+    what: &str,
+    recorded: bool,
+    retry: &str,
+) -> anyhow::Error {
+    let record = if recorded {
+        " and is recorded in rbxplace.toml"
+    } else {
+        ""
+    };
+    error.context(format!(
+        "The {what} was created{record}. Only its name failed, so it keeps Roblox's default \
+         name.\n  Do not create it again. To name it:\n    {retry}"
+    ))
+}
+
 /// A new `[<env>]` block to append.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NewEnv {

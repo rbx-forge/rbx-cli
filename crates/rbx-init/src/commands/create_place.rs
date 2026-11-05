@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use anyhow::Result;
 use colored::Colorize;
 
@@ -56,44 +58,120 @@ pub async fn run(
     );
     let response = client.create_place(universe, template_place_id).await?;
 
-    if let Some(new_name) = name {
-        println!(
-            "Renaming place {} to {} ...",
-            response.place_id.to_string().cyan(),
-            new_name.bold()
-        );
-        client.rename_place(response.place_id, new_name).await?;
-    }
+    finish(
+        &client,
+        universe,
+        response.place_id,
+        name,
+        new_place.as_ref(),
+        &global.places,
+    )
+    .await
+}
 
-    // Ids first: a failed rbxplace.toml write must still leave the user with
-    // everything needed to record the place by hand.
+/// Everything after the place exists, in the same order as `create-universe`
+/// and for the same reason: ids on screen, then the file, then the name, the
+/// one step Roblox can refuse for what it says.
+async fn finish(
+    client: &RbxClient,
+    universe: u64,
+    place_id: u64,
+    name: Option<&str>,
+    new_place: Option<&NewPlace>,
+    places: &Path,
+) -> Result<()> {
     println!(
         "{} place (id {}) in universe {}",
         "Created".green().bold(),
-        response.place_id.to_string().cyan(),
+        place_id.to_string().cyan(),
         universe.to_string().cyan(),
     );
-    if let Some(new_name) = name {
-        println!("  name: {}", new_name.bold());
-    }
 
     if let Some(target) = new_place {
-        record::insert_place(
-            &global.places,
-            &target.env,
-            &target.place,
-            response.place_id,
-        )?;
+        record::insert_place(places, &target.env, &target.place, place_id)?;
         println!(
             "{} places.{} to [{}] in {}",
             "Added".green().bold(),
             target.place.bold(),
             target.env,
-            global.places.display()
+            places.display()
         );
     }
 
+    if let Some(new_name) = name {
+        println!(
+            "Renaming place {} to {} ...",
+            place_id.to_string().cyan(),
+            new_name.bold()
+        );
+        client.rename_place(place_id, new_name).await.map_err(|e| {
+            record::name_not_applied(
+                e,
+                "place",
+                new_place.is_some(),
+                &format!("rbx init rename-place --place {place_id} --name \"<name>\""),
+            )
+        })?;
+        println!("  name: {}", new_name.bold());
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod finish_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const UNIVERSE: u64 = 66778899001;
+    const PLACE: u64 = 109876543210987;
+
+    /// A refused name must not leave a place that no env points at.
+    #[tokio::test]
+    async fn a_refused_name_still_leaves_the_place_recorded() {
+        let server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path(format!("/v2/places/{PLACE}")))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        let client = RbxClient::new(Some("test-cookie".into())).with_base_url(server.uri());
+        let dir = tempfile::tempdir().unwrap();
+        let places = dir.path().join("rbxplace.toml");
+        std::fs::write(
+            &places,
+            "[dev]\nuniverse_id = 66778899001\n\n[dev.places]\nmain = 1\n",
+        )
+        .unwrap();
+        let target = NewPlace {
+            env: "dev".into(),
+            place: "lobby".into(),
+        };
+
+        let err = finish(
+            &client,
+            UNIVERSE,
+            PLACE,
+            Some("Name"),
+            Some(&target),
+            &places,
+        )
+        .await
+        .unwrap_err();
+
+        let recorded = std::fs::read_to_string(&places).unwrap();
+        assert!(recorded.contains("lobby"), "{recorded}");
+        assert!(recorded.contains(&PLACE.to_string()), "{recorded}");
+        let shown = format!("{err:#}");
+        assert!(shown.contains("recorded in rbxplace.toml"), "{shown}");
+        assert!(
+            shown.contains(&format!("rename-place --place {PLACE}")),
+            "{shown}"
+        );
+    }
 }
 
 /// Last gate before the irreversible call, so it states the rbxplace.toml

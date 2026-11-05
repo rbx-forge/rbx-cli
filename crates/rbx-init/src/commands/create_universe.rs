@@ -1,6 +1,9 @@
+use std::path::Path;
+
 use anyhow::Result;
 use colored::Colorize;
 
+use crate::api::universes::CreateUniverseResponse;
 use crate::api::RbxClient;
 use crate::record::{self, NewEnv};
 use rbx_core::confirm::confirm_always;
@@ -94,32 +97,32 @@ pub async fn run(
     };
     let response = client.create_universe(template_place_id, group_arg).await?;
 
-    if let Some(new_name) = name {
-        println!(
-            "Renaming root place {} to {} ...",
-            response.root_place_id.to_string().cyan(),
-            new_name.bold()
-        );
-        client
-            .rename_place(response.root_place_id, new_name)
-            .await?;
-    }
+    finish(&client, &response, name, new_env.as_ref(), &global.places).await
+}
 
-    // Print the ids before touching rbxplace.toml: if the write fails, the
-    // universe still exists and the user needs its ids to record it by hand.
+/// Everything after the universe exists, in the order that keeps it findable.
+///
+/// The name comes last because it is the one step Roblox can refuse for what
+/// it says: moderation turns down a name only after the universe is made. By
+/// then the universe cannot be deleted, so the ids go on screen first, in case
+/// the file write fails, and the file is written before the name is tried.
+async fn finish(
+    client: &RbxClient,
+    response: &CreateUniverseResponse,
+    name: Option<&str>,
+    new_env: Option<&NewEnv>,
+    places: &Path,
+) -> Result<()> {
     println!(
         "{} universe (id {}) with root place (id {})",
         "Created".green().bold(),
         response.universe_id.to_string().cyan(),
         response.root_place_id.to_string().cyan(),
     );
-    if let Some(new_name) = name {
-        println!("  name: {}", new_name.bold());
-    }
 
     if let Some(target) = new_env {
         record::append_env(
-            &global.places,
+            places,
             &target.env,
             response.universe_id,
             &target.place,
@@ -129,11 +132,124 @@ pub async fn run(
             "{} [{}] to {}",
             "Added".green().bold(),
             target.env.bold(),
-            global.places.display()
+            places.display()
         );
     }
 
+    if let Some(new_name) = name {
+        println!(
+            "Renaming root place {} to {} ...",
+            response.root_place_id.to_string().cyan(),
+            new_name.bold()
+        );
+        client
+            .rename_place(response.root_place_id, new_name)
+            .await
+            .map_err(|e| {
+                record::name_not_applied(
+                    e,
+                    "universe",
+                    new_env.is_some(),
+                    &format!(
+                        "rbx init rename-universe --universe-id {} --name \"<name>\"",
+                        response.universe_id
+                    ),
+                )
+            })?;
+        println!("  name: {}", new_name.bold());
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod finish_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const RESPONSE: CreateUniverseResponse = CreateUniverseResponse {
+        universe_id: 66778899001,
+        root_place_id: 109876543210987,
+    };
+
+    async fn server_answering_rename(status: u16) -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("PATCH"))
+            .and(path(format!("/v2/places/{}", RESPONSE.root_place_id)))
+            .respond_with(ResponseTemplate::new(status).set_body_json(serde_json::json!({})))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn new_env() -> NewEnv {
+        NewEnv {
+            env: "test".into(),
+            place: "main".into(),
+        }
+    }
+
+    /// The failure this order exists for: moderation refuses the name, and the
+    /// universe must not end up on the account with nothing pointing at it.
+    #[tokio::test]
+    async fn a_refused_name_still_leaves_the_universe_recorded() {
+        let server = server_answering_rename(400).await;
+        let client = RbxClient::new(Some("test-cookie".into())).with_base_url(server.uri());
+        let dir = tempfile::tempdir().unwrap();
+        let places = dir.path().join("rbxplace.toml");
+        std::fs::write(&places, "").unwrap();
+
+        let err = finish(&client, &RESPONSE, Some("Name"), Some(&new_env()), &places)
+            .await
+            .unwrap_err();
+
+        let recorded = std::fs::read_to_string(&places).unwrap();
+        assert!(recorded.contains("[test]"), "{recorded}");
+        assert!(recorded.contains("66778899001"), "{recorded}");
+        let shown = format!("{err:#}");
+        assert!(shown.contains("recorded in rbxplace.toml"), "{shown}");
+        assert!(
+            shown.contains("rename-universe --universe-id 66778899001"),
+            "{shown}"
+        );
+    }
+
+    /// `--no-record`: nothing is in the file, so the message must not say so.
+    #[tokio::test]
+    async fn a_refused_name_without_recording_does_not_claim_a_record() {
+        let server = server_answering_rename(400).await;
+        let client = RbxClient::new(Some("test-cookie".into())).with_base_url(server.uri());
+        let dir = tempfile::tempdir().unwrap();
+        let places = dir.path().join("rbxplace.toml");
+
+        let err = finish(&client, &RESPONSE, Some("Name"), None, &places)
+            .await
+            .unwrap_err();
+
+        assert!(!places.exists());
+        let shown = format!("{err:#}");
+        assert!(!shown.contains("recorded"), "{shown}");
+        assert!(shown.contains("rename-universe"), "{shown}");
+    }
+
+    #[tokio::test]
+    async fn an_accepted_name_records_and_succeeds() {
+        let server = server_answering_rename(200).await;
+        let client = RbxClient::new(Some("test-cookie".into())).with_base_url(server.uri());
+        let dir = tempfile::tempdir().unwrap();
+        let places = dir.path().join("rbxplace.toml");
+        std::fs::write(&places, "").unwrap();
+
+        finish(&client, &RESPONSE, Some("Name"), Some(&new_env()), &places)
+            .await
+            .unwrap();
+
+        assert!(std::fs::read_to_string(&places).unwrap().contains("[test]"));
+        assert_eq!(server.received_requests().await.unwrap().len(), 1);
+    }
 }
 
 /// CLI flags win; otherwise fall back to `[owner]` in rbxplace.toml; otherwise

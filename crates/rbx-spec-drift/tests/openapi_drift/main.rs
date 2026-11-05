@@ -94,6 +94,7 @@ mod extract;
 mod extractor_guards;
 mod forms;
 mod paths;
+mod responses;
 mod spec;
 
 use crate::{extract::*, paths::*, spec::*};

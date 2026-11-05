@@ -639,9 +639,12 @@ fn a_lock_entry_with_no_config_entry_warns_once_per_resource() {
     assert_eq!(
         warnings,
         [
-            "Pass 'VIP' exists in lockfile but not in resolved config (will not be deleted)",
-            "Badge 'Welcome' exists in lockfile but not in resolved config (will not be deleted)",
-            "Product 'Coins' exists in lockfile but not in resolved config (will not be deleted)",
+            "Pass 'VIP' exists in lockfile but not in resolved config, and stays on Roblox as it \
+             is. Declare it again, or stop tracking it: `rbx shop forget passes VIP`",
+            "Badge 'Welcome' exists in lockfile but not in resolved config, and stays on Roblox \
+             as it is. Declare it again, or stop tracking it: `rbx shop forget badges Welcome`",
+            "Product 'Coins' exists in lockfile but not in resolved config, and stays on Roblox \
+             as it is. Declare it again, or stop tracking it: `rbx shop forget products Coins`",
         ]
     );
     // A warning is not an action: nothing is planned for the orphans.
@@ -675,7 +678,10 @@ fn warnings_and_actions_coexist() {
     let (passes, badges, products, warnings) = rendered(&plan);
     assert_eq!(
         warnings,
-        ["Pass 'Retired' exists in lockfile but not in resolved config (will not be deleted)"]
+        [
+            "Pass 'Retired' exists in lockfile but not in resolved config, and stays on Roblox as \
+          it is. Declare it again, or stop tracking it: `rbx shop forget passes Retired`"
+        ]
     );
     assert_eq!(passes, ["update VIP: price: Some(499) -> Some(999)"]);
     assert_eq!(badges, ["create Welcome"]);

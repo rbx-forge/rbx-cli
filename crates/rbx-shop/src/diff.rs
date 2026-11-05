@@ -156,7 +156,8 @@ trait Diffable {
 }
 
 /// A lock entry with no config entry is not deleted: it just falls out of
-/// management, and this warning is the only signal the user gets.
+/// management, still on sale as it was. `check` counts these as drift, so the
+/// message has to name both ways out.
 fn orphan_warnings<K: Diffable>(
     resources: &ResolvedResources,
     env_lock: &EnvLock,
@@ -165,8 +166,11 @@ fn orphan_warnings<K: Diffable>(
     for key in K::locked(env_lock).keys() {
         if !K::configured(resources).contains_key(key) {
             out.push(format!(
-                "{} '{}' exists in lockfile but not in resolved config (will not be deleted)",
+                "{} '{}' exists in lockfile but not in resolved config, and stays on Roblox as \
+                 it is. Declare it again, or stop tracking it: `rbx shop forget {} {}`",
                 K::KIND.title(),
+                key,
+                K::KIND.plural(),
                 key
             ));
         }

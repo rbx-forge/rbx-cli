@@ -176,6 +176,19 @@ pub enum ShopCommands {
         /// New key name.
         new_key: String,
     },
+
+    /// Stop tracking a resource the config no longer declares.
+    ///
+    /// Removes it from the lockfile and nothing else. Roblox cannot delete
+    /// these, so it stays as it is: if it should not stay on sale, change that
+    /// first. Refused while the config still declares the key, because the next
+    /// sync would create a second one.
+    Forget {
+        /// Resource type.
+        resource: config::ResourceKind,
+        /// The key to stop tracking.
+        key: String,
+    },
 }
 
 /// `ResourceKind` as a command-line argument.
@@ -256,5 +269,6 @@ pub async fn run(cli: ShopCli, global: &GlobalFlags) -> Result<()> {
             old_key,
             new_key,
         } => commands::rename::run(&ctx, resource, &old_key, &new_key),
+        ShopCommands::Forget { resource, key } => commands::forget::run(&ctx, resource, &key),
     }
 }

@@ -1,5 +1,6 @@
 pub mod check;
 pub mod codegen;
+pub mod forget;
 pub mod init;
 pub mod list;
 pub mod pull;

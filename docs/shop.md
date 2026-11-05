@@ -129,7 +129,7 @@ A few consequences worth knowing:
 
 - **Icons are re-uploaded, not shared.** Roblox's product/pass APIs only accept raw image bytes on create/update, not a reference to an existing asset ID, so the gift's icon costs a separate upload each time the source icon changes.
 - **Renaming the source renames the twin.** `rbx shop rename passes VIP vip_pass` also renames the twin's lockfile entry (`GiftVIP` -> `Giftvip_pass`) so the next sync updates the existing remote product instead of creating a duplicate.
-- **Turning `create_gift` off doesn't delete anything remotely** (Roblox products can't be deleted via the API). The twin just stops appearing in the resolved config; `check`/`sync` will warn that it "exists in lockfile but not in resolved config" - the same warning any other removed resource gets.
+- **Turning `create_gift` off doesn't delete anything remotely** (Roblox products can't be deleted via the API). The twin just stops appearing in the resolved config; `sync` warns that it "exists in lockfile but not in resolved config" and `check` exits `2` on it, as for any other removed resource. `rbx shop forget products <twin key>` clears it.
 - **`create_gift` can be overlaid per env** just like any other field (`[envs.dev.passes.VIP] create_gift = false`), including on env-exclusive resources.
 - **Collisions are rejected.** If the derived key (`Gift<key>`) collides with a real `[products.*]` entry, or two gift-enabled sources derive the same key, `sync`/`check` fail with a clear error rather than silently merging them.
 - **`pull` won't re-import the twin.** It recognizes the remote gift product by its derived key and skips writing it back into `rbxshop.toml`.
@@ -387,6 +387,19 @@ Rename a resource key across the base, every env overlay, and every env lockfile
 ```sh
 rbx shop rename passes VIP vip_pass
 ```
+
+</details>
+
+<details markdown="1">
+<summary><code>rbx shop forget &lt;resource&gt; &lt;key&gt;</code></summary>
+
+Stop tracking a resource the config no longer declares, by removing it from the lockfile. Nothing else changes, and nothing is sent to Roblox: it has no delete for these, so the resource stays as it is, on sale if it was. The command prints its id, since this removes it from the only file that holds it.
+
+```sh
+rbx shop forget passes OldPass --env prod
+```
+
+This is the way out of what `rbx shop check` reports as "no longer declared", which exits `2`. Removing a resource from the config does not take it off sale, so to retire one: set `for_sale = false` and sync, then remove it from the config, then forget it. Refused while the config still declares the key, because the next sync would create a second one.
 
 </details>
 

@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`rbx apikey delete` no longer forgets a key it failed to delete.** Any failure
+  from Roblox still removed the lockfile entry and offered to delete the secret,
+  then printed `✓ deleted`, so a key could stay live with no local trace of it. The
+  usual cause was being signed in to another account, which Roblox answers with a
+  404. It now refuses before asking, naming both accounts, keeps everything on any
+  failure and exits non-zero. A 404 for the account that owns the key is still
+  cleaned up, and says so. `prune` gets the same for keys this project tracks.
+
 - **A rate limit now waits as long as Roblox says it lasts.** Only `retry-after`
   was read, and it can be far off: a route measured with `Retry-After: 5` reopened
   after 52 seconds, as its `x-ratelimit-reset` said, so a command spent its retries

@@ -132,7 +132,7 @@ pub async fn run(global: &GlobalFlags, opts: PruneOptions) -> Result<()> {
             // stored secret go with the key. A bare remote delete would leave
             // a lockfile pointing at nothing and an orphan secret on disk.
             PruneAction::Tracked { lock_name } => {
-                super::delete::delete_one(
+                let done = super::delete::delete_one(
                     &cfg,
                     &mut lk,
                     &client,
@@ -141,6 +141,9 @@ pub async fn run(global: &GlobalFlags, opts: PruneOptions) -> Result<()> {
                     opts.clean_files,
                 )
                 .await;
+                if !done {
+                    failures += 1;
+                }
             }
             PruneAction::Untracked { id, name } => match client.delete_api_key(&id).await {
                 Ok(()) => println!("{}", format!("✓ \"{name}\" deleted (id={id})").green()),

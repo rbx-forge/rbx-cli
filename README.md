@@ -550,9 +550,9 @@ the closest paths Roblox still documents, which usually identifies the rename
 outright.
 
 **Its limits are documented in that file's module comment, and worth reading
-before trusting it.** In short: it checks that endpoint *paths* exist, and for
-`rbx shop`, the fields sent and read as well. Elsewhere it cannot see a renamed
-response field, and everywhere it compares against what Roblox documents rather
+before trusting it.** In short: it checks that endpoint *paths* exist, the fields
+`rbx shop` sends, and the fields `shop`, `ads`, `ban`, `data` and `group` read
+back. Elsewhere it cannot see a renamed response field, and everywhere it compares against what Roblox documents rather
 than what Roblox does, so it narrows the blast radius rather than eliminating
 it. Endpoints Roblox has never documented (the `experience-releases`
 v1beta1 API, legacy `universes/v1` creation calls, API-key introspection) are

@@ -92,6 +92,7 @@ mod configs;
 mod coverage;
 mod extract;
 mod extractor_guards;
+mod forms;
 mod paths;
 mod spec;
 

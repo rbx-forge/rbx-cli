@@ -37,7 +37,7 @@ const REQUEST_BODIES: &[(&str, &str, &str, &[&str])] = &[
 /// field name and `#[serde(rename = "...")]`, and refuses anything else it is
 /// shown: a `rename_all` or a `flatten` changes the whole key set, and a
 /// scanner that shrugged at one would compare a key set nobody sends.
-fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
+pub(crate) fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
     let lines: Vec<&str> = src.lines().collect();
     let declaration = format!("struct {struct_name}");
     let at = lines
@@ -86,7 +86,12 @@ fn serialised_keys(src: &str, struct_name: &str) -> Vec<String> {
         let Some((name, _)) = trimmed.split_once(':') else {
             continue;
         };
-        keys.push(rename.take().unwrap_or_else(|| name.trim().to_string()));
+        // Response models have public fields, and the request bodies do not.
+        let field = name
+            .trim()
+            .trim_start_matches("pub(crate) ")
+            .trim_start_matches("pub ");
+        keys.push(rename.take().unwrap_or_else(|| field.to_string()));
     }
     keys
 }

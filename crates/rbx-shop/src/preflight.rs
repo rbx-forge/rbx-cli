@@ -267,5 +267,81 @@ pub(crate) async fn guard(
     bail!(refuse(&collisions, env))
 }
 
+/// What the free badge quota means for a plan creating `creating` badges.
+#[derive(Debug, PartialEq)]
+enum QuotaVerdict {
+    /// The quota covers every create.
+    Enough,
+    /// Short, and `--badge-cost` says spending was asked for.
+    ShortButPaying,
+    /// Short, and every create past the quota would be refused.
+    Refuse,
+}
+
+/// The decision, with no network in it.
+fn quota_verdict(creating: u64, remaining: u64, badge_cost: u64) -> QuotaVerdict {
+    if creating <= remaining {
+        QuotaVerdict::Enough
+    } else if badge_cost > 0 {
+        QuotaVerdict::ShortButPaying
+    } else {
+        QuotaVerdict::Refuse
+    }
+}
+
+/// Stop a sync whose badge creates the free quota cannot cover, before it has
+/// written anything.
+///
+/// Passes are applied before badges and products after them, so finding this
+/// out from Roblox leaves an env holding the passes and some of the badges,
+/// with no products at all, and code generated against the whole config.
+///
+/// A failed read is not a verdict: the quota is a courtesy check on a route
+/// nothing else depends on, and Roblox still refuses a create past it, so the
+/// run carries on with a warning.
+pub(crate) async fn guard_badge_quota(
+    client: &RbxClient,
+    universe_id: u64,
+    plan: &SyncPlan,
+    badge_cost: u64,
+) -> Result<()> {
+    let creating = plan
+        .actions(ResourceKind::Badge)
+        .iter()
+        .filter(|a| matches!(a.action, Action::Create))
+        .count() as u64;
+
+    let remaining = match client.free_badge_quota(universe_id).await {
+        Ok(remaining) => remaining,
+        Err(e) => {
+            println!(
+                "{} Could not read the free badge quota, so it was not checked: {e:#}",
+                "!".yellow()
+            );
+            return Ok(());
+        }
+    };
+
+    match quota_verdict(creating, remaining, badge_cost) {
+        QuotaVerdict::Enough => Ok(()),
+        QuotaVerdict::ShortButPaying => {
+            println!(
+                "{} {creating} badge(s) to create and {remaining} free left: \
+                 --badge-cost {badge_cost} applies past the quota.",
+                "!".yellow()
+            );
+            Ok(())
+        }
+        QuotaVerdict::Refuse => bail!(
+            "This sync would create {creating} badge(s), and this universe has {remaining} \
+             free badge create(s) left. Nothing was changed.\n\n\
+             Sync again once Roblox has refilled the quota, or leave badges out for now:\n    \
+             rbx shop sync --only passes,products\n\n\
+             To pay for the extra badges, pass {}.",
+            "--badge-cost".bold(),
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests;

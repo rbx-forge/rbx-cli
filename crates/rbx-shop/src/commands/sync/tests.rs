@@ -1018,6 +1018,82 @@ async fn allow_duplicate_names_creates_anyway() {
     assert_eq!(shop.env_lock().passes["VIP"].id, 111);
 }
 
+fn badge_quota() -> String {
+    format!("/v1/universes/{UNIVERSE}/free-badges-quota")
+}
+
+/// The point of the check: passes are applied before badges, so without it the
+/// pass below would exist by the time Roblox refused the badge.
+#[tokio::test]
+async fn a_badge_quota_shortfall_stops_the_sync_before_any_write() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mount_creates_only(&server).await;
+    mock(&server, "GET", badge_quota(), json!(0)).await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(err.contains("1 badge(s)"), "{err}");
+    assert!(err.contains("0 free"), "{err}");
+    assert!(err.contains("--only passes,products"), "{err}");
+    let reqs = requests(&server).await;
+    assert!(!reqs.iter().any(is_mutating), "nothing may be written");
+}
+
+#[tokio::test]
+async fn a_quota_covering_the_badges_lets_the_sync_through() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mount_creates_only(&server).await;
+    mock(&server, "GET", badge_quota(), json!(1)).await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &badge_collection()), 1);
+}
+
+/// A quota nobody could read is not a quota of zero. Unmocked here, so the
+/// read gets a 404, and Roblox remains the one to refuse a create past it.
+#[tokio::test]
+async fn an_unreadable_quota_does_not_stop_the_sync() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mount_creates_only(&server).await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "GET", &badge_quota()), 1);
+    assert_eq!(count(&reqs, "POST", &badge_collection()), 1);
+}
+
+/// `--only` leaves badges out, so the sync creates none and has no reason to
+/// ask, and this is the route the refusal itself recommends.
+#[tokio::test]
+async fn a_sync_leaving_badges_out_does_not_read_the_quota() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mount_creates_only(&server).await;
+    mock(&server, "GET", badge_quota(), json!(0)).await;
+
+    shop.sync_only(
+        &server,
+        false,
+        Some(vec![ResourceKind::Pass, ResourceKind::Product]),
+    )
+    .await
+    .unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "GET", &badge_quota()), 0);
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 1);
+}
+
 /// A sync with nothing to create asks Roblox nothing about what exists. The
 /// listing needs read scopes the write-only key of an update-only pipeline
 /// does not carry, so making it unconditional would break those keys for a

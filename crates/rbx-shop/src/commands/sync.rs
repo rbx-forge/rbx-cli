@@ -213,6 +213,11 @@ async fn sync_one_env(
             .iter()
             .any(|a| matches!(a.action, Action::Create));
 
+    if creating_a_badge {
+        crate::preflight::guard_badge_quota(&client, env_target.universe_id, &plan, badge_cost)
+            .await?;
+    }
+
     let apply = Apply {
         badge_payment_source: if creating_a_badge {
             match resolve_payment_source(&client, ctx, config, &env_target.name).await? {

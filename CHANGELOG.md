@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx shop sync` checks the free badge quota before its first write.** A plan
+  creating more badges than the universe has left, with `--badge-cost` at `0`,
+  used to be refused by Roblox partway through, with the passes and some of the
+  badges created and no products at all. It now stops having changed nothing. A
+  non-zero `--badge-cost` gets a note and carries on, and a quota that cannot be
+  read gets a warning.
+
 ## [0.11.0] - 2026-10-09
 
 ### Added

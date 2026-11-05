@@ -170,6 +170,32 @@ pub struct Campaign {
     pub budget: Option<BudgetRead>,
 }
 
+impl Campaign {
+    /// A campaign past its end date. `status` stays `ACTIVE` and delivery reads
+    /// `NOT_SERVING`, exactly as for one held back by a payment or a rejected
+    /// creative, and only the reason tells them apart. Roblox refuses every edit
+    /// to one, with `Completed campaigns cannot be edited`.
+    pub fn is_completed(&self) -> bool {
+        self.delivery_status_reasons
+            .iter()
+            .any(|reason| reason.eq_ignore_ascii_case("COMPLETED"))
+    }
+
+    /// The delivery status with its reasons, for a table: a finished campaign
+    /// should not read like a broken one.
+    pub fn delivery(&self) -> String {
+        if self.delivery_status_reasons.is_empty() {
+            self.delivery_status.clone()
+        } else {
+            format!(
+                "{} ({})",
+                self.delivery_status,
+                self.delivery_status_reasons.join(", ")
+            )
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BudgetRead {

@@ -497,3 +497,145 @@ async fn status_asks_about_every_id_in_one_call() {
     let cli = cli(&["status", "c1", "c2"], &server);
     run(cli, &flags(&places)).await.unwrap();
 }
+
+fn listed(id: &str, name: &str, reasons: &[&str]) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "name": name,
+        "status": "ACTIVE",
+        "deliveryStatus": "NOT_SERVING",
+        "deliveryStatusReasons": reasons,
+    })
+}
+
+async fn mount_campaigns(server: &MockServer, campaigns: serde_json::Value) {
+    Mock::given(method("GET"))
+        .and(path("/ads-management/v1/campaigns"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "campaigns": campaigns, "nextPageToken": "" })),
+        )
+        .mount(server)
+        .await;
+}
+
+fn writes(requests: &[wiremock::Request]) -> Vec<&wiremock::Request> {
+    requests
+        .iter()
+        .filter(|r| r.method != wiremock::http::Method::GET)
+        .collect()
+}
+
+/// The reported run: a name matching finished campaigns and a live one. Roblox
+/// answers 400 to the finished ones, so only the live one may be sent.
+#[tokio::test]
+async fn a_completed_campaign_is_left_out_of_a_selection_by_name() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    mount_campaigns(
+        &server,
+        serde_json::json!([
+            listed("done", "Push A", &["COMPLETED"]),
+            listed("live", "Push B", &[]),
+        ]),
+    )
+    .await;
+    Mock::given(method("PATCH"))
+        .and(path("/ads-management/v1/campaigns/live"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(created("live")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["cancel", "--name", "Push", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .unwrap();
+
+    let requests = server.received_requests().await.unwrap();
+    assert_eq!(writes(&requests).len(), 1);
+}
+
+#[tokio::test]
+async fn a_name_matching_only_completed_campaigns_sends_nothing_and_says_why() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    mount_campaigns(
+        &server,
+        serde_json::json!([listed("done", "Push A", &["COMPLETED"])]),
+    )
+    .await;
+
+    let err = run(
+        cli(&["cancel", "--name", "Push", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .unwrap_err();
+
+    assert!(err.to_string().contains("completed"), "{err}");
+    let requests = server.received_requests().await.unwrap();
+    assert!(writes(&requests).is_empty());
+}
+
+/// Named by id it is not a selection, so being told no is the answer.
+#[tokio::test]
+async fn a_completed_campaign_named_by_id_is_refused_before_any_write() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    Mock::given(method("GET"))
+        .and(path("/ads-management/v1/campaigns/done"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(listed(
+            "done",
+            "Push A",
+            &["COMPLETED"],
+        )))
+        .mount(&server)
+        .await;
+
+    let err = run(
+        cli(&["pause", "done", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .unwrap_err();
+
+    assert!(err.to_string().contains("has completed"), "{err}");
+    let requests = server.received_requests().await.unwrap();
+    assert!(writes(&requests).is_empty());
+}
+
+/// Another reason for not serving is exactly what a pause might be for.
+#[tokio::test]
+async fn a_campaign_held_back_for_another_reason_can_still_be_edited() {
+    let server = MockServer::start().await;
+    let dir = tempfile::tempdir().unwrap();
+    let places = places_file(dir.path());
+    Mock::given(method("GET"))
+        .and(path("/ads-management/v1/campaigns/held"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(listed(
+            "held",
+            "Push",
+            &["PAYMENT_ISSUE"],
+        )))
+        .mount(&server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/ads-management/v1/campaigns/held"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(created("held")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    run(
+        cli(&["pause", "held", "--apply", "--yes"], &server),
+        &flags(&places),
+    )
+    .await
+    .unwrap();
+}

@@ -298,8 +298,37 @@ fn describe(campaign: &model::Campaign) -> String {
         .unwrap_or_else(|| "-".into());
     format!(
         "{} · {} · {} · {}",
-        campaign.name, campaign.status, campaign.delivery_status, budget
+        campaign.name,
+        campaign.status,
+        campaign.delivery(),
+        budget
     )
+}
+
+/// Refuse to edit a campaign Roblox will refuse to edit, before asking anyone.
+///
+/// The dry run used to announce a change the real run could not make.
+fn refuse_if_completed(campaign: &model::Campaign) -> Result<()> {
+    if campaign.is_completed() {
+        bail!(
+            "`{}` has completed, and Roblox does not allow editing a completed campaign",
+            campaign.name
+        );
+    }
+    Ok(())
+}
+
+/// What a selection by name or from a list can act on, and how many it left out
+/// for being finished. Cancelled ones are not counted: nobody expects those back.
+fn editable(campaigns: Vec<model::Campaign>) -> (Vec<model::Campaign>, usize) {
+    let live: Vec<model::Campaign> = campaigns
+        .into_iter()
+        .filter(|c| c.status != "CANCELLED")
+        .collect();
+    let total = live.len();
+    let open: Vec<model::Campaign> = live.into_iter().filter(|c| !c.is_completed()).collect();
+    let completed = total - open.len();
+    (open, completed)
 }
 
 /// The format the commands that can ask a question run under.
@@ -469,8 +498,12 @@ pub async fn run(cli: AdsCli, global: &GlobalFlags) -> Result<()> {
                     .map(|b| micros_to_usd(&b.amount_micros))
                     .unwrap_or_else(|| "-".into());
                 println!(
-                    "{:<24} {:<10} {:<12} {:>10}  {}",
-                    campaign.id, campaign.status, campaign.delivery_status, budget, campaign.name
+                    "{:<24} {:<10} {:<24} {:>10}  {}",
+                    campaign.id,
+                    campaign.status,
+                    campaign.delivery(),
+                    budget,
+                    campaign.name
                 );
             }
         }
@@ -598,6 +631,7 @@ pub async fn run(cli: AdsCli, global: &GlobalFlags) -> Result<()> {
             yes,
         } => {
             let campaign = api::get_campaign(&client, &base, api_key, &id).await?;
+            refuse_if_completed(&campaign)?;
             println!("{}  name -> {}", describe(&campaign), name.bold());
             if !apply {
                 println!(
@@ -710,18 +744,35 @@ async fn resolve(
     verb: &str,
 ) -> Result<Vec<model::Campaign>> {
     if let Some(id) = id {
-        return Ok(vec![api::get_campaign(client, base, api_key, &id).await?]);
+        let campaign = api::get_campaign(client, base, api_key, &id).await?;
+        refuse_if_completed(&campaign)?;
+        return Ok(vec![campaign]);
     }
 
     let campaigns = api::list_campaigns(client, base, api_key).await?;
 
     if let Some(prefix) = name {
-        let matched: Vec<model::Campaign> = campaigns
-            .into_iter()
-            .filter(|c| c.name.starts_with(&prefix) && c.status != "CANCELLED")
-            .collect();
+        let (matched, completed) = editable(
+            campaigns
+                .into_iter()
+                .filter(|c| c.name.starts_with(&prefix))
+                .collect(),
+        );
         if matched.is_empty() {
+            if completed > 0 {
+                bail!(
+                    "every campaign named `{prefix}...` that is not cancelled has completed \
+                     ({completed}), and Roblox does not allow editing those. Nothing sent"
+                );
+            }
             bail!("no campaign is named `{prefix}...`, or they are all cancelled already");
+        }
+        if completed > 0 {
+            eprintln!(
+                "{}",
+                format!("Left out {completed} completed: Roblox does not allow editing those.")
+                    .yellow()
+            );
         }
         return Ok(matched);
     }
@@ -733,10 +784,7 @@ async fn resolve(
         );
     }
 
-    let choices: Vec<model::Campaign> = campaigns
-        .into_iter()
-        .filter(|c| c.status != "CANCELLED")
-        .collect();
+    let (choices, _completed) = editable(campaigns);
     if choices.is_empty() {
         bail!("no campaign on this account can be {verb}d");
     }

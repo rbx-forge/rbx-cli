@@ -97,7 +97,7 @@ That name then does two jobs.
 rbx ads pause --name "icon test" --apply
 ```
 
-Campaigns already cancelled are left out rather than asked to cancel twice.
+Campaigns already cancelled are left out rather than asked to cancel twice. So are completed ones, past their end date, because Roblox refuses every edit to them: the command says how many it left out, and naming one by id is an error before anything is asked. `list` shows the reason beside the delivery status, so a finished campaign reads `NOT_SERVING (COMPLETED)` rather than like one that is stuck.
 
 **It is how you recognise a campaign you are about to change.** Give `pause`, `resume`, `cancel` or `budget` no id at all, on a terminal, and they list the campaigns and let you pick:
 

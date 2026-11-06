@@ -78,8 +78,8 @@ Ordered top-to-bottom by typical user journey (bootstrap → auth → routine op
 | `rbx rtbf` | Which data store keys hold a user's data, so Roblox can delete them on a right-to-be-forgotten request, checked against the stores you actually have. | [docs/rtbf.md](./docs/rtbf.md) |
 | `rbx shop` | Game passes, badges, developer products. Typed Luau codegen with runtime env dispatch, regenerable offline. | [docs/shop.md](./docs/shop.md) |
 | `rbx open` | Launch Roblox Studio at a specific place by env name. | [docs/open.md](./docs/open.md) |
-| `rbx download` | Download assets by id (public endpoint or Open Cloud). | [docs/download.md](./docs/download.md) |
-| `rbx user` | A username to a user id and back, several at once, no API key. `--id` prints the bare value for use inside another command. | [docs/user.md](./docs/user.md) |
+| `rbx download` | Download assets by id (public endpoint or Open Cloud). Hidden from `--help`. | [docs/download.md](./docs/download.md) |
+| `rbx user` | A username to a user id and back, several at once, no API key. `--id` prints the bare value for use inside another command. Hidden from `--help`. | [docs/user.md](./docs/user.md) |
 
 ### Live operations
 

@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   could be created for the universe in the file while the command line named
   another.
 - **`settings.default_envs` no longer applies to a key that names ids.**
+- **`rbx download` and `rbx user` are hidden from `rbx --help`**, like `probe`.
+  Both still run, complete in the shell and keep their docs.
 
 ## [0.12.0] - 2026-11-05
 

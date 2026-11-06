@@ -101,11 +101,21 @@ enum Tool {
     /// Launch Roblox Studio at a specific place
     Open(rbx_open::OpenCli),
     /// Download Roblox assets by id (public or Open Cloud)
+    ///
+    /// Hidden from the command list, like `probe`: a general Roblox utility
+    /// rather than part of managing an experience, so it does not earn a line
+    /// in `rbx --help`. Fully supported, completed by the shell, and
+    /// documented in docs/download.md.
+    #[command(hide = true)]
     Download(rbx_download::DownloadCli),
     /// Turn a username into a user id, or an id into a username
     ///
     /// `--id` and `--name` print the bare value, one per line, so it composes:
     /// `rbx data get --datastore PlayerData "User_$(rbx user builderman --id)"`.
+    ///
+    /// Hidden from the command list for the same reason as `download`: it is
+    /// reached for inside another command line, not looked up in `--help`.
+    #[command(hide = true)]
     User(rbx_user::UserCli),
 
     /// Live: servers currently up, and how the stopped ones ended

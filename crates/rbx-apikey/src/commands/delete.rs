@@ -7,7 +7,6 @@ use reqwest::StatusCode;
 
 use crate::{config, lock, secret_store};
 use rbx_core::api::is_api_status;
-use rbx_core::places::PlacesFile;
 use rbx_core::session::SessionAccount;
 use rbx_core::GlobalFlags;
 
@@ -27,10 +26,10 @@ pub async fn run(
 
     let cfg = config::load()?;
     let mut lk = lock::load()?;
-    let places = PlacesFile::load(&global.places)?;
+    let places = super::load_places(global)?;
     let client = make_client(global);
 
-    crate::drift::check_all(&lk, &places)?;
+    crate::drift::check_all(&lk, places.as_ref())?;
 
     // Asked here so the confirmations below can name the account. It is the
     // same call the pre-delete gate makes, cached for the process, so this

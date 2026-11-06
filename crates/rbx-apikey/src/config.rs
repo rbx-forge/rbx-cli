@@ -50,6 +50,12 @@ pub struct KeyConfig {
     /// from it: the display name Roblox stores, and the `{env_group}`
     /// substitution in a secret file path.
     pub env_group: Option<String>,
+    /// Universes this key targets by id, beside or instead of `envs`. What
+    /// lets a key exist in a directory with no `rbxplace.toml`.
+    pub universe_ids: Vec<u64>,
+    /// Places this key targets, each standing for the universe it belongs to,
+    /// resolved when the key is built and cached in the lockfile.
+    pub place_ids: Vec<u64>,
     pub group_ids: Vec<u64>,
     pub user_ids: Vec<u64>,
     pub scopes: Vec<ScopeSpec>,
@@ -229,6 +235,15 @@ pub struct RawKey {
     /// one key per group: see the two forms above.
     #[serde(default)]
     envs: Option<RawEnvs>,
+    /// Universe ids this key targets directly, with no `rbxplace.toml` needed.
+    /// Combines with `envs` and `place_ids`.
+    #[serde(default)]
+    universe_ids: Option<Vec<u64>>,
+    /// Place ids this key targets, each standing for its universe, which is
+    /// looked up once and cached in the lockfile. Combines with `envs` and
+    /// `universe_ids`.
+    #[serde(default)]
+    place_ids: Option<Vec<u64>>,
     /// Group ids this key acts on behalf of, for scopes that take a group
     /// target rather than a universe.
     #[serde(default)]
@@ -531,6 +546,8 @@ fn parse_key(
         readonly: raw.readonly.unwrap_or(false),
         envs: Vec::new(),
         env_group: None,
+        universe_ids: raw.universe_ids.unwrap_or_default(),
+        place_ids: raw.place_ids.unwrap_or_default(),
         group_ids: raw.group_ids.unwrap_or_default(),
         user_ids: raw.user_ids.unwrap_or_default(),
         scopes,
@@ -559,6 +576,16 @@ fn parse_key(
                     "[keys.{name}.envs] names no groups. A table of env groups declares one key \
                      per group, so an empty one declares no key at all - write \
                      `envs = [...]` for a single key, or name at least one group."
+                );
+            }
+            if !base.universe_ids.is_empty() || !base.place_ids.is_empty() {
+                // Copied into every group's key, they would give the prod key
+                // the ci universes and the reverse: the separation the table
+                // exists for, undone by one line.
+                bail!(
+                    "[keys.{name}]: universe_ids and place_ids do not combine with a table of env \
+                     groups, because every group's key would target them. Declare a separate \
+                     key for those ids."
                 );
             }
             let mut out = Vec::with_capacity(groups.len());
@@ -792,13 +819,18 @@ pub fn get_allowed_cidrs(cfg: &Config, key_cfg: &KeyConfig) -> Vec<String> {
     cfg.settings.default_allowed_cidrs.clone()
 }
 
-/// Effective env list for a key: per-key `envs` wins when non-empty,
-/// otherwise falls back to `settings.default_envs`.
+/// Effective env list for a key: its own `envs` when it has any, else
+/// `settings.default_envs`, but only for a key that targets no universe at all.
+///
+/// A key that names `universe_ids` or `place_ids` has said what it targets, and
+/// adding the default envs on top would widen it past what was written.
 pub fn effective_envs(cfg: &Config, key_cfg: &KeyConfig) -> Vec<String> {
     if !key_cfg.envs.is_empty() {
         key_cfg.envs.clone()
-    } else {
+    } else if key_cfg.universe_ids.is_empty() && key_cfg.place_ids.is_empty() {
         cfg.settings.default_envs.clone()
+    } else {
+        Vec::new()
     }
 }
 
@@ -921,6 +953,8 @@ mod tests {
             readonly: false,
             envs: vec![],
             env_group: None,
+            universe_ids: Vec::new(),
+            place_ids: Vec::new(),
             group_ids: vec![],
             user_ids: vec![],
             scopes: vec![spec],
@@ -1264,6 +1298,59 @@ mod tests {
     #[test]
     fn nothing_collapsed_says_nothing() {
         assert!(collapsed_scopes_warning(Path::new(FILE), &[]).is_none());
+    }
+
+    // ------------------------------------------------------------------
+    // Issue 116: targets named by id, without rbxplace.toml
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn universe_and_place_ids_are_read_from_the_key() {
+        let cfg = load_text(
+            "ids",
+            "[keys.deploy]\nscopes = [\"universe:read\"]\n\
+             universe_ids = [1234567890]\nplace_ids = [109876543210987]\n",
+        )
+        .unwrap();
+        let key = &cfg.keys["deploy"];
+        assert_eq!(key.universe_ids, vec![1234567890]);
+        assert_eq!(key.place_ids, vec![109876543210987]);
+        assert!(key.envs.is_empty());
+    }
+
+    /// `default_envs` is a fallback for a key that names no target. A key
+    /// naming ids does, so the fallback would add an env it never asked for,
+    /// and need an `rbxplace.toml` to resolve it.
+    #[test]
+    fn ids_turn_the_default_envs_off() {
+        let cfg = cfg_with_settings(Settings {
+            default_enabled: true,
+            default_envs: vec!["fallback".into()],
+            ..Default::default()
+        });
+        let mut k = key_with("universe:read");
+        k.universe_ids = vec![1234567890];
+        assert!(effective_envs(&cfg, &k).is_empty());
+
+        let mut k = key_with("universe:read");
+        k.place_ids = vec![109876543210987];
+        assert!(effective_envs(&cfg, &k).is_empty());
+
+        // Named envs beside ids are kept: both are targets.
+        k.envs = vec!["dev".into()];
+        assert_eq!(effective_envs(&cfg, &k), vec!["dev".to_string()]);
+    }
+
+    #[test]
+    fn ids_beside_a_table_of_env_groups_are_refused() {
+        let error = load_text(
+            "ids-groups",
+            "[keys.deploy]\nscopes = [\"universe:read\"]\nuniverse_ids = [1234567890]\n\n\
+             [keys.deploy.envs]\nci = [\"dev\"]\nprod = [\"prod\"]\n",
+        )
+        .unwrap_err();
+        let error = format!("{error:#}");
+        assert!(error.contains("table of env groups"), "{error}");
     }
 
     // ------------------------------------------------------------------

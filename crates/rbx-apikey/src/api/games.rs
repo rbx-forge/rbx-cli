@@ -1,6 +1,7 @@
 //! Public games / develop endpoints used for universe → owner resolution.
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
+use rbx_core::api::execute_json;
 use rbx_core::owner::OwnerType;
 use reqwest::header;
 use serde::Deserialize;
@@ -36,7 +37,47 @@ struct DevelopUniverseInfo {
     creator_target_id: u64,
 }
 
+/// Resolves a place id to the universe that contains it. Public, no auth.
+const PLACE_UNIVERSE_URL: &str = "https://apis.roblox.com/universes/v1/places";
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlaceUniverse {
+    /// Null when the id is not a place, which is how the endpoint reports it
+    /// rather than by failing.
+    #[serde(default)]
+    universe_id: Option<u64>,
+}
+
+/// The universe containing `place_id`, or `None` when the id is not a place.
+///
+/// Only called where the caller said the id *is* a place. Guessing was tried
+/// and removed: the two id spaces overlap, and not rarely. One live game's
+/// universe id is simultaneously a valid place id in a different universe, so
+/// an id the tool interprets for you can answer about somebody else's game.
+pub(crate) async fn place_to_universe(
+    client: &reqwest::Client,
+    place_id: u64,
+) -> Result<Option<u64>> {
+    let url = format!("{PLACE_UNIVERSE_URL}/{place_id}/universe");
+    let found: PlaceUniverse = execute_json(|| {
+        let request = client.get(&url);
+        async move { request.send().await.map_err(Into::into) }
+    })
+    .await
+    .with_context(|| format!("resolving place {place_id}"))?;
+    Ok(found.universe_id)
+}
+
 impl RbxApiKeyClient {
+    /// [`place_to_universe`] through this client, refusing an id that is not
+    /// a place.
+    pub async fn fetch_place_universe(&self, place_id: u64) -> Result<u64> {
+        place_to_universe(&self.client, place_id)
+            .await?
+            .with_context(|| format!("{place_id} is not a place id"))
+    }
+
     pub async fn fetch_universe_owner(&self, universe_id: u64) -> Result<UniverseOwner> {
         // Public games API first (no auth required for public universes).
         let public_url = format!(

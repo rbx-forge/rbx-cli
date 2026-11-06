@@ -16,6 +16,7 @@ use anyhow::{bail, Result};
 
 use crate::api::RbxApiKeyClient;
 use crate::config;
+use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
 
 /// What a command says when the name it was handed is not a key in
@@ -145,6 +146,18 @@ pub fn explain_invalid_name_or_description(
 /// nothing left to add.
 pub fn make_client(global: &GlobalFlags) -> RbxApiKeyClient {
     RbxApiKeyClient::new(global.resolve_cookie())
+}
+
+/// `rbxplace.toml`, or `None` when there is none.
+///
+/// Absent is not an error here: a key that names its universes by id needs no
+/// env file, and the one that names an env says so when it is resolved. A file
+/// that exists and does not parse is still an error.
+pub fn load_places(global: &GlobalFlags) -> Result<Option<PlacesFile>> {
+    if !global.places.exists() {
+        return Ok(None);
+    }
+    PlacesFile::load(&global.places).map(Some)
 }
 
 pub fn require_no_collision(all: bool, name: Option<&str>) -> Result<()> {

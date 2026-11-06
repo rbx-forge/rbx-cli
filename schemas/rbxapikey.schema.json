@@ -172,6 +172,19 @@
             "null"
           ]
         },
+        "place_ids": {
+          "description": "Place ids this key targets, each standing for its universe, which is looked up once and cached in the lockfile. Combines with `envs` and `universe_ids`.",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
+        },
         "readonly": {
           "description": "Refuse this key if it asks for a write operation.",
           "default": null,
@@ -198,6 +211,19 @@
             "string",
             "null"
           ]
+        },
+        "universe_ids": {
+          "description": "Universe ids this key targets directly, with no `rbxplace.toml` needed. Combines with `envs` and `place_ids`.",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer",
+            "format": "uint64",
+            "minimum": 0.0
+          }
         },
         "user_ids": {
           "description": "User ids this key acts on behalf of, for user-targeted scopes.",

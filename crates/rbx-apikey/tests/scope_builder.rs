@@ -11,6 +11,8 @@ fn key_with_scopes(scope_specs: Vec<ScopeSpec>) -> KeyConfig {
         readonly: false,
         envs: vec![],
         env_group: None,
+        universe_ids: Vec::new(),
+        place_ids: Vec::new(),
         group_ids: vec![],
         user_ids: vec![],
         scopes: scope_specs,

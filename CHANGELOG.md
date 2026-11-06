@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`rbx apikey` works without `rbxplace.toml`.** A key names its targets by id
+  with `universe_ids` and `place_ids` in `rbxapikey.toml`, beside or instead of
+  `envs`. A place is resolved to its universe once and cached in the lockfile.
+
+### Changed
+
+- **`rbx apikey` refuses `--env`, `--place`, `--universe-id` and `--place-id`**
+  on every subcommand but `can-manage`. They were accepted and ignored, so a key
+  could be created for the universe in the file while the command line named
+  another.
+- **`settings.default_envs` no longer applies to a key that names ids.**
+
 ## [0.12.0] - 2026-11-05
 
 ### Security

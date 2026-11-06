@@ -294,7 +294,40 @@ pub enum CatalogAction {
     // largest in the tool. `catalog` keeps the verb only it has.
 }
 
+/// Refuse the global targeting flags on every subcommand that would ignore
+/// them.
+///
+/// They are `global = true`, so clap accepts them after `rbx apikey create`,
+/// and a key's targets come from `rbxapikey.toml` alone. A key created for the
+/// universe in the file while the command line named another is the failure
+/// this prevents: it reads like it worked. `can-manage` is the one subcommand
+/// that does read them.
+fn refuse_targeting_flags(command: &ApikeyCommands, global: &GlobalFlags) -> Result<()> {
+    if matches!(command, ApikeyCommands::CanManage) {
+        return Ok(());
+    }
+    let given: Vec<&str> = [
+        ("--env", global.env.is_some()),
+        ("--place", global.place.is_some()),
+        ("--universe-id", global.universe_id.is_some()),
+        ("--place-id", !global.place_id.is_empty()),
+    ]
+    .into_iter()
+    .filter_map(|(flag, set)| set.then_some(flag))
+    .collect();
+    if given.is_empty() {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "{} not read by this command: a key targets what {} declares for it. Name the \
+         targets there, with envs, universe_ids or place_ids under [keys.<name>].",
+        given.join(", "),
+        config::FILE
+    )
+}
+
 pub async fn run(cli: ApikeyCli, global: &GlobalFlags) -> Result<()> {
+    refuse_targeting_flags(&cli.command, global)?;
     match cli.command {
         ApikeyCommands::Create {
             key,
@@ -396,6 +429,55 @@ pub async fn run(cli: ApikeyCli, global: &GlobalFlags) -> Result<()> {
 
 /// Where `--json` is allowed to appear, and why that is a rule rather than an
 /// arrangement.
+#[cfg(test)]
+mod targeting_flag_tests {
+    use super::*;
+
+    #[derive(clap::Parser)]
+    struct Wrapper {
+        #[command(flatten)]
+        global: GlobalFlags,
+        #[command(flatten)]
+        apikey: ApikeyCli,
+    }
+
+    fn check(args: &[&str]) -> Result<()> {
+        let mut argv = vec!["rbx"];
+        argv.extend_from_slice(args);
+        let parsed = <Wrapper as clap::Parser>::try_parse_from(argv).expect("parses");
+        refuse_targeting_flags(&parsed.apikey.command, &parsed.global)
+    }
+
+    /// The flag parses, so without this it would be silently ignored and the
+    /// key created for whatever the file says.
+    #[test]
+    fn a_targeting_flag_on_create_is_refused_by_name() {
+        let error = check(&["create", "deploy", "--universe-id", "1234567890"])
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("--universe-id"), "{error}");
+        assert!(error.contains("universe_ids"), "{error}");
+
+        let error = check(&["update", "deploy", "--env", "prod", "--place-id", "1"])
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("--env, --place-id"), "{error}");
+    }
+
+    #[test]
+    fn can_manage_still_reads_them() {
+        check(&["can-manage", "--place-id", "1", "--place-id", "2"]).unwrap();
+        check(&["can-manage", "--universe-id", "1"]).unwrap();
+        check(&["can-manage", "--env", "prod"]).unwrap();
+    }
+
+    #[test]
+    fn no_flag_is_no_refusal() {
+        check(&["create", "deploy"]).unwrap();
+        check(&["status"]).unwrap();
+    }
+}
+
 #[cfg(test)]
 mod json_flag_tests {
     use super::*;

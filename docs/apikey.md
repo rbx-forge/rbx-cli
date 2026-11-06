@@ -100,7 +100,7 @@ Because the catalog is embedded at compile time and the service's list is live, 
 
 ## Configuration
 
-Create `rbxapikey.toml` in your project root. Keys target Roblox universes by **env name** (declared in `rbxplace.toml`), not raw universe ids: the same source of truth used by `rbxmeta`, `rbxconfig`, and the rest of the suite.
+Create `rbxapikey.toml` in your project root. In a project, keys target Roblox universes by **env name** (declared in `rbxplace.toml`): the same source of truth used by `rbxmeta`, `rbxconfig`, and the rest of the suite. Outside one, a key names its universes by id instead: see [Without `rbxplace.toml`](#without-rbxplacetoml).
 
 ```toml
 [settings]
@@ -118,6 +118,24 @@ expiration_months = 3                        # 3 months from now
 # or: expiration_days = 90                   # 90 days from now (more precise)
 # or: expires_at = "2025-12-31T00:00:00Z"    # exact date (ISO 8601)
 ```
+
+### Without `rbxplace.toml`
+
+`rbx apikey` works on its own, in a directory with no `rbxplace.toml`. A key names what it targets by id:
+
+```toml
+[keys.analytics]
+universe_ids = [9876543210]           # a universe, as is
+place_ids = [234567890123456]         # a place, standing for the universe it belongs to
+scopes = ["universe.analytics:read"]
+```
+
+- **`universe_ids`** is used as written. Nothing is asked of Roblox, unless a scope needs the universe's owner.
+- **`place_ids`** is resolved to its universe once, on the first `create`, and cached in the lockfile like an env. A place never moves to another universe, so the answer is not asked again.
+- **`envs` combines with both**: a key may name an env and an id side by side. What it does not combine with is a table of env groups, because every group's key would get the ids, and keeping one environment's key off another's universe is what the table is for.
+- **`settings.default_envs` is not applied** to a key that names ids. It is the fallback for a key that names no target, and adding an env to one that named its own would also make it need an `rbxplace.toml` again.
+
+The targets live in the file only, never on the command line. A key is a long-lived credential whose universes are fixed when it is created, and `update` rebuilds them from the file; a universe passed as a flag on `create` would be forgotten by the next `update`. So the global `--env`, `--place`, `--universe-id` and `--place-id` are refused on every `rbx apikey` subcommand except [`can-manage`](#rbx-apikey-can-manage), which reads them, rather than silently ignored.
 
 ### One key per environment
 
@@ -172,6 +190,8 @@ Two entries sharing a scope type but listing different operations (`asset:read` 
 
 Each create/update/regenerate operation writes the resolved `universe_ids` into the lockfile as a snapshot of what's actually deployed. On the next run, the tool re-resolves the envs and compares against the snapshot. **When they differ, the tool refuses to proceed and prints the discrepancy.** This catches accidental retargeting (e.g. someone edited `rbxplace.toml` to point env `dev` at a fresh universe) before the change is silently pushed to Roblox.
 
+Only envs can drift: a universe id is its own answer, and a place's universe never changes. With no `rbxplace.toml` at all there is nothing to compare against, and the check is skipped.
+
 To acknowledge an intentional change, delete that key's entry from `rbxapikey.lock.toml` and re-run the operation. The next run will re-resolve, re-create owner cache, and write a fresh snapshot.
 
 ### Global settings
@@ -179,7 +199,7 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 - `default_enabled` - (optional) Whether keys are enabled by default (defaults to `true`)
 - `default_expiration_months` - (optional) Default months until key expiry; omit to allow keys without expiry
 - `default_allowed_cidrs` - Default IP CIDR blocks for keys that set no `allowed_cidrs` of their own. **Not optional in practice**: with no allowlist from either place, `create` and `update` refuse and name the three ways out: set it here, set `allowed_cidrs` on the key, or pass `--no-ip` to allow every address. Nothing is inferred; neither this tool nor Roblox fills in your address for you
-- `default_envs` - (optional) Default env list used when a key has no `envs` field of its own. Each name must exist in `rbxplace.toml`.
+- `default_envs` - (optional) Default env list used when a key names no target of its own: no `envs`, no `universe_ids`, no `place_ids`. Each name must exist in `rbxplace.toml`.
 - `name_prefix` - (optional) Prepended verbatim to every key's display name on Roblox. You control the separator: use `mygame_` for underscore, `mygame-` for dash, etc. Useful when the same `rbxapikey.toml` is reused across games so the Creator Hub distinguishes same-named keys (e.g. `mygame_deploy`, `othergame_deploy`). Does not change the local TOML key.
 - `readonly` - (optional) Refuse to load this file if any key in it asks for an operation other than `read` or `list`. See [Read-only by declaration](#read-only-by-declaration)
 - `default_secret_file` - (optional) Path template used when a key has no explicit `secret_file`. The literal `{name}` is replaced with the TOML key and `{env_group}` with the key's env group, if it has one. Example: `.secrets/{name}.env` makes `[keys.deploy]` write to `.secrets/deploy.env` by default, and a fan-out of `deploy` write to `.secrets/deploy_ci.env` and `.secrets/deploy_prod.env`. Explicit `secret_file` on a key always wins.
@@ -188,7 +208,9 @@ To acknowledge an intentional change, delete that key's entry from `rbxapikey.lo
 
 - `name` - (optional) Display name on Roblox Creator Hub (defaults to key ID)
 - `description` - (optional) Description on Roblox Creator Hub; auto-generated if omitted. **Roblox refuses a name or description carrying a brand**, answering `Response.InvalidNameOrDescription` without saying which of the two it means. The working rule, stated in `testenv/rbxapikey.example.toml`, is that `rbx` or `roblox` glued to an API or commerce term is rejected: a description reading ``Validate `rbx secret` against real Open Cloud`` was refused, and the same text without the brand was accepted. Nothing is checked locally, because "glued to an API or commerce term" is a judgement and not a substring, so a local check would reject text Roblox takes; the tool explains the refusal when it happens, and its auto-generated fallback names neither Roblox nor itself
-- `envs` - Either a list of env names from `rbxplace.toml` (one key, targeting every one of them), or a table of named groups (one key per group: see [One key per environment](#one-key-per-environment)). The list form falls back to `settings.default_envs` when omitted or empty; the table form always names its envs.
+- `envs` - Either a list of env names from `rbxplace.toml` (one key, targeting every one of them), or a table of named groups (one key per group: see [One key per environment](#one-key-per-environment)). The list form falls back to `settings.default_envs` when omitted or empty and the key names no id either; the table form always names its envs.
+- `universe_ids` - (optional) Universe ids this key targets directly, with no `rbxplace.toml`. See [Without `rbxplace.toml`](#without-rbxplacetoml)
+- `place_ids` - (optional) Place ids this key targets, each resolved once to its universe and cached in the lockfile
 - `group_ids` - (optional) List of group IDs for group-target scopes
 - `user_ids` - (optional) List of user IDs for user-target scopes
 - `scopes` - List of scope strings in format `"scopeType:operation1,operation2"`. A scope listed twice is collapsed and reported, at both levels: see [Duplicate scopes](#duplicate-scopes).

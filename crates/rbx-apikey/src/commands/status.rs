@@ -8,7 +8,6 @@ use colored::Colorize;
 use crate::json::StatusDocument;
 use crate::{config, lock, secret_store, time_iso};
 use rbx_core::output::{emit, OutputFormat};
-use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
 
 use super::make_client;
@@ -59,7 +58,7 @@ impl Status {
 pub async fn run(global: &GlobalFlags, remote_check: bool, format: OutputFormat) -> Result<()> {
     let cfg = config::load()?;
     let lk = lock::load()?;
-    let places = PlacesFile::load(&global.places)?;
+    let places = super::load_places(global)?;
 
     let mut name_set: BTreeSet<String> = BTreeSet::new();
     for n in cfg.keys.keys() {
@@ -70,7 +69,7 @@ pub async fn run(global: &GlobalFlags, remote_check: bool, format: OutputFormat)
     }
     let names: Vec<String> = name_set.into_iter().collect();
 
-    crate::drift::check_all(&lk, &places)?;
+    crate::drift::check_all(&lk, places.as_ref())?;
 
     let mut document = StatusDocument::new(remote_check);
 

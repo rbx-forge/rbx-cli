@@ -30,7 +30,7 @@ pub struct LockEnv {
 impl LockEnv {
     /// Whether the owner fields are the placeholder rather than a resolution.
     ///
-    /// `sync_envs` writes `(User, 0)` when no scope on the key being built
+    /// `sync_targets` writes `(User, 0)` when no scope on the key being built
     /// needs creator-targeting, because the schema has nowhere to say "not
     /// asked". Roblox issues no user or group id 0, so the value is
     /// unambiguous as a sentinel, but it is only a sentinel if every reader

@@ -9,22 +9,18 @@ use colored::{ColoredString, Colorize};
 use rbx_core::output::{emit, OutputFormat};
 
 use crate::json::{KeyEntry, ListDocument};
-use crate::{config, lock, secret_store, time_iso};
+use crate::{config, lock, owner_resolver, secret_store, time_iso};
 
-/// Look up universe_ids for a key by walking its effective envs through the
-/// lockfile's `[envs.X]` table. Envs not yet synced (referenced by the key
-/// but missing from `lk.envs`) are silently skipped: the user will see
-/// PENDING / SECRET_MISSING in `status` when that happens.
+/// Look up universe_ids for a key by walking its targets through the
+/// lockfile's `[envs.X]` table. Targets not yet synced are silently skipped:
+/// the user will see PENDING / SECRET_MISSING in `status` when that happens.
 fn universe_ids_for_key(
     cfg: &config::Config,
     lk: &lock::Lock,
     key_cfg: Option<&config::KeyConfig>,
 ) -> Vec<u64> {
     let Some(kc) = key_cfg else { return Vec::new() };
-    config::effective_envs(cfg, kc)
-        .iter()
-        .filter_map(|n| lk.envs.get(n).map(|e| e.universe_id))
-        .collect()
+    owner_resolver::cached_universe_ids(cfg, kc, &lk.envs)
 }
 
 pub fn run(expiry_only: bool, sort: Option<&str>, format: OutputFormat) -> Result<()> {
@@ -168,7 +164,7 @@ pub fn run(expiry_only: bool, sort: Option<&str>, format: OutputFormat) -> Resul
                 )
             };
 
-            // v4: universe_ids come from the key's effective envs ↦ lk.envs.
+            // v4: universe_ids come from the key's targets ↦ lk.envs.
             // Orphan envs in lk.envs (no key references them anymore) are NOT
             // associated with this key, so we skip them.
             let universe_ids: Vec<String> = universe_ids_for_key(&cfg, &lk, key_cfg)

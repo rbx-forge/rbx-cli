@@ -38,7 +38,14 @@ pub fn check_one_env(
 /// Walk every env present in the lockfile. Envs missing from `rbxplace.toml`
 /// are silently skipped: orphan envs (left over after a key was deleted)
 /// are not drift; reporting them is the responsibility of `status`/`list`.
-pub fn check_all(lock: &lock::Lock, places: &PlacesFile) -> Result<()> {
+///
+/// Entries cached for a universe or a place id have nothing in `rbxplace.toml`
+/// to drift from, and are skipped by the same lookup. So is everything when
+/// there is no `rbxplace.toml` at all.
+pub fn check_all(lock: &lock::Lock, places: Option<&PlacesFile>) -> Result<()> {
+    let Some(places) = places else {
+        return Ok(());
+    };
     for (env_name, cached) in &lock.envs {
         let env = match places.environments.get(env_name) {
             Some(e) => e,

@@ -35,45 +35,13 @@ use serde::Deserialize;
 use rbx_core::api::{build_client_with_user_agent, execute_json, is_api_status};
 use rbx_core::GlobalFlags;
 
+use crate::api::games::place_to_universe;
+
 /// The `develop` family, not Open Cloud. There is no Open Cloud equivalent.
 const DEVELOP_HOST: &str = "https://develop.roblox.com";
 
-/// Resolves a place id to the universe that contains it. Public, no auth.
-const PLACE_UNIVERSE_URL: &str = "https://apis.roblox.com/universes/v1/places";
-
 /// Some legacy endpoints reject the default reqwest agent.
 const USER_AGENT: &str = "Roblox/WinInet";
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct PlaceUniverse {
-    /// Null when the id is not a place, which is how the endpoint reports it
-    /// rather than by failing.
-    #[serde(default)]
-    universe_id: Option<u64>,
-}
-
-/// Resolve a place id to the universe containing it.
-///
-/// Only called when the caller said the id *is* a place. Guessing was tried and
-/// removed: the two id spaces overlap, and not rarely. `5544332211` is the
-/// universe id of one live game and simultaneously a valid place id belonging
-/// to a different universe entirely. An id-shaped argument that the tool
-/// interprets for you answers about somebody else's game and says nothing
-/// unusual while doing it.
-async fn place_to_universe(client: &reqwest::Client, place_id: u64) -> Result<u64> {
-    let url = format!("{PLACE_UNIVERSE_URL}/{place_id}/universe");
-    let found: PlaceUniverse = execute_json(|| {
-        let request = client.get(&url);
-        async move { request.send().await.map_err(Into::into) }
-    })
-    .await
-    .with_context(|| format!("resolving place {place_id}"))?;
-
-    found
-        .universe_id
-        .with_context(|| format!("{place_id} is not a place id. Did you mean --universe-id?"))
-}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -107,7 +75,11 @@ pub async fn run(global: &GlobalFlags, places: &[u64]) -> Result<()> {
     } else {
         let mut resolved = Vec::with_capacity(places.len());
         for place_id in places {
-            let universe_id = place_to_universe(&client, *place_id).await?;
+            let universe_id = place_to_universe(&client, *place_id)
+                .await?
+                .with_context(|| {
+                    format!("{place_id} is not a place id. Did you mean --universe-id?")
+                })?;
             println!(
                 "{}",
                 format!("place {place_id} is in universe {universe_id}").dimmed()

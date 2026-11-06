@@ -28,7 +28,7 @@ pub async fn run(
 
     let cfg = config::load()?;
     let mut lk = lock::load()?;
-    let places = PlacesFile::load(&global.places)?;
+    let places = super::load_places(global)?;
     let client = make_client(global);
 
     let names: Vec<String> = if all {
@@ -43,7 +43,7 @@ pub async fn run(
         vec![name.unwrap().to_string()]
     };
 
-    crate::drift::check_all(&lk, &places)?;
+    crate::drift::check_all(&lk, places.as_ref())?;
 
     // Before the first PATCH, not during the third: `--all` walks the list one
     // key at a time, so a session that dies halfway is the difference between
@@ -54,7 +54,7 @@ pub async fn run(
     for n in &names {
         update_one(
             &cfg,
-            &places,
+            places.as_ref(),
             &mut lk,
             &client,
             n,
@@ -72,7 +72,7 @@ pub async fn run(
 #[allow(clippy::too_many_arguments)]
 async fn update_one(
     cfg: &config::Config,
-    places: &PlacesFile,
+    places: Option<&PlacesFile>,
     lk: &mut lock::Lock,
     client: &RbxApiKeyClient,
     name: &str,
@@ -99,25 +99,14 @@ async fn update_one(
         }
     };
 
-    let effective_envs = config::effective_envs(cfg, key_cfg);
-    let need_owners = scope_builder::needs_owner_resolution(key_cfg);
-
     // Drift check is global (per-env) and runs once at command entry: see
     // `run()`. By the time we get here, the cached `lk.envs` entries for the
     // envs this key uses are guaranteed to match `rbxplace.toml`.
-    let synced =
-        owner_resolver::sync_envs(client, &effective_envs, places, &lk.envs, need_owners).await?;
-
-    let universe_ids: Vec<u64> = effective_envs
-        .iter()
-        .filter_map(|n| synced.get(n))
-        .map(|e| e.universe_id)
-        .collect();
-    let universe_owners: Vec<lock::UniverseOwner> = effective_envs
-        .iter()
-        .filter_map(|n| synced.get(n))
-        .map(lock::env_to_owner)
-        .collect();
+    let owner_resolver::ResolvedKey {
+        universe_ids,
+        owners: universe_owners,
+        synced,
+    } = owner_resolver::resolve_key(client, cfg, key_cfg, places, &lk.envs).await?;
 
     let build = scope_builder::build(key_cfg, &universe_ids, &universe_owners);
     for w in &build.warnings {

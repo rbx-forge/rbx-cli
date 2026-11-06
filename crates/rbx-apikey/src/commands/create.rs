@@ -55,7 +55,7 @@ pub async fn run(
     // creation leaves a live key whose secret was never stored.
     refuse_if_the_secret_would_be_committed(&cfg)?;
     let mut lk = lock::load()?;
-    let places = PlacesFile::load(&global.places)?;
+    let places = super::load_places(global)?;
     let client = make_client(global);
 
     // No args → interactive picker over keys not yet in lock.
@@ -100,7 +100,7 @@ pub async fn run(
         for n in &chosen {
             create_one(
                 &cfg,
-                &places,
+                places.as_ref(),
                 &mut lk,
                 &client,
                 n,
@@ -142,7 +142,7 @@ pub async fn run(
         for n in &names {
             create_one(
                 &cfg,
-                &places,
+                places.as_ref(),
                 &mut lk,
                 &client,
                 n,
@@ -158,7 +158,7 @@ pub async fn run(
         let n = name.unwrap();
         create_one(
             &cfg,
-            &places,
+            places.as_ref(),
             &mut lk,
             &client,
             n,
@@ -177,7 +177,7 @@ pub async fn run(
 #[allow(clippy::too_many_arguments)]
 async fn create_one(
     cfg: &config::Config,
-    places: &PlacesFile,
+    places: Option<&PlacesFile>,
     lk: &mut lock::Lock,
     client: &RbxApiKeyClient,
     name: &str,
@@ -206,25 +206,14 @@ async fn create_one(
         return Ok(());
     }
 
-    let effective_envs = config::effective_envs(cfg, key_cfg);
-    let need_owners = scope_builder::needs_owner_resolution(key_cfg);
-
-    // Sync this key's envs into the lockfile's shared `[envs.X]` table.
-    // We don't pre-resolve universe_ids ourselves: `sync_envs` does the
-    // `rbxplace.toml` lookup and reuses cached owners when they're still valid.
-    let synced =
-        owner_resolver::sync_envs(client, &effective_envs, places, &lk.envs, need_owners).await?;
-
-    let universe_ids: Vec<u64> = effective_envs
-        .iter()
-        .filter_map(|n| synced.get(n))
-        .map(|e| e.universe_id)
-        .collect();
-    let universe_owners: Vec<lock::UniverseOwner> = effective_envs
-        .iter()
-        .filter_map(|n| synced.get(n))
-        .map(lock::env_to_owner)
-        .collect();
+    // Sync this key's targets into the lockfile's shared `[envs.X]` table.
+    // `sync_targets` does the `rbxplace.toml` lookup and reuses cached owners
+    // when they're still valid.
+    let owner_resolver::ResolvedKey {
+        universe_ids,
+        owners: universe_owners,
+        synced,
+    } = owner_resolver::resolve_key(client, cfg, key_cfg, places, &lk.envs).await?;
 
     let build = scope_builder::build(key_cfg, &universe_ids, &universe_owners);
     for w in &build.warnings {

@@ -6,7 +6,6 @@ use dialoguer::Confirm;
 
 use crate::{config, lock, secret_store, time_iso};
 use rbx_core::confirm::confirm_always;
-use rbx_core::places::PlacesFile;
 use rbx_core::GlobalFlags;
 
 use super::{make_client, require_no_collision};
@@ -25,10 +24,10 @@ pub async fn run(
 
     let cfg = config::load()?;
     let mut lk = lock::load()?;
-    let places = PlacesFile::load(&global.places)?;
+    let places = super::load_places(global)?;
     let client = make_client(global);
 
-    crate::drift::check_all(&lk, &places)?;
+    crate::drift::check_all(&lk, places.as_ref())?;
 
     let names: Vec<String> = if all {
         let mut v: Vec<String> = lk.keys.keys().cloned().collect();

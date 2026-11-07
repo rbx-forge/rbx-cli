@@ -95,9 +95,12 @@ jobs:
           set -euo pipefail
           # Count changed lines that are not the version stamp. `git diff -U0`
           # so only the touched lines appear, never surrounding context.
+          # Both greps are wrapped because grep exits 1 when it prints
+          # nothing, and under `pipefail` that is exactly the case this step
+          # exists to handle (only the stamp moved): it would fail the job.
           moved=$(git diff -U0 -- crates/rbx-apikey/src/data/catalog.json \
-            | grep -E '^[+-][^+-]' \
-            | grep -vE '^[+-]\s*"version":' \
+            | { grep -E '^[+-][^+-]' || true; } \
+            | { grep -vE '^[+-]\s*"version":' || true; } \
             | wc -l)
           echo "Lines changed besides the date stamp: $moved"
           if [ "$moved" -eq 0 ]; then

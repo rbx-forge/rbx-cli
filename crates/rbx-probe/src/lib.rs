@@ -22,7 +22,7 @@ use rbx_core::GlobalFlags;
 
 #[derive(Args, Debug)]
 pub struct ProbeCli {
-    /// Open Cloud path, e.g. `/cloud/v2/universes/{universe}/user-restrictions`.
+    /// Open Cloud path, e.g. `/cloud/v2/universes/{universe}`.
     ///
     /// `{universe}` is replaced with the universe id of the env resolved from
     /// `--env`. A path without that placeholder needs no env.

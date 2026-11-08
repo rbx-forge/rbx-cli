@@ -70,10 +70,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx shop check` and `rbx check` now exit `2` on a resource no longer
   declared.** Removing a pass from `rbxshop.toml` leaves it on sale, and a warning
   in a log was all that said so. A pipeline that passed with one in its lockfile
@@ -168,10 +164,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx meta` writes the experience's own icon and thumbnails**, the ones the
   Creator Hub's thumbnails page shows and players see. Until now it could only
   write a *translation*: every write went through Roblox's localization API,
@@ -247,10 +239,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx env gen-module` is `rbx env codegen`**, the name `rbx shop codegen`
   already had for the same job. No alias: the old spelling is gone. The banner
   of the generated module names the command, so the first `--check` after
@@ -360,10 +348,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **The `GameIds` dispatcher `rbx shop codegen` writes annotates its `env`
   local**: `local env: EnvName? = UNIVERSE_TO_ENV[game.GameId]`. Luau inferred
   the same type from the table above it, so nothing type-checks differently;
@@ -650,10 +634,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx data delete` and `restore` are now `delete-key` and `restore-key`.**
   The level is in the name on both sides, so neither reads as the default:
   `delete Player_156` and `delete-store PlayerData` would be one glance apart
@@ -1099,10 +1079,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **The vendored Roblox OpenAPI document and scope catalog** are refreshed to
   the 2026-08-20 upstream commit.
 - **Every CI job declares `timeout-minutes`.** Without it GitHub allows 360
@@ -1144,10 +1120,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
-  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
-  old site address does not. The command is still `rbx`: with Rokit,
-  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **TLS is now rustls.** `reqwest`'s default `native-tls` links `openssl-sys`
   dynamically on Linux, so the published binary needed the exact `libssl.so.3`
   the runner had, on top of its glibc. The system trust store is still read, so

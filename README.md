@@ -17,7 +17,10 @@ command instead: `rokit add rbx-forge/rbx-cli --alias rbx`.
 
 Not using Rokit? Every release publishes one archive per platform on the
 [releases page](https://github.com/rbx-forge/rbx-cli/releases), with a
-`SHA256SUMS` beside them. There are two Linux builds and the difference
+`SHA256SUMS` beside them. The sums only catch a corrupt download, since they
+sit in the same release as the archives. What proves an archive was built by
+this repository's release workflow is its provenance attestation:
+`gh attestation verify <archive> --repo rbx-forge/rbx-cli`. There are two Linux builds and the difference
 matters: `x86_64-unknown-linux-gnu` is compiled against the build runner's
 glibc and will not start on an older distribution, while
 `x86_64-unknown-linux-musl` is statically linked and does not care. Reach for

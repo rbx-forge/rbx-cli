@@ -62,6 +62,19 @@ Out of scope, because it is documented behavior rather than a defect:
   access to your machine or repository.
 - Rate limits, quotas, and Roblox-side API behavior. Report those to Roblox.
 
+## Verifying a download
+
+Each release archive carries a build provenance attestation, a signed statement
+of which workflow run and commit produced it. Check one before you trust it:
+
+```sh
+gh attestation verify rbx-v0.0.0-x86_64-unknown-linux-gnu.zip --repo rbx-forge/rbx-cli
+```
+
+`SHA256SUMS` is published beside the archives but is not a defence against a
+tampered release: it is replaced together with them. Use it to detect a
+corrupt download only.
+
 ## Handling credentials yourself
 
 Two habits cover most of the risk: keep keys in `RBX_API_KEY` or your CI's

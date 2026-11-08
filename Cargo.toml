@@ -50,8 +50,8 @@ edition = "2021"
 # than a compile error three crates deep.
 rust-version = "1.88"
 license = "MPL-2.0"
-repository = "https://github.com/rbx-forge/rbx-cli"
-homepage = "https://github.com/rbx-forge/rbx-cli"
+repository = "https://github.com/rbx-forge/rbx-deploy"
+homepage = "https://github.com/rbx-forge/rbx-deploy"
 authors = ["rbx-forge"]
 keywords = ["roblox", "open-cloud", "cli", "deployment"]
 categories = ["command-line-utilities", "game-development"]

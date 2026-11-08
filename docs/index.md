@@ -1,10 +1,10 @@
-# rbx-cli
+# rbx-deploy
 
 Unified Roblox Open Cloud CLI. One binary, one install, every tool as a
 subcommand. The command is `rbx`, short because you type it all day.
 
 This site is a rendering of the `docs/` directory of the
-[rbx-forge/rbx-cli](https://github.com/rbx-forge/rbx-cli) repository. Every
+[rbx-forge/rbx-deploy](https://github.com/rbx-forge/rbx-deploy) repository. Every
 page is the file the repository already serves, built by CI on every push to
 `main`, so the site and the repository cannot disagree. The "Suggest an edit"
 link at the top right of each page opens the exact file it came from.
@@ -74,18 +74,18 @@ keys it wants, are on [Live operations](ops.md).
 
 Add it to your project's `rokit.toml`, then run `rokit install`. Pin the
 version you want from the
-[releases page](https://github.com/rbx-forge/rbx-cli/releases):
+[releases page](https://github.com/rbx-forge/rbx-deploy/releases):
 
 ```toml
 [tools]
-rbx = "rbx-forge/rbx-cli"
+rbx = "rbx-forge/rbx-deploy"
 ```
 
 Or let Rokit write that entry for you. Pass the alias explicitly, or you get an
-`rbx-cli` command instead of `rbx`:
+`rbx-deploy` command instead of `rbx`:
 
 ```sh
-rokit add rbx-forge/rbx-cli --alias rbx
+rokit add rbx-forge/rbx-deploy --alias rbx
 ```
 
 The precompiled binaries attached to every release need no Rust toolchain.
@@ -139,17 +139,17 @@ From there:
 
 Documentation about the repository rather than the tool stays in the
 repository:
-[README](https://github.com/rbx-forge/rbx-cli/blob/main/README.md) for the full
+[README](https://github.com/rbx-forge/rbx-deploy/blob/main/README.md) for the full
 command table and the stability policy,
-[ARCHITECTURE.md](https://github.com/rbx-forge/rbx-cli/blob/main/ARCHITECTURE.md)
+[ARCHITECTURE.md](https://github.com/rbx-forge/rbx-deploy/blob/main/ARCHITECTURE.md)
 for the crate layout,
-[CONTRIBUTING.md](https://github.com/rbx-forge/rbx-cli/blob/main/CONTRIBUTING.md)
+[CONTRIBUTING.md](https://github.com/rbx-forge/rbx-deploy/blob/main/CONTRIBUTING.md)
 for setup and what makes a PR mergeable,
-[CHANGELOG.md](https://github.com/rbx-forge/rbx-cli/blob/main/CHANGELOG.md) for
+[CHANGELOG.md](https://github.com/rbx-forge/rbx-deploy/blob/main/CHANGELOG.md) for
 what changed in a release, and
-[SECURITY.md](https://github.com/rbx-forge/rbx-cli/blob/main/SECURITY.md) for
+[SECURITY.md](https://github.com/rbx-forge/rbx-deploy/blob/main/SECURITY.md) for
 where vulnerability reports go, which is never the public tracker.
 
-`rbx-cli` is a community tool under
-[MPL-2.0](https://github.com/rbx-forge/rbx-cli/blob/main/LICENSE). It is not
+`rbx-deploy` is a community tool under
+[MPL-2.0](https://github.com/rbx-forge/rbx-deploy/blob/main/LICENSE). It is not
 affiliated with, endorsed by, or sponsored by Roblox Corporation.

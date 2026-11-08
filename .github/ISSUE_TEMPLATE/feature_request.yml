@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         **Read the non-goals first:**
-        [What this tool does not do](https://github.com/rbx-forge/rbx-cli#what-this-tool-does-not-do).
+        [What this tool does not do](https://github.com/rbx-forge/rbx-deploy#what-this-tool-does-not-do).
         Several plausible-sounding features are deliberately out of scope, with
         the reasoning written down. If yours is on that list, the interesting
         conversation is about the reasoning, not the feature: say which part

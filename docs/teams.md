@@ -187,7 +187,7 @@ One statement per tool, from what the code does rather than what would be nice.
 ### `rbx shop sync`: unsafe for creates, benign for updates
 
 The whole workspace is sequential by design (see
-[ARCHITECTURE.md](https://github.com/rbx-forge/rbx-cli/blob/main/ARCHITECTURE.md)), so there is no concurrency *inside* one
+[ARCHITECTURE.md](https://github.com/rbx-forge/rbx-deploy/blob/main/ARCHITECTURE.md)), so there is no concurrency *inside* one
 run. Two runs against the same universe are a different matter.
 
 - **Two runs that both plan `Create` for the same key produce two remote
@@ -333,4 +333,4 @@ lockfile-versus-Roblox drift, which is what a nightly `rbx shop pull --env all
 - [docs/shop.md](shop.md) covers the lockfile format and the codegen guard
 - [docs/meta.md](meta.md) covers the sync ordering and media hashing
 - [docs/config.md](config.md) covers revisions and rollback
-- [ARCHITECTURE.md](https://github.com/rbx-forge/rbx-cli/blob/main/ARCHITECTURE.md) explains why every run is sequential
+- [ARCHITECTURE.md](https://github.com/rbx-forge/rbx-deploy/blob/main/ARCHITECTURE.md) explains why every run is sequential

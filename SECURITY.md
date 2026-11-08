@@ -7,7 +7,7 @@ threat model worth stating plainly rather than leaving to inference.
 ## Reporting a vulnerability
 
 **Use GitHub private security advisories:**
-<https://github.com/rbx-forge/rbx-cli/security/advisories/new>
+<https://github.com/rbx-forge/rbx-deploy/security/advisories/new>
 
 Do not open a public issue for a vulnerability. Do not paste a real API key,
 cookie, or universe id you care about into a report: a redacted reproduction
@@ -68,7 +68,7 @@ Each release archive carries a build provenance attestation, a signed statement
 of which workflow run and commit produced it. Check one before you trust it:
 
 ```sh
-gh attestation verify rbx-v0.0.0-x86_64-unknown-linux-gnu.zip --repo rbx-forge/rbx-cli
+gh attestation verify rbx-v0.0.0-x86_64-unknown-linux-gnu.zip --repo rbx-forge/rbx-deploy
 ```
 
 `SHA256SUMS` is published beside the archives but is not a defence against a

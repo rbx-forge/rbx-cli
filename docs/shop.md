@@ -1086,4 +1086,4 @@ Resolve with:
 
 ## Attributions
 
-The alpha bleeding implementation is adapted from [Asphalt](https://github.com/jackTabsCode/asphalt) (MIT), which itself adapted it from [Tarmac](https://github.com/Roblox/tarmac) (MIT). Thank you to both. The license notices are in [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-cli/blob/main/THIRD-PARTY-NOTICES.md).
+The alpha bleeding implementation is adapted from [Asphalt](https://github.com/jackTabsCode/asphalt) (MIT), which itself adapted it from [Tarmac](https://github.com/Roblox/tarmac) (MIT). Thank you to both. The license notices are in [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-deploy/blob/main/THIRD-PARTY-NOTICES.md).

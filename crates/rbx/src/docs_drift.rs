@@ -33,7 +33,7 @@ const DOCS: &str = "../../docs";
 /// Fences whose contents are commands. Everything else in a page is output, a
 /// usage synopsis or a config file, and all three are shaped enough like a
 /// command line to be mistaken for one: `rbx download [IDS]... [OPTIONS]` is a
-/// synopsis, and `rbx = "rbx-forge/rbx-cli"` is a line of `rokit.toml`.
+/// synopsis, and `rbx = "rbx-forge/rbx-deploy"` is a line of `rokit.toml`.
 const SHELL_FENCES: &[&str] = &["sh", "bash", "shell", "zsh", "console"];
 
 /// Lines clap refuses today, each with the reason it is listed.

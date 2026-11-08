@@ -14,7 +14,7 @@ use reqwest::{Client, RequestBuilder, Response};
 use rbx_core::api::{ApiBase, CsrfToken};
 use rbx_core::session::{self, Session};
 
-const UA: &str = "rbx-cli (https://github.com/rbx-forge/rbx-cli)";
+const UA: &str = "rbx-deploy (https://github.com/rbx-forge/rbx-deploy)";
 
 /// Where "who is this cookie" is asked. The key administration endpoints do
 /// not answer it, so it is a second host and gets its own const: the naming

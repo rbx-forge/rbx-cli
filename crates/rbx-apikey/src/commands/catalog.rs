@@ -135,11 +135,11 @@ fn ensure_writable_from_here(path: &Path) -> Result<()> {
     let dir = path.parent().filter(|p| !p.as_os_str().is_empty());
     match dir {
         Some(dir) if !dir.is_dir() => bail!(
-            "no {} directory here, so this is not a checkout of rbx-forge/rbx-cli.\n\
+            "no {} directory here, so this is not a checkout of rbx-forge/rbx-deploy.\n\
              \n\
              `catalog regenerate` rewrites the catalog in the source tree, and the catalog is \
              compiled into the binary, so a rebuild is what applies it. Either:\n  \
-             - Run this from the root of a checkout of https://github.com/rbx-forge/rbx-cli, \
+             - Run this from the root of a checkout of https://github.com/rbx-forge/rbx-deploy, \
              then `cargo build --release`\n  \
              - Or, to pick up scopes Roblox has added, upgrade to a release that ships them: \
              an installed binary cannot refresh its own catalog",
@@ -986,7 +986,7 @@ mod tests {
 
         let err = ensure_writable_from_here(&path).unwrap_err().to_string();
 
-        assert!(err.contains("rbx-forge/rbx-cli"), "{err}");
+        assert!(err.contains("rbx-forge/rbx-deploy"), "{err}");
         assert!(
             !dir.path().join("src").exists(),
             "created the parents anyway"

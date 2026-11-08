@@ -1,4 +1,4 @@
-# rbx-cli
+# rbx-deploy
 
 Unified Roblox Open Cloud CLI. One binary, one install, every tool as a subcommand.
 
@@ -6,27 +6,25 @@ Add it to your project's `rokit.toml`, then run `rokit install`:
 
 ```toml
 [tools]
-rbx = "rbx-forge/rbx-cli@0.12.0"
+rbx = "rbx-forge/rbx-deploy@0.12.0"
 ```
 
-The command is `rbx`: short, because you type it all day. The repository
-carries the `-cli` suffix to distinguish it from the `rbx_*` libraries
-(`rbx_dom`, `rbx_binary`, …), the same way `aws-cli` installs as `aws`.
-Prefer `rokit add`? Pass the alias explicitly, or you get an `rbx-cli`
-command instead: `rokit add rbx-forge/rbx-cli --alias rbx`.
+The command is `rbx`: short, because you type it all day.
+Prefer `rokit add`? Pass the alias explicitly, or you get an `rbx-deploy`
+command instead: `rokit add rbx-forge/rbx-deploy --alias rbx`.
 
 Not using Rokit? Every release publishes one archive per platform on the
-[releases page](https://github.com/rbx-forge/rbx-cli/releases), with a
+[releases page](https://github.com/rbx-forge/rbx-deploy/releases), with a
 `SHA256SUMS` beside them. The sums only catch a corrupt download, since they
 sit in the same release as the archives. What proves an archive was built by
 this repository's release workflow is its provenance attestation:
-`gh attestation verify <archive> --repo rbx-forge/rbx-cli`. There are two Linux builds and the difference
+`gh attestation verify <archive> --repo rbx-forge/rbx-deploy`. There are two Linux builds and the difference
 matters: `x86_64-unknown-linux-gnu` is compiled against the build runner's
 glibc and will not start on an older distribution, while
 `x86_64-unknown-linux-musl` is statically linked and does not care. Reach for
 musl when the gnu binary reports a missing `GLIBC_...` version.
 
-**Documentation site: <https://rbx-forge.github.io/rbx-cli/>**: the `docs/`
+**Documentation site: <https://rbx-forge.github.io/rbx-deploy/>**: the `docs/`
 pages linked below, rendered with search and cross-links. Built from the same
 files, so it is never a second copy to keep in sync.
 
@@ -155,7 +153,7 @@ Every push to `main` publishes the schemas beside the documentation site, so
 they have a URL and you do not need this repository checked out to use one:
 
 ```
-https://rbx-forge.github.io/rbx-cli/schemas/rbxplace.schema.json
+https://rbx-forge.github.io/rbx-deploy/schemas/rbxplace.schema.json
 ```
 
 They are not wired up automatically yet: that needs the schemas published to
@@ -192,7 +190,7 @@ schema.path = "schemas/rbxapikey.schema.json"
 ```
 
 Even Better TOML takes a URL in the same place, so swap `./schemas/…` for
-`https://rbx-forge.github.io/rbx-cli/schemas/…` in a project that does not
+`https://rbx-forge.github.io/rbx-deploy/schemas/…` in a project that does not
 contain this repository.
 
 `rbxavatar.toml` is the one whose name is a convention rather than a rule:
@@ -394,7 +392,7 @@ putting `rbx` in CI is betting on:
 with a clear message rather than failing three dependencies deep. It is
 dependency-driven (our own sources need 1.82) and moves when a dependency
 moves it. Most users never build from source; the precompiled binaries in each
-[release](https://github.com/rbx-forge/rbx-cli/releases) have no toolchain
+[release](https://github.com/rbx-forge/rbx-deploy/releases) have no toolchain
 requirement at all.
 
 ### Support tiers
@@ -585,7 +583,7 @@ have to show real Roblox changes and nothing else.
 
 ### Cutting a release
 
-1. Run the live checks against a test universe. CI never talks to Roblox ([#91](https://github.com/rbx-forge/rbx-cli/issues/91)), so this is what proves the build against the real API: the read commands, an upload of an unchanged place, and write, read and delete round trips on `memorystore` and `data`. Nothing that cannot be deleted gets created. The script stays out of the repository because it holds a real universe id, and it has to run locally because the key it uses is limited to one IP.
+1. Run the live checks against a test universe. CI never talks to Roblox ([#91](https://github.com/rbx-forge/rbx-deploy/issues/91)), so this is what proves the build against the real API: the read commands, an upload of an unchanged place, and write, read and delete round trips on `memorystore` and `data`. Nothing that cannot be deleted gets created. The script stays out of the repository because it holds a real universe id, and it has to run locally because the key it uses is limited to one IP.
 2. Bump `[workspace.package].version` in `Cargo.toml`, then `cargo check` to refresh `Cargo.lock`
 3. Move `## [Unreleased]` content to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no `v` in the heading)
 
@@ -646,6 +644,6 @@ is how the cancelled v0.5.3 run of 2026-06-15 happened.
 Some files are adapted from MIT-licensed projects and carry their own notices:
 see [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
 
-`rbx-cli` is a community tool. It is not affiliated with, endorsed by, or
+`rbx-deploy` is a community tool. It is not affiliated with, endorsed by, or
 sponsored by Roblox Corporation. "Roblox" is a trademark of Roblox Corporation,
 used here only to say what this tool talks to.

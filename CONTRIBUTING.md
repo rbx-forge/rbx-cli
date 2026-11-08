@@ -11,8 +11,8 @@ Bug fixes with a test need no preamble. Send them.
 ## Setup
 
 ```sh
-git clone https://github.com/rbx-forge/rbx-cli
-cd rbx-cli
+git clone https://github.com/rbx-forge/rbx-deploy
+cd rbx-deploy
 lefthook install          # one-time: pre-commit runs cargo fmt + clippy
 cargo test --workspace
 ```

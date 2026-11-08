@@ -1,6 +1,6 @@
 name: Docs
 
-# Publishes https://rbx-forge.github.io/rbx-cli/ from `docs/`.
+# Publishes https://rbx-forge.github.io/rbx-deploy/ from `docs/`.
 #
 # The site is a rendering of that directory, not a copy of it: MkDocs reads
 # `docs/` in place (see `mkdocs.yml`), this workflow is the only thing that
@@ -67,7 +67,7 @@ jobs:
       - run: mkdocs build --strict
 
       # The schemas ride along, served at
-      # https://rbx-forge.github.io/rbx-cli/schemas/<name>.schema.json
+      # https://rbx-forge.github.io/rbx-deploy/schemas/<name>.schema.json
       #
       # Not decoration. The editor associations in README.md used to be written
       # as relative paths (`schema.path = "schemas/rbxplace.schema.json"`)

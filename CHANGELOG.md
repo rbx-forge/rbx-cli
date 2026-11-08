@@ -23,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with mode `0600` (Unix) or with inherited access removed (Windows), before the
   secret is written. A custom `secret_file` gets the same treatment, and no
   longer ignores a failure to restrict it on Unix.
+- **Release archives carry a build provenance attestation.** `SHA256SUMS` sits
+  in the same release as the archives, so it cannot tell a tampered release from
+  a good one. `gh attestation verify <archive> --repo rbx-forge/rbx-cli` checks
+  which workflow run and commit built an archive. The release workflow also runs
+  its build with read access only, and grants write access to the publishing job
+  alone.
 
 ### Changed
 

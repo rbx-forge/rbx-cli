@@ -28,13 +28,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   longer ignores a failure to restrict it on Unix.
 - **Release archives carry a build provenance attestation.** `SHA256SUMS` sits
   in the same release as the archives, so it cannot tell a tampered release from
-  a good one. `gh attestation verify <archive> --repo rbx-forge/rbx-cli` checks
+  a good one. `gh attestation verify <archive> --repo rbx-forge/rbx-deploy` checks
   which workflow run and commit built an archive. The release workflow also runs
   its build with read access only, and grants write access to the publishing job
   alone.
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx apikey` refuses `--env`, `--place`, `--universe-id` and `--place-id`**
   on every subcommand but `can-manage`. They were accepted and ignored, so a key
   could be created for the universe in the file while the command line named
@@ -66,6 +70,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx shop check` and `rbx check` now exit `2` on a resource no longer
   declared.** Removing a pass from `rbxshop.toml` leaves it on sale, and a warning
   in a log was all that said so. A pipeline that passed with one in its lockfile
@@ -160,6 +168,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx meta` writes the experience's own icon and thumbnails**, the ones the
   Creator Hub's thumbnails page shows and players see. Until now it could only
   write a *translation*: every write went through Roblox's localization API,
@@ -235,6 +247,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx env gen-module` is `rbx env codegen`**, the name `rbx shop codegen`
   already had for the same job. No alias: the old spelling is gone. The banner
   of the generated module names the command, so the first `--check` after
@@ -344,6 +360,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **The `GameIds` dispatcher `rbx shop codegen` writes annotates its `env`
   local**: `local env: EnvName? = UNIVERSE_TO_ENV[game.GameId]`. Luau inferred
   the same type from the table above it, so nothing type-checks differently;
@@ -630,6 +650,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **`rbx data delete` and `restore` are now `delete-key` and `restore-key`.**
   The level is in the name on both sides, so neither reads as the default:
   `delete Player_156` and `delete-store PlayerData` would be one glance apart
@@ -1075,6 +1099,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **The vendored Roblox OpenAPI document and scope catalog** are refreshed to
   the 2026-08-20 upstream commit.
 - **Every CI job declares `timeout-minutes`.** Without it GitHub allows 360
@@ -1116,6 +1144,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The repository is now `rbx-forge/rbx-deploy`**, and the documentation site
+  `rbx-forge.github.io/rbx-deploy`. The old repository address redirects; the
+  old site address does not. The command is still `rbx`: with Rokit,
+  `rokit add rbx-forge/rbx-deploy --alias rbx`.
 - **TLS is now rustls.** `reqwest`'s default `native-tls` links `openssl-sys`
   dynamically on Linux, so the published binary needed the exact `libssl.so.3`
   the runner had, on top of its glibc. The system trust store is still read, so
@@ -1233,17 +1265,17 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-cli/compare/v0.12.0...HEAD
-[0.12.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.11.0...v0.12.0
-[0.11.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.1...v0.11.0
-[0.10.1]: https://github.com/rbx-forge/rbx-cli/compare/v0.10.0...v0.10.1
-[0.10.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.9.0...v0.10.0
-[0.9.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.8.0...v0.9.0
-[0.8.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.7.0...v0.8.0
-[0.7.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.6.0...v0.7.0
-[0.6.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.5.0...v0.6.0
-[0.5.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.4.0...v0.5.0
-[0.4.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.3.0...v0.4.0
-[0.3.0]: https://github.com/rbx-forge/rbx-cli/compare/v0.2.0...v0.3.0
-[0.2.0]: https://github.com/rbx-forge/rbx-cli/releases/tag/v0.2.0
-[0.1.0]: https://github.com/rbx-forge/rbx-cli/releases/tag/v0.1.0
+[Unreleased]: https://github.com/rbx-forge/rbx-deploy/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.11.0...v0.12.0
+[0.11.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.10.1...v0.11.0
+[0.10.1]: https://github.com/rbx-forge/rbx-deploy/compare/v0.10.0...v0.10.1
+[0.10.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.9.0...v0.10.0
+[0.9.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.8.0...v0.9.0
+[0.8.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.6.0...v0.7.0
+[0.6.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.5.0...v0.6.0
+[0.5.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.3.0...v0.4.0
+[0.3.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.2.0...v0.3.0
+[0.2.0]: https://github.com/rbx-forge/rbx-deploy/releases/tag/v0.2.0
+[0.1.0]: https://github.com/rbx-forge/rbx-deploy/releases/tag/v0.1.0

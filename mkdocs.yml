@@ -1,4 +1,4 @@
-# The documentation site published at https://rbx-forge.github.io/rbx-cli/
+# The documentation site published at https://rbx-forge.github.io/rbx-deploy/
 # by .github/workflows/docs.yml.
 #
 # `docs_dir` points straight at the existing `docs/` directory. Nothing is
@@ -23,11 +23,11 @@
 # the one thing markdown alone cannot express, and it moved rather than being
 # duplicated: `SUMMARY.md` is gone.
 
-site_name: rbx-cli
+site_name: rbx-deploy
 site_description: Unified Roblox Open Cloud CLI. One binary, one install, every tool as a subcommand.
-site_url: https://rbx-forge.github.io/rbx-cli/
-repo_url: https://github.com/rbx-forge/rbx-cli
-repo_name: rbx-forge/rbx-cli
+site_url: https://rbx-forge.github.io/rbx-deploy/
+repo_url: https://github.com/rbx-forge/rbx-deploy
+repo_name: rbx-forge/rbx-deploy
 # Every page gets an "edit this page" link pointing at the real file in
 # `docs/`, which is the same reason `docs_dir` is not a copy: there is exactly
 # one place to fix a typo, and the site says where it is.
@@ -121,8 +121,8 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rbx-forge/rbx-cli
-      name: rbx-cli on GitHub
+      link: https://github.com/rbx-forge/rbx-deploy
+      name: rbx-deploy on GitHub
 
 nav:
   - Introduction: index.md

@@ -139,7 +139,7 @@ jobs:
       # replace an archive can replace the sums too: it catches a corrupt
       # download, not a tampered release. This is the check that does: a signed
       # statement of which workflow run, on which commit, built each archive.
-      # Verify one with `gh attestation verify <archive> --repo rbx-forge/rbx-cli`.
+      # Verify one with `gh attestation verify <archive> --repo rbx-forge/rbx-deploy`.
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

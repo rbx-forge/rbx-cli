@@ -178,12 +178,6 @@ pub fn all() -> Vec<Schema> {
             "Environment map shared by every rbx subcommand: env name to universe id, \
              the places under it, and the project owner. See docs/env.md.",
         ),
-        build::<rbx_apikey::config::RawFile>(
-            "rbxapikey.toml",
-            "rbxapikey.schema.json",
-            "Declarative Open Cloud API keys: scopes, expiry, allowed CIDRs, and where \
-             each key's secret is written. See docs/apikey.md.",
-        ),
         build::<rbx_meta::config::Config>(
             "rbxmeta.toml",
             "rbxmeta.schema.json",

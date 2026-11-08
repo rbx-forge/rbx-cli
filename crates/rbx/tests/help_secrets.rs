@@ -27,8 +27,8 @@ const COOKIE: &str = "ROBLOSECURITY-HELP-LEAK-CANARY-b3d82f";
 /// every subcommand's help as well as the root's.
 const HELP_INVOCATIONS: &[&[&str]] = &[
     &["--help"],
-    &["apikey", "--help"],
-    &["apikey", "status", "--help"],
+    &["init", "--help"],
+    &["place", "upload", "--help"],
     &["meta", "--help"],
     &["shop", "pull", "--help"],
     &["check", "--help"],

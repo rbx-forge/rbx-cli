@@ -1,24 +1,21 @@
 //! `--json` against the real binary: stdout carries the document and nothing
 //! else.
 //!
-//! The unit tests in `rbx_env::json` and `rbx_servers::json` pin what the
-//! documents *say*. They cannot pin what else reaches stdout, because a stray
-//! `println!` three layers down is invisible to a test that renders a struct
-//! into a buffer, and a stray `println!` is exactly the failure that breaks
-//! `jq` in somebody's pipeline. So these run the binary and parse its stdout.
+//! The unit tests in `rbx_env::json` pin what the documents *say*. They cannot
+//! pin what else reaches stdout, because a stray `println!` three layers down
+//! is invisible to a test that renders a struct into a buffer, and a stray
+//! `println!` is exactly the failure that breaks `jq` in somebody's pipeline. So these run the binary and parse its stdout.
 //!
 //! Each case is arranged to have something to say on stderr as well: an
-//! unknown key in `rbxplace.toml` for `env`, a partial page for `servers`. A
-//! warning that has nowhere safe to go is how stdout gets polluted.
+//! unknown key in `rbxplace.toml`. A warning that has nowhere safe to go is
+//! how stdout gets polluted.
 
 #![allow(clippy::unwrap_used)]
 
 use assert_cmd::Command;
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// The prod universe in the file below.
 const UNIVERSE: u64 = 5544332211;
-const PLACE: u64 = 55443322110099;
 
 /// An `rbxplace.toml` with an unknown key in it, so `PlacesFile::load` has a
 /// warning to emit on every command that reads the file.
@@ -207,124 +204,6 @@ fn env_list_refuses_names_and_json_together() {
             "--names",
             "--json",
         ])
-        .assert()
-        .failure();
-}
-
-/// A page Roblox admits is incomplete. The warning belongs on stderr and the
-/// fact belongs in the document, and this is the case where getting that wrong
-/// would silently corrupt a monitoring script's input.
-#[tokio::test(flavor = "multi_thread")]
-async fn servers_list_keeps_stdout_parsable_when_the_page_is_partial() {
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path(format!(
-            "/server-management/v1/universes/{UNIVERSE}/places/{PLACE}/versions/3991/game-servers"
-        )))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "gameServers": [
-                {
-                    "jobId": "9f2a1c00-0000-4000-8000-000000000001",
-                    "status": "crashed",
-                    "placeId": PLACE.to_string(),
-                    "placeVersion": "3991",
-                    "uptime": "00:05:02.0020000",
-                    "memoryUsageBytes": 1_048_576,
-                    "frameRate": 0,
-                    "occupancy": 3,
-                    "maxOccupancy": 50,
-                    "playerIds": [1, 2, 3]
-                }
-            ],
-            "totalCount": 83_711,
-            "shutdownServersFetchError": true,
-            "nextPageToken": ""
-        })))
-        .mount(&server)
-        .await;
-
-    let dir = tempfile::tempdir().unwrap();
-    let places = places_file(&dir);
-    let uri = server.uri();
-
-    let (doc, stderr) = run_json(&[
-        "--places",
-        places.to_str().unwrap(),
-        "--api-key",
-        "test-key",
-        "--env",
-        "prod",
-        "servers",
-        "list",
-        "--version",
-        "3991",
-        "--base-url",
-        &uri,
-        "--json",
-    ]);
-
-    assert_eq!(doc["schema_version"], 1);
-    assert_eq!(doc["place_version"], "3991");
-    assert_eq!(doc["partial"], true);
-    assert_eq!(doc["totals"]["returned"], 1);
-    assert_eq!(doc["totals"]["failed"], 1);
-    assert_eq!(doc["totals"]["available"], 83_711);
-    assert_eq!(doc["servers"][0]["status"], "crashed");
-    assert_eq!(doc["servers"][0]["failure"], true);
-    assert_eq!(doc["servers"][0]["uptime_seconds"], 302);
-    assert_eq!(doc["servers"][0]["player_count"], 3);
-    // Reported, not silently dropped, and not on stdout.
-    assert!(
-        stderr.contains("this page is incomplete"),
-        "stderr was:\n{stderr}"
-    );
-    // The unknown-key warning had to go somewhere too.
-    assert!(stderr.contains("notakey"), "stderr was:\n{stderr}");
-}
-
-/// Nothing has run in thirty days. Not an error, and under `--json` not
-/// silence either: an empty document a consumer can read a zero off.
-#[tokio::test(flavor = "multi_thread")]
-async fn servers_list_emits_an_empty_document_when_no_version_has_servers() {
-    let server = MockServer::start().await;
-    Mock::given(method("GET"))
-        .and(path(format!(
-            "/server-management/v1/universes/{UNIVERSE}/places/{PLACE}/game-servers:filter-options"
-        )))
-        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-            "filters": {}
-        })))
-        .mount(&server)
-        .await;
-
-    let dir = tempfile::tempdir().unwrap();
-    let places = places_file(&dir);
-    let uri = server.uri();
-
-    let (doc, _) = run_json(&[
-        "--places",
-        places.to_str().unwrap(),
-        "--api-key",
-        "test-key",
-        "--env",
-        "prod",
-        "servers",
-        "list",
-        "--base-url",
-        &uri,
-        "--json",
-    ]);
-
-    assert_eq!(doc["totals"]["returned"], 0);
-    assert_eq!(doc["servers"].as_array().map(Vec::len), Some(0));
-    assert!(doc.get("place_version").is_none(), "{doc}");
-}
-
-#[test]
-fn servers_list_refuses_csv_and_json_together() {
-    Command::cargo_bin("rbx")
-        .unwrap()
-        .args(["servers", "list", "--csv", "--json"])
         .assert()
         .failure();
 }

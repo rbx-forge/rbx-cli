@@ -2,7 +2,7 @@
 //!
 //! A full CI integration used to mean knowing and chaining a handful of
 //! commands (`env codegen --check`, `shop check`, `shop codegen --check`,
-//! `meta check`, `config check`, `rtbf check`, `apikey status`) and getting the
+//! `meta check`, `config check`, `rtbf check`) and getting the
 //! exit-code handling right for each. This is that list, discovered from the
 //! repo rather than configured, with one aggregated exit code.
 //!
@@ -219,7 +219,6 @@ async fn gather(dir: &Path, offline: bool, global: &GlobalFlags) -> Result<Repor
             }
             discovery::Tool::Config => tools::config(&entry.path, &envs, global, offline).await,
             discovery::Tool::Rtbf => tools::rtbf(&entry.path, global, offline).await,
-            discovery::Tool::Apikey => tools::apikey(),
         };
         for row in rows {
             report.push(row);
@@ -442,12 +441,9 @@ mod tests {
                 .env("prod")
                 .detail("name: (unset) → My Game"),
         );
-        report.push(ToolReport::new(
-            "apikey",
-            "status",
-            Outcome::Skipped,
-            "not yet wired",
-        ));
+        report.push(
+            ToolReport::new("config", "live", Outcome::Skipped, "skipped (--offline)").env("prod"),
+        );
         report
     }
 

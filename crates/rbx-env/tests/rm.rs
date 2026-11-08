@@ -247,7 +247,7 @@ fn the_config_and_api_key_locks_are_cleared_too() {
 /// than a table of its own, in either of two shapes.
 ///
 /// Leaving one behind is not untidiness: `resolve_universe_ids` errors rather
-/// than silently dropping an env it cannot find, so the next `rbx apikey` run
+/// than silently dropping an env it cannot find, so the next `rbx-apikey` run
 /// would fail on a file the user never edited.
 #[test]
 fn an_env_is_pulled_out_of_every_api_key_list() {

@@ -78,9 +78,7 @@ jobs:
         if: matrix.zig
       - run: pip install cargo-zigbuild==0.23.0
         if: matrix.zig
-      # One binary. `rbx-ops` used to ship alongside it and no longer does:
-      # every command it carried is a subcommand of `rbx`, and the shim that
-      # still answers to the old name is built from source only.
+      # One binary.
       #
       # `--locked` matters more here than anywhere in ci.yml. Without it cargo
       # may rewrite Cargo.lock mid-build, and the artefact people download would
@@ -181,13 +179,11 @@ jobs:
             rbx*.zip
             SHA256SUMS
 
-# One archive per platform, and one binary in it. `rbx-ops` is no longer
-# published: every command it carried is a subcommand of `rbx`, and the shim
-# that still answers to the old name is built from source only.
+# One archive per platform, and one binary in it.
 #
 # That is what makes this installable through Rokit at all. Rokit resolves one
 # artifact per repository, so two binaries published from one repo could never
 # both be installed: measured against v0.5.0 and again against v0.9.0 with
 # Rokit 1.2.0. A binary dispatching on the name it was invoked by does not help
 # either: the shim passes the stored binary's own path as argv[0], identically
-# for every alias. See docs/ops.md.
+# for every alias. The post-mortem is in TODO.md.

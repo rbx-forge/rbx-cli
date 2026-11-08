@@ -23,28 +23,10 @@ rbx-shop = { path = "../rbx-shop" }
 rbx-place = { path = "../rbx-place" }
 rbx-meta = { path = "../rbx-meta" }
 rbx-config = { path = "../rbx-config" }
-rbx-secret = { path = "../rbx-secret" }
 rbx-rtbf = { path = "../rbx-rtbf" }
 rbx-env = { path = "../rbx-env" }
-rbx-apikey = { path = "../rbx-apikey" }
-rbx-doctor = { path = "../rbx-doctor" }
 rbx-import = { path = "../rbx-import" }
 rbx-init = { path = "../rbx-init" }
-rbx-open = { path = "../rbx-open" }
-rbx-download = { path = "../rbx-download" }
-rbx-user = { path = "../rbx-user" }
-
-# Live operations. One binary: Rokit resolves one artifact per repository, so
-# two binaries from one repo cannot both be installed. See docs/ops.md.
-rbx-servers = { path = "../rbx-servers" }
-rbx-analytics = { path = "../rbx-analytics" }
-rbx-ads = { path = "../rbx-ads" }
-rbx-ban = { path = "../rbx-ban" }
-rbx-group = { path = "../rbx-group" }
-rbx-restart = { path = "../rbx-restart" }
-rbx-data = { path = "../rbx-data" }
-rbx-memorystore = { path = "../rbx-memorystore" }
-rbx-message = { path = "../rbx-message" }
 rbx-probe = { path = "../rbx-probe" }
 
 [dev-dependencies]

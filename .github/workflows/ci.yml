@@ -84,20 +84,14 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   windows:
-    # The platform-dependent crates are the ones Linux CI can never exercise:
-    # `rbx-open` dispatches a `roblox-studio:` URI, and `rbx-core` auto-detects
-    # the .ROBLOSECURITY cookie from a local Studio install. Those are the most
-    # likely places for a regression and, until now, the only ones whose tests
-    # ran nowhere: the release workflow compiles for Windows at tag time but
-    # never runs a test there.
-    #
-    # `rbx-switch` used to be the third. It left the workspace for
-    # rbx-dev-tools/rbx-switch, whose own CI is Windows-only for exactly this
-    # reason.
+    # The platform-dependent crate is the one Linux CI can never exercise:
+    # `rbx-core` auto-detects the .ROBLOSECURITY cookie from a local Studio
+    # install. That is the most likely place for a regression and, until this
+    # job, the only code whose tests ran nowhere: the release workflow compiles
+    # for Windows at tag time but never runs a test there.
     #
     # Windows runners bill at 2x, so this is deliberately narrow: it only fires
-    # when one of those two crates changes, and it tests only them. A few
-    # runs a month.
+    # when that crate changes, and it tests only it. A few runs a month.
     name: Windows (platform-dependent crates)
     runs-on: windows-latest
     timeout-minutes: 10
@@ -117,7 +111,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base"..HEAD \
-             | grep -qE '^crates/(rbx-open|rbx-core)/|^\.github/workflows/ci\.yml$'; then
+             | grep -qE '^crates/rbx-core/|^\.github/workflows/ci\.yml$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -128,7 +122,7 @@ jobs:
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
         if: steps.changed.outputs.run == 'true'
       - if: steps.changed.outputs.run == 'true'
-        run: cargo test -p rbx-open -p rbx-core --locked
+        run: cargo test -p rbx-core --locked
 
   cross:
     # The release workflow ships binaries for targets no other job here builds,

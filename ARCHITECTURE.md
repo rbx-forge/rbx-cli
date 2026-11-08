@@ -18,48 +18,36 @@ crates/
   rbx-init       # bootstrap groups / universes / places   -> rbx init
   rbx-import     # adopt an existing universe wholesale    -> rbx import
   rbx-env        # read rbxplace.toml (list/get/codegen)-> rbx env
-  rbx-apikey     # Open Cloud API key lifecycle            -> rbx apikey
   rbx-place      # place files: upload/download/promote    -> rbx place
   rbx-meta       # universe & place metadata               -> rbx meta
   rbx-config     # in-experience live config               -> rbx config
-  rbx-secret     # universe secrets store (sealed writes)  -> rbx secret
   rbx-rtbf       # data store deletion templates (RTBF)     -> rbx rtbf
   rbx-shop       # passes / badges / developer products    -> rbx shop
   rbx-check      # every configured tool's check, one pass -> rbx check, rbx status
-  rbx-doctor     # credentials, key validity, scope cover  -> rbx doctor
-  rbx-open       # launch Studio at a place                -> rbx open
-  rbx-download   # download assets by id                   -> rbx download
 
-  # Live operations: acting on what only exists while the game runs
-  rbx-servers     # live and terminated servers, logs      -> rbx servers
-  rbx-analytics   # the experience's own metrics           -> rbx analytics
-  rbx-ban         # player restrictions                    -> rbx ban
-  rbx-restart     # rolling server restarts                -> rbx restart
-  rbx-data        # data store entries                     -> rbx data
-  rbx-memorystore # memory store sorted map items          -> rbx memorystore
-  rbx-message     # MessagingService messages              -> rbx message
-  rbx-ads         # ad campaigns                           -> rbx ads
-  rbx-probe       # raw authenticated request (hidden)     -> rbx probe
+  rbx-probe      # raw authenticated request (hidden)      -> rbx probe
 
-  rbx-spec-drift  # test-only: alarms when Roblox's OpenAPI moves
+  rbx-spec-drift # test-only: alarms when Roblox's OpenAPI moves
+  rbx-schema     # dev-only: writes schemas/*.json from the serde models
 ```
 
 `crates/rbx/src/main.rs` is deliberately thin: it defines the top-level `Tool`
 enum, flattens `rbx_core::GlobalFlags`, and forwards each subcommand to its
 crate's `run(cli, &global)`. No domain logic lives in the binary. Clap renders
 subcommands in declaration order, so that enum *is* the `--help` output, which
-is why it reads as a user journey and ends with the live-operations commands.
+is why it reads as a user journey.
 
-**There used to be two binaries.** `rbx-ops` carried the live-operations
-commands so that the tool CI installs could not run them. That drew the boundary
-in the command name, but not where it holds: Roblox binds an API key to its
-scopes at creation, so a deploy key cannot ban anybody whichever binary calls
-it. What it cost was installability: Rokit resolves one artifact per
-repository, so only one of two published binaries could ever be installed
-through it. The commands merged into `rbx` in 0.10.0, a forwarding shim carried
-the old name for two minor releases, and 0.12.0 deleted it. The signal now lives
-in the `Live:` prefix and in the ordering; the post-mortem of the split is in
-[TODO.md](./TODO.md). See [docs/ops.md](./docs/ops.md).
+**Every command reconciles state declared in a committed file, or reads the
+file.** Live operations, API key management, the Studio launcher and the asset
+downloader used to be subcommands too, and left the workspace in one change.
+They had no desired state a repository could hold, and keeping them here made
+a tool meant to run on every push also the one that could ban a player. The
+post-mortem is in [TODO.md](./TODO.md).
+
+`rbx-core` stays a library other binaries can depend on: it still carries the
+pieces those commands used (the Studio cookie chain, the asset download
+helper), because removing them would break a consumer pinned to `main`
+without making anything here simpler.
 
 ## rbx-core: the shared layer
 
@@ -163,12 +151,9 @@ belongs in the domain crate.
   Open Cloud has no equivalent. These endpoints are undocumented and can change
   without notice.
 
-The default `rbx download` path uses public, unauthenticated endpoints for
-read-only inspection of third-party games.
-
 ## Config vs lockfile
 
-Stateful tools (shop, meta, apikey, config) follow a declarative model:
+Stateful tools (shop, meta, config) follow a declarative model:
 
 - The user edits a `*.toml` describing the desired state.
 - A lockfile records the last-synced remote state (ids, hashes).

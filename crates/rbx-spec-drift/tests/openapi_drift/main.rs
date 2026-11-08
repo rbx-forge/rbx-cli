@@ -131,24 +131,6 @@ const SKIPPED_CRATES: &[(&str, &str)] = &[
 const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
     (
         "https://apis.roblox.com",
-        "/api-keys/v1/introspect",
-        "API key introspection; used by `rbx apikey`, never published in the OpenAPI document",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud-authentication/v1/apiKey",
-        "API key create/update/delete, used by `rbx apikey`; the cookie-authenticated \
-         management API behind the Creator Hub credentials page, never published in the \
-         OpenAPI document (same family as /api-keys/v1/introspect above)",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud-authentication/v1/apiKeys",
-        "plural, reached with a POST: the key listing behind the same page, undocumented \
-         for the same reason",
-    ),
-    (
-        "https://apis.roblox.com",
         "/universes/v1/places/{}/universe",
         "legacy place -> universe resolution; the document only describes \
          /universes/v1/{}/places/{}/versions",
@@ -185,33 +167,6 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
          rbx-shop/src/api/public.rs; the document only describes the hyphenated \
          /developer-products/v2/universes/{}/developer-products, which rbx-shop/src/api/products.rs \
          already uses. Worth collapsing onto the documented spelling.",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/analytics-query-api/{}",
-        "not a fixed endpoint: this is the long-running-operation poll in rbx-analytics, whose \
-         tail is an operation path handed back by Roblox at runtime. There is no static path \
-         to verify. The analytics endpoints that *are* static \
-         (/analytics-query-api/v1/universes/{}/metrics and .../dimension-values) are checked.",
-    ),
-    (
-        "https://economy.roblox.com",
-        "/v2/assets/{}/details",
-        "economy.roblox.com is a documented host, but this particular path is not among the \
-         operations it documents (only /v2/assets/batch, /v2/assets/{}/owners, \
-         /v2/assets/{}/versions)",
-    ),
-    (
-        "https://groups.roblox.com",
-        "/v1/groups/{}/roles/{}/users",
-        "the holders of one role, the listing behind the Creator Hub's Members tab, used \
-         by `rbx group members <role>` when a session is available. Never in the document. \
-         Probed on 2026-10-09: anonymously it answers 400 \"The user is invalid or does not \
-         exist\" for a private and a public role alike, where a bogus path on the same host \
-         gives 404, so the route exists and wants a session; signed in, it lists the role's \
-         holders including one holding it beside a higher role. Open Cloud has no \
-         equivalent: its membership listing documents no role filter, so without this the \
-         command reads the whole group to find one role.",
     ),
     (
         "https://publish.roblox.com",
@@ -260,9 +215,9 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
         "https://apis.roblox.com",
         "/asset-delivery-api/v1/assetId/{assetId}",
         "documented until the 2026-09-01 spec, dropped from the 2026-10-02 one. Still \
-         answers: 403 anonymously where a bogus path on the same host gives 404. This is \
-         the default backend of `rbx download --source public`, which reaches more assets \
-         than Open Cloud does, so losing it would be a feature loss rather than a cleanup.",
+         answers: 403 anonymously where a bogus path on the same host gives 404. `rbx place \
+         download` and the shop icon reads fetch bytes through it, so losing it would be a \
+         feature loss rather than a cleanup.",
     ),
     (
         "https://apis.roblox.com",
@@ -302,7 +257,12 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
 /// after a legitimate change, read the extraction rules above before lowering
 /// it: the usual cause is a new URL-building shape that needs supporting, not
 /// a number that needs editing.
-const MINIMUM_ENDPOINTS: usize = 60;
+///
+/// It was 60 until the live-operation, API key and asset download commands
+/// left the workspace, taking their clients with them. Extraction found 50
+/// afterwards, every one of them in a crate that still ships, so the floor
+/// moved with the codebase rather than with the extractor.
+const MINIMUM_ENDPOINTS: usize = 40;
 
 /// Crates that depend on the HTTP layer and still contribute no endpoint to
 /// this check, with the reason each is legitimate.
@@ -328,34 +288,7 @@ const MINIMUM_ENDPOINTS: usize = 60;
 /// exemption should turn into.
 const CRATES_WITHOUT_ENDPOINTS: &[(&str, &str)] = &[];
 
-const CALLED_THROUGH_A_HELPER: &[(&str, &str, &str)] = &[
-    (
-        "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/scopes/{scope_id}/entries/{entry_id}:increment",
-        "rbx-data/src/lib.rs, `format!(\"{}:increment\", self.entry_url(entry))`. \
-         Reached by `rbx data increment`.",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/scopes/{scope_id}/entries/{entry_id}:listRevisions",
-        "rbx-data/src/lib.rs, `format!(\"{}:listRevisions?maxPageSize=100\", \
-         self.entry_url(entry))`. Reached by `rbx data revisions`.",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud/v2/universes/{universeId}/secrets/{secretId}",
-        "rbx-secret/src/lib.rs, `format!(\"{}/{}\", self.secrets_url(), \
-         encode_query_value(id))`. Reached by `rbx secret set` (the PATCH half \
-         of its POST-then-PATCH upsert) and `rbx secret remove`.",
-    ),
-    (
-        "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}/memory-store/sorted-maps/{sorted_map_id}/items/{item_id}",
-        "rbx-memorystore/src/lib.rs, `fn item_url` appending an id to \
-         `items_url()`. Reached by the get, update and delete of `rbx \
-         memorystore`.",
-    ),
-];
+const CALLED_THROUGH_A_HELPER: &[(&str, &str, &str)] = &[];
 
 /// Endpoints inside a family this workspace covers that it deliberately does
 /// not call, each with the reason.
@@ -372,15 +305,6 @@ const CALLED_THROUGH_A_HELPER: &[(&str, &str, &str)] = &[
 const NOT_CALLED_ON_PURPOSE: &[(&str, &str, &str)] = &[
     (
         "https://apis.roblox.com",
-        "/cloud/v2/universes/{universe_id}:restartServers",
-        "A second way to do what `rbx restart` already does through \
-         `/server-management/v1/universes/{id}/restarts`. The one in use also \
-         forecasts and reports status, which this does not, so switching would \
-         trade a three-endpoint command for a one-endpoint one. Worth \
-         revisiting only if Roblox deprecates the server-management surface.",
-    ),
-    (
-        "https://apis.roblox.com",
         "/assets/v1/assets/{assetId}/versions/{versionNumber}",
         "Metadata for one asset version. `rbx place` lists versions through the \
          sibling path and fetches the bytes of a chosen one through \
@@ -389,30 +313,34 @@ const NOT_CALLED_ON_PURPOSE: &[(&str, &str, &str)] = &[
     ),
     (
         "https://apis.roblox.com",
-        "/ads-management/v1/billing-accounts/{id}",
-        "One billing account by id. `rbx ads` lists them to let a campaign name \
-         one, and never needs to look one up afterwards.",
-    ),
-    (
-        "https://apis.roblox.com",
         "/cloud/v2/universes/{universe_id}:generateSpeechAsset",
-        "Text to speech. Content creation, not deployment or operations, and \
-         nothing else in this tool generates assets.",
+        "Text to speech. Content creation, not deployment, and nothing else in \
+         this tool generates assets.",
     ),
     (
         "https://apis.roblox.com",
-        "/cloud/v2/groups/{group_id}/roles/{role_id}",
-        "One role by id. `rbx group` lists the roles every time it needs one, \
-         because a role name has to be matched against all of them anyway and \
-         an id has to be checked against the group rather than trusted.",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}",
+        "One data store's metadata, and its delete. `rbx rtbf` lists the stores to \
+         check templates against and never needs one on its own. Deleting a store \
+         acts on live player data, which no declaration in a repository describes.",
     ),
     (
         "https://apis.roblox.com",
-        "/cloud/v2/groups/{group_id}/memberships/{membership_id}",
-        "The PATCH that replaces a member's role. Marked **Deprecated** in the \
-         document itself, in favour of the `:assignRole` and `:unassignRole` \
-         actions `rbx group rank` and `unrank` use, which also handle a member \
-         holding several roles.",
+        "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}:undelete",
+        "Restores a deleted store. Same reason: an operation on live data, not a \
+         state a committed file declares.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}:publishMessage",
+        "Pushes a message to running servers. Acts on a game while it runs, which \
+         is out of scope for a tool that reconciles declared state.",
+    ),
+    (
+        "https://apis.roblox.com",
+        "/cloud/v2/universes/{universe_id}:restartServers",
+        "Restarts every running server. Same reason as `:publishMessage`: an \
+         operation on a live game, with no desired state a repository could hold.",
     ),
     (
         "https://apis.roblox.com",

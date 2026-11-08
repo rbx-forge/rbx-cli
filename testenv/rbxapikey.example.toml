@@ -12,7 +12,7 @@
 # rbxapikey.toml for the rbx-ops test environment.
 #
 # Run from this directory:
-#   cd testenv && rbx apikey create readonly
+#   cd testenv && rbx-apikey create readonly
 #
 # NOTE: Roblox moderation (Response.InvalidNameOrDescription) rejects a key
 # name or description containing "rbx" or "roblox" glued to an API or commerce
@@ -24,7 +24,7 @@
 # "Validate `rbx secret` against real Open Cloud" was refused, and the same
 # text without the brand was accepted with nothing else changed. Every
 # description below is already brand-free, which is why none of them has ever
-# hit it. `rbx apikey create` now explains the refusal when it arrives and its
+# hit it. `rbx-apikey create` now explains the refusal when it arrives and its
 # auto-generated fallback names nothing, but it refuses nothing locally: "glued
 # to an API or commerce term" is a judgement, not a substring.
 
@@ -108,7 +108,7 @@ scopes = [
 # Declared but not currently created. It was created on 2026-08-13 to answer
 # the question above, and deleted once it had: an unused credential that can be
 # rebuilt from this block in one command is not worth leaving live for three
-# months. `rbx apikey create memstore` brings it back when the memorystore work
+# months. `rbx-apikey create memstore` brings it back when the memorystore work
 # starts.
 [keys.memstore]
 description = "Probe the memory-store scope target. Test universe only."

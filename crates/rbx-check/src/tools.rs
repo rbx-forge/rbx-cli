@@ -1242,27 +1242,6 @@ fn rtbf_fingerprints(templates: &Templates) -> Vec<String> {
     lines
 }
 
-// ---------------------------------------------------------------------------
-// apikey / rbxapikey.toml
-// ---------------------------------------------------------------------------
-
-/// Reported, not run.
-///
-/// `rbx apikey status` classifies key health (expiry, orphan lockfile entries,
-/// missing secrets) inside a private module and returns `Ok(())` whatever it
-/// finds, which the other per-tool checks no longer do. Wiring it in would mean
-/// either widening `rbx-apikey` internals or re-implementing that classifier
-/// here: a second copy of the rules, which is exactly the failure mode this
-/// tool exists to catch. Left as a named gap instead. See `docs/check.md`.
-pub fn apikey() -> Vec<ToolReport> {
-    vec![ToolReport::new(
-        "apikey",
-        "status",
-        Outcome::Skipped,
-        "not yet wired: run `rbx apikey status` (see docs/check.md)",
-    )]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1348,14 +1327,6 @@ mod tests {
     fn the_standalone_block_is_labelled_default() {
         assert_eq!(env_label(None), "default");
         assert_eq!(env_label(Some("prod")), "prod");
-    }
-
-    #[test]
-    fn apikey_is_reported_as_a_named_gap_rather_than_silently_omitted() {
-        let reports = apikey();
-        assert_eq!(reports.len(), 1);
-        assert_eq!(reports[0].outcome, Outcome::Skipped);
-        assert!(reports[0].summary.contains("rbx apikey status"));
     }
 
     // -----------------------------------------------------------------------

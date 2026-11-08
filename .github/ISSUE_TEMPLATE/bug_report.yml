@@ -63,7 +63,7 @@ body:
       label: Relevant config
       description: >
         The section of `rbxplace.toml`, `rbxshop.toml`, `rbxmeta.toml`,
-        `rbxconfig.toml`, `rbxrtbf.toml` or `rbxapikey.toml` the command reads,
+        `rbxconfig.toml` or `rbxrtbf.toml` the command reads,
         with ids replaced by placeholders. Skip if not relevant.
       render: toml
     validations:
@@ -75,6 +75,6 @@ body:
       label: Anything else
       description: >
         Does it reproduce every time? Did it work in an earlier version, which
-        one? Does `rbx doctor` say anything?
+        one?
     validations:
       required: false

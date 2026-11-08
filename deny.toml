@@ -46,7 +46,7 @@ ignore = [
     # cookie auto-detection, and the only document it parses is the local
     # Safari/Studio cookie store on the machine running the command. An
     # attacker who can write that file has already won, and a parser that takes
-    # too long on it costs one slow `rbx doctor`.
+    # too long on it costs one slow command.
     #
     # Revisit when `plist` releases against `quick-xml >= 0.41`.
     "RUSTSEC-2026-0194",

@@ -18,21 +18,13 @@ pub enum Tool {
     Config,
     /// `rbxrtbf.toml`: the right-to-be-forgotten deletion templates.
     Rtbf,
-    Apikey,
 }
 
 impl Tool {
     /// Every tool, in the order `rbx check` runs them: local-only work first,
     /// so a repo that is going to fail on a byte comparison fails before
     /// spending a round trip on a remote diff.
-    pub const ALL: [Tool; 6] = [
-        Tool::Env,
-        Tool::Shop,
-        Tool::Meta,
-        Tool::Rtbf,
-        Tool::Config,
-        Tool::Apikey,
-    ];
+    pub const ALL: [Tool; 5] = [Tool::Env, Tool::Shop, Tool::Meta, Tool::Rtbf, Tool::Config];
 
     /// The file whose presence enables this tool.
     ///
@@ -46,7 +38,6 @@ impl Tool {
             Tool::Meta => "rbxmeta.toml",
             Tool::Config => "rbxconfig.toml",
             Tool::Rtbf => rbx_rtbf::config::FILE,
-            Tool::Apikey => "rbxapikey.toml",
         }
     }
 }
@@ -202,10 +193,6 @@ mod tests {
             Local,
             /// Needs at least one request.
             Remote,
-            /// Produces a fixed row and does no work at all, so it is exempt:
-            /// `tools::apikey` is a documented gap that reports itself, and it
-            /// sits last for that reason rather than for this rule's.
-            None,
         }
 
         fn cost(tool: Tool) -> Cost {
@@ -217,7 +204,6 @@ mod tests {
                 Tool::Rtbf => Cost::Local,
                 // `config/live` is a Configs API read per env and nothing else.
                 Tool::Config => Cost::Remote,
-                Tool::Apikey => Cost::None,
             }
         }
 
@@ -235,7 +221,7 @@ mod tests {
 
         // And the whole set is covered, so a tool cannot escape the rule by
         // being left out of `cost`.
-        assert_eq!(Tool::ALL.len(), 6);
+        assert_eq!(Tool::ALL.len(), 5);
     }
 
     /// A tool added to the enum and forgotten in `ALL` is a check that never

@@ -1,9 +1,9 @@
 //! Listing the data stores a universe actually has.
 //!
 //! One endpoint, `Cloud_ListDataStores`, and it exists here rather than in
-//! `rbx-core` because `rbx rtbf verify` is its only consumer today. If
-//! `rbx data` grows a `stores` listing it should move; sharing it before there
-//! is a second reader would be guessing at the shape the second reader wants.
+//! `rbx-core` because `rbx rtbf verify` is its only consumer. Sharing it
+//! before there is a second reader would be guessing at the shape the second
+//! reader wants.
 
 use anyhow::Result;
 use serde::Deserialize;

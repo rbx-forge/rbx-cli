@@ -1,4 +1,4 @@
-//! HTTP-level tests for `rbx-ops probe`, against a `wiremock` server.
+//! HTTP-level tests for `rbx probe`, against a `wiremock` server.
 //!
 //! These are the first tests in the suite that exercise a domain crate's
 //! request over real HTTP rather than its argument parsing. They are only

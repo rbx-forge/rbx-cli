@@ -1,4 +1,4 @@
-//! `rbx-ops probe` : send a raw authenticated request to any Open Cloud path
+//! `rbx probe`: send a raw authenticated request to any Open Cloud path
 //! and print the response.
 //!
 //! Why this exists. Several endpoints we need are in beta and absent from the
@@ -46,9 +46,8 @@ pub struct ProbeCli {
 
     /// Actually send a non-GET request.
     ///
-    /// Without it, a write is described and not performed. Every write in
-    /// `rbx-ops` follows this rule: the safe thing is what happens when you
-    /// forget a flag.
+    /// Without it, a write is described and not performed: the safe thing is
+    /// what happens when you forget a flag.
     #[arg(long)]
     pub apply: bool,
 

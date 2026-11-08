@@ -22,27 +22,19 @@ use crate::bodies::serialised_keys;
 use crate::{extract::*, spec::*};
 
 const SHOP: &str = "crates/rbx-shop/src/api/models.rs";
-const ADS: &str = "crates/rbx-ads/src/model.rs";
-const BAN: &str = "crates/rbx-ban/src/model.rs";
-const DATA: &str = "crates/rbx-data/src/model.rs";
-const GROUP: &str = "crates/rbx-group/src/model.rs";
 
 /// Where a model's schema is: the 200 response of a route, or a property of it
-/// for a nested type with no route of its own, or the items of that property
-/// when it is a list.
+/// for a nested type with no route of its own.
 enum Source {
     Route(&'static str, &'static str),
     Property(&'static str, &'static str, &'static str),
-    Items(&'static str, &'static str, &'static str),
 }
 
-use Source::{Items, Property, Route};
+use Source::{Property, Route};
 
 /// `(file, model, source)`. Left out: `BadgeIconResponse`, whose route documents
-/// no response, `AssetDeliveryResponse`, the public asset delivery this document
-/// does not describe, the analytics models, whose shapes are named per query, and
-/// `GroupRole`, which flattens another struct into itself and which the scan
-/// refuses rather than reading half of.
+/// no response, and `AssetDeliveryResponse`, the public asset delivery this
+/// document does not describe.
 const RESPONSES: &[(&str, &str, Source)] = &[
     (
         SHOP,
@@ -102,112 +94,6 @@ const RESPONSES: &[(&str, &str, Source)] = &[
             "priceInformation",
         ),
     ),
-    (
-        ADS,
-        "Campaign",
-        Route("/ads-management/v1/campaigns/{id}", "get"),
-    ),
-    (
-        ADS,
-        "ListCampaigns",
-        Route("/ads-management/v1/campaigns", "get"),
-    ),
-    (
-        BAN,
-        "UserRestriction",
-        Route(
-            "/cloud/v2/universes/{universe_id}/user-restrictions/{user_restriction_id}",
-            "get",
-        ),
-    ),
-    (
-        BAN,
-        "GameJoinRestriction",
-        Property(
-            "/cloud/v2/universes/{universe_id}/user-restrictions/{user_restriction_id}",
-            "get",
-            "gameJoinRestriction",
-        ),
-    ),
-    (
-        BAN,
-        "RestrictionPage",
-        Route("/cloud/v2/universes/{universe_id}/user-restrictions", "get"),
-    ),
-    (
-        BAN,
-        "LogPage",
-        Route(
-            "/cloud/v2/universes/{universe_id}/user-restrictions:listLogs",
-            "get",
-        ),
-    ),
-    (
-        BAN,
-        "RestrictionLog",
-        Items(
-            "/cloud/v2/universes/{universe_id}/user-restrictions:listLogs",
-            "get",
-            "logs",
-        ),
-    ),
-    (
-        GROUP,
-        "ListGroupRolesResponse",
-        Route("/cloud/v2/groups/{group_id}/roles", "get"),
-    ),
-    (
-        GROUP,
-        "ListGroupMembershipsResponse",
-        Route("/cloud/v2/groups/{group_id}/memberships", "get"),
-    ),
-    (
-        GROUP,
-        "GroupMembership",
-        Items(
-            "/cloud/v2/groups/{group_id}/memberships",
-            "get",
-            "groupMemberships",
-        ),
-    ),
-    (
-        DATA,
-        "StoreList",
-        Route("/cloud/v2/universes/{universe_id}/data-stores", "get"),
-    ),
-    (
-        DATA,
-        "DataStore",
-        Items(
-            "/cloud/v2/universes/{universe_id}/data-stores",
-            "get",
-            "dataStores",
-        ),
-    ),
-    (
-        DATA,
-        "DataStoreEntry",
-        Route(
-            "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/entries/{entry_id}",
-            "get",
-        ),
-    ),
-    (
-        DATA,
-        "EntryList",
-        Route(
-            "/cloud/v2/universes/{universe_id}/data-stores/{data_store_id}/entries",
-            "get",
-        ),
-    ),
-    (
-        DATA,
-        "SnapshotResult",
-        Route(
-            "/cloud/v2/universes/{universe_id}/data-stores:snapshot",
-            "post",
-        ),
-    ),
 ];
 
 /// The properties a schema documents, following `$ref` and `allOf`.
@@ -233,10 +119,6 @@ fn schema_for<'a>(spec: &'a Value, source: &Source) -> &'a Value {
         Route(path, method) => response_schema(spec, path, method),
         Property(path, method, property) => {
             &resolve(spec, response_schema(spec, path, method))["properties"][*property]
-        }
-        Items(path, method, property) => {
-            let list = &resolve(spec, response_schema(spec, path, method))["properties"][*property];
-            &resolve(spec, list)["items"]
         }
     }
 }

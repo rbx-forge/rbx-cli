@@ -94,11 +94,7 @@ commit, and the reasoning behind vendoring it are in
 ## Not derived code
 
 Listed here because they are credited elsewhere in the project and the
-distinction matters: [ROpen](https://github.com/Barocena/ROpen) (MPL-2.0)
-inspired the `roblox-studio:` URI dispatch in `rbx open`,
-[edit-roblox-place](https://github.com/rojo-rbx/edit-roblox-place) (MIT) sent
-the same URI from a Rust CLI six years before either, and
-[Mantle](https://github.com/blake-mealey/mantle) and
+distinction matters: [Mantle](https://github.com/blake-mealey/mantle) and
 [rbxcloud](https://github.com/Sleitnick/rbxcloud) are prior art in this
-category. **No source code from any of the four is reused**, so no notice is
-owed — see the README's "Prior art and thanks" section.
+category. **No source code from either is reused**, so no notice is owed. See
+the README's "Prior art and thanks" section.

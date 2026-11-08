@@ -39,9 +39,9 @@ use std::path::{Path, PathBuf};
 /// out in its docs and its fixtures, which is the one place they belong.
 const SELF: &str = "binary_names.rs";
 
-/// The two binaries the workspace ships. `crates/rbx` and `crates/rbx-ops`
-/// carry no retired per-tool name, so they contribute nothing to match on.
-const SHIPPED: &[&str] = &["rbx", "rbx-ops"];
+/// The one binary the workspace ships. `crates/rbx` carries no retired
+/// per-tool name, so it contributes nothing to match on.
+const SHIPPED: &[&str] = &["rbx"];
 
 fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is <root>/crates/rbx-core.
@@ -52,7 +52,7 @@ fn workspace_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// `crates/rbx-apikey` → `rbxapikey`, for every crate but the shipped two.
+/// `crates/rbx-shop` → `rbxshop`, for every crate but the shipped one.
 fn retired_names(root: &Path) -> Vec<String> {
     let mut names: Vec<String> = fs::read_dir(root.join("crates"))
         .expect("crates/ exists")
@@ -166,10 +166,10 @@ fn no_user_facing_string_names_a_binary_the_workspace_does_not_build() {
 
     assert!(
         offenders.is_empty(),
-        "these tell the reader to run a binary that does not exist. The workspace ships two, \
-         `rbx` and `rbx-ops`; the per-tool binaries were folded into subcommands. Write \
-         `rbx apikey status`, not `rbxapikey status`. File names are not affected: \
-         `rbxapikey.toml` and its siblings are matched only when followed by a space and a \
+        "these tell the reader to run a binary that does not exist. The workspace ships one, \
+         `rbx`; the per-tool binaries were folded into subcommands. Write \
+         `rbx shop sync`, not `rbxshop sync`. File names are not affected: \
+         `rbxshop.toml` and its siblings are matched only when followed by a space and a \
          subcommand.\n\n{}",
         offenders.join("\n")
     );
@@ -214,7 +214,7 @@ fn the_matcher_finds_a_command_and_spares_the_file_names() {
 #[test]
 fn the_retired_names_cover_the_tools_that_had_their_own_binary() {
     let names = retired_names(&workspace_root());
-    for expected in ["rbxapikey", "rbxconfig", "rbxshop", "rbxmeta", "rbxplace"] {
+    for expected in ["rbxconfig", "rbxshop", "rbxmeta", "rbxplace"] {
         assert!(
             names.contains(&expected.to_string()),
             "{expected} is missing from {names:?}; the crate list or the rbx- prefix stripping \

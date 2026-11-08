@@ -115,9 +115,8 @@ pub fn status(report: &Report) {
         println!();
         match env {
             Some(name) => println!("  {} {}", mark(worst), name.bold()),
-            // Not an env: `env/codegen` compares a generated file, and
-            // `apikey/status` answers for the credential. Naming the group
-            // rather than inventing an env for it keeps the two apart.
+            // Not an env: `env/codegen` compares a generated file. Naming the
+            // group rather than inventing an env for it keeps the two apart.
             None => println!("  {} {}", mark(worst), "repository".bold()),
         }
         for row in rows {
@@ -163,8 +162,7 @@ fn verdict(report: &Report) -> String {
     match report.worst() {
         // "Everything matches" is only true of a run where nothing sat out,
         // and skipped rows are the normal case rather than the corner one:
-        // `apikey/status` is always skipped, and `--offline` skips
-        // `config/live` by construction. So the moment a row did not run, the
+        // `--offline` skips `config/live` by construction. So the moment a row did not run, the
         // verdict counts instead of concluding, in the words `summary` uses
         // for the same report.
         Outcome::Clean if skipped == 0 => {
@@ -270,7 +268,7 @@ mod tests {
                 .detail("orphan: VIP"),
         );
         mixed.push(ToolReport::new("config", "live", Outcome::Error, "no key"));
-        mixed.push(ToolReport::new("apikey", "status", Outcome::Skipped, "n/a"));
+        mixed.push(ToolReport::new("rtbf", "live", Outcome::Skipped, "n/a"));
         summary(&mixed);
     }
 
@@ -329,15 +327,15 @@ mod tests {
     }
 
     /// The verdict may not conclude more than the rows say. One clean row and
-    /// one skipped row is not "everything matches": `apikey/status` is always
-    /// skipped and `--offline` skips `config/live`, so the reading this
+    /// one skipped row is not "everything matches": `--offline` skips
+    /// `config/live` and `rtbf/live`, so the reading this
     /// protects against is "everything matches" over a run that compared
     /// nothing against Roblox.
     #[test]
     fn a_clean_verdict_does_not_swallow_the_skipped_rows() {
         let mut report = Report::default();
         report.push(row("env", "codegen", Outcome::Clean));
-        report.push(row("apikey", "status", Outcome::Skipped));
+        report.push(row("config", "live", Outcome::Skipped));
 
         let line = verdict(&report);
 

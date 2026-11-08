@@ -75,16 +75,6 @@ fn the_committed_place_configs_validate() {
     }
 }
 
-#[test]
-fn the_committed_apikey_configs_validate() {
-    for file in [
-        "testenv/rbxapikey.example.toml",
-        "prodread/rbxapikey.example.toml",
-    ] {
-        assert_valid("rbxapikey.toml", file, &read(file));
-    }
-}
-
 /// Every documented env key at once, including the ones no committed file
 /// happens to use. The `.example` files are a thin corpus: between them they
 /// exercise `universe_id` and `places` and nothing else.
@@ -133,19 +123,6 @@ fn an_unknown_key_is_accepted_the_way_the_tools_accept_it() {
 [dev]
 universe_id = 100
 some_key_from_a_newer_release = "x"
-"#,
-    );
-
-    assert_valid(
-        "rbxapikey.toml",
-        "an rbxapikey.toml with an unknown settings key",
-        r#"
-[settings]
-default_envs = ["prod"]
-setting_from_the_future = true
-
-[keys.viewer]
-scopes = ["universe:read"]
 "#,
     );
 }

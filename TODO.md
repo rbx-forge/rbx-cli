@@ -276,34 +276,6 @@ sibling mode under `data` exactly as the row predicted, minus the four verbs
 Roblox does not offer on that resource (`snapshot`, `revisions`, `restore`,
 `diff`).
 
-### Undecided: universe secrets, and the reason it is not a wrapper
-
-`/cloud/v2/universes/{id}/secrets` (GET, POST, PATCH, DELETE) plus
-`/secrets/public-key`, scope `universe.secret:read,write`. The one item from
-that audit that is a genuine fit rather than scope creep: `rbx apikey` already
-manages secrets, and these are the secrets an *experience* reads at runtime.
-
-**What makes it not a one-afternoon job**, per the spec:
-
-- `GET /secrets/public-key` returns a universe-specific public key, derived
-  from a master key. The `id` field is static (`"public-key"`); the key itself
-  is in `secret`, and the response carries a `key_id`.
-- Creating or updating a secret means encrypting the content client-side with
-  **LibSodium sealed box**, base64-encoding it, and sending the `key_id` that
-  was used alongside it. There is no plaintext path.
-- `GET` never returns content, only metadata. So the tool can never show a
-  secret back, which rules out the `rbx apikey resolve` shape entirely and
-  means the lockfile can hold no copy worth having.
-- Deletion is irreversible, 500 secrets max per universe.
-
-So it needs a crypto dependency, and the tool's usual "write it down so you can
-read it back" model does not apply. A pure-Rust sealed box exists (`dryoc`, or
-the narrower `sodiumbox`), so this need not pull in C libsodium: worth
-confirming against the encryption Roblox actually accepts before committing.
-
-Not declined, not scheduled. Decide it deliberately when there is a reason to,
-rather than letting it fall through the gap between the two lists again.
-
 ---
 
 ## Backlog: publish the config schemas to SchemaStore
@@ -320,7 +292,6 @@ one catalog entry per file, matching on the file names:
 | Schema | `fileMatch` |
 | --- | --- |
 | `rbxplace.schema.json` | `rbxplace.toml`, `rbxplace.example.toml` |
-| `rbxapikey.schema.json` | `rbxapikey.toml`, `rbxapikey.example.toml` |
 | `rbxmeta.schema.json` | `rbxmeta.toml`, `rbxmeta.example.toml` |
 | `rbxconfig.schema.json` | `rbxconfig.toml`, `rbxconfig.example.toml` |
 | `rbxshop.schema.json` | `rbxshop.toml`, `rbxshop.example.toml` |
@@ -338,76 +309,6 @@ about a URL:
 
 The `.example` patterns matter as much as the real ones: the template is the
 file a newcomer opens first, and it is the copy they learn the format from.
-
----
-
-## Backlog: the scope catalog comes from the docs, not from the service
-
-**Found 2026-08-04** while measuring the API-key list endpoint. Loading the
-Creator Hub's credentials page shows it fetching
-`GET https://apis.roblox.com/cloud-authentication/v1/scopes`: the scope
-catalog, served by *the service that validates the scopes*.
-
-`commands/catalog.rs` builds our catalog from
-`creator-docs/…/reference/cloud/openapi.json` on GitHub instead: the published
-documentation, which can lag or disagree with what the service enforces.
-
-**Why it matters.** Less than it did. This was written as "very likely the
-answer" to the `infer_target_type` item, but that one was settled on
-2026-08-13 by readback: a key was created for each contested scope and Roblox
-echoed the target it stored. So this no longer unblocks anything.
-
-What it still buys is the difference between a catalog built from
-documentation and one built from the service that enforces it. `create` builds
-its requests from this catalog, and a wrong target fails at key creation rather
-than at compile time, so the gap is worth closing before it is discovered by a
-failed create rather than by a diff.
-
-**Fix.** Measure `/v1/scopes` (cookie auth, GET, no parameters observed), diff
-its scope list against the embedded catalog and against
-`infer_target_type`, then decide whether it replaces the openapi.json source or
-becomes a second opinion `catalog regenerate` reconciles against. Do not switch
-the source before the diff: the catalog is what `create` builds its requests
-from, and a wrong target fails at key creation, not at compile time.
-
----
-
-## Backlog: `canUseApiKeys` may answer what `can-manage` infers
-
-**Found 2026-08-04**, same page load:
-`POST https://apis.roblox.com/cloud-authentication/v1/canUseApiKeys`, called
-before the credentials page renders. Request and response shapes were not
-captured.
-
-`can-manage` currently answers with `develop.roblox.com`'s `canManage`, and
-`docs/apikey.md` is explicit that "can administer this experience" ⇒ "can use
-API keys here" is an *inference from three observations*, on a legacy endpoint
-with no Open Cloud equivalent.
-
-An endpoint named `canUseApiKeys`, on the cloud-authentication service itself,
-is a candidate for the question we are actually asking.
-
-**Fix.** Capture its request/response, check whether it takes a universe or is
-account-wide (the name suggests account-wide, in which case it answers a
-*different*, still useful question and does not replace `can-manage`). Only
-then decide. Keep the measured caveats in the docs either way.
-
----
-
-## Backlog: group-owned keys are not listed
-
-`list --remote` and `prune` list the authenticated user's own keys. The listing
-route takes an optional `groupId`, exposed as `--group-id`, but the user must
-supply the id.
-
-The Creator Hub enumerates them with
-`GET https://apis.roblox.com/creator-home-api/v1/groups?surface=CreatorHub`
-(observed on the credentials page; response shape not captured).
-
-**Fix.** Measure that response, then let `list --remote` sweep every group the
-account belongs to (one listing call per group) so "every key on the account"
-is true without arguments. Until then the commands say so explicitly rather
-than implying completeness.
 
 ---
 
@@ -478,3 +379,27 @@ to `rbx <name>` in 0.10.0, the shim forwarded with a deprecation notice for two
 minor releases, and 0.12.0 deletes it. Two minor releases of notice was chosen
 so that anyone pinning a version in `rokit.toml` met the warning during a normal
 upgrade, without the shim becoming load-bearing.
+
+## Done 2026-11-08: the split again, one repository per tool
+
+**Was.** One binary carrying the reconciling commands, the live operations
+behind their `Live:` prefix, API key management, the Studio launcher and the
+asset downloader.
+
+**Why the merge above did not settle it.** It fixed the install, not the
+boundary. A tool meant to run on every push was still the one that could ban a
+player, and the surface kept growing in directions that had nothing to
+reconcile: no desired state for a ban, a launch or a download.
+
+**What changed.** The measurement above was about two binaries from *one*
+repository. One binary per repository has no such problem, so each of those
+families left for a repository of its own, installable through Rokit like this
+one. `rbx` keeps the commands that reconcile a committed file (`init`,
+`import`, `env`, `check`, `status`, `place`, `meta`, `config`, `rtbf`, `shop`)
+and `probe` beside them.
+
+**What stayed shared.** `rbx-core` is still a library: the extracted binaries
+depend on it by git, pinned through their own lockfiles, so nothing moved out
+of it. Removing the cookie chain or the asset helper because `rbx` no longer
+calls them would break those consumers on their next update and simplify
+nothing here.

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "rbx-ops subcommand: send a raw authenticated request to an Open Cloud endpoint"
+description = "rbx subcommand: send a raw authenticated request to an Open Cloud endpoint"
 # Never published to crates.io. This workspace ships one binary through GitHub
 # releases, and these crates exist to structure it: they carry path
 # dependencies with no version requirement, which crates.io rejects outright,

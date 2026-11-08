@@ -50,14 +50,8 @@ Out of scope, because it is documented behavior rather than a defect:
   disk. `--no-auto-cookie` opts out; `RBX_COOKIE` overrides. The ergonomics of
   making that consent explicit are tracked in the issue tracker, in the open.
 - **An API key doing what its scopes allow.** `rbx` cannot grant itself more
-  than the key carries; a key scoped too broadly is a configuration problem the
-  `rbx doctor` and `rbx apikey` commands exist to surface.
-- **`rbx doctor --check-ip` contacting a third party.** Comparing a key's IP
-  allowlist against this machine needs the machine's public address, which
-  nothing here can read off its own interfaces. The flag is opt-in, off by
-  default, makes exactly one request to `https://api.ipify.org`, and names that
-  service on the line reporting the address. Without the flag no packet leaves
-  for anyone but Roblox.
+  than the key carries; a key scoped too broadly is a configuration problem,
+  fixed where the key was created.
 - Anything requiring an attacker who already has your credentials, or write
   access to your machine or repository.
 - Rate limits, quotas, and Roblox-side API behavior. Report those to Roblox.
@@ -79,5 +73,5 @@ corrupt download only.
 
 Two habits cover most of the risk: keep keys in `RBX_API_KEY` or your CI's
 secret store rather than in a file, and scope each key to the environment it
-serves. `rbx apikey` and `rbx doctor` exist to make the second one checkable:
-`docs/ops.md` covers the reasoning.
+serves. A key that can only write places cannot do anything else, whatever
+command it is handed to.

@@ -34,9 +34,9 @@
 //! Field names are documented in `docs/place.md` and are the compatibility
 //! surface. Ids and version numbers are strings: they identify an asset, they
 //! exceed 2^53 in the case of a place id, and a consumer that parses them as
-//! JSON numbers would round them. Keeping versions in the same form means
-//! `place upload --json | jq -r .version` feeds `rbx servers list --version`
-//! without a conversion in between.
+//! JSON numbers would round them. Keeping versions in the same form means a
+//! script carries the output of `place upload --json | jq -r .version` around
+//! without a conversion.
 
 use std::collections::HashMap;
 

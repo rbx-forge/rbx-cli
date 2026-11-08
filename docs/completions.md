@@ -6,8 +6,17 @@ Generate a shell completion script. `--env` and `--place` complete with the name
 rbx completions bash       -o ~/.local/share/bash-completion/completions/rbx
 rbx completions zsh        -o "${fpath[1]}/_rbx"
 rbx completions fish       -o ~/.config/fish/completions/rbx.fish
-rbx completions powershell -o $PROFILE
 ```
+
+PowerShell has no completion directory, so the script goes in a file of its own next to your profile, and the profile loads it:
+
+```powershell
+$f = Join-Path (Split-Path $PROFILE) rbx-completions.ps1
+rbx completions powershell -o $f
+Add-Content $PROFILE ". `"$f`""
+```
+
+**Never `-o $PROFILE`.** `-o` replaces the file it writes to, so that would erase everything else in your profile. The last line above runs once; regenerating later is the middle line alone.
 
 `-o` is `--output`; without it the script goes to stdout, which is what you want for piping into a file yourself.
 
@@ -16,7 +25,7 @@ rbx completions powershell -o $PROFILE
 | bash | `~/.local/share/bash-completion/completions/rbx` | New shell, or `source` the file. Needs `bash-completion` installed |
 | zsh | any directory on `$fpath`, named `_rbx` | New shell, or `compinit`. `${fpath[1]}` is usually writable; if not, pick your own and add it to `fpath` in `.zshrc` before `compinit` |
 | fish | `~/.config/fish/completions/rbx.fish` | Picked up immediately |
-| powershell | appended to `$PROFILE` | New session, or `. $PROFILE`. Use `>>` rather than `-o` if the profile already has content |
+| powershell | `rbx-completions.ps1` next to `$PROFILE`, dot-sourced from it | New session, or `. $PROFILE` |
 
 ## The values are not baked in
 

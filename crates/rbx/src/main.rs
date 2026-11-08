@@ -168,8 +168,11 @@ enum Tool {
     /// bash:        rbx completions bash       -o ~/.local/share/bash-completion/completions/rbx
     /// zsh:         rbx completions zsh        -o "${fpath\[1\]}/_rbx"
     /// fish:        rbx completions fish       -o ~/.config/fish/completions/rbx.fish
-    /// powershell:  rbx completions powershell -o $PROFILE
+    /// powershell:  rbx completions powershell -o (Join-Path (Split-Path $PROFILE) rbx-completions.ps1)
+    ///              then dot-source that file from $PROFILE
     /// ```
+    ///
+    /// Never `-o $PROFILE`: `-o` replaces the file, profile included.
     ///
     /// The script completes `--env` and `--place` with the names in the
     /// `rbxplace.toml` of whatever directory you are in, by calling

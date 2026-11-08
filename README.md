@@ -281,13 +281,15 @@ These are accepted by every subcommand and work both before and after the subcom
 | --- | --- | --- |
 | `--api-key <key>`, `-a` | `RBX_API_KEY` | Open Cloud API key |
 | `--cookie <value>` | `RBX_COOKIE` | `.ROBLOSECURITY` cookie for legacy endpoints |
-| `--no-auto-cookie` | | Disable Studio cookie auto-detection |
+| `--auto-cookie` | | Use a signed-in local Studio session without asking first |
+| `--no-auto-cookie` | | Never look for a local Studio session |
 | `--env <name>`, `-e` | | Target env. `all` expands to every env in `rbxplace.toml` |
 | `--place <name>` | | Place within the env (for subcommands that operate at place scope) |
 | `--places <path>` | | Path to `rbxplace.toml` (default `rbxplace.toml`) |
 | `--universe-id <id>` | | Name a universe directly, skipping `rbxplace.toml`. Wins over `--env`. Accepted as `--universe` too |
+| `--place-id <id>` | | Name a place directly, skipping `rbxplace.toml`. Wins over `--env` and `--place` |
 
-**About that cookie.** For the handful of endpoints Open Cloud does not publish (`init`, some `meta` fields, `apikey`), `rbx` falls back to the `.ROBLOSECURITY` cookie of a local Roblox Studio install when you set none, and prints `using the Roblox Studio cookie (pass --no-auto-cookie or set RBX_COOKIE= to disable)` on stderr the first time it does. A session cookie is a full-account credential, strictly more powerful than any scoped key, so it gets its own page: [docs/cookie.md](./docs/cookie.md) covers which commands use it, which never will, how it is resolved, and why it is never written to disk.
+**About that cookie.** For the handful of endpoints Open Cloud does not publish (`init`, some `meta` fields, `apikey`), `rbx` can use the `.ROBLOSECURITY` cookie of a signed-in local Roblox Studio when you set none. It is opt-in: an interactive run asks once, a run with nobody to ask (CI) refuses, and `--auto-cookie` is the standing yes. A session cookie is a full-account credential, strictly more powerful than any scoped key, so it gets its own page: [docs/cookie.md](./docs/cookie.md) covers which commands use it, which never will, how it is resolved, and why it is never written to disk.
 
 ### Without a config file
 
@@ -312,13 +314,20 @@ The `rbx` half is different by design: it reconciles state you committed, so
 ## Shell completions
 
 ```sh
-rbx completions powershell -o $PROFILE       # PowerShell (single-file install)
 rbx completions bash       -o ~/.local/share/bash-completion/completions/rbx
 rbx completions zsh        -o "${fpath[1]}/_rbx"
 rbx completions fish       -o ~/.config/fish/completions/rbx.fish
 ```
 
-Without `-o`, the completion script is printed to stdout (pipe into a file or your profile yourself).
+PowerShell has no completion directory: write the script next to your profile and load it from there. Never `-o $PROFILE`, which replaces the whole profile.
+
+```powershell
+$f = Join-Path (Split-Path $PROFILE) rbx-completions.ps1
+rbx completions powershell -o $f
+Add-Content $PROFILE ". `"$f`""   # once
+```
+
+Without `-o`, the completion script is printed to stdout.
 
 One binary, so one completion file. The live-operations commands are in it like any other.
 

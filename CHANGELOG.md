@@ -42,6 +42,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`settings.default_envs` no longer applies to a key that names ids.**
 - **`rbx download` and `rbx user` are hidden from `rbx --help`**, like `probe`.
   Both still run, complete in the shell and keep their docs.
+- **The help of the global flags describes the flag and nothing else.** It
+  named `rbxshop.toml`, group creation and `rbx apikey`, which made no sense in
+  the other binaries built on the same flags.
+
+### Fixed
+
+- **The PowerShell completion example no longer erases your profile.** It was
+  `rbx completions powershell -o $PROFILE`, and `-o` replaces the file it
+  writes. The script now goes in a file of its own, loaded from the profile.
+- **The README said the Studio cookie was used automatically.** It is opt-in:
+  asked once in a terminal, refused in CI, `--auto-cookie` to stop asking. The
+  global flags table also gains `--auto-cookie` and `--place-id`.
 
 ## [0.12.0] - 2026-11-05
 

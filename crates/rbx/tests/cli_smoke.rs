@@ -91,6 +91,22 @@ fn env_all_short_form_e_works() {
 }
 
 #[test]
+fn api_key_short_form_a_works_on_both_sides_of_the_subcommand() {
+    // Parser check, like the one above. `-a` is global, so it has to be
+    // accepted before the subcommand and after it.
+    for args in [
+        ["-a", "test-key", "shop", "--help"],
+        ["shop", "-a", "test-key", "--help"],
+    ] {
+        Command::cargo_bin("rbx")
+            .unwrap()
+            .args(args)
+            .assert()
+            .success();
+    }
+}
+
+#[test]
 fn completions_bash_emits_function() {
     Command::cargo_bin("rbx")
         .unwrap()

@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`-a` is short for `--api-key`**, the way `-e` is for `--env`, on every
+  command. The flag is still the place a key is least safe: prefer
+  `RBX_API_KEY`, which stays out of your shell history.
 - **`rbx apikey` works without `rbxplace.toml`.** A key names its targets by id
   with `universe_ids` and `place_ids` in `rbxapikey.toml`, beside or instead of
   `envs`. A place is resolved to its universe once and cached in the lockfile.

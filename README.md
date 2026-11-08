@@ -279,7 +279,7 @@ These are accepted by every subcommand and work both before and after the subcom
 
 | Flag | Env var | Description |
 | --- | --- | --- |
-| `--api-key <key>` | `RBX_API_KEY` | Open Cloud API key |
+| `--api-key <key>`, `-a` | `RBX_API_KEY` | Open Cloud API key |
 | `--cookie <value>` | `RBX_COOKIE` | `.ROBLOSECURITY` cookie for legacy endpoints |
 | `--no-auto-cookie` | | Disable Studio cookie auto-detection |
 | `--env <name>`, `-e` | | Target env. `all` expands to every env in `rbxplace.toml` |

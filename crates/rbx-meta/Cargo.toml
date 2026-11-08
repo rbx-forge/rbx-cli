@@ -24,7 +24,7 @@ toml.workspace = true
 colored.workspace = true
 toml_edit = "0.22"
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 # Reports the key paths serde skipped while deserializing, which is how
 # `Config::load` can name a key it does not understand without keeping a
 # second, hand-written list of every key it does. That list is what drifts:

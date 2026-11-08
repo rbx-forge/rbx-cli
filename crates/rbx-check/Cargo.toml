@@ -19,7 +19,7 @@ colored.workspace = true
 serde.workspace = true
 tokio.workspace = true
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 rbx-env = { path = "../rbx-env" }
 rbx-shop = { path = "../rbx-shop" }
 rbx-meta = { path = "../rbx-meta" }

@@ -17,7 +17,7 @@ clap.workspace = true
 clap_complete.workspace = true
 tokio.workspace = true
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 rbx-check = { path = "../rbx-check" }
 rbx-shop = { path = "../rbx-shop" }
 rbx-place = { path = "../rbx-place" }

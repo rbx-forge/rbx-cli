@@ -45,11 +45,11 @@ const STILL_READ: &[&str] = &[];
 const SELF: &str = "env_var_names.rs";
 
 fn workspace_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR is <root>/crates/rbx-core.
+    // CARGO_MANIFEST_DIR is <root>/crates/rbx.
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(2)
-        .expect("rbx-core should live two levels below the workspace root")
+        .expect("the rbx crate should live two levels below the workspace root")
         .to_path_buf()
 }
 

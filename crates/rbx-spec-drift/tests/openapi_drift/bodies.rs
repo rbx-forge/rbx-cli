@@ -151,7 +151,12 @@ fn every_request_body_matches_the_schema_the_spec_documents() {
     let spec = load_document(&root);
 
     for (file, struct_name, schema_name, omitted) in REQUEST_BODIES {
-        let source = root.join(file);
+        // The configs client lives in rbx-core, outside this workspace.
+        let source = if *file == CONFIGS_CLIENT {
+            crate::configs::rbx_core_root(&root).join(file)
+        } else {
+            root.join(file)
+        };
         let src = fs::read_to_string(&source)
             .unwrap_or_else(|e| panic!("cannot read {}: {e}", source.display()));
         let keys = serialised_keys(&strip_tests(&src), struct_name);

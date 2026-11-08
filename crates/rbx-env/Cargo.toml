@@ -23,7 +23,7 @@ serde_json.workspace = true
 # so a hand-written rbxplace.toml keeps its comments and its key order.
 toml_edit = "0.22"
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

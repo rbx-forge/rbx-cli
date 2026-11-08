@@ -66,7 +66,7 @@
 //!   its coverage: `rbx-place`'s upload, rollback and download went with one
 //!   such helper (`crates/rbx-place/src/api/mod.rs:70`, no longer
 //!   `#[cfg(test)]`), and so did the configs client's publish and revisions
-//!   calls, which now live in `crates/rbx-core/src/api/configs.rs`.
+//!   calls, which now live in rbx-core, at `src/api/configs.rs`.
 //! - **`www.roblox.com` and `create.roblox.com`** are skipped. Every use of
 //!   those is a human-facing web link (a profile URL, a dashboard link) or an
 //!   `Origin`/`Referer` header, not an API call.

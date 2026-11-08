@@ -84,14 +84,15 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   windows:
-    # The platform-dependent crate is the one Linux CI can never exercise:
-    # `rbx-core` auto-detects the .ROBLOSECURITY cookie from a local Studio
-    # install. That is the most likely place for a regression and, until this
-    # job, the only code whose tests ran nowhere: the release workflow compiles
-    # for Windows at tag time but never runs a test there.
+    # The crates whose behaviour depends on the platform are the ones that write
+    # files: `rbx-env` and `rbx-shop` edit TOML in place keeping CRLF endings,
+    # and name generated files after display names, where Windows refuses
+    # characters Linux accepts. The cookie detection that used to make this job
+    # necessary lives in rbx-core now, whose own CI runs on Windows; a bump of
+    # it changes Cargo.lock, which triggers this job too.
     #
     # Windows runners bill at 2x, so this is deliberately narrow: it only fires
-    # when that crate changes, and it tests only it. A few runs a month.
+    # when those crates or the lockfile change. A few runs a month.
     name: Windows (platform-dependent crates)
     runs-on: windows-latest
     timeout-minutes: 10
@@ -111,7 +112,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base"..HEAD \
-             | grep -qE '^crates/rbx-core/|^\.github/workflows/ci\.yml$'; then
+             | grep -qE '^crates/rbx-(env|shop)/|^Cargo\.lock$|^\.github/workflows/ci\.yml$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -122,7 +123,7 @@ jobs:
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
         if: steps.changed.outputs.run == 'true'
       - if: steps.changed.outputs.run == 'true'
-        run: cargo test -p rbx-core --locked
+        run: cargo test -p rbx-env -p rbx-shop --locked
 
   cross:
     # The release workflow ships binaries for targets no other job here builds,
@@ -154,7 +155,7 @@ jobs:
           targets: aarch64-apple-darwin, x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
       # A plain `cargo check --target aarch64-apple-darwin` does not survive
-      # this workspace: blake3 (via rbx-core) compiles a NEON C file on
+      # this workspace: blake3 (a dependency of rbx-core) compiles a NEON C file on
       # aarch64, and an Ubuntu runner has no C compiler that can target Darwin.
       # zig is one, ships the macOS libc headers, and installs in seconds,
       # which is the whole reason this stays off a 10x runner. It is also the

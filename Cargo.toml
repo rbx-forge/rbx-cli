@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "crates/rbx",
     "crates/rbx-check",
-    "crates/rbx-core",
     "crates/rbx-probe",
     "crates/rbx-shop",
     "crates/rbx-place",
@@ -83,6 +82,9 @@ print_stdout = "allow"   # CLI tool, println! is intentional
 print_stderr = "allow"
 
 [workspace.dependencies]
+# The library every rbx-forge tool shares, in a repository of its own and pinned
+# by tag: a change there reaches this workspace only when this line moves.
+rbx-core = { git = "https://github.com/rbx-forge/rbx-core", tag = "v0.1.1" }
 anyhow = "1"
 # Refcounted buffer for request bodies a retry closure may have to send more
 # than once: cloning a `Bytes` bumps a counter instead of re-allocating the

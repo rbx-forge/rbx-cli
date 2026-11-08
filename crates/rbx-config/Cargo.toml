@@ -24,7 +24,7 @@ colored.workspace = true
 dialoguer.workspace = true
 chrono.workspace = true
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

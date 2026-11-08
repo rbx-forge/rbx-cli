@@ -6,13 +6,13 @@ see the root `README.md` and each crate's `README.md`.
 
 ## Workspace layout
 
-The repo is a Cargo workspace: **one binary crate + one crate per domain +
-one shared core**.
+The repo is a Cargo workspace: **one binary crate + one crate per domain**,
+on top of [rbx-core](https://github.com/rbx-forge/rbx-core), the library the
+rbx-forge tools share, pulled in as a git dependency pinned by tag.
 
 ```
 crates/
   rbx          # the binary: clap parsing and dispatch only (src/main.rs)
-  rbx-core     # shared building blocks (no domain logic)
 
   # Reconciling what a repo declares
   rbx-init       # bootstrap groups / universes / places   -> rbx init
@@ -44,15 +44,12 @@ They had no desired state a repository could hold, and keeping them here made
 a tool meant to run on every push also the one that could ban a player. The
 post-mortem is in [TODO.md](./TODO.md).
 
-`rbx-core` stays a library other binaries can depend on: it still carries the
-pieces those commands used (the Studio cookie chain, the asset download
-helper), because removing them would break a consumer pinned to `main`
-without making anything here simpler.
-
 ## rbx-core: the shared layer
 
-Everything reused across crates lives here, so domain crates never duplicate
-infrastructure:
+Everything reused across crates lives in rbx-core, in its own repository, so
+domain crates never duplicate infrastructure. Moving its pin is the only way a
+change there reaches this workspace: bump the tag in the root `Cargo.toml`,
+then `cargo update -p rbx-core`.
 
 - **`GlobalFlags`** (`env.rs`): the global CLI flags (`--api-key`, `--cookie`,
   `--env`, `--place`, `--places`) plus `resolve_cookie()` (explicit flag →

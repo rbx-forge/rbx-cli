@@ -20,7 +20,7 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 # `import` is composition: each domain is imported by driving the command that
 # already knows how, rather than by reimplementing it here.
 rbx-init = { path = "../rbx-init" }

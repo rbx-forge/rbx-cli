@@ -19,7 +19,40 @@ use crate::{extract::*, paths::*, spec::*};
 /// this shape deliberately: teaching the general extractor to follow a
 /// `String`-returning helper is a much larger change, and a narrow check that
 /// runs beats a general one that does not exist.
-pub(crate) const CONFIGS_CLIENT: &str = "crates/rbx-core/src/api/configs.rs";
+/// Relative to the rbx-core checkout, not to this workspace: see
+/// [`rbx_core_root`].
+pub(crate) const CONFIGS_CLIENT: &str = "src/api/configs.rs";
+
+/// Where the rbx-core sources this workspace compiles against live.
+///
+/// rbx-core is a git dependency pinned by tag, so its sources sit in cargo's
+/// checkout rather than under `crates/`. `cargo metadata` names that exact
+/// directory, so the check reads the code that is actually built, at the
+/// pinned tag, and moves with the pin.
+pub(crate) fn rbx_core_root(root: &Path) -> std::path::PathBuf {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
+    let out = std::process::Command::new(cargo)
+        .args(["metadata", "--format-version", "1", "--manifest-path"])
+        .arg(root.join("Cargo.toml"))
+        .output()
+        .expect("cargo metadata should run");
+    assert!(
+        out.status.success(),
+        "cargo metadata failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let doc: serde_json::Value =
+        serde_json::from_slice(&out.stdout).expect("cargo metadata should print JSON");
+    let manifest = doc["packages"]
+        .as_array()
+        .and_then(|packages| packages.iter().find(|p| p["name"] == "rbx-core"))
+        .and_then(|p| p["manifest_path"].as_str())
+        .expect("rbx-core should be a dependency of this workspace");
+    Path::new(manifest)
+        .parent()
+        .expect("a manifest path has a parent directory")
+        .to_path_buf()
+}
 
 /// A floor on the paths reassembled from `CONFIGS_CLIENT`: the repository
 /// itself, `/draft`, `/draft:overwrite`, `/publish`, `/revisions` and a
@@ -35,7 +68,7 @@ pub(crate) const CONFIGS_ENDPOINTS: usize = 6;
 /// URL every other call is built on), and one `{}/...` literal per call site
 /// for the suffix. Query strings are dropped by `normalise`.
 pub(crate) fn configs_endpoints(root: &Path) -> Vec<(usize, String)> {
-    let file = root.join(CONFIGS_CLIENT);
+    let file = rbx_core_root(root).join(CONFIGS_CLIENT);
     let src = fs::read_to_string(&file).unwrap_or_else(|e| {
         panic!(
             "cannot read {}: {e}\nIf the configs client moved, point CONFIGS_CLIENT at it \

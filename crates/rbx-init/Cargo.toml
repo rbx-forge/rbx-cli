@@ -23,7 +23,7 @@ toml.workspace = true
 colored.workspace = true
 dialoguer.workspace = true
 
-rbx-core = { path = "../rbx-core" }
+rbx-core.workspace = true
 
 [dev-dependencies]
 wiremock.workspace = true

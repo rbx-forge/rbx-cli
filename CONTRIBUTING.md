@@ -219,7 +219,7 @@ have to show real Roblox changes and nothing else.
 
 ## Cutting a release
 
-1. Run the live checks against a test universe. CI never talks to Roblox ([#91](https://github.com/rbx-forge/rbx-cli/issues/91)), so this is what proves the build against the real API: the read commands and an upload of an unchanged place. Nothing that cannot be deleted gets created. The script stays out of the repository because it holds a real universe id, and it has to run locally because the key it uses is limited to one IP.
+1. Run the live checks against a test universe. CI never talks to Roblox ([#91](https://github.com/rbx-forge/rbx-deploy/issues/91)), so this is what proves the build against the real API: the read commands and an upload of an unchanged place. Nothing that cannot be deleted gets created. The script stays out of the repository because it holds a real universe id, and it has to run locally because the key it uses is limited to one IP.
 2. Bump `[workspace.package].version` in `Cargo.toml`, then `cargo check` to refresh `Cargo.lock`
 3. Move `## [Unreleased]` content to `## [X.Y.Z] - YYYY-MM-DD` in `CHANGELOG.md` (no `v` in the heading)
 

@@ -14,7 +14,7 @@ clap.workspace = true
 schemars.workspace = true
 serde_json.workspace = true
 
-rbx-core = { path = "../rbx-core", features = ["schema"] }
+rbx-core = { workspace = true, features = ["schema"] }
 rbx-config = { path = "../rbx-config", features = ["schema"] }
 rbx-meta = { path = "../rbx-meta", features = ["schema"] }
 rbx-rtbf = { path = "../rbx-rtbf", features = ["schema"] }

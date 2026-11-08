@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with `universe_ids` and `place_ids` in `rbxapikey.toml`, beside or instead of
   `envs`. A place is resolved to its universe once and cached in the lockfile.
 
+### Security
+
+- **`rbxapikey.lock.toml` is written readable by your account only.** It holds
+  the key secret by default, and was written with the default permissions of
+  the directory: world-readable on a typical Unix umask, and on Windows
+  inheriting whatever the folder grants, which for a repository outside your
+  profile usually includes every authenticated user. The file is now created
+  with mode `0600` (Unix) or with inherited access removed (Windows), before the
+  secret is written. A custom `secret_file` gets the same treatment, and no
+  longer ignores a failure to restrict it on Unix.
+
 ### Changed
 
 - **`rbx apikey` refuses `--env`, `--place`, `--universe-id` and `--place-id`**

@@ -163,7 +163,7 @@ jobs:
           if [ ! -s release-notes.md ]; then
             echo "CHANGELOG.md has no '## [$version]' section, so this release" >&2
             echo "would be published with an empty body. Step 2 of \"Cutting a" >&2
-            echo "release\" in README.md is what moves [Unreleased] to it." >&2
+            echo "release\" in CONTRIBUTING.md is what moves [Unreleased] to it." >&2
             exit 1
           fi
           printf '\n---\n' >> release-notes.md

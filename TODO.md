@@ -283,7 +283,7 @@ Roblox does not offer on that resource (`snapshot`, `revisions`, `restore`,
 **Added 2026-08-14** with the schemas themselves. `schemas/*.json` exists and
 is kept fresh by CI, but nothing picks it up automatically: a user has to
 write a `taplo.toml` rule or a VS Code association by hand, which is exactly
-the friction the schemas were meant to remove. README documents both.
+the friction the schemas were meant to remove. docs/reference/editor-support.md documents both.
 
 **Fix.** A pull request to
 [SchemaStore/schemastore](https://github.com/SchemaStore/schemastore) adding

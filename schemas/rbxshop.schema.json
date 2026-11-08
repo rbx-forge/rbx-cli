@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "rbxshop.toml",
-  "description": "Game passes, badges, and developer products: prices, icons, gift twins, codegen output, and per-env overlays. See docs/shop.md.",
+  "description": "Game passes, badges, and developer products: prices, icons, gift twins, codegen output, and per-env overlays. See docs/shop-config.md.",
   "type": "object",
   "properties": {
     "badges": {
@@ -38,7 +38,7 @@
       "$ref": "#/definitions/IconsConfig"
     },
     "include": {
-      "description": "Extra files (relative to this one) whose `passes`/`badges`/`products` tables (and their `[envs.<name>.*]` overlays) get merged in at load time via `Config::load_merged`. Only meaningful on the main file: included files must be \"pure\" resource files (no `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their own). See `docs/shop.md` for the `pull`/`rename` limitation this currently carries.",
+      "description": "Extra files (relative to this one) whose `passes`/`badges`/`products` tables (and their `[envs.<name>.*]` overlays) get merged in at load time via `Config::load_merged`. Only meaningful on the main file: included files must be \"pure\" resource files (no `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their own). See `docs/shop-config.md` for the `pull`/`rename` limitation this currently carries.",
       "allOf": [
         {
           "$ref": "#/definitions/IncludeConfig"

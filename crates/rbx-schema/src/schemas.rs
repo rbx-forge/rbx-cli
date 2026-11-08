@@ -182,7 +182,7 @@ pub fn all() -> Vec<Schema> {
             "rbxmeta.toml",
             "rbxmeta.schema.json",
             "Universe and place metadata: name, description, devices, social links, \
-             server fill, media, and per-env overlays. See docs/meta.md.",
+             server fill, media, and per-env overlays. See docs/meta-config.md.",
         ),
         build_map::<rbx_config::config::ConfigsFile, rbx_config::config::EnvConfig>(
             "rbxconfig.toml",
@@ -205,7 +205,7 @@ pub fn all() -> Vec<Schema> {
             "rbxshop.toml",
             "rbxshop.schema.json",
             "Game passes, badges, and developer products: prices, icons, gift twins, \
-             codegen output, and per-env overlays. See docs/shop.md.",
+             codegen output, and per-env overlays. See docs/shop-config.md.",
         ),
         // The one entry whose model is not what the CLI parses with, because
         // the CLI deliberately parses this file with nothing at all. See
@@ -216,7 +216,7 @@ pub fn all() -> Vec<Schema> {
             "rbxavatar.schema.json",
             "The modern avatar rules, sent verbatim as `engineAvatarSettings`: rig, \
              animations, clothing, accessories, collisions and body scaling. Pointed \
-             at by `game.engine_avatar_settings` in rbxmeta.toml. See docs/meta.md. \
+             at by `game.engine_avatar_settings` in rbxmeta.toml. See docs/meta-config.md. \
              \n\n\
              GUIDANCE, NOT VALIDATION. Roblox describes this field as an opaque JSON \
              string and publishes no schema for what is inside it, so nothing detects \

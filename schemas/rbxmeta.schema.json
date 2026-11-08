@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "rbxmeta.toml",
-  "description": "Universe and place metadata: name, description, devices, social links, server fill, media, and per-env overlays. See docs/meta.md.",
+  "description": "Universe and place metadata: name, description, devices, social links, server fill, media, and per-env overlays. See docs/meta-config.md.",
   "type": "object",
   "properties": {
     "envs": {

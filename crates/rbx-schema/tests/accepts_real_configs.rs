@@ -212,7 +212,7 @@ pattern = "Player_{UserId}_Save"
 }
 
 /// One shop config exercising all three resource kinds, the tables around
-/// them, and a per-env overlay: the shape `docs/shop.md` documents.
+/// them, and a per-env overlay: the shape `docs/shop-config.md` documents.
 #[test]
 fn a_shop_config_with_all_three_resource_kinds_validates() {
     assert_valid(

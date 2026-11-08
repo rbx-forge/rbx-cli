@@ -96,7 +96,7 @@ impl LegacyEnum {
 ///
 /// Anything absent from this struct is therefore a field `pull` cannot adopt
 /// and `check` cannot compare, and the lockfile is the only record of what this
-/// tool last wrote. Spelled out for users in `docs/meta-config.md` under "Write-only
+/// tool last wrote. Spelled out for users in <https://rbx-forge.github.io/rbx-deploy/meta-config/> under "Write-only
 /// fields".
 ///
 /// The enum fields arrive as [`LegacyEnum`] because the two endpoints disagree

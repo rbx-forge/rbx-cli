@@ -117,7 +117,7 @@ fn parses(args: &[&str]) -> Result<(), clap::Error> {
 /// reads, and `single_place` has always answered from the id alone. Only the
 /// parse rule disagreed: `--env` was required outright, so clap turned these
 /// away before anything consulted the id. Both lines below are copied from
-/// docs/place.md, "Working without rbxplace.toml".
+/// <https://rbx-forge.github.io/rbx-deploy/place/>, "Working without rbxplace.toml".
 #[test]
 fn a_place_id_stands_in_for_an_env_on_the_reads() {
     assert!(parses(&["versions", "--place-id", "123456789012345"]).is_ok());

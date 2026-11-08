@@ -54,7 +54,7 @@ impl Outcome {
 
 /// One tool's answer for one env.
 ///
-/// Field names are the `--json` contract; see `docs/check.md`.
+/// Field names are the `--json` contract; see <https://rbx-forge.github.io/rbx-deploy/check/>.
 #[derive(Debug, Clone, Serialize)]
 pub struct ToolReport {
     /// Stable tool identifier: `env`, `shop`, `meta`, `config`, `rtbf`.
@@ -205,7 +205,7 @@ impl Report {
 ///
 /// A named object rather than a positional array, all the way down: a consumer
 /// survives a field being added and does not survive a column shifting. Field
-/// names are documented in `docs/check.md` and are the compatibility surface:
+/// names are documented in <https://rbx-forge.github.io/rbx-deploy/check/> and are the compatibility surface:
 /// `schema_version` is bumped if one changes meaning or goes away.
 #[derive(Debug, Serialize)]
 pub struct CheckDocument<'a> {

@@ -70,7 +70,7 @@ pub struct CheckCli {
     ///
     /// stdout carries the document and nothing else; diagnostics stay on
     /// stderr, and the exit code is unchanged. Field names are documented in
-    /// docs/check.md.
+    /// <https://rbx-forge.github.io/rbx-deploy/check/>.
     #[arg(long)]
     pub json: bool,
 }
@@ -101,7 +101,7 @@ pub struct StatusCli {
     ///
     /// The same document `rbx check --json` emits, down to `exit_code`, which
     /// is what `rbx check` *would* exit with, since `rbx status` always exits
-    /// 0. Documented in docs/check.md.
+    /// 0. Documented in <https://rbx-forge.github.io/rbx-deploy/check/>.
     #[arg(long)]
     pub json: bool,
 }

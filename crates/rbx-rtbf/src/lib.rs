@@ -77,7 +77,7 @@ enum Command {
         /// Write the declared templates to stdout as one JSON document.
         ///
         /// Declared state only: what this repository says, not what any
-        /// universe is serving. Field names are documented in docs/rtbf.md.
+        /// universe is serving. Field names are documented in <https://rbx-forge.github.io/rbx-deploy/rtbf/>.
         #[arg(long)]
         json: bool,
     },
@@ -129,7 +129,7 @@ enum Command {
         /// The only answer in this crate nothing else produces, which is why it
         /// is worth a document: a CI step asking "do our templates still point
         /// at real stores" reads `.ok` rather than grepping for a red cross.
-        /// Field names are documented in docs/rtbf.md.
+        /// Field names are documented in <https://rbx-forge.github.io/rbx-deploy/rtbf/>.
         #[arg(long)]
         json: bool,
     },

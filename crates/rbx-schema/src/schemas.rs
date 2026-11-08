@@ -176,19 +176,19 @@ pub fn all() -> Vec<Schema> {
             "rbxplace.toml",
             "rbxplace.schema.json",
             "Environment map shared by every rbx subcommand: env name to universe id, \
-             the places under it, and the project owner. See docs/env.md.",
+             the places under it, and the project owner. See https://rbx-forge.github.io/rbx-deploy/env/",
         ),
         build::<rbx_meta::config::Config>(
             "rbxmeta.toml",
             "rbxmeta.schema.json",
             "Universe and place metadata: name, description, devices, social links, \
-             server fill, media, and per-env overlays. See docs/meta-config.md.",
+             server fill, media, and per-env overlays. See https://rbx-forge.github.io/rbx-deploy/meta-config/",
         ),
         build_map::<rbx_config::config::ConfigsFile, rbx_config::config::EnvConfig>(
             "rbxconfig.toml",
             "rbxconfig.schema.json",
             "In-experience config entries per environment, published through the Open \
-             Cloud Configs API. See docs/config.md.",
+             Cloud Configs API. See https://rbx-forge.github.io/rbx-deploy/config/",
         ),
         // The plain builder, not `build_map`: `Templates` is two named arrays
         // of named fields with no `#[serde(flatten)]` anywhere, so schemars
@@ -199,13 +199,13 @@ pub fn all() -> Vec<Schema> {
             "Right-to-be-forgotten deletion templates: which data store keys and stores \
              hold a user's data, published through the Open Cloud Configs API. \
              `{UserId}` is case-sensitive and a pattern that matches nothing is accepted \
-             by Roblox and deletes nothing. See docs/rtbf.md.",
+             by Roblox and deletes nothing. See https://rbx-forge.github.io/rbx-deploy/rtbf/",
         ),
         build::<rbx_shop::config::Config>(
             "rbxshop.toml",
             "rbxshop.schema.json",
             "Game passes, badges, and developer products: prices, icons, gift twins, \
-             codegen output, and per-env overlays. See docs/shop-config.md.",
+             codegen output, and per-env overlays. See https://rbx-forge.github.io/rbx-deploy/shop-config/",
         ),
         // The one entry whose model is not what the CLI parses with, because
         // the CLI deliberately parses this file with nothing at all. See
@@ -216,7 +216,7 @@ pub fn all() -> Vec<Schema> {
             "rbxavatar.schema.json",
             "The modern avatar rules, sent verbatim as `engineAvatarSettings`: rig, \
              animations, clothing, accessories, collisions and body scaling. Pointed \
-             at by `game.engine_avatar_settings` in rbxmeta.toml. See docs/meta-config.md. \
+             at by `game.engine_avatar_settings` in rbxmeta.toml. See https://rbx-forge.github.io/rbx-deploy/meta-config/ \
              \n\n\
              GUIDANCE, NOT VALIDATION. Roblox describes this field as an opaque JSON \
              string and publishes no schema for what is inside it, so nothing detects \
@@ -272,7 +272,7 @@ mod tests {
     ///
     /// Unknown keys are warned about and ignored, never rejected: a key from a
     /// newer release has to stay loadable, or adopting a field would mean
-    /// upgrading every machine in the same instant (`docs/env.md`). A schema
+    /// upgrading every machine in the same instant (<https://rbx-forge.github.io/rbx-deploy/env/>). A schema
     /// that set `additionalProperties: false` anywhere would paint those keys
     /// red in the editor while the tool accepted them: stricter than the
     /// tool, which is worse than no schema, because it trains people to stop

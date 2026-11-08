@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "rbxplace.toml",
-  "description": "Environment map shared by every rbx subcommand: env name to universe id, the places under it, and the project owner. See docs/env.md.",
+  "description": "Environment map shared by every rbx subcommand: env name to universe id, the places under it, and the project owner. See https://rbx-forge.github.io/rbx-deploy/env/",
   "type": "object",
   "properties": {
     "codegen": {

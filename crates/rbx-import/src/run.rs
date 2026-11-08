@@ -228,7 +228,7 @@ fn global_for_env(global: &GlobalFlags, env: &str, places: &Path) -> GlobalFlags
 /// The resolution matters more than it looks. `import` passes `--cookie`
 /// straight through to its own place listing and auto-detects nothing there,
 /// but the meta step it launches is an ordinary `rbx meta` invocation and goes
-/// through the whole chain in `docs/cookie.md`, Studio auto-detection
+/// through the whole chain in <https://rbx-forge.github.io/rbx-deploy/cookie/>, Studio auto-detection
 /// included. Reading `global.cookie` here therefore told everyone with Studio
 /// signed in to re-run with `--cookie` for fields meta had just read
 /// correctly, which is advice to redo finished work.

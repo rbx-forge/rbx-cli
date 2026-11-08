@@ -82,7 +82,7 @@ enum Tool {
     /// Hidden from the command list on purpose. This is the tool for working
     /// out what an undocumented endpoint returns while writing a typed client
     /// for it. Fully supported: `rbx probe --help` works, and it is documented
-    /// in docs/probe.md.
+    /// in <https://rbx-forge.github.io/rbx-deploy/probe/>.
     #[command(hide = true)]
     Probe(rbx_probe::ProbeCli),
     /// Generate shell completions

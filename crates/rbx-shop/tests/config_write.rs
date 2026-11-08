@@ -98,7 +98,7 @@ fn changing_one_price_leaves_every_comment_and_key_in_place() {
     assert!(order.windows(2).all(|w| w[0] < w[1]), "keys were reordered");
 }
 
-/// The behaviour `docs/env.md` calls out as the bug that had to go: a key the
+/// The behaviour <https://rbx-forge.github.io/rbx-deploy/env/> calls out as the bug that had to go: a key the
 /// model does not know about must not disappear because something else was
 /// edited.
 #[test]

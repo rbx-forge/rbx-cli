@@ -66,7 +66,7 @@ pub enum PlaceCommands {
         /// the thing a deploy pipeline cannot compute for itself. stdout
         /// carries the document and nothing else; diagnostics stay on stderr.
         /// Cannot prompt, so an env with `confirm = true` needs `--yes`. Field
-        /// names are documented in docs/place.md.
+        /// names are documented in <https://rbx-forge.github.io/rbx-deploy/place/>.
         ///
         /// A plural `--env` emits one envelope holding a receipt per env; a
         /// single env emits the receipt itself, in the shape it has always
@@ -136,7 +136,7 @@ pub enum PlaceCommands {
         /// Reports both versions: the one restored and the new one Roblox
         /// created for it. Cannot prompt, so `--version` is required and an
         /// env with `confirm = true` needs `--yes`. Field names are documented
-        /// in docs/place.md.
+        /// in <https://rbx-forge.github.io/rbx-deploy/place/>.
         #[arg(long)]
         json: bool,
     },
@@ -171,7 +171,7 @@ pub enum PlaceCommands {
         /// listing.
         ///
         /// Timestamps stay in the form Roblox sent them rather than the
-        /// listing's rendering. Field names are documented in docs/place.md.
+        /// listing's rendering. Field names are documented in <https://rbx-forge.github.io/rbx-deploy/place/>.
         #[arg(long)]
         json: bool,
     },
@@ -191,7 +191,7 @@ pub enum PlaceCommands {
         ///
         /// Each place carries the rbxplace.toml name it maps to, when there is
         /// one, so a CI job can tell a missing entry from a renamed place.
-        /// Field names are documented in docs/place.md.
+        /// Field names are documented in <https://rbx-forge.github.io/rbx-deploy/place/>.
         #[arg(long)]
         json: bool,
     },
@@ -245,7 +245,7 @@ pub enum PlaceCommands {
         /// version each target received. This is the same information `--log`
         /// files away, without a file. Cannot prompt, so a target env with
         /// `confirm = true` needs `--yes`. Field names are documented in
-        /// docs/place.md.
+        /// <https://rbx-forge.github.io/rbx-deploy/place/>.
         #[arg(long)]
         json: bool,
     },

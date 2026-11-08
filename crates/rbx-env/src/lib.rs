@@ -73,7 +73,7 @@ pub enum EnvCommands {
         ///
         /// Rejected alongside --names rather than overriding it: the JSON
         /// document already carries every name, so asking for both is a
-        /// mistake worth reporting. Field names are documented in docs/env.md.
+        /// mistake worth reporting. Field names are documented in <https://rbx-forge.github.io/rbx-deploy/env/>.
         #[arg(long, conflicts_with_all = ["names", "place_names"])]
         json: bool,
     },
@@ -95,7 +95,7 @@ pub enum EnvCommands {
         /// value.
         ///
         /// `.value` holds the answer for a single env; `--env all` fills
-        /// `.results` instead. Field names are documented in docs/env.md.
+        /// `.results` instead. Field names are documented in <https://rbx-forge.github.io/rbx-deploy/env/>.
         #[arg(long)]
         json: bool,
     },

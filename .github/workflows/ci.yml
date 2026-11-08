@@ -128,7 +128,7 @@ jobs:
     # The release workflow ships binaries for targets no other job here builds,
     # and until this job existed nothing compiled them until tag time: the most
     # expensive moment to discover a break. The gap was never theoretical:
-    # `rbx-switch` used to carry a whole `#[cfg(target_os = "macos")]` module
+    # a crate that used to live here carried a whole `#[cfg(target_os = "macos")]` module
     # that no other job touched, and cfg-gated code stays invisible to every
     # Linux job by construction.
     #

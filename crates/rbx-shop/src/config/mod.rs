@@ -141,7 +141,7 @@ pub struct Config {
     /// time via `Config::load_merged`. Only meaningful on the main file:
     /// included files must be "pure" resource files (no
     /// `experience`/`owner`/`codegen`/`icons`/`gifts`/`include` of their
-    /// own). See `docs/shop.md` for the `pull`/`rename` limitation this
+    /// own). See `docs/shop-config.md` for the `pull`/`rename` limitation this
     /// currently carries.
     #[serde(default, skip_serializing_if = "IncludeConfig::is_empty")]
     pub include: IncludeConfig,

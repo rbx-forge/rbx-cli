@@ -69,7 +69,7 @@ jobs:
       # The schemas ride along, served at
       # https://rbx-forge.github.io/rbx-deploy/schemas/<name>.schema.json
       #
-      # Not decoration. The editor associations in README.md used to be written
+      # Not decoration. The editor associations (docs/reference/editor-support.md) used to be written
       # as relative paths (`schema.path = "schemas/rbxplace.schema.json"`)
       # which only resolves if you have *this* repository checked out. The
       # people the schemas exist for installed `rbx` through Rokit and have no

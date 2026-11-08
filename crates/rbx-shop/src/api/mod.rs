@@ -394,7 +394,7 @@ struct CloudUniverseOwner {
 mod tests {
     use super::*;
 
-    /// One case per row of the table in `docs/shop.md`, which states what a
+    /// One case per row of the table in <https://rbx-forge.github.io/rbx-deploy/shop/>, which states what a
     /// sync sends for each way the two pricing keys can be written.
     ///
     /// `sync`'s own tests reach this through an HTTP mock and cover three of

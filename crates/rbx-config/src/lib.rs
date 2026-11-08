@@ -60,7 +60,7 @@ pub enum ConfigCommands {
         /// `.entries` carries the whole published config. This says what
         /// Roblox is serving, not whether rbxconfig.toml agrees with it:
         /// that is `rbx config check`. Field names are documented in
-        /// docs/config.md.
+        /// <https://rbx-forge.github.io/rbx-deploy/config/>.
         #[arg(long)]
         json: bool,
     },
@@ -72,7 +72,7 @@ pub enum ConfigCommands {
         ///
         /// The same document `get --json` emits without a key: same envelope,
         /// same `.entries`, so one filter reads both. Field names are
-        /// documented in docs/config.md.
+        /// documented in <https://rbx-forge.github.io/rbx-deploy/config/>.
         #[arg(long)]
         json: bool,
     },
@@ -131,7 +131,7 @@ pub enum ConfigCommands {
         ///
         /// Carries the keys each revision changed, which the listing only
         /// counts, and says in the document whether `--count` was reached.
-        /// Field names are documented in docs/config.md.
+        /// Field names are documented in <https://rbx-forge.github.io/rbx-deploy/config/>.
         #[arg(long)]
         json: bool,
     },

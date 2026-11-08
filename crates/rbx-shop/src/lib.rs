@@ -115,7 +115,7 @@ pub enum ShopCommands {
         /// nothing of but the description column crowds out. This says what
         /// Roblox has; `shop show --json` says what the repo declares. Whether
         /// Roblox moved since the last sync is the `shop/live` row of
-        /// `rbx check`. Field names are documented in docs/shop.md.
+        /// `rbx check`. Field names are documented in <https://rbx-forge.github.io/rbx-deploy/shop/>.
         #[arg(long)]
         json: bool,
     },
@@ -176,7 +176,7 @@ pub enum ShopCommands {
         /// both are layout choices over a listing, and the document is an
         /// object keyed by TOML key, which has neither an order to pick nor a
         /// flat variant to ask for. Field names are documented in
-        /// docs/shop.md.
+        /// <https://rbx-forge.github.io/rbx-deploy/shop/>.
         #[arg(long, conflicts_with_all = ["sort", "flat"])]
         json: bool,
     },

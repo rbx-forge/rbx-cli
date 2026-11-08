@@ -112,7 +112,7 @@ main = 2001
 
 /// The documented leniency, as a document rather than as a shape assertion:
 /// an unrecognised key is warned about on stderr and ignored, never rejected
-/// (`docs/env.md`). The schema has to agree, or the editor contradicts the
+/// (<https://rbx-forge.github.io/rbx-deploy/env/>). The schema has to agree, or the editor contradicts the
 /// tool on a file that loads fine.
 #[test]
 fn an_unknown_key_is_accepted_the_way_the_tools_accept_it() {
@@ -183,7 +183,7 @@ value = false
     );
 }
 
-/// The worked example `docs/rtbf.md` prints, which is the file a newcomer
+/// The worked example <https://rbx-forge.github.io/rbx-deploy/rtbf/> prints, which is the file a newcomer
 /// copies: both template kinds, an explicit scope, and an ordered store.
 #[test]
 fn an_rtbf_file_with_both_template_kinds_validates() {
@@ -212,7 +212,7 @@ pattern = "Player_{UserId}_Save"
 }
 
 /// One shop config exercising all three resource kinds, the tables around
-/// them, and a per-env overlay: the shape `docs/shop-config.md` documents.
+/// them, and a per-env overlay: the shape <https://rbx-forge.github.io/rbx-deploy/shop-config/> documents.
 #[test]
 fn a_shop_config_with_all_three_resource_kinds_validates() {
     assert_valid(

@@ -146,7 +146,7 @@ struct DevelopPlacesPage {
 /// because the caller has one to pass and sending it costs nothing, not
 /// because a private universe needs it.
 ///
-/// See `docs/cookie.md`, "What the cookie does not protect".
+/// See <https://rbx-forge.github.io/rbx-deploy/cookie/>, "What the cookie does not protect".
 pub async fn fetch_places(
     client: &reqwest::Client,
     develop: &ApiBase,

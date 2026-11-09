@@ -123,6 +123,9 @@ impl Pricing {
 /// multipart body in which no field is required. Sending only what the plan
 /// changed is what keeps a value edited on the Creator Dashboard from being
 /// put back silently by an update about something else.
+///
+/// Each update function builds its own form from this, with the field names
+/// written out, so `rbx-spec-drift` can read what each route is sent.
 #[derive(Debug, Default)]
 pub struct FieldUpdate<'a> {
     pub name: Option<&'a str>,
@@ -134,37 +137,6 @@ pub struct FieldUpdate<'a> {
     /// Developer products only.
     pub store_page: Option<bool>,
     pub icon: Option<&'a std::path::Path>,
-}
-
-impl FieldUpdate<'_> {
-    /// The multipart body for these fields. `icon` is the processed image,
-    /// sent as `icon_field`: the two endpoints name that part differently.
-    pub(crate) fn form(
-        &self,
-        icon: Option<&[u8]>,
-        icon_field: &'static str,
-    ) -> Result<multipart::Form> {
-        let mut form = self.pricing.apply(multipart::Form::new());
-        if let Some(name) = self.name {
-            form = form.text("name", name.to_string());
-        }
-        if let Some(description) = self.description {
-            form = form.text("description", description.to_string());
-        }
-        if let Some(price) = self.price {
-            form = form.text("price", price.to_string());
-        }
-        if let Some(for_sale) = self.is_for_sale {
-            form = form.text("isForSale", for_sale.to_string());
-        }
-        if let Some(store_page) = self.store_page {
-            form = form.text("storePageEnabled", store_page.to_string());
-        }
-        if let Some(bytes) = icon {
-            form = form.part(icon_field, icon_part(bytes)?);
-        }
-        Ok(form)
-    }
 }
 
 /// An icon as a multipart part.

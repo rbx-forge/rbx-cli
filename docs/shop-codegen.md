@@ -75,7 +75,7 @@ CI:
     rbx env codegen --check
 ```
 
-It proves the files match the config and lockfile, not that the lockfile matches Roblox: that is `rbx shop pull --dry-run`. If the generated files are gitignored, run the check in CD instead of a hook.
+It proves the files match the config and lockfile, not that the lockfile matches Roblox: that is the `shop/live` row of `rbx check`. If the generated files are gitignored, run the check in CD instead of a hook.
 
 !!! warning "Keep formatters off the generated folder"
     The comparison is byte for byte (line endings aside). A formatter rewriting those files makes every check fail. Exclude the folder, for example in `.styluaignore`, and from editors that trim whitespace on save.

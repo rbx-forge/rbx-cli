@@ -12,7 +12,8 @@ use crate::api::RbxClient;
 
 use crate::config::{
     Access, AnimationType, Audience, AvatarType, CollisionType, Config, EnvOverlay, Game, Genre,
-    JointPositioningType, PaidAccess, PrivateServer, ServerFill, SocialLink, Visibility,
+    JointPositioningType, PaidAccess, PrivateServer, ServerFill, SocialLink, SocialLinks,
+    Visibility,
 };
 use crate::ctx::MetaCtx;
 use crate::lockfile::Lockfile;
@@ -26,7 +27,7 @@ pub(super) async fn fetch_env(
     env_name: &str,
     universe_id: u64,
     place_id: u64,
-) -> Result<(RbxClient, ConfirmedReads)> {
+) -> Result<(RbxClient, ConfirmedReads, ExactReads)> {
     // The place half of the guard `sync` applies. The differential pull
     // compares remote against this section, so a section describing a
     // different place makes it write overlays for what are really two
@@ -72,6 +73,7 @@ pub(super) async fn fetch_env(
     // *confirmed* values, and after `diff_apply_opt` has run the config no
     // longer distinguishes what was read from what was already written.
     let confirmed = remote.confirmed();
+    let exact = remote.exact();
     let universe = &remote.universe;
     let universe_config = &remote.universe_config;
     let (remote_visibility, remote_audience) = remote.visibility_and_audience();
@@ -226,14 +228,28 @@ pub(super) async fn fetch_env(
         &mut changes,
     );
 
-    // private_server (atomic)
-    diff_apply_opt(
-        &mut config.game.private_server,
-        &mut overlay.private_server,
-        remote.private_server(),
-        "private_server",
-        &mut changes,
-    );
+    // private_server (atomic). Absent on Roblox means there are none, which is
+    // a value to bring in like any other, where the file can say it.
+    let mut still_declared: Vec<String> = Vec::new();
+    match remote.private_server() {
+        Some(live) => diff_apply_opt(
+            &mut config.game.private_server,
+            &mut overlay.private_server,
+            Some(live),
+            "private_server",
+            &mut changes,
+        ),
+        None => {
+            if !diff_apply_absent(
+                &config.game.private_server,
+                &mut overlay.private_server,
+                "private_server",
+                &mut changes,
+            ) {
+                still_declared.push("private_server".to_string());
+            }
+        }
+    }
 
     // server_fill (atomic)
     diff_apply_opt(
@@ -282,55 +298,56 @@ pub(super) async fn fetch_env(
     );
 
     // social links (per platform, atomic)
-    diff_apply_social(
-        &mut config.game.social_links.facebook,
-        &mut overlay.social_links.facebook,
-        universe.facebook_social_link.as_ref().map(to_social),
-        "facebook",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.twitter,
-        &mut overlay.social_links.twitter,
-        universe.twitter_social_link.as_ref().map(to_social),
-        "twitter",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.youtube,
-        &mut overlay.social_links.youtube,
-        universe.youtube_social_link.as_ref().map(to_social),
-        "youtube",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.twitch,
-        &mut overlay.social_links.twitch,
-        universe.twitch_social_link.as_ref().map(to_social),
-        "twitch",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.discord,
-        &mut overlay.social_links.discord,
-        universe.discord_social_link.as_ref().map(to_social),
-        "discord",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.roblox_group,
-        &mut overlay.social_links.roblox_group,
-        universe.roblox_group_social_link.as_ref().map(to_social),
-        "roblox_group",
-        &mut changes,
-    );
-    diff_apply_social(
-        &mut config.game.social_links.guilded,
-        &mut overlay.social_links.guilded,
-        universe.guilded_social_link.as_ref().map(to_social),
-        "guilded",
-        &mut changes,
-    );
+    let base_links = &mut config.game.social_links;
+    let env_links = &mut overlay.social_links;
+    for (base, overlay, live, platform) in [
+        (
+            &mut base_links.facebook,
+            &mut env_links.facebook,
+            &exact.social_links.facebook,
+            "facebook",
+        ),
+        (
+            &mut base_links.twitter,
+            &mut env_links.twitter,
+            &exact.social_links.twitter,
+            "twitter",
+        ),
+        (
+            &mut base_links.youtube,
+            &mut env_links.youtube,
+            &exact.social_links.youtube,
+            "youtube",
+        ),
+        (
+            &mut base_links.twitch,
+            &mut env_links.twitch,
+            &exact.social_links.twitch,
+            "twitch",
+        ),
+        (
+            &mut base_links.discord,
+            &mut env_links.discord,
+            &exact.social_links.discord,
+            "discord",
+        ),
+        (
+            &mut base_links.roblox_group,
+            &mut env_links.roblox_group,
+            &exact.social_links.roblox_group,
+            "roblox_group",
+        ),
+        (
+            &mut base_links.guilded,
+            &mut env_links.guilded,
+            &exact.social_links.guilded,
+            "guilded",
+        ),
+    ] {
+        if !diff_apply_social(base, overlay, live.clone(), platform, &mut changes) {
+            still_declared.push(format!("social_links.{platform}"));
+        }
+    }
 
     // Print scalar diff
     if changes.is_empty() {
@@ -342,7 +359,26 @@ pub(super) async fn fetch_env(
         }
     }
 
-    Ok((client, confirmed))
+    if !still_declared.is_empty() {
+        eprintln!("{}", still_declared_warning(env_name, &still_declared));
+    }
+
+    Ok((client, confirmed, exact))
+}
+
+/// What `pull` says of a setting Roblox does not have and the file keeps.
+///
+/// Said because nothing else will: the file is unchanged, so the next `sync`
+/// plans the setting as a write, which is the opposite of what somebody
+/// pulling after removing it on the Creator Hub expects.
+fn still_declared_warning(env: &str, settings: &[String]) -> String {
+    let it = if settings.len() == 1 { "it" } else { "them" };
+    format!(
+        "warning: env '{env}' has no {} on Roblox, and [game] declares {it} for every env. An \
+         env cannot unset a key, so rbxmeta.toml is left as it is and the next sync sets {it} \
+         again. To keep {it} off Roblox, remove {it} from [game].",
+        settings.join(", "),
+    )
 }
 
 /// Everything one env's read got back from Roblox, before anything local is
@@ -395,6 +431,25 @@ impl RemoteRead {
         self.universe
             .private_server_price_robux
             .map(|price| PrivateServer { price })
+    }
+
+    /// The two settings whose absence is a value, as the universe read
+    /// returned them.
+    pub(crate) fn exact(&self) -> ExactReads {
+        let universe = &self.universe;
+        let link = |link: &Option<ApiSocialLink>| link.as_ref().map(to_social);
+        ExactReads {
+            private_server: self.private_server(),
+            social_links: SocialLinks {
+                facebook: link(&universe.facebook_social_link),
+                twitter: link(&universe.twitter_social_link),
+                youtube: link(&universe.youtube_social_link),
+                twitch: link(&universe.twitch_social_link),
+                discord: link(&universe.discord_social_link),
+                roblox_group: link(&universe.roblox_group_social_link),
+                guilded: link(&universe.guilded_social_link),
+            },
+        }
     }
 
     /// What the reads allowed to fail confirmed, in the shape

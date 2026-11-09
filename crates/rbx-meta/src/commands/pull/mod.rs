@@ -57,7 +57,7 @@ pub async fn run(
         if many {
             println!("\n{} {}", "env:".bold(), env_name.bold());
         }
-        let (client, confirmed) = fetch_env(
+        let (client, confirmed, exact) = fetch_env(
             ctx,
             &mut config,
             &lockfile,
@@ -74,6 +74,7 @@ pub async fn run(
             place_id: *place_id,
             client,
             confirmed,
+            exact,
             resolved_game,
         });
     }
@@ -156,6 +157,7 @@ pub async fn run(
             &mut new_game_lock,
             &lockfile.env_view(&p.env).game,
             &p.confirmed,
+            &p.exact,
         );
         lockfile.env_mut(&p.env).game = new_game_lock;
     }
@@ -188,6 +190,7 @@ struct PendingPull {
     /// same client the read pass used, aimed at the same universe and place.
     client: RbxClient,
     confirmed: ConfirmedReads,
+    exact: ExactReads,
     /// This env's resolved `[game]`, captured the instant its own differential
     /// finished and **before any later env had a turn**.
     ///

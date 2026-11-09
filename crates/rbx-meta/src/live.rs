@@ -266,14 +266,14 @@ impl Comparison {
     }
 }
 
-fn spell<T: Serialize + Debug>(value: &Option<T>) -> String {
+pub(crate) fn spell<T: Serialize + Debug>(value: &Option<T>) -> String {
     match value {
         Some(v) => toml_spelling(v),
         None => "none".to_string(),
     }
 }
 
-fn spell_link(link: &Option<SocialLink>) -> String {
+pub(crate) fn spell_link(link: &Option<SocialLink>) -> String {
     match link {
         Some(link) => format!("{:?} <{}>", link.title, link.url),
         None => "none".to_string(),

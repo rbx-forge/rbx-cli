@@ -53,14 +53,42 @@ pub(super) fn diff_apply_opt<T: Clone + PartialEq + std::fmt::Debug + Serialize>
     }
 }
 
+/// A setting Roblox does not have, for the two whose absence is a value:
+/// private servers and social links.
+///
+/// The file can say "none" only where the base does not declare the setting:
+/// the env's own override is then removed. A base that declares it speaks for
+/// every env and an overlay has no way to unset a key, so the file is left as
+/// it is and `false` tells the caller, which has to say so: the next `sync`
+/// puts the setting back.
+pub(super) fn diff_apply_absent<T>(
+    base: &Option<T>,
+    overlay: &mut Option<T>,
+    label: &str,
+    changes: &mut Vec<String>,
+) -> bool {
+    if base.is_some() {
+        return false;
+    }
+    if overlay.take().is_some() {
+        changes.push(format!("{label}: removed (not on Roblox)"));
+    }
+    true
+}
+
+/// One platform's link. Returns whether the file now says what Roblox has,
+/// which it cannot for a link Roblox lacks and the base declares: see
+/// [`diff_apply_absent`].
 pub(super) fn diff_apply_social(
     base: &mut Option<SocialLink>,
     overlay: &mut Option<SocialLink>,
     remote: Option<SocialLink>,
     platform: &str,
     changes: &mut Vec<String>,
-) {
-    let Some(r) = remote else { return };
+) -> bool {
+    let Some(r) = remote else {
+        return diff_apply_absent(base, overlay, &format!("social.{platform}"), changes);
+    };
     match base {
         None => {
             *base = Some(r.clone());
@@ -80,6 +108,76 @@ pub(super) fn diff_apply_social(
                 changes.push(format!("social.{}: override ← '{}'", platform, r.title));
             }
         }
+    }
+    true
+}
+
+#[cfg(test)]
+mod absent_tests {
+    use super::*;
+
+    fn link(title: &str) -> Option<SocialLink> {
+        Some(SocialLink {
+            title: title.to_string(),
+            url: format!("https://example.test/{title}"),
+        })
+    }
+
+    /// The env's own link, gone from Roblox: the override goes too, and the
+    /// file then says what Roblox has.
+    #[test]
+    fn a_link_only_the_env_declared_is_removed_with_it() {
+        let mut base = None;
+        let mut overlay = link("discord");
+        let mut changes = Vec::new();
+
+        assert!(diff_apply_social(
+            &mut base,
+            &mut overlay,
+            None,
+            "discord",
+            &mut changes
+        ));
+
+        assert_eq!(overlay, None);
+        assert_eq!(changes, vec!["social.discord: removed (not on Roblox)"]);
+    }
+
+    /// The base speaks for every env and an overlay cannot unset a key, so
+    /// the file is left exactly as it is and the caller is told.
+    #[test]
+    fn a_link_the_base_declares_cannot_be_removed_for_one_env() {
+        let mut base = link("discord");
+        let mut overlay = link("discord-for-this-env");
+        let mut changes = Vec::new();
+
+        assert!(!diff_apply_social(
+            &mut base,
+            &mut overlay,
+            None,
+            "discord",
+            &mut changes
+        ));
+
+        assert_eq!(base, link("discord"));
+        assert_eq!(overlay, link("discord-for-this-env"));
+        assert!(changes.is_empty(), "{changes:?}");
+    }
+
+    #[test]
+    fn a_link_nobody_declares_and_roblox_lacks_is_nothing_to_report() {
+        let mut base = None;
+        let mut overlay = None;
+        let mut changes = Vec::new();
+
+        assert!(diff_apply_social(
+            &mut base,
+            &mut overlay,
+            None,
+            "discord",
+            &mut changes
+        ));
+        assert!(changes.is_empty(), "{changes:?}");
     }
 }
 

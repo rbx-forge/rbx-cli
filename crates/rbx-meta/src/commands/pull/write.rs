@@ -66,6 +66,18 @@ pub(crate) struct ConfirmedReads {
     pub avatar_joint_positioning: Option<JointPositioningType>,
 }
 
+/// What the universe read says of the two settings whose absence is a value:
+/// private servers and social links.
+///
+/// Apart from [`ConfirmedReads`] because `None` means the opposite here. That
+/// read fails the command when it does not answer, so an absent value is
+/// Roblox holding none, never a read that could not confirm one.
+#[derive(Default)]
+pub(crate) struct ExactReads {
+    pub private_server: Option<PrivateServer>,
+    pub social_links: SocialLinks,
+}
+
 /// Rebuild the fields of the lock entry that `config_to_lock` must not derive
 /// from the config.
 ///
@@ -87,14 +99,24 @@ pub(crate) struct ConfirmedReads {
 ///
 /// The fields absent from this function are the ones read through Open Cloud on
 /// a call that fails the whole command rather than warning: name, description,
-/// server size, voice chat, private servers, devices and social links. If those
-/// did not arrive, there is no lockfile to write. Visibility used to be on that
-/// list and left it when its read moved to the develop host, which warns.
+/// server size, voice chat and devices. If those did not arrive, there is no
+/// lockfile to write. Visibility used to be on that list and left it when its
+/// read moved to the develop host, which warns.
+///
+/// Private servers and social links come from that same call and are here
+/// anyway, as `exact`. Roblox holding none is a value, and the config is not
+/// always able to say it: a setting the base declares stays declared for an
+/// env whose Roblox has none, and recording the config there is the fifth
+/// door.
 pub(super) fn reconcile_lock(
     fresh: &mut GameLock,
     previous: &GameLock,
     confirmed: &ConfirmedReads,
+    exact: &ExactReads,
 ) {
+    fresh.private_server = exact.private_server.clone();
+    fresh.social_links = exact.social_links.clone();
+
     // Never returned by any endpoint. Only the previous entry can speak.
     fresh.permissions = previous.permissions;
     fresh.avatar.min_scale = previous.avatar.min_scale;
@@ -842,7 +864,7 @@ visibility = "private"
 
 #[cfg(test)]
 mod reconcile_lock_tests {
-    use super::{reconcile_lock, ConfirmedReads};
+    use super::{reconcile_lock, ConfirmedReads, ExactReads};
     use crate::config::{Avatar, AvatarType, Genre, PaidAccess, Permissions, ServerFill};
     use crate::lockfile::GameLock;
 
@@ -903,7 +925,12 @@ mod reconcile_lock_tests {
     #[test]
     fn nothing_confirmed_means_nothing_from_the_config() {
         let mut fresh = from_config();
-        reconcile_lock(&mut fresh, &previous(), &ConfirmedReads::default());
+        reconcile_lock(
+            &mut fresh,
+            &previous(),
+            &ConfirmedReads::default(),
+            &ExactReads::default(),
+        );
 
         assert_eq!(fresh.permissions.map(|p| p.client_teleport), Some(false));
         assert_eq!(
@@ -933,6 +960,7 @@ mod reconcile_lock_tests {
                 avatar_kind: Some(AvatarType::PlayerChoice),
                 ..ConfirmedReads::default()
             },
+            &ExactReads::default(),
         );
 
         assert_eq!(fresh.genre, Some(Genre::Pirate));
@@ -954,10 +982,41 @@ mod reconcile_lock_tests {
                 genre: Some(Genre::Pirate),
                 ..ConfirmedReads::default()
             },
+            &ExactReads::default(),
         );
 
         assert_eq!(fresh.permissions.map(|p| p.client_teleport), Some(false));
         assert_eq!(fresh.avatar.min_scale, None);
+    }
+
+    /// The fifth door. A base that declares private servers keeps declaring
+    /// them for an env whose Roblox has none, so `config_to_lock` records a
+    /// price nobody read: `check` then agrees and `sync` sends nothing, over a
+    /// universe with no private servers.
+    #[test]
+    fn a_setting_roblox_does_not_hold_is_never_recorded_from_the_config() {
+        use crate::config::{PrivateServer, SocialLink};
+
+        let link = SocialLink {
+            title: "Join us".into(),
+            url: "https://discord.gg/example".into(),
+        };
+        let mut fresh = from_config();
+        fresh.private_server = Some(PrivateServer { price: 100 });
+        fresh.social_links.discord = Some(link.clone());
+        fresh.social_links.twitter = Some(link.clone());
+
+        let mut exact = ExactReads::default();
+        exact.social_links.twitter = Some(link.clone());
+        reconcile_lock(&mut fresh, &previous(), &ConfirmedReads::default(), &exact);
+
+        assert_eq!(fresh.private_server, None);
+        assert_eq!(fresh.social_links.discord, None);
+        assert_eq!(
+            fresh.social_links.twitter,
+            Some(link),
+            "what Roblox does hold is recorded"
+        );
     }
 
     /// A first pull has no previous entry and nothing confirmed. Clearing is
@@ -965,7 +1024,12 @@ mod reconcile_lock_tests {
     #[test]
     fn an_empty_previous_lock_clears_rather_than_invents() {
         let mut fresh = from_config();
-        reconcile_lock(&mut fresh, &GameLock::default(), &ConfirmedReads::default());
+        reconcile_lock(
+            &mut fresh,
+            &GameLock::default(),
+            &ConfirmedReads::default(),
+            &ExactReads::default(),
+        );
 
         assert_eq!(fresh.permissions, None);
         assert_eq!(fresh.genre, None);

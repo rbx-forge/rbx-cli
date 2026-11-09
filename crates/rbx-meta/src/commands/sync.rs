@@ -2,14 +2,86 @@ use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::api::RbxClient;
-use crate::config::{Config, MediaConfig, MediaSet};
+use crate::commands::pull::{read_remote, RemoteRead};
+use crate::config::{Config, Game, MediaConfig, MediaSet};
 use crate::ctx::MetaCtx;
 use crate::diff::{build_plan, desired_order, IconPlan, SyncPlan};
-use crate::lockfile::{Lockfile, MediaLock, MediaLockfile, LOCKFILE_NAME, LOCKFILE_VERSION};
+use crate::lockfile::{
+    GameLock, Lockfile, MediaLock, MediaLockfile, DEFAULT_ENV, LOCKFILE_NAME, LOCKFILE_VERSION,
+};
+use crate::refresh::{refresh, Refreshed};
 use rbx_core::confirm::confirm_destructive;
 use rbx_core::places::PlacesFile;
 
-pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
+/// What the command line asked of one run.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Options {
+    pub dry_run: bool,
+    pub yes: bool,
+    /// Write over what was changed on Roblox since the last sync or pull.
+    pub overwrite_newer: bool,
+}
+
+pub async fn run(ctx: &MetaCtx<'_>, options: Options) -> Result<()> {
+    // Resolved once, before the first read. The reads that take it are the
+    // ones `pull` makes and the writes below reuse the answer, so a run asks
+    // about the Studio session at most once.
+    let cookie = ctx.resolve_cookie();
+    let roblox = Live {
+        api_key: ctx.api_key(),
+        cookie: cookie.clone(),
+    };
+    run_with(ctx, options, cookie, &roblox).await
+}
+
+/// Where the planning pass reads Roblox from.
+///
+/// A seam for the tests, which have no Roblox to read: `Live` is the only
+/// implementation a build ships.
+trait Roblox {
+    async fn read(
+        &self,
+        universe_id: u64,
+        place_id: u64,
+        media: &MediaConfig,
+    ) -> Result<RemoteRead>;
+}
+
+struct Live {
+    api_key: Option<String>,
+    cookie: Option<String>,
+}
+
+impl Roblox for Live {
+    async fn read(
+        &self,
+        universe_id: u64,
+        place_id: u64,
+        media: &MediaConfig,
+    ) -> Result<RemoteRead> {
+        let client = RbxClient::new(
+            self.api_key.clone(),
+            self.cookie.clone(),
+            universe_id,
+            place_id,
+            media.bleed,
+            media.language_code.clone(),
+        );
+        read_remote(&client).await
+    }
+}
+
+async fn run_with(
+    ctx: &MetaCtx<'_>,
+    options: Options,
+    cookie: Option<String>,
+    roblox: &impl Roblox,
+) -> Result<()> {
+    let Options {
+        dry_run,
+        yes,
+        overwrite_newer,
+    } = options;
     let config = Config::load(&ctx.config)?;
     let config_dir = ctx
         .config
@@ -24,10 +96,10 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     // a single-env run prints exactly what it always has.
     let many = targets.len() > 1;
 
-    // Planning pass. Entirely offline: `build_plan` reads the config, the
-    // lockfile and the media files, and sends nothing. That is what lets one
-    // confirmation cover the whole run, below.
-    let mut pending: Vec<PendingEnv> = Vec::new();
+    // Planning pass. It reads Roblox and writes nothing there, which is what
+    // lets one confirmation cover the whole run, below.
+    let mut planned: Vec<PlannedEnv> = Vec::new();
+    let mut cookie_fields_unread = false;
     for (env, universe_id, place_id) in &targets {
         if many {
             println!("\n{} {}", "env:".bold(), env.bold());
@@ -51,6 +123,14 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
             super::Repoint::Nothing,
         )?;
 
+        // Roblox's side, read before anything is planned. The plan below is
+        // the config against what Roblox holds now, so a value changed on the
+        // Creator Hub is in it. Planned against the lockfile alone, that value
+        // was invisible: the two local files agreed and the run said in sync.
+        let remote = roblox.read(*universe_id, *place_id, &media).await?;
+        let Refreshed { lock: seen, newer } = refresh(&game, &env_lock.game, &remote);
+        cookie_fields_unread |= cookie.is_none() && manages_cookie_fields(&game);
+
         // The media set this env writes, and whether the lockfile's ids belong
         // to it. Ids recorded for another set, or by a version that did not
         // say which, are planned around rather than acted on: deleting or
@@ -71,7 +151,7 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
             check_media_target(*universe_id, *place_id, &media, &lock_media).await?;
         }
 
-        let mut plan = build_plan(&game, &media, &env_lock.game, &lock_media, &config_dir)?;
+        let mut plan = build_plan(&game, &media, &seen, &lock_media, &config_dir)?;
         plan.media_needs_cookie = target == MediaSet::Own && plan.has_media_work();
         print_plan(&plan, env);
 
@@ -101,22 +181,35 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
             }
         }
 
-        if plan.is_empty() {
-            if stale_thumbnails == 0 {
-                println!("{}", "Nothing to do, everything is in sync.".green());
-            }
-            continue;
+        if plan.is_empty() && stale_thumbnails == 0 {
+            println!("{}", "Nothing to do, everything is in sync.".green());
         }
 
-        pending.push(PendingEnv {
+        planned.push(PlannedEnv {
             env: env.clone(),
             universe_id: *universe_id,
             place_id: *place_id,
             game,
             media,
             plan,
+            seen,
+            newer,
         });
     }
+
+    if cookie_fields_unread {
+        eprintln!(
+            "note: no cookie, so the cookie-only fields were compared with the lockfile and not \
+             with Roblox."
+        );
+    }
+
+    // After the plans, so whoever is refused has already seen what would have
+    // gone. Before the dry run returns, so a preview cannot report a plan the
+    // real run refuses.
+    report_newer(ctx, &planned, overwrite_newer)?;
+
+    let pending: Vec<&PlannedEnv> = planned.iter().filter(|p| !p.plan.is_empty()).collect();
 
     if dry_run {
         if !pending.is_empty() {
@@ -126,6 +219,13 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     }
 
     if pending.is_empty() {
+        if record_seen(&mut lockfile, &planned) {
+            lockfile.save(&lockfile_path)?;
+            println!(
+                "{}",
+                format!("{LOCKFILE_NAME} now records what Roblox has.").dimmed()
+            );
+        }
         return Ok(());
     }
 
@@ -133,7 +233,6 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     // sent. A cookie problem is the user's to fix either way, and finding out
     // after typing "yes" (or worse, after half the plan has landed) is the
     // failure this ordering exists to prevent.
-    let cookie = ctx.resolve_cookie();
     if pending.iter().any(|p| p.plan.needs_cookie()) && cookie.is_none() {
         bail!(
             "Cannot apply legacy / cookie-only fields (server_fill / allow_copying / visibility / \
@@ -184,6 +283,13 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
         yes,
     )?;
 
+    // What the reads found, recorded before the first write: each step below
+    // then moves the lockfile from what Roblox had to what it was sent, and a
+    // run that stops halfway leaves it describing Roblox as it is.
+    if record_seen(&mut lockfile, &planned) {
+        lockfile.save(&lockfile_path)?;
+    }
+
     for (p, client) in pending.iter().zip(&clients) {
         if many {
             println!("\n{} {}", "env:".bold(), p.env.bold());
@@ -206,20 +312,119 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     Ok(())
 }
 
-/// One env whose plan has work in it, carried from the planning pass to the
-/// apply pass.
+/// One env as the planning pass left it, carried to the apply pass.
 ///
 /// The two passes are why this type exists. A confirmation asked inside a
 /// single loop is reached after earlier envs have already been written, which
 /// is no longer a question the user can answer no to; planning every env first
-/// costs nothing (it is offline) and leaves one prompt covering the run.
-struct PendingEnv {
+/// writes nothing to Roblox and leaves one prompt covering the run.
+///
+/// Every env is kept, not only the ones with work: an env whose plan is empty
+/// can still have been read holding something the lockfile does not record.
+struct PlannedEnv {
     env: String,
     universe_id: u64,
     place_id: u64,
-    game: crate::config::Game,
+    game: Game,
     media: MediaConfig,
     plan: SyncPlan,
+    /// The lock section as Roblox was read to stand, which is what `plan` was
+    /// built against. See [`crate::refresh`].
+    seen: GameLock,
+    /// Fields changed on Roblox since the lockfile recorded them, that `plan`
+    /// would write over.
+    newer: Vec<String>,
+}
+
+/// Whether the config sets a field only the session cookie can read back.
+///
+/// Without a cookie those are planned against the lockfile, the one case left
+/// where a change made on Roblox goes unseen, so the run says so.
+fn manages_cookie_fields(game: &Game) -> bool {
+    game.allow_copying.is_some()
+        || game.server_fill.is_some()
+        || game.studio_access_to_apis_allowed.is_some()
+        || game.beta_mode.is_some()
+        || game.genre.is_some()
+        || game.paid_access.is_some()
+        || game.avatar.kind.is_some()
+        || game.avatar.animation.is_some()
+        || game.avatar.collision.is_some()
+        || game.avatar.joint_positioning.is_some()
+}
+
+/// Record what the reads found, for every env planned. Returns whether the
+/// lockfile changed.
+///
+/// Local bookkeeping, like pruning the stale thumbnail entries: it states what
+/// Roblox was just read to hold and sends nothing. It is what lets `check`
+/// agree with a `sync` that found Roblox already holding what the config asks
+/// for, where nothing was written and so nothing else would record it.
+fn record_seen(lockfile: &mut Lockfile, planned: &[PlannedEnv]) -> bool {
+    let mut changed = false;
+    for p in planned {
+        if lockfile.env_view(&p.env).game == p.seen {
+            continue;
+        }
+        lockfile.version = LOCKFILE_VERSION;
+        let el = lockfile.env_mut(&p.env);
+        el.universe_id = p.universe_id;
+        el.place_id = p.place_id;
+        el.game = p.seen.clone();
+        changed = true;
+    }
+    changed
+}
+
+/// Stop a run that would write over what was changed on Roblox, or say what it
+/// replaces when that was asked for.
+///
+/// `rbx config sync` draws the same line, with the same flag: a value somebody
+/// set on the Creator Hub, or synced from another checkout, exists nowhere in
+/// this repository, so replacing it is a decision and not a side effect.
+fn report_newer(ctx: &MetaCtx<'_>, planned: &[PlannedEnv], overwrite_newer: bool) -> Result<()> {
+    let changed: Vec<&PlannedEnv> = planned.iter().filter(|p| !p.newer.is_empty()).collect();
+    if changed.is_empty() {
+        return Ok(());
+    }
+
+    let mut listed = String::new();
+    for p in &changed {
+        listed.push_str(&format!("\n  [{}]", p.env));
+        for line in &p.newer {
+            listed.push_str(&format!("\n    {line}"));
+        }
+    }
+
+    if overwrite_newer {
+        println!(
+            "\n{} replacing what was changed on Roblox since the last sync or pull:{listed}",
+            "--overwrite-newer:".yellow()
+        );
+        return Ok(());
+    }
+
+    bail!(
+        "Roblox was changed since this repository last synced or pulled it:{listed}\n\n\
+         Syncing would replace those values with the ones in {}, as the plan above shows.\n  \
+         Bring them in with {}, or pass --overwrite-newer to replace them.",
+        ctx.config.display(),
+        pull_hint(ctx, &changed),
+    )
+}
+
+/// The `pull` that brings the newer values in, spelled for the envs that have
+/// them.
+fn pull_hint(ctx: &MetaCtx<'_>, changed: &[&PlannedEnv]) -> String {
+    match changed {
+        [one] if one.env != DEFAULT_ENV => format!("`rbx meta pull --env {}`", one.env),
+        [one] if ctx.global.universe_id.is_some() => format!(
+            "`rbx meta pull --universe-id {} --place-id {}`",
+            one.universe_id, one.place_id
+        ),
+        [_] => "`rbx meta pull`".to_string(),
+        _ => "`rbx meta pull --env <name>` for each env listed".to_string(),
+    }
 }
 
 /// The question a sync asks once, covering every env it is about to write.
@@ -283,7 +488,7 @@ struct ApplyTarget<'a> {
 async fn apply_plan(
     client: &RbxClient,
     plan: &SyncPlan,
-    game: &crate::config::Game,
+    game: &Game,
     target: ApplyTarget<'_>,
     lockfile: &mut Lockfile,
     lockfile_path: &std::path::Path,
@@ -952,9 +1157,60 @@ mod tests {
     }
 }
 
+/// Roblox as a test says it is, in place of [`Live`].
+#[cfg(test)]
+mod canned {
+    use super::*;
+    use serde_json::{json, Value};
+
+    /// One answer per universe id.
+    pub(super) struct Canned(pub Box<dyn Fn(u64) -> RemoteRead>);
+
+    impl Canned {
+        /// The same answer whatever is asked.
+        pub(super) fn always(read: impl Fn() -> RemoteRead + 'static) -> Self {
+            Self(Box::new(move |_| read()))
+        }
+    }
+
+    impl Roblox for Canned {
+        async fn read(
+            &self,
+            universe_id: u64,
+            _place_id: u64,
+            _media: &MediaConfig,
+        ) -> Result<RemoteRead> {
+            Ok((self.0)(universe_id))
+        }
+    }
+
+    /// What Roblox answers, built the way it arrives: as JSON. Nothing a
+    /// cookie reads is confirmed.
+    pub(super) fn read(universe: Value, place: Value) -> RemoteRead {
+        RemoteRead {
+            universe: serde_json::from_value(universe).expect("a universe"),
+            place: serde_json::from_value(place).expect("a place"),
+            server_fill: None,
+            allow_copying: None,
+            universe_config: Default::default(),
+            beta_mode: None,
+            access: None,
+        }
+    }
+
+    /// A place named `name`, and nothing else.
+    pub(super) fn place_named(name: &str) -> RemoteRead {
+        read(json!({}), json!({ "displayName": name }))
+    }
+}
+
+#[cfg(test)]
+mod newer_tests;
+
 /// Running against several envs at once: what is visited, and what is asked.
 #[cfg(test)]
 mod fan_out_tests {
+    use super::canned::{place_named, Canned};
     use super::*;
     use crate::lockfile::{EnvLock, GameLock, LOCKFILE_VERSION};
     use rbx_core::GlobalFlags;
@@ -1028,7 +1284,19 @@ main = 250
             config: dir.path().join("rbxmeta.toml"),
             global: &global,
         };
-        run(&ctx, true, true).await
+        // Roblox holds what the lockfile recorded, so the plan is the config's
+        // own change and nothing was changed on Roblox's side.
+        run_with(
+            &ctx,
+            Options {
+                dry_run: true,
+                yes: true,
+                overwrite_newer: false,
+            },
+            None,
+            &Canned::always(|| place_named("Synced")),
+        )
+        .await
     }
 
     #[tokio::test]
@@ -1196,7 +1464,7 @@ mod ordering_tests {
         apply_plan(
             &client(server, &session, &cookie),
             plan,
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,
@@ -1250,7 +1518,7 @@ mod ordering_tests {
         apply_plan(
             &client(&server, &session, &cookie),
             &plan,
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,
@@ -1457,7 +1725,7 @@ mod ordering_tests {
                 visibility_change: Some(access.clone()),
                 ..SyncPlan::default()
             },
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,
@@ -1530,7 +1798,7 @@ mod ordering_tests {
         let error = apply_plan(
             &client(&server, &session, "dead-cookie"),
             &plan,
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,
@@ -1575,7 +1843,7 @@ mod ordering_tests {
                 universe_patch: universe_patch(),
                 ..SyncPlan::default()
             },
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,
@@ -1623,7 +1891,7 @@ mod ordering_tests {
                 universe_patch: universe_patch(),
                 ..SyncPlan::default()
             },
-            &crate::config::Game::default(),
+            &Game::default(),
             ApplyTarget {
                 env: "test",
                 universe_id: UNIVERSE,

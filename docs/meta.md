@@ -48,7 +48,7 @@ Read Roblox, send the fields where it differs from the config, and record each c
 
 | Flag | Description |
 | --- | --- |
-| `--dry-run` | Show what would change. Reads Roblox, sends nothing |
+| `--dry-run` | Show what would change. Reads Roblox and sends nothing, so a read key is enough |
 | `--yes` / `-y` | Skip the confirmation |
 | `--overwrite-newer` | Replace what was changed on Roblox since your last sync or pull |
 

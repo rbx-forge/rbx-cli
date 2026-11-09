@@ -18,6 +18,8 @@ What the Open Cloud API key needs for each command, gathered from the command pa
 | [`probe`](../probe.md) | whatever the path you call needs | |
 | [`completions`](../completions.md) | none | |
 
+`meta sync` and `shop sync` read Roblox before they write, so the key that syncs needs both columns. Their `--dry-run` only reads: the read key is enough for it.
+
 Some of these come with a caveat on the command page: the meta thumbnail personalization scopes, the badge payment source, the icon upload host. Read the page before narrowing a key to this table.
 
 ## When a call is refused

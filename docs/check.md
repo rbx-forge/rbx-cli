@@ -46,7 +46,16 @@ Only the `live` checks need a key, and they are skipped when there is nothing to
 
 ### Comparing with Roblox
 
-`shop/live` and `meta/live` compare Roblox with the lockfile, not with the config, so a change not synced yet stays the `lockfile` row's and is not reported twice. A difference is a change made on Roblox since the last `sync` or `pull`: a price edited on the Creator Dashboard, a pass taken off sale, a link added by hand. `rbx shop pull --dry-run` and `rbx meta pull --dry-run` then show it in the context of the config.
+`shop/live` and `meta/live` compare Roblox with the lockfile, not with the config, so a change not synced yet stays the `lockfile` row's and is not reported twice. A difference is a change made on Roblox since the last `sync` or `pull`: a price edited on the Creator Dashboard, a pass taken off sale, a link added by hand.
+
+There are two ways to settle one, and `sync` asks for the choice: it reads Roblox before it plans, and refuses to write over a value changed there.
+
+| To | Run |
+| --- | --- |
+| keep what Roblox has | `rbx shop pull` or `rbx meta pull`, then commit |
+| put the repository's value back | `rbx shop sync --overwrite-newer` or `rbx meta sync --overwrite-newer` |
+
+A resource made by hand on Roblox, or a setting neither the config nor the lockfile mentions, is never touched by `sync`: `pull` adopts it.
 
 ```sh
 rbx check --env all    # exit 2 when Roblox moved
@@ -54,7 +63,7 @@ rbx check --env all    # exit 2 when Roblox moved
 
 Every run lists what it did not compare, so a clean row is never read as more than it is:
 
-- `shop/live`: `regional_pricing`, which Roblox reports as on whenever managed pricing is, and the icon files (the icon id Roblox holds is compared);
+- `shop/live`: `regional_pricing`, which Roblox reports as on whenever managed pricing is, the icon files (the icon id Roblox holds is compared), the store page of a product off sale, and a price Roblox leaves out;
 - `meta/live`: the cookie-only fields unless a cookie is given (`--cookie`, `RBX_COOKIE` or `--auto-cookie`; `rbx check` never asks for one), the fields Roblox returns from no endpoint, and the media.
 
 Rows are `tool/check [env]`; without `--env` they read `[default]`.

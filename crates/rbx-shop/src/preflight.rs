@@ -23,15 +23,17 @@
 //! `collision.rs`, which handles the same ambiguity coming the other way), so
 //! `--allow-duplicate-names` exists for the developer who means it.
 //!
-//! It runs only when the plan contains a create. A sync that only updates
-//! resources needs no read scope it did not need yesterday.
+//! It reads nothing itself. `sync` lists the experience before it plans, and
+//! the check runs on that listing, so a dry run makes it too: a plan that says
+//! "create" has already been compared with what exists.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use colored::Colorize;
 
 use crate::api::RbxClient;
 use crate::config::{resolve_name, ResolvedResources, ResourceKind};
 use crate::diff::{Action, SyncPlan};
+use crate::live::RemoteLocks;
 
 /// A resource the plan would create, whose display name a remote resource
 /// already answers to.
@@ -82,55 +84,36 @@ fn pending_creates(
 /// Returns the pairs rather than a map because names are not unique remotely:
 /// building a map here would silently drop exactly the duplicates this module
 /// exists to report.
-///
-/// Every field on the API models is optional, and a remote entry missing
-/// either its name or its id is dropped: it cannot be matched against, and it
-/// cannot be named in the error if it were. Dropping it costs a collision the
-/// check would not have found; keeping it would cost a report that points at
-/// nothing.
-async fn remote_names(
-    client: &RbxClient,
-    universe_id: u64,
-    kind: ResourceKind,
-) -> Result<Vec<(String, u64)>> {
-    let pairs: Vec<(Option<String>, Option<u64>)> = match kind {
-        ResourceKind::Pass => client
-            .list_all_game_passes()
-            .await?
-            .into_iter()
-            .map(|p| (p.name, p.id))
+fn remote_names(remote: &RemoteLocks, kind: ResourceKind) -> Vec<(String, u64)> {
+    match kind {
+        ResourceKind::Pass => remote
+            .passes
+            .iter()
+            .map(|(id, lock)| (lock.name.clone(), *id))
             .collect(),
-        ResourceKind::Badge => client
-            .list_all_badges(universe_id)
-            .await?
-            .into_iter()
-            .map(|b| (b.name, b.id))
+        ResourceKind::Badge => remote
+            .badges
+            .iter()
+            .map(|(id, lock)| (lock.name.clone(), *id))
             .collect(),
-        ResourceKind::Product => client
-            .list_all_developer_products()
-            .await?
-            .into_iter()
-            .map(|p| (p.name, p.id))
+        ResourceKind::Product => remote
+            .products
+            .iter()
+            .map(|(id, lock)| (lock.name.clone(), *id))
             .collect(),
-    };
-
-    Ok(pairs
-        .into_iter()
-        .filter_map(|(name, id)| Some((name?, id?)))
-        .collect())
+    }
 }
 
 /// Every pending create whose name a remote resource already answers to.
 ///
-/// `kinds` is the set `--only` left in play; a kind excluded from the sync is
-/// not listed, because nothing will be created in it.
-pub(crate) async fn find_collisions(
-    client: &RbxClient,
-    universe_id: u64,
+/// `kinds` is the set `--only` left in play; a kind excluded from the sync was
+/// not listed, and nothing will be created in it.
+pub(crate) fn find_collisions(
     plan: &SyncPlan,
     resources: &ResolvedResources,
     kinds: &[ResourceKind],
-) -> Result<Vec<Collision>> {
+    remote: &RemoteLocks,
+) -> Vec<Collision> {
     let mut collisions = Vec::new();
 
     for kind in ResourceKind::ALL {
@@ -141,28 +124,10 @@ pub(crate) async fn find_collisions(
         if creates.is_empty() {
             continue;
         }
-
-        // The listing needs a read scope, and a create-only sync is exactly
-        // where it runs, so a key with write-but-not-read scope that worked
-        // yesterday fails here today. The failure is kept (a guard that gave up
-        // quietly would not be a guard) but the message has to name the way
-        // past it, or the reader is left with a scope error and no route.
-        let remote = remote_names(client, universe_id, kind)
-            .await
-            .with_context(|| {
-                format!(
-                    "listing the experience's {} to check for a name that \
-                     already exists.\n\nThis runs before any create, because a \
-                     duplicate pass or product cannot be deleted. If this key \
-                     cannot be given read access, `--allow-duplicate-names` \
-                     skips the check",
-                    kind.plural()
-                )
-            })?;
-        collisions.extend(collide(kind, &creates, &remote));
+        collisions.extend(collide(kind, &creates, &remote_names(remote, kind)));
     }
 
-    Ok(collisions)
+    collisions
 }
 
 /// The matching itself, with no network in it.
@@ -245,13 +210,13 @@ pub(crate) fn refuse(collisions: &[Collision], env: &str) -> anyhow::Error {
     anyhow::anyhow!(out)
 }
 
-/// Run the check and stop the sync if it finds anything.
-pub(crate) async fn guard(
-    client: &RbxClient,
-    universe_id: u64,
+/// Run the check on what `sync` listed, and stop the sync if it finds
+/// anything.
+pub(crate) fn guard(
     plan: &SyncPlan,
     resources: &ResolvedResources,
     kinds: &[ResourceKind],
+    remote: &RemoteLocks,
     env: &str,
     allow_duplicate_names: bool,
 ) -> Result<()> {
@@ -259,7 +224,7 @@ pub(crate) async fn guard(
         return Ok(());
     }
 
-    let collisions = find_collisions(client, universe_id, plan, resources, kinds).await?;
+    let collisions = find_collisions(plan, resources, kinds, remote);
     if collisions.is_empty() {
         return Ok(());
     }

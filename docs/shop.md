@@ -103,7 +103,7 @@ A resource filed under a key that is not its name gets `name = "..."` written be
 !!! warning "Commit `rbxshop.lock.toml`"
     `sync` creates every resource missing from the lockfile. Without the lockfile, that is all of them, and Roblox cannot delete a pass or a product: the best repair is `for_sale = false`, forever.
 
-So before creating anything, `sync` lists what exists and **stops the whole run** if a name it would create is taken (case-insensitive), suggesting `rbx shop pull` to adopt them. `--allow-duplicate-names` creates them anyway. A sync with nothing to create skips this check.
+So `sync` lists what exists before it plans, a dry run included, and **stops the whole run** if a name it would create is taken (case-insensitive), suggesting `rbx shop pull` to adopt them. `--allow-duplicate-names` creates them anyway.
 
 ## Commands
 
@@ -121,15 +121,28 @@ With `--env`, the universe comes from `rbxplace.toml` and the lockfile section i
 
 ### rbx shop sync
 
-Apply the config (base plus overlay) to Roblox.
+List what Roblox has, then apply the config (base plus overlay) where it differs.
 
 | Flag | Description |
 | --- | --- |
-| `--dry-run` | Show the plan, apply nothing |
+| `--dry-run` | Show the plan, apply nothing. Lists Roblox and sends nothing, so a read key is enough |
 | `--only` | `passes`, `badges`, `products`, comma-separated |
 | `--badge-cost` | Robux you accept to pay per badge (default `0`) |
 | `--yes` / `-y` | Skip the confirmation |
 | `--allow-duplicate-names` | Create even when the name is taken. See [Duplicate names](#duplicate-names) |
+| `--overwrite-newer` | Replace what was changed on Roblox since your last sync or pull |
+
+Every env is planned before the first one is written, and one confirmation covers the run.
+
+!!! warning "A change made on Roblox is not overwritten silently"
+    If Roblox holds another value than the lockfile recorded (a price edited on the Creator Dashboard, a pass taken off sale, a sync from another branch or machine) and the config would replace it, `sync` shows the plan and refuses, a dry run included. `rbx shop pull` brings those values in; `--overwrite-newer` replaces them.
+
+What the plan compares the config with:
+
+- **Roblox**, for the name, description, price, `for_sale`, `enabled`, `store_page` and `managed_pricing` of every resource the lockfile tracks. The lockfile ties each key to a Roblox id, so a resource renamed on Roblox stays under its key.
+- **The lockfile**, for `regional_pricing`, which Roblox reports as on whenever managed pricing is, for icons, by content hash, and for what Roblox does not report of an item off sale: its store page, and its price when the listing leaves it out.
+
+A resource made by hand on Roblox, which no lockfile entry tracks, is never touched: `rbx shop pull` adopts it. A resource the lockfile tracks and Roblox does not list keeps its entry and is named, so it is never created a second time.
 
 When the plan creates badges, `sync` first reads the universe's free badge quota. With `--badge-cost 0` and too few left, it stops before any write.
 
@@ -277,9 +290,11 @@ rbx shop show --flat           # one list with a type column
 
 ## Lockfile
 
-`rbxshop.lock.toml` records, per env, the universe and each resource's Roblox id, name and icon hash. Without `--env` the section is `[envs.default]`. Commit it: an entry missing from it is created again on the next sync (see [Creating a duplicate](#creating-a-duplicate) and [Working in a team](teams.md)).
+`rbxshop.lock.toml` records, per env, the universe and, for each resource, its Roblox id and what Roblox held at the last `sync` or `pull`. It ties each config key to an id, and tells a change made in the config from a change made on Roblox. Without `--env` the section is `[envs.default]`. Commit it: an entry missing from it is created again on the next sync (see [Creating a duplicate](#creating-a-duplicate) and [Working in a team](teams.md)).
 
 ## Required API scopes
+
+`sync` lists before it writes, so it needs the read scope beside each write scope, for the kinds it syncs: `--only` narrows both.
 
 | Resource | Scopes |
 | --- | --- |

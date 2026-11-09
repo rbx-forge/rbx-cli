@@ -46,7 +46,7 @@ There is no locking: nothing notices that the lockfile or Roblox changed while a
 
 | Tool | Two runs at once |
 | --- | --- |
-| `rbx shop sync` | **Unsafe for creates**: both can plan the same create and both succeed. Updates go by id and the last one wins. The lockfile is saved after each resource, so an interrupted run resumes cleanly. A lockfile section recorded for another universe is refused |
+| `rbx shop sync` | **Unsafe for creates**: both can plan the same create and both succeed. A value changed on Roblox since your last sync or pull is refused (see [`--overwrite-newer`](shop.md#rbx-shop-sync)), but two syncs starting from the same state race: updates go by id and the last one wins. The lockfile is saved after each resource, so an interrupted run resumes cleanly. A lockfile section recorded for another universe is refused |
 | `rbx meta sync` | A field changed on Roblox since your last sync or pull is refused (see [`--overwrite-newer`](meta.md#rbx-meta-sync)), but two syncs starting from the same state race, and the last write wins per field. Nothing duplicates. Two runs that both change thumbnails are untested: run them one at a time |
 | `rbx config sync` | Replaces the whole live config. A publish made since your last sync or pull is refused (see [`--overwrite-newer`](config.md#rbx-config-sync)), but two syncs starting from the same version race, and the second wins. `rbx config rollback` recovers |
 

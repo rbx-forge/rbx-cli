@@ -12,6 +12,7 @@ pub mod json;
 pub mod live;
 pub mod lockfile;
 mod preflight;
+mod refresh;
 mod remote;
 mod toml_write;
 
@@ -89,6 +90,17 @@ pub enum ShopCommands {
         /// the listing, so the run still prints what it matched.
         #[arg(long)]
         allow_duplicate_names: bool,
+
+        /// Replace what was changed on Roblox since the last sync or pull.
+        ///
+        /// `sync` lists Roblox before it plans. A value the lockfile recorded
+        /// and Roblox no longer holds was changed there: a price edited on the
+        /// Creator Dashboard, a pass taken off sale, a sync from another
+        /// checkout. A plan that would write over it is refused: `rbx shop
+        /// pull` brings those values in, and this flag replaces them with the
+        /// config's.
+        #[arg(long)]
+        overwrite_newer: bool,
     },
 
     /// List remote resources (passes, badges, products).
@@ -255,7 +267,21 @@ pub async fn run(cli: ShopCli, global: &GlobalFlags) -> Result<()> {
             badge_cost,
             yes,
             allow_duplicate_names,
-        } => commands::sync::run(&ctx, dry_run, only, badge_cost, yes, allow_duplicate_names).await,
+            overwrite_newer,
+        } => {
+            commands::sync::run(
+                &ctx,
+                commands::sync::Options {
+                    dry_run,
+                    only,
+                    badge_cost,
+                    yes,
+                    allow_duplicate_names,
+                    overwrite_newer,
+                },
+            )
+            .await
+        }
         ShopCommands::List { resource, json } => commands::list::run(&ctx, resource, json).await,
         ShopCommands::Check => commands::check::run(&ctx).await,
         ShopCommands::Codegen { check } => commands::codegen::run(&ctx, check),

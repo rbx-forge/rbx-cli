@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rbx meta sync` and `rbx shop sync` read Roblox before they plan.** The
+  plan was the config against the lockfile, so a value edited on the Creator
+  Hub was invisible to it: the two local files agreed, and `sync` answered
+  "everything is in sync" over an experience that was not. The plan is now the
+  config against what Roblox holds, a dry run included.
+- **A value changed on Roblox is not overwritten silently.** When Roblox
+  holds another value than the lockfile recorded and the config would replace
+  it, `sync` shows the plan and refuses, for every env, before anything is
+  written. `rbx meta pull` or `rbx shop pull` brings the value in, and the new
+  `--overwrite-newer` puts the repository's back: the line `rbx config sync`
+  already drew.
+- **`sync` needs read scopes**, beside the write scopes it already needed:
+  `universe:read` and `universe.place:read` for `meta`, `game-pass:read` and
+  `developer-product:read` for `shop`, each for the kinds `--only` leaves in.
+  `--dry-run` needs a key too, and a read key is enough for it.
+- **`rbx shop sync` plans every env before it writes the first**, and asks
+  its one confirmation after showing the plans, only when an env has work.
+  The name check that guards a create runs on the same listing, so a dry run
+  is refused where the real run would be.
+- **`rbx meta sync` asks about the Studio cookie only when it has something
+  to do**: a declared field only the cookie reads back, or a plan that writes
+  with it.
+
+### Fixed
+
+- **`rbx meta pull` brings in a social link or private servers removed on
+  Roblox.** It left the config and the lockfile declaring them, so `check`
+  agreed and `sync` sent nothing. The env's override is now removed; when
+  `[game]` declares the setting for every env, the file is left as it is and
+  `pull` says so. The lockfile records what Roblox holds either way.
+- **A product off sale that wants the store page, and a price Roblox leaves
+  out, no longer read as changed on Roblox** in `shop/live` and in `pull`:
+  the lockfile's value stands for them.
+
 ## [0.14.0] - 2026-11-09
 
 ### Added

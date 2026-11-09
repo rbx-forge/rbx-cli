@@ -32,7 +32,7 @@ A tool is checked when its config file is in the directory.
 | `rbxplace.toml` | `env/root`: each env's start place is still Roblox's (envs named with `--env` that have places) | yes, no credential |
 | `rbxshop.toml` | `shop/lockfile`: config against lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed modules match | no |
-| `rbxshop.toml` | `shop/live`: Roblox against the lockfile, for each env the lockfile has | API key |
+| `rbxshop.toml` | `shop/live`: Roblox against the lockfile, per env; an env never synced compares with an empty one, so each item made by hand is named | API key |
 | `rbxmeta.toml` | `meta/lockfile`: config against lockfile | no |
 | `rbxmeta.toml` | `meta/live`: Roblox against the lockfile, for each env the lockfile has | API key |
 | `rbxrtbf.toml` | `rtbf/templates`: every template can match something | no |

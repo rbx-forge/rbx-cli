@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Every command that can work from ids does, without `rbxplace.toml`.**
+  `shop` takes `--universe-id`, and `meta` `--universe-id` with `--place-id`,
+  as the standalone target `[experience]` names. `place upload` and `place
+  rollback` take `--universe-id` with `--place-id`. A write to a bare id
+  always asks first, or needs `--yes`, since no env says whether it should,
+  and its `--json` receipt has no `env`. `place fetch` shows a universe's
+  places with `--universe-id` alone. `place promote` keeps naming its two
+  envs, and `config` still needs `--env` for the section of `rbxconfig.toml`.
+
+### Changed
+
+- **`shop/live` compares an env never synced with an empty lockfile**
+  instead of skipping it, so a pass, product or badge made by hand in a
+  universe never synced is named.
+
+### Fixed
+
+- **`shop list` works without `rbxshop.toml`** when `--universe-id` or
+  `--env` names the universe.
+- **A refused `shop/live` or `meta/live` read names the scope it needed.**
+  Roblox's 403 says "Scope not authorized" and nothing more.
+
 ## [0.13.0] - 2026-11-09
 
 ### Added

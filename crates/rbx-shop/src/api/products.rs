@@ -154,7 +154,25 @@ impl RbxClient {
 
         let response = execute_with_retry_policy(
             || async {
-                let form = update.form(icon.as_deref(), "imageFile")?;
+                let mut form = update.pricing.apply(multipart::Form::new());
+                if let Some(name) = update.name {
+                    form = form.text("name", name.to_string());
+                }
+                if let Some(description) = update.description {
+                    form = form.text("description", description.to_string());
+                }
+                if let Some(price) = update.price {
+                    form = form.text("price", price.to_string());
+                }
+                if let Some(for_sale) = update.is_for_sale {
+                    form = form.text("isForSale", for_sale.to_string());
+                }
+                if let Some(store_page) = update.store_page {
+                    form = form.text("storePageEnabled", store_page.to_string());
+                }
+                if let Some(bytes) = &icon {
+                    form = form.part("imageFile", icon_part(bytes)?);
+                }
                 Ok(self
                     .client
                     .patch(&url)

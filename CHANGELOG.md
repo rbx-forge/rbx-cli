@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`place upload` and `place promote` refuse a file over 150 MiB before
+  sending it.** Roblox refuses one with `400 Request upload was interrupted
+  before completion`, which reads like a dropped connection and invites a retry
+  that fails the same way. The error now gives the file's size and the limit.
+  Roblox accepts exactly 157,286,400 bytes, measured on 2026-11-09. (#127)
 - **The PowerShell completion example no longer erases your profile.** It was
   `rbx completions powershell -o $PROFILE`, and `-o` replaces the file it
   writes. The script now goes in a file of its own, loaded from the profile.

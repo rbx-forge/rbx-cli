@@ -222,11 +222,11 @@ Roblox returns these from no endpoint:
 - `game.avatar.asset_overrides`
 - `game.engine_avatar_settings`
 
-So `pull` never adopts them, and `check` compares them with the lockfile, not with Roblox. A change made in the Creator Hub is not reported as drift; the next `sync` that touches the field overwrites it.
+So `pull` never adopts them, and `check` and `sync` compare them with the lockfile, not with Roblox. A change made in the Creator Hub is not reported as drift; the next `sync` that touches the field overwrites it.
 
 ## Cookie-only fields
 
-The API key cannot write these, so a `sync` whose plan touches one needs a cookie, and checks the session before writing anything ([details](cookie.md#before-a-write)). Without a cookie, `pull` and `init` skip them and say so.
+The API key cannot write these, so a `sync` whose plan touches one needs a cookie, and checks the session before writing anything ([details](cookie.md#before-a-write)). Without a cookie, `pull` and `init` skip them and say so, and `sync` compares them with the lockfile instead of Roblox, except `visibility` and `audience`, which are read without one.
 
 | Field | Roblox feature request for a key route |
 | --- | --- |

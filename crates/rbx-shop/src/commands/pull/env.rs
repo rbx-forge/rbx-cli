@@ -158,34 +158,8 @@ pub(super) async fn pull_one_env(
             key
         };
 
-        // Regional pricing keeps whatever the lockfile last recorded (set by
-        // sync) rather than what the remote reports. The remote does report
-        // it, in `priceInformation.enabledFeatures`, but it reports it as on
-        // whenever managed pricing is on, since managed pricing subsumes it.
-        // Recording that against a config that says `regional_pricing =
-        // false` would show a change on every pull that no sync can settle.
-        let prior_regional = old_env_lock
-            .passes
-            .get(&key)
-            .map(|p| p.regional_pricing)
-            .unwrap_or(false);
-        pass_locks.insert(
-            key,
-            PassLock {
-                id,
-                name: display_name.to_string(),
-                price: pass.price(),
-                description: pass.description.clone(),
-                icon_asset_id: pass.icon_asset_id,
-                icon_hash: None,
-                for_sale: pass.is_for_sale.unwrap_or(true),
-                regional_pricing: prior_regional,
-                // Managed pricing takes the measured value instead, which is
-                // the point of reading it: a config that declares nothing
-                // raises no diff, so there is nothing to go phantom.
-                managed_pricing: pass.is_managed_pricing_enabled,
-            },
-        );
+        let entry = crate::remote::pass_lock(pass, id, old_env_lock.passes.get(&key));
+        pass_locks.insert(key, entry);
     }
 
     // Fetch badges
@@ -223,17 +197,7 @@ pub(super) async fn pull_one_env(
             key
         };
 
-        badge_locks.insert(
-            key,
-            BadgeLock {
-                id,
-                name: display_name.to_string(),
-                description: badge.description.clone(),
-                enabled: badge.enabled.unwrap_or(true),
-                icon_asset_id: badge.icon_image_id,
-                icon_hash: None,
-            },
-        );
+        badge_locks.insert(key, crate::remote::badge_lock(badge, id, true));
     }
 
     // Disabled badges aren't returned by the list endpoint since Aug 2024.
@@ -242,19 +206,8 @@ pub(super) async fn pull_one_env(
         if !seen_badge_ids.contains(&old_lock.id) {
             match client.get_badge(old_lock.id).await {
                 Ok(badge) => {
-                    let display_name = badge.name.as_deref().unwrap_or("unnamed");
                     let id = badge.id.unwrap_or(old_lock.id);
-                    badge_locks.insert(
-                        key.clone(),
-                        BadgeLock {
-                            id,
-                            name: display_name.to_string(),
-                            description: badge.description.clone(),
-                            enabled: badge.enabled.unwrap_or(false),
-                            icon_asset_id: badge.icon_image_id,
-                            icon_hash: None,
-                        },
-                    );
+                    badge_locks.insert(key.clone(), crate::remote::badge_lock(&badge, id, false));
                 }
                 // Roblox says there is no such badge: it really is gone, and
                 // letting the entry fall out of the lockfile is the point of
@@ -315,28 +268,8 @@ pub(super) async fn pull_one_env(
             key
         };
 
-        // Preserve the lockfile's regional pricing, and take the measured
-        // managed pricing. Same reasoning as the pass loop above.
-        let prior_regional = old_env_lock
-            .products
-            .get(&key)
-            .map(|p| p.regional_pricing)
-            .unwrap_or(false);
-        product_locks.insert(
-            key,
-            ProductLock {
-                id,
-                name: display_name.to_string(),
-                price: product.price().unwrap_or(0),
-                description: product.description.clone(),
-                icon_asset_id: product.icon_image_asset_id,
-                icon_hash: None,
-                for_sale: product.is_for_sale.unwrap_or(true),
-                regional_pricing: prior_regional,
-                managed_pricing: product.is_managed_pricing_enabled,
-                store_page: product.store_page_enabled.unwrap_or(false),
-            },
-        );
+        let entry = crate::remote::product_lock(product, id, old_env_lock.products.get(&key));
+        product_locks.insert(key, entry);
     }
 
     // Detect icon conflicts and queue downloads BEFORE mutating config: we

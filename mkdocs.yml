@@ -11,9 +11,8 @@
 # mdBook was chosen because it is a single Rust binary and this repository has
 # no Node toolchain, which is still true and still a good reason to avoid a
 # JavaScript site generator. What it cannot do is the layout these pages want:
-# a top bar with the six sections as tabs, so the operational commands are one
-# click from the declarative ones rather than a scroll apart in a sidebar of
-# twenty-eight entries.
+# a top bar with the sections as tabs, rather than every page in one long
+# sidebar.
 #
 # Material for MkDocs gets that from one Python package. That is a toolchain,
 # and it is the cost of the change, but it is a `pip install` of a pure-Python
@@ -42,6 +41,14 @@ site_dir: site
 # under mdBook.
 strict: true
 
+# A link to a heading that does not exist is a build failure too, under
+# `strict`. The `<details>` blocks these pages used to hide subcommands in had
+# no anchors at all; now that every subcommand is a heading, its permalink is
+# something other pages link to, and a renamed heading must not break them
+# silently.
+validation:
+  anchors: warn
+
 theme:
   name: material
   language: en
@@ -51,8 +58,8 @@ theme:
     text: Inter
     code: JetBrains Mono
   features:
-    # The reason for the move. Six sections across the top rather than
-    # twenty-eight entries down the side.
+    # The reason for the move: sections across the top rather than one long
+    # list down the side.
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
@@ -60,6 +67,9 @@ theme:
     - navigation.tracking
     - navigation.instant
     - navigation.instant.progress
+    # Previous / next at the bottom of a page, so the reading order of `nav`
+    # is followable without going back to the sidebar.
+    - navigation.footer
     - toc.follow
     - search.suggest
     - search.highlight
@@ -125,44 +135,42 @@ extra:
       name: rbx-deploy on GitHub
 
 nav:
-  - Introduction: index.md
-  - Quick start: quickstart.md
+  - Home: index.md
 
-  - Getting started:
+  # The two ways in: from nothing, or from a universe that already exists.
+  - Get started:
+      - Quick start: quickstart.md
       - rbx init: init.md
       - rbx import: import.md
-      - rbx env: env.md
-      - rbx apikey: apikey.md
-      - rbx doctor: doctor.md
-      - rbx check and rbx status: check.md
 
-  - Declarative:
+  # In the order `rbx --help` prints them.
+  - Commands:
+      - rbx env: env.md
+      - rbx check and rbx status: check.md
       - rbx place: place.md
-      - rbx meta: meta.md
+      - rbx meta:
+          - Commands: meta.md
+          - Configuration: meta-config.md
       - rbx config: config.md
       - rbx rtbf: rtbf.md
-      - rbx shop: shop.md
-      - rbx secret: secret.md
-
-  - Operational:
-      - Live operations: ops.md
-      - rbx servers: ops/servers.md
-      - rbx analytics: ops/analytics.md
-      - rbx ban: ops/ban.md
-      - rbx group: ops/group.md
-      - rbx restart: ops/restart.md
-      - rbx data: ops/data.md
-      - rbx memorystore: ops/memorystore.md
-      - rbx message: ops/message.md
-      - rbx ads: ops/ads.md
-      - rbx probe: ops/probe.md
-
-  - Local utilities:
-      - rbx open: open.md
-      - rbx download: download.md
-      - rbx user: user.md
+      - rbx shop:
+          - Commands: shop.md
+          - Configuration: shop-config.md
+          - Code generation: shop-codegen.md
+      - rbx probe: probe.md
       - rbx completions: completions.md
 
   - Guides:
       - Working in a team: teams.md
       - The Studio cookie: cookie.md
+
+  # What every command shares. Each page used to be a README section, which
+  # the site could not link to and a reader installing through Rokit never saw.
+  - Reference:
+      - Global flags: reference/global-flags.md
+      - Config files: reference/config-files.md
+      - Editor support: reference/editor-support.md
+      - Exit codes and --json: reference/exit-codes-and-json.md
+      - Scopes by command: reference/scopes.md
+      - Stability and support: reference/stability.md
+      - What rbx does not do: reference/non-goals.md

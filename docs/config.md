@@ -1,76 +1,39 @@
 # rbx config
 
-Manage Roblox in-experience live configs via the Open Cloud Configs API.
-
-`rbx config` keeps a local `rbxconfig.toml` as the canonical source of truth for your in-experience tunables and syncs it to Roblox. It targets environments defined in a shared `rbxplace.toml`, shows diffs before publishing, and supports gradual rollout.
-
-## Features
-
-- **Declarative config** - All tunables in a single `rbxconfig.toml`, organized per environment
-- **Diff preview** - `check` and `sync --dry-run` show exactly what changes before any publish
-- **Full sync** - `rbxconfig.toml` is the canonical state: missing keys are removed from live
-- **Pull** - Mirror the live config back into `rbxconfig.toml`, preserving local descriptions
-- **Revision history** - `versions` and `rollback` to inspect and revert past publishes
-- **Gradual rollout** - Optional `GradualRollout` deployment strategy (~15 min propagation)
-- **Multi-environment** - Targets environments defined in `rbxplace.toml` (shared with `rbx place`)
-- **Repositories** - Any of the eight configs repositories via `--repository` or a `repository` field in the file, which is the source of truth for the commands that read it
-- **JSON** - `--json` on `get`, `list` and `versions` writes one document to stdout and nothing else, with documented field names, for `jq` and CI
-
-## Quick start
+The experience's live config (what `ConfigService` reads in game), declared per env in `rbxconfig.toml` and published through the Open Cloud Configs API.
 
 ```sh
-# Bootstrap a template
-rbx config init
-
-# Or pull the existing live config into a local file
-rbx config pull --env dev --api-key YOUR_API_KEY
-
-# Edit rbxconfig.toml, then preview + publish
-rbx config check --env dev --api-key YOUR_API_KEY
-rbx config sync  --env dev --api-key YOUR_API_KEY
+rbx config pull --env dev       # start from what is live
+rbx config check --env dev      # diff the file against live
+rbx config sync --env dev       # publish the file
 ```
 
-`--env` is required on all commands except `init`. It is resolved against `rbxplace.toml` (override with the global `--places`).
+`rbxconfig.toml` is the whole state: a key missing from the file is removed from live on the next `sync`. Every command but `init` needs `--env` (or `--universe-id`).
 
 ## Commands
 
-<details markdown="1">
-<summary><code>rbx config init</code></summary>
+### rbx config init
 
-Write a commented template `rbxconfig.toml` in the current directory. Bails if the file already exists. Override the target path with `--config <path>`, which belongs to `rbx config` itself and so goes **before** the subcommand.
+Write a commented `rbxconfig.toml`. Refuses if the file exists.
 
 ```sh
 rbx config init
 rbx config --config configs/rbxconfig.toml init
-```
-
-With `--repository <name>` the template gains a `repository` line naming it. Without one it does not: `InExperienceConfig` is the default, and a line restating the default is one more thing to keep in step with it.
-
-```sh
 rbx config --repository DataStoresConfig init
 ```
 
-</details>
+### rbx config get
 
-<details markdown="1">
-<summary><code>rbx config get [&lt;key&gt;]</code></summary>
+`rbx config get [<key>]`
 
-Print the live published config. If a key is provided, prints only that key's value.
+Print the published config, or one key's value.
 
 ```sh
 rbx config get --env dev
 rbx config get "features.new_xp_popup" --env dev
 ```
 
-### `--json`
-
-One JSON document on stdout, nothing else. Diagnostics stay on stderr, so the document parses whatever else the run had to say.
-
-This document is a snapshot of the **published** config: what Roblox is serving right now. It does not read `rbxconfig.toml`, and says so by having no `config_file` field. Whether the local file agrees with live is a different question, and `rbx config check` is what answers it: under `rbx check --json` that row is `config/live` and it carries `outcome`, `summary` and `details`. None of those three words appears here, so a filter written for one cannot half-read the other.
-
-```sh
-rbx config get "ops.teleport_place_id" --env dev --json
-```
+#### `--json`
 
 ```json
 {
@@ -86,164 +49,75 @@ rbx config get "ops.teleport_place_id" --env dev --json
 }
 ```
 
-Without a key, the whole published config comes back in the same envelope: the identical document `rbx config list --json` emits, so one filter reads both.
-
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `schema_version` | integer | Document format, shared with `rbx check --json`. `1` today. Refuse a version you do not understand |
-| `env` | string | The env named on the command line. **Absent** under a bare `--universe-id`, where the human form prints a `<universe-id>` placeholder that is a label and not an env name |
-| `universe_id` | integer | The universe this snapshot is from |
-| `config_version` | integer | Roblox's `configVersion` for this snapshot, in snake case like every other field |
-| `key` | string | The key asked for. **Absent** when none was |
-| `value` | any | That key's value, raw, exactly what the bare form prints. **Absent** whenever `key` is |
-| `entries` | object | Keyed by config key: one entry when `key` is set, all of them otherwise. Always present |
-| `entries.<key>.type` | string | `bool`, `number`, `string`, `array`, `object`, `null`: the words the listing prints in its type column |
-| `entries.<key>.value` | any | The published value |
+| `env` | string | Absent with a bare `--universe-id` |
+| `universe_id` | integer | |
+| `config_version` | integer | Roblox's `configVersion` |
+| `key`, `value` | string, any | The key asked for and its value. Both absent without a key |
+| `entries` | object | One entry per key: `type` (`bool`, `number`, `string`, `array`, `object`, `null`) and `value` |
 
-There is no `totals` object. `rbx check --json` has one and it counts outcomes; one here would count keys under the same name. `.entries | length` is the count, and it cannot be misread.
+Without a key, the document is the same as `list --json`. An unknown key exits `1`.
 
-Which of `value` and `entries` you get is decided by the invocation, never by the data: a keyless read omits `value` even against a config holding exactly one key, so a filter cannot start working by accident and break when a second key is published. An unknown key stays an error (exit 1), never a document with a null value, "not published" and "published as nothing" are different facts.
+### rbx config list
 
-```sh
-PLACE=$(rbx config get "ops.teleport_place_id" --env dev --json | jq -r .value)
-rbx config get --env dev --json | jq -r '.entries | to_entries[] | select(.value.type == "bool") | .key'
-```
-
-</details>
-
-<details markdown="1">
-<summary><code>rbx config list</code></summary>
-
-List all published config keys with their type and a compact value preview.
-
-```sh
-rbx config list --env dev
-```
-
-Output example:
+Every published key, with its type and a preview.
 
 ```
 Live config keys - env: dev (configVersion 14)
   balance.speed_multipliers  [object]  {"tier_1":1.5,"tier_2":2}
   features.new_xp_popup      [bool]    true
-  ops.teleport_place_id      [number]  12345
 ```
 
-### `--json`
+`--json` prints the document of `get --json` without a key. Nothing published gives an empty `entries` and exit 0.
 
-The same snapshot as one JSON document on stdout, nothing else, and it is the *same document* `rbx config get --json` emits without a key, envelope and all, so one filter reads both. See the field table under `rbx config get` for what each field means.
+### rbx config check
+
+Diff `rbxconfig.toml` against live. Read-only. Exits `0` when they match, `2` when they differ, `1` if it could not answer.
+
+### rbx config sync
+
+Publish `rbxconfig.toml` for the env, after showing the diff. Records the published version in `rbxconfig.lock.toml`.
 
 ```sh
-rbx config list --env dev --json
-```
-
-```json
-{
-  "schema_version": 1,
-  "env": "dev",
-  "universe_id": 9876543210,
-  "config_version": 14,
-  "entries": {
-    "balance.speed_multipliers": { "type": "object", "value": { "tier_1": 1.5, "tier_2": 2 } },
-    "features.new_xp_popup": { "type": "bool", "value": true },
-    "ops.teleport_place_id": { "type": "number", "value": 12345 }
-  }
-}
-```
-
-A universe with nothing published yet is an empty `entries` object and exit 0, not a missing document: `.entries | length == 0` has to be answerable.
-
-```sh
-rbx config list --env dev --json | jq -r '.entries | keys[]'
-rbx config list --env prod --json | jq -r .config_version
-```
-
-</details>
-
-<details markdown="1">
-<summary><code>rbx config check</code></summary>
-
-Show the diff between local `rbxconfig.toml` and the live published config. Read-only - no draft, no publish, no confirmation prompt.
-
-Exit codes: `0` local matches live, `2` entries differ, `1` the check could not answer. Drift sits on its own code so a CI step can gate on the status alone.
-
-```sh
-rbx config check --env dev
-```
-
-</details>
-
-<details markdown="1">
-<summary><code>rbx config sync</code></summary>
-
-Push `rbxconfig.toml` as the canonical state for the target env. Uses `PUT /draft:overwrite` so keys absent from the file are removed from live. Always shows the diff first. Writes the published `configVersion` and entries to `rbxconfig.lock.toml` on success.
-
-```sh
-rbx config sync --env dev --dry-run    # preview only
-rbx config sync --env dev              # prompts for confirmation
-rbx config sync --env dev --yes        # skip confirmation
+rbx config sync --env dev --dry-run
+rbx config sync --env prod --message "raise the cap" --yes
 rbx config sync --env dev --strategy gradual-rollout
 ```
 
 | Flag | Description |
 | --- | --- |
-| `--message` / `--no-message` | Publish message, or publish without one |
-| `--strategy` | `immediate` (default) or `gradual-rollout` |
-| `--dry-run` | Show diff without publishing |
-| `--yes` | Skip confirmation prompt |
-| `--overwrite-newer` | Publish even though the live config changed since this repository last synced or pulled it |
+| `--message` / `--no-message` | Publish message, or none |
+| `--strategy` | `immediate` (default, about 5 minutes to propagate) or `gradual-rollout` (about 15, server by server) |
+| `--dry-run` | Show the diff, publish nothing |
+| `--yes` | Skip the confirmation and the message prompt (publishes with no message unless `--message` is given) |
+| `--overwrite-newer` | Publish even though someone published since your last sync or pull |
 
-**`--yes` answers the message question too.** `sync` asks twice on a terminal: once to confirm, once for a publish message. `--yes` means "do not ask me anything", so it covers both and publishes with an empty message: pass `--message` alongside it if the message matters.
+Without a terminal, pass `--yes`, `--message` or `--no-message`.
 
-Off a terminal with none of the three, the run refuses and names them. It used to reach the prompt anyway and fail with `not a terminal`, which is a fact about the stream rather than about the flag that fixes it.
+!!! warning "Someone else's publish is not overwritten silently"
+    If live is at another version than the lockfile recorded (a publish from another branch, machine or the Creator Hub, or a rollback), `sync` shows the diff and refuses. `rbx config pull` brings their changes in; `--overwrite-newer` replaces them.
 
-**A config published by somebody else is not overwritten by accident.** `rbxconfig.lock.toml` records the `configVersion` this repository last synced or pulled. When the live version is another one, someone published since, from another branch, another machine or the Creator Hub, and publishing this file would remove what they changed. The run prints the diff, then refuses, `--dry-run` included, and names the two versions. `rbx config pull` brings their changes in; `--overwrite-newer` replaces them on purpose. A `rollback` moves the live version too, so the next sync after one asks the same question. A lockfile written before versions were recorded this way does not block.
+Edits staged as a draft in the Creator Hub are replaced by a publish; `sync` names the keys that draft held. The [limits](#limits) are checked before writing, `--dry-run` included.
 
-A publish stages the entries as the draft and then publishes that draft, handing Roblox the hash of whatever draft was already there. If somebody had staged edits in the Creator Hub, they are replaced, and the run says so and names the keys the discarded draft held. It is a line of output rather than a refusal: a pipeline that publishes on every merge legitimately overwrites a staged draft, and stopping it would be the wrong end of the trade.
+### rbx config pull
 
-Both the [documented limits](#limits) are checked before the write, `--dry-run` included.
-
-</details>
-
-<details markdown="1">
-<summary><code>rbx config pull</code></summary>
-
-Fetch the live published config and write it to `rbxconfig.toml` under the target env. Preserves any local `description` annotations on keys that still exist. Other envs in the file are left untouched. The published `configVersion` and timestamp are recorded in `rbxconfig.lock.toml`.
-
-```sh
-rbx config pull --env dev
-rbx config pull --env dev --yes       # overwrite without confirmation
-rbx config --config staging.toml pull --env dev   # write to a different file
-```
+Write the published config into `rbxconfig.toml` for the env. Local `description` fields are kept, other envs untouched.
 
 | Flag | Description |
 | --- | --- |
-| `--yes` | Overwrite without confirmation if file exists |
+| `--yes` | Overwrite the file without asking |
 
-</details>
+### rbx config versions
 
-<details markdown="1">
-<summary><code>rbx config versions</code></summary>
-
-List the revision history for the target env's universe. The current revision is tagged `[published]`.
-
-```sh
-rbx config versions --env dev
-rbx config versions --env dev --count 50
-```
+Revision history, newest first. The live one is tagged `[published]`.
 
 | Flag | Description |
 | --- | --- |
-| `--count` | Number of revisions to show (default: `20`) |
-| `--json` | Write the revisions to stdout as one JSON document |
+| `--count` | How many (default `20`) |
+| `--json` | One JSON document on stdout |
 
-### `--json`
-
-One JSON document on stdout, nothing else. The progress line the human form prints is not part of the history, so under `--json` it is simply not printed.
-
-```sh
-rbx config versions --env dev --json
-```
+#### `--json`
 
 ```json
 {
@@ -258,210 +132,79 @@ rbx config versions --env dev --json
       "version": 14,
       "time": "2026-08-15T09:30:00Z",
       "message": "raise the cap",
-      "changed_keys": ["balance.speed_multipliers", "ops.teleport_place_id"],
+      "changed_keys": ["balance.speed_multipliers"],
       "published": true
-    },
-    {
-      "revision_id": "bbbbbbbb-2222-4000-8000-000000000002",
-      "version": 13,
-      "time": "2026-08-14T09:30:00Z",
-      "changed_keys": [],
-      "published": false
     }
   ]
 }
 ```
 
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `schema_version` | integer | Document format, shared with `rbx check --json`. `1` today |
-| `env` | string | The env named on the command line. **Absent** under a bare `--universe-id` |
-| `universe_id` | integer | The universe whose history this is |
-| `count` | integer | The `--count` in force for this run |
-| `count_reached` | boolean | True when the run stopped because it hit `--count` rather than because it ran out of revisions. Raise `--count` to see further back |
-| `revisions` | array of objects | Newest first, the order Roblox returns and the listing prints |
-| `revisions[].revision_id` | string | Full id, not the eight-character prefix the listing shows. This is what `rbx config rollback` takes |
-| `revisions[].version` | integer | The `configVersion` this publish produced |
-| `revisions[].time` | string | The timestamp Roblox sent, untouched ISO. The listing rewrites it to be read; a consumer wants it back |
-| `revisions[].message` | string | The publish message. **Absent** when there was none, which is not the same fact as an empty one: the listing renders both as `(no message)` |
-| `revisions[].changed_keys` | array of strings | The keys this revision changed, sorted so the same history renders the same bytes twice running. The listing prints only the count, which is `length`. Always an array, empty included |
-| `revisions[].published` | boolean | True for the revision currently serving players: the one the listing tags `[published]`. Stated rather than inferred from the position, so a consumer that sorted the array still knows |
+`revision_id` is the full id `rollback` takes. `message` is absent when there was none. `count_reached` is `true` if there may be more.
 
-This is history, not state: it shares nothing with the `get`/`list` document beyond the envelope, and nothing at all with the `config/live` row of `rbx check --json`, which is a verdict rather than a record.
+### rbx config rollback
+
+`rbx config rollback [<revision_id>]`
+
+Publish a past revision again, as a new version. Without an id, a picker lists recent revisions (a terminal is required).
 
 ```sh
-rbx config versions --env prod --json | jq -r '.revisions[] | select(.published) | .revision_id'
-rbx config versions --env prod --count 50 --json | jq -r '.revisions[].changed_keys[]' | sort | uniq -c
-```
-
-</details>
-
-<details markdown="1">
-<summary><code>rbx config rollback [&lt;revision_id&gt;]</code></summary>
-
-Roll back to a previous revision. Restores the chosen revision into the draft and publishes it as a new version. If `revision_id` is omitted, an interactive picker lists recent revisions (current tagged `[published]`).
-
-```sh
-rbx config rollback --env dev                   # interactive picker
-rbx config rollback --env dev <revision_id>     # direct
-rbx config rollback --env dev --count 30        # picker with more entries
-
-# Unattended, for a pipeline recovering from a bad publish
-rbx config rollback --env prod <revision_id> --message "revert #123" --yes
+rbx config rollback --env dev
+rbx config rollback --env prod aaaaaaaa-1111-4000-8000-000000000001 --message "revert #123" --yes
 ```
 
 | Flag | Description |
 | --- | --- |
-| `--count` | Number of revisions to show in the picker (default: `10`) |
-| `--message` / `-m` | Publish message for the version the rollback creates |
-| `--no-message` | Publish without a message |
-| `--yes` / `-y` | Skip the confirmation, and answer the publish message too |
-
-**Scriptable (0.8.0+).** A rollback is the command a pipeline reaches for when a publish went wrong, so it runs unattended on the same terms as `sync`: `--yes` answers both the confirmation and the publish message, exactly as it does there.
-
-Off a terminal, a run with no `revision_id` fails asking for one and names `rbx config versions`, rather than failing inside the picker with a message about a terminal. It fails **before** fetching the revisions, so a run with nowhere to display them spends no request.
-
-Everything that can refuse the run refuses it while the universe is untouched: the message is resolved before the revision is restored, because restoring stages a draft and replaces whatever was staged there. A rollback that stopped on "no publish message" after that point would leave a draft nobody asked to stage, from a command that reported failure.
-
-</details>
+| `--count` | Revisions in the picker (default `10`) |
+| `--message` / `-m`, `--no-message` | Publish message, or none |
+| `--yes` / `-y` | Skip the confirmation and the message prompt |
 
 ### Per-tool flags
 
+These go before the subcommand: `rbx config --repository DataStoresConfig list`.
+
 | Flag | Default | Description |
 | --- | --- | --- |
-| `--config` | `rbxconfig.toml` | Path to the local config file |
-| `--repository` | `InExperienceConfig` | Configs repository to address. See [Repositories](#repositories) |
-| `--universe-id` | _none_ | Bypass `rbxplace.toml` lookup. `--env` is still required to name the section in `rbxconfig.toml` for commands that read/write it |
+| `--config` | `rbxconfig.toml` | The config file |
+| `--repository` | `InExperienceConfig` | Which configs repository. See [Repositories](#repositories) |
 
-## Configuration
-
-### rbxplace.toml
-
-`rbx config` resolves environment names to universe IDs from `rbxplace.toml` (shared with `rbx place`):
-
-```toml
-[prod]
-universe_id = 9876543210
-places.main = 123456789012345
-
-[staging]
-universe_id = 9876543211
-places.main = 234567890123456
-```
-
-Pass a different path via the global `--places`, or skip the lookup entirely with `--universe-id <id>`. Each env section may set `confirm = true` to force interactive confirmation before any write to that env.
-
-### rbxconfig.toml
-
-The local source of truth for your tunables, organized per environment. Every entry under `[<env>.entries."key"]` is synced as a config key. Scalars become scalar values; tables become JSON objects. Each entry has a required `value` and an optional `description` (local-only - not sent to Roblox).
+## rbxconfig.toml
 
 ```toml
 [prod.entries."features.new_xp_popup"]
 value = false
-description = "Disabled in prod until stable"
-
-[prod.entries."ops.teleport_place_id"]
-value = 12345
+description = "Disabled in prod until stable"   # local only, never sent
 
 [prod.entries."balance.speed_multipliers"]
 value = { tier_1 = 1.5, tier_2 = 2.0 }
 
 [staging.entries."features.new_xp_popup"]
 value = true
-description = "Testing new popup - remove in v2"
 ```
 
-An optional top-level `repository` field names the configs repository these entries belong to. Absent means `InExperienceConfig`, so a file written before the field existed keeps meaning what it meant. It has to sit **above** the first `[<env>...]` header, since a bare key after a table header belongs to that table:
+Keys are kept verbatim; in game, `ConfigService:GetConfigAsync():GetValue("features.new_xp_popup")`. An optional `repository = "..."` at the top (before any table) names the repository.
 
-```toml
-repository = "DataStoresConfig"
-
-[prod.entries."..."]
-# entries as above; their keys are the repository's business, not this tool's
-```
-
-The file is the source of truth: see [Repositories](#repositories) for what happens when `--repository` names a different one.
-
-Dotted key names (e.g. `"features.new_xp_popup"`) are preserved verbatim as the Roblox config key. In-game, read them with:
-
-```lua
-ConfigService:GetConfigAsync():GetValue("features.new_xp_popup")
-```
-
-### rbxconfig.lock.toml
-
-Written automatically by `pull` and `sync`, next to `rbxconfig.toml`. Records, per environment, the last published `revision_id` (the `v{N}` configVersion), the `synced_at` timestamp, and a snapshot of the entries that were pushed or pulled. Informational only - not sent to Roblox. Commit it if you want to track sync history alongside your config.
-
-```toml
-version = 1
-
-[envs.prod]
-revision_id = "v14"
-synced_at = "2024-01-15T14:30:00Z"
-
-[envs.prod.entries]
-"features.new_xp_popup" = false
-"ops.teleport_place_id" = 12345
-"balance.speed_multipliers" = { tier_1 = 1.5, tier_2 = 2.0 }
-```
-
-### Required API scopes
-
-| Operation | Scope |
-| --- | --- |
-| Read live config (`get`, `list`, `check`, `pull`, `sync` diff) | `universe:read` |
-| Write config (`sync`, `rollback`) | `universe:write` |
+`rbxconfig.lock.toml` records, per env, the published version, when, and the entries. Commit it: `sync` uses it to notice someone else's publish.
 
 ## Repositories
 
-The Configs API takes the repository as a path parameter, and every verb under it is identical whichever one is named: stage a draft, read it, publish it, list revisions, restore one. `rbx config` addresses `InExperienceConfig` unless told otherwise, which is the live config `ConfigService` reads in-experience.
+The Configs API works the same on eight repositories. `InExperienceConfig` (the default) and `DataStoresConfig` (right-to-be-forgotten templates, see [`rbx rtbf`](rtbf.md)) have documented schemas. `RecommendationServicesConfig`, `ExtendedServicesConfig`, `LeaderboardsConfig`, `ExperienceUserConfig`, `JourneysConfig` and `AntiCheatConfig` are in Roblox's enum and documented nowhere; they work if you know their keys.
 
-| Repository | Documented schema |
-| --- | --- |
-| `InExperienceConfig` | Yes, the in-experience tunables this tool was built around |
-| `DataStoresConfig` | Yes, the data store right-to-be-forgotten deletion templates |
-| `RecommendationServicesConfig` | No |
-| `ExtendedServicesConfig` | No |
-| `LeaderboardsConfig` | No |
-| `ExperienceUserConfig` | No |
-| `JourneysConfig` | No |
-| `AntiCheatConfig` | No |
-
-`InExperienceConfig` and `DataStoresConfig` are the only two with a documented entry schema, and they are documented on different pages. The other six are in Roblox's `Repository` enum and documented nowhere: the enum's own description says only values exposed by the public API are included, so they are forward declarations of products that are not out yet. They are reachable here because they are reachable in the API, and anyone who knows their keys can use them.
-
-This command carries the transport and takes no view on what any repository's entries mean. It reads, diffs, stages and publishes JSON values under string keys, whichever repository holds them.
-
-### Which repository an invocation addresses
-
-`--repository` is a flag on `rbx config` itself, so it goes **before** the subcommand: `rbx config --repository DataStoresConfig list`. Names are matched case-insensitively, and an unknown one is refused with the eight above. `rbxconfig.toml` may name one in its `repository` field, and for the commands that read the file it is the source of truth.
-
-| `--repository` | `repository` in the file | Addressed |
+| `--repository` | `repository` in the file | Used |
 | --- | --- | --- |
-| absent | absent | `InExperienceConfig`. Every invocation that predates the flag |
-| absent | named | the file's |
-| named | absent | the flag's |
-| named | a **different** one | refused, naming both and the file |
+| absent | absent | `InExperienceConfig` |
+| absent | set | the file's |
+| set | absent | the flag's |
+| set | different | refused |
 
-The last row is the point of the design. A `sync` that pushed `rbxconfig.toml`'s entries into a repository the file does not describe overwrites a live config wholesale, and this command cannot undo it, so a contradiction is not resolved by picking a winner. Drop the flag, or change the field.
+`get`, `list` and `versions` do not read the file, so only the flag applies to them.
 
-`get`, `list` and `versions` never open `rbxconfig.toml` (a bare `--universe-id` is enough to name what they read), so they take the flag or the default and nothing else. `check`, `sync`, `pull` and `rollback` resolve against the file by the table above. `pull` records the repository it pulled from when it is not the default, so the next `sync` from that file publishes back where the entries came from.
+## Limits
 
-### Limits
+Checked before publishing: 100 entries per repository, 256 characters per key.
 
-Two documented ceilings, checked locally before a publish rather than left to a 400 that names neither the key nor the limit:
+## Required API scopes
 
-| Limit | Value |
+| Operation | Scope |
 | --- | --- |
-| Entries per repository | 100 |
-| Key length | 256 characters |
-
-`sync` and `sync --dry-run` both enforce them, so a dry run refuses the entry set a publish would refuse instead of reporting a clean plan for it. The key length is counted in characters, not bytes, so a key of accented characters is not refused for a limit Roblox would not have applied.
-
-## Deployment strategies
-
-| Strategy | Flag | Propagation |
-| --- | --- | --- |
-| Immediate | `--strategy immediate` | ~5 minutes |
-| Gradual rollout | `--strategy gradual-rollout` | ~15 minutes |
-
-Gradual rollout incrementally applies the config across servers, reducing the blast radius of a bad config push.
+| `get`, `list`, `check`, `pull`, `versions` | `universe:read` |
+| `sync`, `rollback` | `universe:write` |

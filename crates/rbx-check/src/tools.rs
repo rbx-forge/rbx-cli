@@ -546,6 +546,109 @@ pub fn meta(config_path: &Path, envs: &[Option<String>]) -> Vec<ToolReport> {
     reports
 }
 
+/// `meta/live`: Roblox against the lockfile, per env. See `rbx_meta::live`
+/// for why the lockfile and not the config.
+pub async fn meta_live(
+    config_path: &Path,
+    envs: &[Option<String>],
+    global: &GlobalFlags,
+    offline: bool,
+) -> Vec<ToolReport> {
+    use rbx_meta::lockfile::{Lockfile, LOCKFILE_NAME};
+
+    if offline {
+        return vec![ToolReport::new(
+            "meta",
+            "live",
+            Outcome::Skipped,
+            "--offline: comparing against Roblox needs an API key",
+        )];
+    }
+
+    let config_dir = config_path.parent().unwrap_or(Path::new("."));
+    let lockfile = match Lockfile::load(&config_dir.join(LOCKFILE_NAME)) {
+        Ok(l) => l,
+        Err(err) => {
+            return vec![ToolReport::new(
+                "meta",
+                "live",
+                Outcome::Error,
+                one_line(&err),
+            )]
+        }
+    };
+
+    // `rbx check` never prompts, so the cookie is the one passed, or a
+    // signed-in Studio under `--auto-cookie`, and nothing is asked for.
+    let cookie = rbx_core::env::resolve_cookie(
+        global.cookie.as_deref(),
+        global.no_auto_cookie || !global.auto_cookie,
+        global.auto_cookie,
+    );
+
+    let mut reports = Vec::new();
+    for env in envs {
+        let label = env_label(env.as_deref());
+        let Some(env_lock) = lockfile.envs.get(&label) else {
+            reports.push(
+                ToolReport::new(
+                    "meta",
+                    "live",
+                    Outcome::Skipped,
+                    "nothing synced or pulled for this env yet",
+                )
+                .env(&label),
+            );
+            continue;
+        };
+        let Some(key) = global.api_key.clone() else {
+            reports.push(
+                ToolReport::new(
+                    "meta",
+                    "live",
+                    Outcome::Error,
+                    "no API key: pass --api-key, set RBX_API_KEY, or run with --offline",
+                )
+                .env(&label),
+            );
+            continue;
+        };
+
+        let report = match rbx_meta::live::compare(key, cookie.clone(), env_lock).await {
+            Ok(live) => {
+                let not_compared = live
+                    .not_compared
+                    .iter()
+                    .map(|line| format!("not compared: {line}"));
+                if live.differences.is_empty() {
+                    ToolReport::new("meta", "live", Outcome::Clean, "matches the lockfile")
+                        .details(not_compared.collect::<Vec<String>>())
+                } else {
+                    let n = live.differences.len();
+                    ToolReport::new(
+                        "meta",
+                        "live",
+                        Outcome::Drift,
+                        format!(
+                            "{n} field{} changed on Roblox since the last sync or pull",
+                            if n == 1 { "" } else { "s" }
+                        ),
+                    )
+                    .details(
+                        live.differences
+                            .into_iter()
+                            .chain(not_compared)
+                            .collect::<Vec<String>>(),
+                    )
+                }
+            }
+            Err(err) => ToolReport::new("meta", "live", Outcome::Error, one_line(&err)),
+        };
+        reports.push(report.env(&label));
+    }
+    reports
+}
+
 fn meta_change_count(plan: &rbx_meta::diff::SyncPlan) -> usize {
     meta_change_descriptions(plan).len()
 }

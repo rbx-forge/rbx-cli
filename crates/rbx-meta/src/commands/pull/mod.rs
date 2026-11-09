@@ -29,6 +29,9 @@ use rbx_core::confirm::confirm_always;
 
 use self::{fetch::*, media::*, write::*};
 
+pub(crate) use self::differential::toml_spelling;
+pub(crate) use self::fetch::{read_remote, RemoteRead};
+
 pub async fn run(
     ctx: &MetaCtx<'_>,
     dry_run: bool,

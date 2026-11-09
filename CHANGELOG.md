@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`rbx check` compares the metadata with Roblox, in a `meta/live` row per
+  env.** It reads what `rbx meta pull` reads and compares it with the
+  lockfile, so a change made on Roblox since the last `sync` or `pull` fails
+  the run with exit `2`, and a change not synced yet stays `meta/lockfile`'s.
+  Each run lists what it did not compare: the cookie-only fields without a
+  cookie, the fields Roblox never returns, and the media. `rbx check` never
+  asks for a cookie: pass one, or `--auto-cookie`.
+
 - **`-a` is short for `--api-key`**, the way `-e` is for `--env`, on every
   command. The flag is still the place a key is least safe: prefer
   `RBX_API_KEY`, which stays out of your shell history.

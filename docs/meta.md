@@ -62,7 +62,7 @@ The lockfile is saved after every successful call, so an interrupted sync resume
 
 ### rbx meta check
 
-Compare the config with the lockfile. Exits `0` nothing pending, `2` drift, `1` error. It does not contact Roblox: see [Comparing with Roblox](check.md#comparing-with-roblox).
+Compare the config with the lockfile. Exits `0` nothing pending, `2` drift, `1` error. It does not contact Roblox: `rbx check` does, in its `meta/live` row. See [Comparing with Roblox](check.md#comparing-with-roblox).
 
 ### rbx meta pull
 

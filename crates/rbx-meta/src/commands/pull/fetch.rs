@@ -59,6 +59,12 @@ pub(super) async fn fetch_env(
         place_id
     );
     let remote = read_remote(&client).await?;
+    if !client.has_cookie() {
+        eprintln!(
+            "note: no cookie, so the cookie-only fields are left as they are. See \
+             docs/meta-config.md#cookie-only-fields."
+        );
+    }
 
     // Everything that came from an endpoint allowed to fail, gathered before
     // the differential apply mutates the config. `reconcile_lock` needs the
@@ -472,15 +478,22 @@ pub(crate) async fn read_remote(client: &RbxClient) -> Result<RemoteRead> {
     // than recording what the config asked for. No separate flag is needed:
     // the absence *is* the signal, and it covers a value Roblox sent that this
     // build does not recognise just as well as a call that never happened.
-    let universe_config = match client.get_universe_config_legacy().await {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!(
-                "warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
-                e
-            );
-            Default::default()
+    // Cookie-only like the two reads around it, so skipped the same way
+    // without one: attempted, it failed on every keyless run with a warning
+    // that said nothing the caller does not already know.
+    let universe_config = if client.has_cookie() {
+        match client.get_universe_config_legacy().await {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                eprintln!(
+                    "warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
+                    e
+                );
+                Default::default()
+            }
         }
+    } else {
+        Default::default()
     };
 
     // `None` on failure, not the lockfile's value.

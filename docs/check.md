@@ -33,27 +33,31 @@ A tool is checked when its config file is in the directory.
 | `rbxshop.toml` | `shop/lockfile`: config against lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed modules match | no |
 | `rbxmeta.toml` | `meta/lockfile`: config against lockfile | no |
+| `rbxmeta.toml` | `meta/live`: Roblox against the lockfile, for each env the lockfile has | API key |
 | `rbxrtbf.toml` | `rtbf/templates`: every template can match something | no |
 | `rbxrtbf.toml` | `rtbf/live`: the file against the published templates | API key |
 | `rbxconfig.toml` | `config/live`: the file against the live config | API key |
 
-Only `config/live` and `rtbf/live` need a key, and they are skipped when there is nothing to compare (no `--env`, or no target universe). So a keyless run exits `0` on a clean repository, and `--offline` is fast enough for a pre-commit hook.
+Only the `live` checks need a key, and they are skipped when there is nothing to compare (no `--env`, no target universe, or nothing synced yet). So a keyless run exits `0` on a clean repository, and `--offline` is fast enough for a pre-commit hook.
 
 !!! warning "Clean means the files agree with each other"
     `shop/lockfile` and `meta/lockfile` never ask Roblox. A resource dropped from both the config and the lockfile reports clean.
 
 ### Comparing with Roblox
 
-`rbx shop pull --dry-run` and `rbx meta pull --dry-run` show how Roblox differs from the repository. Both exit `0` either way.
+**Metadata: `meta/live`.** It compares Roblox with the lockfile, not with the config, so a change not synced yet stays `meta/lockfile`'s and is not reported twice. A difference is a change made on Roblox since the last `sync` or `pull`. Every run lists what it did not compare, so a clean row is never read as more than it is:
 
-For the shop in CI, on a checkout nothing else uses, pull and let git judge:
+- the cookie-only fields, unless a cookie is given (`--cookie`, `RBX_COOKIE` or `--auto-cookie`; `rbx check` never asks for one);
+- the fields Roblox returns from no endpoint;
+- the media.
+
+**Shop: pull and diff.** `rbx shop pull --dry-run` shows how Roblox differs from the repository, and exits `0` either way. In CI, on a checkout nothing else uses, pull and let git judge:
 
 ```sh
 rbx shop pull --env prod --yes
 git diff --exit-code       # fails on any difference, and shows it
 ```
 
-Not for `meta`: `meta pull` rewrites the layout of `rbxmeta.toml` even when nothing changed, so the diff is mostly noise.
 
 Rows are `tool/check [env]`; without `--env` they read `[default]`.
 

@@ -8,6 +8,7 @@ pub mod config;
 mod ctx;
 pub mod diff;
 pub mod engine_echo;
+pub mod live;
 pub mod lockfile;
 
 use std::path::PathBuf;

@@ -11,7 +11,7 @@ use crate::config::SocialLink;
 /// are not what the user finds in the file a moment later. Going through the
 /// same serde attributes that read the file gives the spelling they will see.
 /// `Debug` stays as the fallback for a value TOML cannot represent.
-pub(super) fn toml_spelling<T: Serialize + std::fmt::Debug>(v: &T) -> String {
+pub(crate) fn toml_spelling<T: Serialize + std::fmt::Debug>(v: &T) -> String {
     match toml::Value::try_from(v) {
         Ok(value) => value.to_string(),
         Err(_) => format!("{v:?}"),

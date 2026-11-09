@@ -32,6 +32,7 @@ A tool is checked when its config file is in the directory.
 | `rbxplace.toml` | `env/root`: each env's start place is still Roblox's (envs named with `--env` that have places) | yes, no credential |
 | `rbxshop.toml` | `shop/lockfile`: config against lockfile | no |
 | `rbxshop.toml` | `shop/codegen`: the committed modules match | no |
+| `rbxshop.toml` | `shop/live`: Roblox against the lockfile, for each env the lockfile has | API key |
 | `rbxmeta.toml` | `meta/lockfile`: config against lockfile | no |
 | `rbxmeta.toml` | `meta/live`: Roblox against the lockfile, for each env the lockfile has | API key |
 | `rbxrtbf.toml` | `rtbf/templates`: every template can match something | no |
@@ -45,19 +46,16 @@ Only the `live` checks need a key, and they are skipped when there is nothing to
 
 ### Comparing with Roblox
 
-**Metadata: `meta/live`.** It compares Roblox with the lockfile, not with the config, so a change not synced yet stays `meta/lockfile`'s and is not reported twice. A difference is a change made on Roblox since the last `sync` or `pull`. Every run lists what it did not compare, so a clean row is never read as more than it is:
-
-- the cookie-only fields, unless a cookie is given (`--cookie`, `RBX_COOKIE` or `--auto-cookie`; `rbx check` never asks for one);
-- the fields Roblox returns from no endpoint;
-- the media.
-
-**Shop: pull and diff.** `rbx shop pull --dry-run` shows how Roblox differs from the repository, and exits `0` either way. In CI, on a checkout nothing else uses, pull and let git judge:
+`shop/live` and `meta/live` compare Roblox with the lockfile, not with the config, so a change not synced yet stays the `lockfile` row's and is not reported twice. A difference is a change made on Roblox since the last `sync` or `pull`: a price edited on the Creator Dashboard, a pass taken off sale, a link added by hand. `rbx shop pull --dry-run` and `rbx meta pull --dry-run` then show it in the context of the config.
 
 ```sh
-rbx shop pull --env prod --yes
-git diff --exit-code       # fails on any difference, and shows it
+rbx check --env all    # exit 2 when Roblox moved
 ```
 
+Every run lists what it did not compare, so a clean row is never read as more than it is:
+
+- `shop/live`: `regional_pricing`, which Roblox reports as on whenever managed pricing is, and the icon files (the icon id Roblox holds is compared);
+- `meta/live`: the cookie-only fields unless a cookie is given (`--cookie`, `RBX_COOKIE` or `--auto-cookie`; `rbx check` never asks for one), the fields Roblox returns from no endpoint, and the media.
 
 Rows are `tool/check [env]`; without `--env` they read `[default]`.
 

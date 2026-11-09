@@ -11,6 +11,7 @@ use crate::lockfile::{
 };
 use crate::refresh::{refresh, Refreshed};
 use rbx_core::confirm::confirm_destructive;
+use rbx_core::newer::{self, Newer};
 use rbx_core::places::PlacesFile;
 
 /// What the command line asked of one run.
@@ -23,15 +24,10 @@ pub struct Options {
 }
 
 pub async fn run(ctx: &MetaCtx<'_>, options: Options) -> Result<()> {
-    // Resolved once, before the first read. The reads that take it are the
-    // ones `pull` makes and the writes below reuse the answer, so a run asks
-    // about the Studio session at most once.
-    let cookie = ctx.resolve_cookie();
     let roblox = Live {
         api_key: ctx.api_key(),
-        cookie: cookie.clone(),
     };
-    run_with(ctx, options, cookie, &roblox).await
+    run_with(ctx, options, &|| ctx.resolve_cookie(), &roblox).await
 }
 
 /// Where the planning pass reads Roblox from.
@@ -44,12 +40,12 @@ trait Roblox {
         universe_id: u64,
         place_id: u64,
         media: &MediaConfig,
+        cookie: Option<&str>,
     ) -> Result<RemoteRead>;
 }
 
 struct Live {
     api_key: Option<String>,
-    cookie: Option<String>,
 }
 
 impl Roblox for Live {
@@ -58,10 +54,11 @@ impl Roblox for Live {
         universe_id: u64,
         place_id: u64,
         media: &MediaConfig,
+        cookie: Option<&str>,
     ) -> Result<RemoteRead> {
         let client = RbxClient::new(
             self.api_key.clone(),
-            self.cookie.clone(),
+            cookie.map(String::from),
             universe_id,
             place_id,
             media.bleed,
@@ -71,10 +68,14 @@ impl Roblox for Live {
     }
 }
 
+/// `resolve_cookie` is asked only when the cookie has something to do, so a
+/// run that neither reads nor writes with it never raises the question of the
+/// Studio session. Asking twice costs nothing: the answer is cached for the
+/// process.
 async fn run_with(
     ctx: &MetaCtx<'_>,
     options: Options,
-    cookie: Option<String>,
+    resolve_cookie: &dyn Fn() -> Option<String>,
     roblox: &impl Roblox,
 ) -> Result<()> {
     let Options {
@@ -95,6 +96,18 @@ async fn run_with(
     // The header appears only when there is more than one env to separate, so
     // a single-env run prints exactly what it always has.
     let many = targets.len() > 1;
+
+    // The first of the two moments the cookie has something to do: a field
+    // only it can read back is declared, so the reads below want it. The
+    // second is a plan that writes with it, further down.
+    let reads_cookie_fields = targets
+        .iter()
+        .any(|(env, _, _)| manages_cookie_fields(&config.resolve_env(Some(env)).0));
+    let mut cookie = if reads_cookie_fields {
+        resolve_cookie()
+    } else {
+        None
+    };
 
     // Planning pass. It reads Roblox and writes nothing there, which is what
     // lets one confirmation cover the whole run, below.
@@ -127,7 +140,9 @@ async fn run_with(
         // the config against what Roblox holds now, so a value changed on the
         // Creator Hub is in it. Planned against the lockfile alone, that value
         // was invisible: the two local files agreed and the run said in sync.
-        let remote = roblox.read(*universe_id, *place_id, &media).await?;
+        let remote = roblox
+            .read(*universe_id, *place_id, &media, cookie.as_deref())
+            .await?;
         let Refreshed { lock: seen, newer } = refresh(&game, &env_lock.game, &remote);
         cookie_fields_unread |= cookie.is_none() && manages_cookie_fields(&game);
 
@@ -233,7 +248,11 @@ async fn run_with(
     // sent. A cookie problem is the user's to fix either way, and finding out
     // after typing "yes" (or worse, after half the plan has landed) is the
     // failure this ordering exists to prevent.
-    if pending.iter().any(|p| p.plan.needs_cookie()) && cookie.is_none() {
+    let writes_with_cookie = pending.iter().any(|p| p.plan.needs_cookie());
+    if writes_with_cookie && cookie.is_none() {
+        cookie = resolve_cookie();
+    }
+    if writes_with_cookie && cookie.is_none() {
         bail!(
             "Cannot apply legacy / cookie-only fields (server_fill / allow_copying / visibility / \
              studio_access_to_apis_allowed / beta_mode / genre / avatar / \
@@ -377,54 +396,31 @@ fn record_seen(lockfile: &mut Lockfile, planned: &[PlannedEnv]) -> bool {
 }
 
 /// Stop a run that would write over what was changed on Roblox, or say what it
-/// replaces when that was asked for.
-///
-/// `rbx config sync` draws the same line, with the same flag: a value somebody
-/// set on the Creator Hub, or synced from another checkout, exists nowhere in
-/// this repository, so replacing it is a decision and not a side effect.
+/// replaces when that was asked for. See [`rbx_core::newer`].
 fn report_newer(ctx: &MetaCtx<'_>, planned: &[PlannedEnv], overwrite_newer: bool) -> Result<()> {
-    let changed: Vec<&PlannedEnv> = planned.iter().filter(|p| !p.newer.is_empty()).collect();
-    if changed.is_empty() {
-        return Ok(());
-    }
+    let changed: Vec<Newer<'_>> = planned
+        .iter()
+        .filter(|p| !p.newer.is_empty())
+        .map(|p| Newer {
+            env: &p.env,
+            values: &p.newer,
+        })
+        .collect();
+    let envs: Vec<&str> = changed.iter().map(|newer| newer.env).collect();
+    // A target named by id on the command line has no env to name in the
+    // hint, so the hint carries the ids.
+    let by_id = ctx
+        .global
+        .universe_id
+        .and(planned.first())
+        .map(|p| format!("--universe-id {} --place-id {}", p.universe_id, p.place_id));
 
-    let mut listed = String::new();
-    for p in &changed {
-        listed.push_str(&format!("\n  [{}]", p.env));
-        for line in &p.newer {
-            listed.push_str(&format!("\n    {line}"));
-        }
-    }
-
-    if overwrite_newer {
-        println!(
-            "\n{} replacing what was changed on Roblox since the last sync or pull:{listed}",
-            "--overwrite-newer:".yellow()
-        );
-        return Ok(());
-    }
-
-    bail!(
-        "Roblox was changed since this repository last synced or pulled it:{listed}\n\n\
-         Syncing would replace those values with the ones in {}, as the plan above shows.\n  \
-         Bring them in with {}, or pass --overwrite-newer to replace them.",
-        ctx.config.display(),
-        pull_hint(ctx, &changed),
+    newer::report(
+        &changed,
+        overwrite_newer,
+        &ctx.config,
+        &newer::pull_hint("meta", &envs, DEFAULT_ENV, by_id.as_deref()),
     )
-}
-
-/// The `pull` that brings the newer values in, spelled for the envs that have
-/// them.
-fn pull_hint(ctx: &MetaCtx<'_>, changed: &[&PlannedEnv]) -> String {
-    match changed {
-        [one] if one.env != DEFAULT_ENV => format!("`rbx meta pull --env {}`", one.env),
-        [one] if ctx.global.universe_id.is_some() => format!(
-            "`rbx meta pull --universe-id {} --place-id {}`",
-            one.universe_id, one.place_id
-        ),
-        [_] => "`rbx meta pull`".to_string(),
-        _ => "`rbx meta pull --env <name>` for each env listed".to_string(),
-    }
 }
 
 /// The question a sync asks once, covering every env it is about to write.
@@ -1179,6 +1175,7 @@ mod canned {
             universe_id: u64,
             _place_id: u64,
             _media: &MediaConfig,
+            _cookie: Option<&str>,
         ) -> Result<RemoteRead> {
             Ok((self.0)(universe_id))
         }
@@ -1293,7 +1290,7 @@ main = 250
                 yes: true,
                 overwrite_newer: false,
             },
-            None,
+            &|| None,
             &Canned::always(|| place_named("Synced")),
         )
         .await

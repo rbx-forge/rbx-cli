@@ -154,3 +154,7 @@ rbx status always exits 0; rbx check here would exit 2.
 ```
 
 Always `0`, even on an unreadable `rbxplace.toml` (shown as an `env/discovery` error), so it is safe under `set -e` or in a shell prompt. For a verdict, read `exit_code` from `--json`, or run `rbx check`.
+
+## Required API scopes
+
+The read scopes of each tool it checks, for the `live` rows; none with `--offline`. They are gathered on [Scopes by command](reference/scopes.md).

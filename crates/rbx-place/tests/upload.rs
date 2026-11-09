@@ -140,18 +140,113 @@ fn naming_neither_an_env_nor_a_place_is_refused_at_parse_time() {
     assert!(parses(&["download", "--out", "backup.rbxl"]).is_err());
 }
 
-/// The writes are deliberately not part of that: `confirm = true` is declared
-/// on an env, so an env-less write would walk past a guard somebody set.
-#[test]
-fn a_place_id_does_not_stand_in_for_an_env_on_a_write() {
-    assert!(parses(&[
-        "upload",
-        "--place-id",
-        "123456789012345",
-        "--file",
-        "place.rbxl"
-    ])
-    .is_err());
+/// The flags for a write named by id, in a directory with no `rbxplace.toml`.
+fn id_flags(dir: &std::path::Path, universe: Option<u64>, place: u64) -> GlobalFlags {
+    GlobalFlags {
+        env: None,
+        universe_id: universe,
+        place_id: vec![place],
+        ..flags(&dir.join("rbxplace.toml"), "unused")
+    }
+}
+
+/// A write takes ids too, with no `rbxplace.toml`. No env says whether to
+/// confirm it, so `--yes` is what lets it through unattended.
+#[tokio::test]
+async fn an_upload_named_by_id_needs_no_places_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = rbxl(dir.path());
+    let server = MockServer::start().await;
+    mount_upload(&server, DEV_UNIVERSE, DEV_PLACE, 3).await;
+    let place = DEV_PLACE.to_string();
+    let universe = DEV_UNIVERSE.to_string();
+
+    run(
+        cli(
+            &[
+                "upload",
+                "--universe-id",
+                &universe,
+                "--place-id",
+                &place,
+                "--file",
+                &file.to_string_lossy(),
+                "--yes",
+            ],
+            &server,
+        ),
+        &id_flags(dir.path(), Some(DEV_UNIVERSE), DEV_PLACE),
+    )
+    .await
+    .expect("an upload by id with --yes goes through");
+
+    assert_eq!(
+        uploads(&server).await,
+        vec![upload_path(DEV_UNIVERSE, DEV_PLACE)]
+    );
+}
+
+/// The confirmation an id always needs cannot be asked under `--json`: the run
+/// is refused before a byte goes out.
+#[tokio::test]
+async fn an_upload_named_by_id_asks_first_and_cannot_ask_under_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = rbxl(dir.path());
+    let server = MockServer::start().await;
+    mount_upload(&server, DEV_UNIVERSE, DEV_PLACE, 3).await;
+    let place = DEV_PLACE.to_string();
+    let universe = DEV_UNIVERSE.to_string();
+
+    let error = run(
+        cli(
+            &[
+                "upload",
+                "--universe-id",
+                &universe,
+                "--place-id",
+                &place,
+                "--file",
+                &file.to_string_lossy(),
+                "--json",
+            ],
+            &server,
+        ),
+        &id_flags(dir.path(), Some(DEV_UNIVERSE), DEV_PLACE),
+    )
+    .await
+    .expect_err("no one can answer the confirmation");
+
+    assert!(format!("{error:#}").contains("--yes"), "{error:#}");
+    assert!(uploads(&server).await.is_empty());
+}
+
+/// The upload endpoint is per universe, so a place id alone is not a target.
+#[tokio::test]
+async fn a_place_id_without_a_universe_id_is_refused_on_a_write() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = rbxl(dir.path());
+    let server = MockServer::start().await;
+    let place = DEV_PLACE.to_string();
+
+    let error = run(
+        cli(
+            &[
+                "upload",
+                "--place-id",
+                &place,
+                "--file",
+                &file.to_string_lossy(),
+                "--yes",
+            ],
+            &server,
+        ),
+        &id_flags(dir.path(), None, DEV_PLACE),
+    )
+    .await
+    .expect_err("a place id alone names no universe");
+
+    assert!(format!("{error:#}").contains("--universe-id"), "{error:#}");
+    assert!(uploads(&server).await.is_empty());
 }
 
 fn rbxl(dir: &std::path::Path) -> std::path::PathBuf {

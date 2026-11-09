@@ -31,7 +31,7 @@ fn slugify(name: &str) -> String {
 pub async fn run(
     global: &GlobalFlags,
     base_url: Option<&str>,
-    env: &str,
+    env: Option<&str>,
     universe_id_override: Option<u64>,
     write: bool,
 ) -> Result<()> {
@@ -44,19 +44,28 @@ pub async fn run(
     };
 
     let universe_id = universe_id_override
-        .or_else(|| config.environments.get(env).map(|e| e.universe_id))
+        .or_else(|| {
+            env.and_then(|e| config.environments.get(e))
+                .map(|e| e.universe_id)
+        })
         .ok_or_else(|| {
             anyhow::anyhow!(
                 "No universe_id found for env '{}'. Pass --universe-id <id> to specify one.",
-                env
+                env.unwrap_or_default()
             )
         })?;
 
-    print!(
-        "Fetching places for universe {} (env: {}) ... ",
-        universe_id.to_string().bold(),
-        env.bold()
-    );
+    match env {
+        Some(env) => print!(
+            "Fetching places for universe {} (env: {}) ... ",
+            universe_id.to_string().bold(),
+            env.bold()
+        ),
+        None => print!(
+            "Fetching places for universe {} ... ",
+            universe_id.to_string().bold()
+        ),
+    }
     let remote: Vec<PlaceEntry> = client.list_universe_places(universe_id).await?;
     println!("{}", format!("{} found", remote.len()).green());
     println!();
@@ -66,7 +75,7 @@ pub async fn run(
         return Ok(());
     }
 
-    let existing = config.environments.get(env);
+    let existing = env.and_then(|e| config.environments.get(e));
     let mut new_places: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
 
     for place in &remote {
@@ -102,7 +111,8 @@ pub async fn run(
         new_places.insert(key, place_id);
     }
 
-    if write {
+    // `--write` requires `--env` at parse time: the env is where it writes.
+    if let (true, Some(env)) = (write, env) {
         let entry = config
             .environments
             .entry(env.to_string())

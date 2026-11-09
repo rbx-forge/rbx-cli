@@ -20,7 +20,11 @@ use super::{cannot_ask, make_client, upload_and_classify, Landing};
 /// turns a `--place` name that the third env does not declare into a refusal,
 /// rather than into a run that wrote two envs and then stopped.
 struct EnvPlan<'a> {
+    /// What the lines and the prompt call the target: the env, or the
+    /// universe when the target was named by id.
     name: &'a str,
+    /// The env the receipt names. `None` for a target named by id.
+    env: Option<&'a str>,
     config: &'a Environment,
     places: Vec<(String, u64)>,
 }
@@ -40,6 +44,7 @@ pub async fn run(
     global: &GlobalFlags,
     base_url: Option<&str>,
     envs: &[EnvTarget],
+    by_id: Option<(u64, u64)>,
     place: Option<&str>,
     all_places: bool,
     file: &Path,
@@ -48,14 +53,39 @@ pub async fn run(
     json: bool,
 ) -> Result<()> {
     let format = OutputFormat::from_json_flag(json);
-    let config = PlacesConfig::load(&global.places)?;
+
+    // A target named by `--universe-id` and `--place-id` needs no
+    // `rbxplace.toml`. No env says whether it should be confirmed, so it
+    // always is: the same question an env with `confirm = true` asks.
+    let by_id_label;
+    let by_id_env;
+    let config = match by_id {
+        Some(_) => PlacesConfig::default(),
+        None => PlacesConfig::load(&global.places)?,
+    };
 
     // Every env is resolved here, before the client exists and before a byte
     // is read, for the reason `rbx shop sync` resolves its list up front: a
     // fan-out that discovers a bad env halfway has already written to the good
     // ones, and there is nothing useful to do with that.
-    let mut plan: Vec<EnvPlan<'_>> = Vec::with_capacity(envs.len());
-    for target in envs {
+    let mut plan: Vec<EnvPlan<'_>> = Vec::with_capacity(envs.len().max(1));
+    if let Some((universe_id, place_id)) = by_id {
+        by_id_label = format!("universe {universe_id}");
+        by_id_env = Environment {
+            universe_id,
+            env: None,
+            confirm: true,
+            places: [(place_id.to_string(), place_id)].into(),
+            codegen: true,
+        };
+        plan.push(EnvPlan {
+            name: &by_id_label,
+            env: None,
+            config: &by_id_env,
+            places: vec![(place_id.to_string(), place_id)],
+        });
+    }
+    for target in envs.iter().filter(|_| by_id.is_none()) {
         let env_config = config.get_env(&target.name)?;
         let places = if all_places {
             env_config.all_places_sorted()
@@ -64,6 +94,7 @@ pub async fn run(
         };
         plan.push(EnvPlan {
             name: &target.name,
+            env: Some(&target.name),
             config: env_config,
             places,
         });
@@ -131,9 +162,9 @@ pub async fn run(
             print_plan(format, file, size_kb, env, version_type);
         }
 
-        let mut receipt = WriteDocument::new(
+        let mut receipt = WriteDocument::for_target(
             WriteCommand::Upload,
-            env.name,
+            env.env,
             env.config.universe_id,
             published,
             !all_places,

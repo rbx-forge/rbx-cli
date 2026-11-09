@@ -15,7 +15,8 @@ use super::{cannot_ask, make_client};
 pub async fn run(
     global: &GlobalFlags,
     base_url: Option<&str>,
-    env: &str,
+    env: Option<&str>,
+    by_id: Option<(u64, u64)>,
     place: Option<&str>,
     version: Option<u64>,
     count: usize,
@@ -23,16 +24,39 @@ pub async fn run(
     json: bool,
 ) -> Result<()> {
     let format = OutputFormat::from_json_flag(json);
-    let config = PlacesConfig::load(&global.places)?;
-    let env_config = config.get_env(env)?;
-    let client = make_client(global, base_url)?;
 
-    let (place_name, place_id) = env_config.resolve_place(place)?;
+    // A target named by id needs no `rbxplace.toml`, and no env says whether
+    // to confirm it, so it always is. Its receipt names no env.
+    let (label, env_name, universe_id, place_name, place_id, confirm) = match (by_id, env) {
+        (Some((universe_id, place_id)), _) => (
+            format!("universe {universe_id}"),
+            None,
+            universe_id,
+            place_id.to_string(),
+            place_id,
+            true,
+        ),
+        (None, Some(env)) => {
+            let config = PlacesConfig::load(&global.places)?;
+            let env_config = config.get_env(env)?;
+            let (place_name, place_id) = env_config.resolve_place(place)?;
+            (
+                env.to_string(),
+                Some(env),
+                env_config.universe_id,
+                place_name,
+                place_id,
+                env_config.confirm,
+            )
+        }
+        (None, None) => bail!("Pass --env <name>, or --universe-id and --place-id."),
+    };
+    let client = make_client(global, base_url)?;
 
     if !format.is_json() {
         println!(
             "Rollback {}/{} ({})",
-            env.bold(),
+            label.bold(),
             place_name.bold(),
             place_id
         );
@@ -84,28 +108,23 @@ pub async fn run(
     if !format.is_json() {
         println!();
     }
-    if env_config.confirm && !yes && !format.may_prompt() {
+    if confirm && !yes && !format.may_prompt() {
         return Err(cannot_ask(format, "for confirmation", "--yes"));
     }
     confirm_destructive(
         &format!(
             "Roll back {}/{} to v{}? This will publish a new version live.",
-            env, place_name, target_version
+            label, place_name, target_version
         ),
-        env_config.confirm,
+        confirm,
         yes,
     )?;
 
     // `published: true`: a rollback republishes the old bytes live; there is
     // no draft form of it.
-    let mut receipt = WriteDocument::new(
-        WriteCommand::Rollback,
-        env,
-        env_config.universe_id,
-        true,
-        true,
-    )
-    .rolled_back_to(target_version);
+    let mut receipt =
+        WriteDocument::for_target(WriteCommand::Rollback, env_name, universe_id, true, true)
+            .rolled_back_to(target_version);
 
     if !format.is_json() {
         print!("  Rolling back to v{} ... ", target_version);

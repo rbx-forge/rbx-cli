@@ -2,7 +2,7 @@
 
 Deliberate omissions, with the reasoning, so "why not X?" is a link rather than a debate. The rule behind most of them: `rbx` reconciles a repository with Roblox, and anything that has no file to reconcile from is out of scope.
 
-**Building the `.rbxl` from source.** That is [rojo](https://rojo.space)'s job, and it does it well. Composition through Rokit is the design: rojo builds the place file, `rbx place upload` ships it. A tool that did both would be worse at each, and would have to keep pace with rojo's project format forever.
+**Building the `.rbxl` from source.** That is [rojo](https://rojo.space)'s job, and it does it well. Composition is the design: rojo builds the place file, `rbx place upload` ships it. A tool that did both would be worse at each, and would have to keep pace with rojo's project format forever.
 
 **An asset upload pipeline.** That is [asphalt](https://github.com/jackTabsCode/asphalt)'s job: hashing, uploading and generating references for images, sounds and models.
 

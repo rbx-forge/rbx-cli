@@ -43,6 +43,8 @@ rbx place upload --env all --file build.rbxl --yes
 
 ### rbx place download
 
+Download a place file. One env only.
+
 ```sh
 rbx place download --env prod
 rbx place download --env prod --version 42 --out backup.rbxl
@@ -55,8 +57,6 @@ rbx place download --place-id 123456789012345 --out backup.rbxl
 | `--published` | The latest published version |
 | `--saved` | The latest saved draft |
 | `--out` | Output path (default `<place_id>.rbxl`) |
-
-One env only.
 
 ### rbx place promote
 
@@ -112,6 +112,8 @@ rbx place rollback --env prod --version 42
 | `--json` | One JSON receipt on stdout |
 
 ### rbx place versions
+
+List a place's versions, newest first.
 
 ```sh
 rbx place versions --env prod

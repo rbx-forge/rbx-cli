@@ -40,7 +40,17 @@ A tool is checked when its config file is in the directory.
 Only `config/live` and `rtbf/live` need a key, and they are skipped when there is nothing to compare (no `--env`, or no target universe). So a keyless run exits `0` on a clean repository, and `--offline` is fast enough for a pre-commit hook.
 
 !!! warning "Clean means the files agree with each other"
-    `shop/lockfile` and `meta/lockfile` never ask Roblox. A resource dropped from both the config and the lockfile reports clean. `rbx shop pull --dry-run` and `rbx meta pull --dry-run` compare with Roblox.
+    `shop/lockfile` and `meta/lockfile` never ask Roblox. A resource dropped from both the config and the lockfile reports clean.
+
+### Comparing with Roblox
+
+`rbx shop pull --dry-run` and `rbx meta pull --dry-run` show how Roblox differs from the repository. In CI, on a checkout nothing else uses, pull and let git judge:
+
+```sh
+rbx shop pull --env prod --yes
+rbx meta pull --env prod --yes
+git diff --exit-code       # fails on any difference, and shows it
+```
 
 Rows are `tool/check [env]`; without `--env` they read `[default]`.
 

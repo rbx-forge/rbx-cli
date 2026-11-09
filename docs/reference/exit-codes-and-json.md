@@ -15,7 +15,8 @@ What a script can rely on. Both are covered by the [stability policy](stability.
 | Command | Exits `2` when |
 | --- | --- |
 | [`rbx check`](../check.md) | at least one check found drift and none failed |
-| `rbx shop check`, `rbx meta check`, `rbx config check`, `rbx rtbf check` | the declared state differs from what is live, in any targeted env |
+| `rbx shop check`, `rbx meta check` | the config differs from the lockfile, in any targeted env (offline) |
+| `rbx config check`, `rbx rtbf check` | the file differs from what is published, in any targeted env |
 | `rbx rtbf verify` | at least one template names no data store that exists |
 | `rbx shop codegen --check`, `rbx env codegen --check` | the committed generated file differs from what would be generated |
 

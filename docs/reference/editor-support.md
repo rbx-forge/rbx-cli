@@ -2,7 +2,7 @@
 
 `schemas/` holds a JSON Schema per config file, derived from the same serde models the CLI parses with, so an editor can validate as you type, complete key names, and show the documentation on hover.
 
-One of them is not derived from a parsing model. `rbxavatar.schema.json` describes the avatar document `rbx meta` sends through verbatim, and there is no model to derive it from precisely because nothing parses it. It is guidance rather than a gate: `additionalProperties` stays open, so a key Roblox adds tomorrow is one your editor stays quiet about and the tool sends anyway.
+`rbxavatar.schema.json` is the exception: it describes the avatar document `rbx meta` sends as is, without parsing it, so it catches misspelled keys and never blocks one Roblox adds.
 
 ## Where the schemas are
 
@@ -26,6 +26,22 @@ schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxplace.schema.jso
 [[rule]]
 include = ["**/rbxshop.toml", "**/rbxshop.example.toml"]
 schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxshop.schema.json"
+
+[[rule]]
+include = ["**/rbxmeta.toml", "**/rbxmeta.example.toml"]
+schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxmeta.schema.json"
+
+[[rule]]
+include = ["**/rbxconfig.toml", "**/rbxconfig.example.toml"]
+schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxconfig.schema.json"
+
+[[rule]]
+include = ["**/rbxrtbf.toml", "**/rbxrtbf.example.toml"]
+schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxrtbf.schema.json"
+
+[[rule]]
+include = ["**/rbxavatar.toml"]
+schema.url = "https://rbx-forge.github.io/rbx-deploy/schemas/rbxavatar.schema.json"
 ```
 
 ## VS Code
@@ -47,13 +63,11 @@ With Even Better TOML, in `.vscode/settings.json`:
 
 Inside a checkout of this repository, `./schemas/<name>.schema.json` works in place of the URL.
 
-`rbxavatar.toml` is the one whose name is a convention rather than a rule: `game.engine_avatar_settings` in `rbxmeta.toml` names the file, so it can be called anything. Calling it `rbxavatar.toml` is what makes the association above match without editing it.
-
-The patterns cover the `.example` templates too, so the file a newcomer copies gets the same validation as the one they end up editing.
+`rbxavatar.toml` is a convention: `game.engine_avatar_settings` in `rbxmeta.toml` names the file, so it can be called anything, and the associations above match it only under that name. The patterns cover the `.example` templates too.
 
 ## No stricter than the tools
 
-An unrecognised key is warned about and ignored rather than rejected (see [`rbx env`](../env.md)), so no schema closes `additionalProperties`. An editor that painted a loadable file red would teach you to stop reading the squiggles, and then the real errors go unread too.
+An unrecognised key is warned about and ignored rather than rejected (see [`rbx env`](../env.md)), so no schema closes `additionalProperties`.
 
 ## Regenerating
 

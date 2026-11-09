@@ -34,9 +34,10 @@ pub enum PlaceCommands {
         /// `all`.
         ///
         /// A plural selector uploads the same file to every env it names, in
-        /// turn, under one confirmation covering the lot.
-        #[arg(long, short)]
-        env: String,
+        /// turn, under one confirmation covering the lot. Not needed with
+        /// `--universe-id` and `--place-id`.
+        #[arg(long, short, required_unless_present = "place_id")]
+        env: Option<String>,
 
         /// Place name as defined in rbxplace.toml (defaults to the only place if unambiguous).
         #[arg(long, short)]
@@ -109,9 +110,9 @@ pub enum PlaceCommands {
 
     /// Roll back a place to a previous version.
     Rollback {
-        /// Environment name.
-        #[arg(long, short)]
-        env: String,
+        /// Environment name. Not needed with `--universe-id` and `--place-id`.
+        #[arg(long, short, required_unless_present = "place_id")]
+        env: Option<String>,
 
         /// Place name (defaults to the only place if unambiguous).
         #[arg(long, short)]
@@ -251,16 +252,17 @@ pub enum PlaceCommands {
 
     /// Fetch places from Roblox and update rbxplace.toml.
     Fetch {
-        /// Environment name to update in rbxplace.toml.
-        #[arg(long, short)]
-        env: String,
+        /// Environment name to update in rbxplace.toml. Not needed to show the
+        /// places of a `--universe-id`; needed with `--write`, which writes there.
+        #[arg(long, short, required_unless_present = "universe_id")]
+        env: Option<String>,
 
         /// Universe id to fetch places from (overrides the one in rbxplace.toml).
         #[arg(long)]
         universe_id: Option<u64>,
 
         /// Write changes to rbxplace.toml (default: dry-run / show only).
-        #[arg(long)]
+        #[arg(long, requires = "env")]
         write: bool,
     },
 
@@ -278,22 +280,33 @@ pub enum PlaceCommands {
     },
 }
 
-/// `--place-id` reaches the reads and is refused by the writes.
+/// The place a write names by id, if it does: `(universe_id, place_id)`.
 ///
-/// `download`, `versions` and `places` need only an id, so naming one skips
-/// `rbxplace.toml` and they work against a place this project never declared.
-///
-/// The writes need more than an id and the difference is not cosmetic. The
-/// `confirm = true` guard belongs to an env, and the `--json` receipt carries
-/// `env` as a documented field, so an env-less write would either walk past a
-/// guard somebody set on purpose or emit a document missing a field consumers
-/// were told to expect. Refusing is better than either, and better than
-/// accepting the flag and ignoring it, which is the failure the
-/// `--universe-id` doc-comment describes from the last time it happened.
-fn refuse_place_id_for_writes(global: &GlobalFlags, verb: &str) -> Result<()> {
+/// `download`, `versions` and `places` need only `--place-id`. A write needs
+/// the universe too, since the upload endpoint is per universe, and one place,
+/// since there is no env to expand. No env says whether the write should be
+/// confirmed, so the command always asks, or needs `--yes`; the `--json`
+/// receipt then has no `env`, as `download` reports none.
+fn write_target_by_id(global: &GlobalFlags, verb: &str) -> Result<Option<(u64, u64)>> {
+    let place_id = match global.place_id.as_slice() {
+        [] => return Ok(None),
+        [id] => *id,
+        _ => anyhow::bail!("`rbx place {verb}` writes one place by id: pass --place-id once"),
+    };
+    let Some(universe_id) = global.universe_id else {
+        anyhow::bail!(
+            "`--place-id` needs `--universe-id` beside it for `rbx place {verb}`: Roblox takes a place file per universe"
+        );
+    };
+    Ok(Some((universe_id, place_id)))
+}
+
+/// `promote` copies one env to another: `--from` and `--to` name envs, and
+/// there is no id form of that.
+fn refuse_place_id_for_promote(global: &GlobalFlags) -> Result<()> {
     if !global.place_id.is_empty() {
         anyhow::bail!(
-            "`--place-id` names a place but no env, and `rbx place {verb}` needs one: the confirm guard and the --json receipt are both env-scoped. Pass --env <name> (with --place <name> if the env has several), or add this place to rbxplace.toml."
+            "`rbx place promote` copies an env to an env: name them with --from and --to. For one place by id, `rbx place download --place-id` then `rbx place upload --universe-id --place-id`."
         );
     }
     Ok(())
@@ -341,11 +354,16 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             yes,
             json,
         } => {
-            refuse_place_id_for_writes(global, "upload")?;
+            let by_id = write_target_by_id(global, "upload")?;
+            let envs = match by_id {
+                Some(_) => Vec::new(),
+                None => global.resolve_envs()?,
+            };
             commands::upload::run(
                 global,
                 base_url,
-                &global.resolve_envs()?,
+                &envs,
+                by_id,
                 place.as_deref(),
                 all_places,
                 &file,
@@ -390,7 +408,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             yes,
             json,
         } => {
-            refuse_place_id_for_writes(global, "promote")?;
+            refuse_place_id_for_promote(global)?;
             commands::promote::run(
                 global,
                 base_url,
@@ -417,12 +435,13 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             yes,
             json,
         } => {
-            refuse_place_id_for_writes(global, "rollback")?;
+            let by_id = write_target_by_id(global, "rollback")?;
             refuse_plural_env(global, "rollback")?;
             commands::rollback::run(
                 global,
                 base_url,
-                &env,
+                env.as_deref(),
+                by_id,
                 place.as_deref(),
                 version,
                 count,
@@ -467,7 +486,7 @@ pub async fn run(cli: PlaceCli, global: &GlobalFlags) -> Result<()> {
             write,
         } => {
             refuse_plural_env(global, "fetch")?;
-            commands::fetch::run(global, base_url, &env, universe_id, write).await
+            commands::fetch::run(global, base_url, env.as_deref(), universe_id, write).await
         }
 
         PlaceCommands::GenEnvModule { out } => {

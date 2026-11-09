@@ -225,8 +225,10 @@ pub struct WriteDocument {
     /// `exit_code`.
     pub ok: bool,
     /// The env that was written to. For `promote`, the target, `from_env`
-    /// carries the other one.
-    pub env: String,
+    /// carries the other one. **Absent** when the target was named by
+    /// `--universe-id` and `--place-id` rather than by an env.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env: Option<String>,
     /// The source env of a `promote`. **Absent** for `upload` and `rollback`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_env: Option<String>,
@@ -311,11 +313,23 @@ impl WriteDocument {
         published: bool,
         single: bool,
     ) -> Self {
+        Self::for_target(command, Some(env), universe_id, published, single)
+    }
+
+    /// As [`Self::new`], for a target that may have no env: one named by
+    /// `--universe-id` and `--place-id`.
+    pub fn for_target(
+        command: WriteCommand,
+        env: Option<&str>,
+        universe_id: u64,
+        published: bool,
+        single: bool,
+    ) -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
             command,
             ok: true,
-            env: env.to_string(),
+            env: env.map(str::to_string),
             from_env: None,
             universe_id: universe_id.to_string(),
             published,

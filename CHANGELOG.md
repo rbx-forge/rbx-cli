@@ -20,10 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   written. `rbx meta pull` or `rbx shop pull` brings the value in, and the new
   `--overwrite-newer` puts the repository's back: the line `rbx config sync`
   already drew.
-- **`sync` needs read scopes**, beside the write scopes it already needed:
-  `universe:read` and `universe.place:read` for `meta`, `game-pass:read` and
-  `developer-product:read` for `shop`, each for the kinds `--only` leaves in.
-  `--dry-run` needs a key too, and a read key is enough for it.
+- **`sync --dry-run` needs a key**, since it reads Roblox, and a read key is
+  enough for it. `rbx shop sync` lists the kinds it syncs on every run, where
+  it listed them only before a create. `rbx meta sync` reads the universe and
+  the place, and Roblox accepts the place read with `universe.place:write`,
+  so no `universe.place:read` is needed beside it.
 - **`rbx shop sync` plans every env before it writes the first**, and asks
   its one confirmation after showing the plans, only when an env has work.
   The name check that guards a create runs on the same listing, so a dry run

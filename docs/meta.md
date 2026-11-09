@@ -100,7 +100,7 @@ A social link or private servers that Roblox no longer has are removed from the 
 
 ## Required API scopes
 
-`sync` reads before it writes, so it needs the read scope beside each write scope.
+`sync` reads the place before it writes, and Roblox accepts that read with `universe.place:write`: a key that syncs needs no `universe.place:read` beside it.
 
 | Resource | Scopes |
 | --- | --- |

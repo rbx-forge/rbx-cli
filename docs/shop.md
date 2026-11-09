@@ -294,7 +294,7 @@ rbx shop show --flat           # one list with a type column
 
 ## Required API scopes
 
-`sync` lists before it writes, so it needs the read scope beside each write scope, for the kinds it syncs: `--only` narrows both.
+`sync` lists the kinds it syncs before it writes: `--only` narrows the listing with the writes.
 
 | Resource | Scopes |
 | --- | --- |

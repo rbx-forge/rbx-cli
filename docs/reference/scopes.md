@@ -18,7 +18,7 @@ What the Open Cloud API key needs for each command, gathered from the command pa
 | [`probe`](../probe.md) | whatever the path you call needs | |
 | [`completions`](../completions.md) | none | |
 
-`meta sync` and `shop sync` read Roblox before they write, so the key that syncs needs both columns. Their `--dry-run` only reads: the read key is enough for it.
+`meta sync` and `shop sync` read Roblox before they write. Their `--dry-run` only reads, so the read key is enough for it. Roblox accepts the place read with `universe.place:write`, so the key that syncs metadata needs no `universe.place:read`.
 
 Some of these come with a caveat on the command page: the meta thumbnail personalization scopes, the badge payment source, the icon upload host. Read the page before narrowing a key to this table.
 

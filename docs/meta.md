@@ -86,3 +86,12 @@ With an env, downloads go to `<media.dir>/<env>/` and the paths are written to t
 ## Lockfile
 
 `rbxmeta.lock.toml` records, per env, the universe, the place, and the last state applied (media as content hashes and Roblox image ids). Without `--env` the section is `[envs.default]`. Commit it.
+
+## Required API scopes
+
+| Resource | Scopes |
+| --- | --- |
+| Universe | `universe:read`, `universe:write` |
+| Place | `universe.place:read`, `universe.place:write` |
+| Home Page thumbnails | `universe.thumbnail:read`, `universe.thumbnail:write` |
+| Translated media | not established; if an upload is refused, this is the scope to look for. Reading media needs none |

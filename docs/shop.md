@@ -147,6 +147,16 @@ Write remote state into the config and lockfile, as [above](#envs).
 | `--accept-local` | When icons differ, keep yours and upload them on the next sync |
 | `--yes` / `-y` | Write without asking |
 
+When `pull` finds an icon on Roblox that differs from yours:
+
+```
+! [prod] pass 'VIP': icon differs from remote
+  Local:  icons/vip.png (blake3: a1b2c3d4e5f6...)
+  Remote: asset 987654321012345
+```
+
+`--accept-remote` downloads Roblox's; `--accept-local` keeps yours and uploads it on the next sync.
+
 ### rbx shop check
 
 Compare the config with the lockfile, offline. Exits `0` in sync, `2` on drift, `1` if it could not answer. It does not contact Roblox: `rbx check` does, in its `shop/live` row. See [Comparing with Roblox](check.md#comparing-with-roblox).
@@ -264,6 +274,20 @@ rbx shop show --flat           # one list with a type column
 | Flag | Description |
 | --- | --- |
 | `--config <path>` | Path to `rbxshop.toml` (default `rbxshop.toml`) |
+
+## Lockfile
+
+`rbxshop.lock.toml` records, per env, the universe and each resource's Roblox id, name and icon hash. Without `--env` the section is `[envs.default]`. Commit it: an entry missing from it is created again on the next sync (see [Creating a duplicate](#creating-a-duplicate) and [Working in a team](teams.md)).
+
+## Required API scopes
+
+| Resource | Scopes |
+| --- | --- |
+| Passes | `game-pass:read`, `game-pass:write` |
+| Products | `developer-product:read`, `developer-product:write` |
+| Badges | `legacy-badge:manage` to read; `legacy-universe.badge:write` and `legacy-universe.badge:manage-and-spend-robux` to create |
+| Icons | `legacy-asset:manage` to download them as stored; without it, a rescaled copy from the public thumbnail service |
+| Badge payer | `universe:read`, optional: falls back to `[owner]` |
 
 ## Attributions
 

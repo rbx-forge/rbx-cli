@@ -114,32 +114,3 @@ files = ["rbxshop.badges.toml"]
 ```
 
 Merge resources from other files, relative to this one. Included files may hold only `[passes.*]`, `[badges.*]`, `[products.*]` and their `[envs.*]` overlays, and a key may live in one file only. `pull` and `rename` update an entry in the file that holds it; new entries go to the main file.
-
-## Lockfile
-
-`rbxshop.lock.toml` records, per env, the universe and each resource's Roblox id, name and icon hash. Without `--env` the section is `[envs.default]`.
-
-!!! warning "Commit it"
-    An entry missing from the lockfile is created again on the next sync. See [Working in a team](teams.md).
-
-## Icon conflicts
-
-When `pull` finds an icon on Roblox that differs from yours:
-
-```
-! [prod] pass 'VIP': icon differs from remote
-  Local:  icons/vip.png (blake3: a1b2c3d4e5f6...)
-  Remote: asset 987654321012345
-```
-
-`--accept-remote` downloads Roblox's; `--accept-local` keeps yours and uploads it on the next sync.
-
-## Required API scopes
-
-| Resource | Scopes |
-| --- | --- |
-| Passes | `game-pass:read`, `game-pass:write` |
-| Products | `developer-product:read`, `developer-product:write` |
-| Badges | `legacy-badge:manage` to read; `legacy-universe.badge:write` and `legacy-universe.badge:manage-and-spend-robux` to create |
-| Icons | `legacy-asset:manage` to download them as stored; without it, a rescaled copy from the public thumbnail service |
-| Badge payer | `universe:read`, optional: falls back to `[owner]` |

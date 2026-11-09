@@ -1,7 +1,7 @@
 //! `rbx shop list`: what Roblox currently has, for one resource kind.
 //!
-//! The remote side. `shop show` is the declared side, and `rbx check --json`
-//! is the only one of the three that says whether they agree. See
+//! The remote side. `shop show` is the declared side, and the `shop/live`
+//! row of `rbx check` says whether Roblox moved since the last sync. See
 //! `crate::json` for how the two documents are kept apart.
 
 use anyhow::Result;
@@ -15,26 +15,28 @@ use crate::ctx::ShopCtx;
 use crate::json::{ListDocument, Resource};
 
 pub async fn run(ctx: &ShopCtx<'_>, resource: ResourceKind, json: bool) -> Result<()> {
-    let config = Config::load(&ctx.config)?;
-    let env_target = ctx.resolve_single_env(&config)?;
-    let client = RbxClient::new(ctx.api_key(), env_target.universe_id, config.icons.bleed);
+    // A read of what Roblox has: `rbxshop.toml` only names the universe,
+    // through `[experience]`, so with `--universe-id` or `--env` the file is
+    // not needed and not read.
+    let universe_id = if ctx.global.universe_id.is_some() || ctx.env().is_some() {
+        ctx.global.single_universe()?
+    } else {
+        ctx.resolve_single_env(&Config::load(&ctx.config)?)?
+            .universe_id
+    };
+    // Bleed applies to uploads only, and a listing uploads nothing.
+    let client = RbxClient::new(ctx.api_key(), universe_id, false);
     let format = OutputFormat::from_json_flag(json);
 
-    // The env as the command line named it, not `env_target.name`: with no
+    // The env as the command line named it, not a resolved name: with no
     // `--env` that field carries the internal `default` placeholder, which is
     // not an env anybody can pass back in. Omitted rather than invented.
     let env = ctx.env();
 
     // One place builds the document for all three kinds, so a field can only
     // be added to one of them by choosing to.
-    let emit = |rows: Vec<Resource>| {
-        output::emit(&ListDocument::new(
-            env,
-            env_target.universe_id,
-            resource,
-            rows,
-        ))
-    };
+    let emit =
+        |rows: Vec<Resource>| output::emit(&ListDocument::new(env, universe_id, resource, rows));
 
     match resource {
         ResourceKind::Pass => {
@@ -61,7 +63,7 @@ pub async fn run(ctx: &ShopCtx<'_>, resource: ResourceKind, json: bool) -> Resul
             println!("\nTotal: {}", passes.len());
         }
         ResourceKind::Badge => {
-            let badges = client.list_all_badges(env_target.universe_id).await?;
+            let badges = client.list_all_badges(universe_id).await?;
             if format.is_json() {
                 return emit(badges.iter().map(Resource::from).collect());
             }

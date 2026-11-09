@@ -6,7 +6,7 @@ The one Open Cloud storage surface a game server can read without an HTTP call. 
 
 See [ops.md](../ops.md) for install, keys and the safety model.
 
-This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
+This page describes `main`. Check `rbx --version` against what your `mise.toml` or `rokit.toml` pins.
 
 
 Needs `memory-store.sorted-map:read` to read and `:write` to write. Those scopes are **universe-targeted**, like the data store ones: a key restricted to one experience stays restricted to it.

@@ -72,21 +72,21 @@ keys it wants, are on [Live operations](ops.md).
 
 ## Install
 
-Add it to your project's `rokit.toml`, then run `rokit install`. Pin the
-version you want from the
-[releases page](https://github.com/rbx-forge/rbx-deploy/releases):
+=== "mise"
 
-```toml
-[tools]
-rbx = "rbx-forge/rbx-deploy"
-```
+    ```sh
+    mise use --pin github:rbx-forge/rbx-deploy
+    ```
 
-Or let Rokit write that entry for you. Pass the alias explicitly, or you get an
-`rbx-deploy` command instead of `rbx`:
+=== "Rokit"
 
-```sh
-rokit add rbx-forge/rbx-deploy --alias rbx
-```
+    ```sh
+    rokit add rbx-forge/rbx-deploy --alias rbx
+    ```
+
+Either one writes the latest release into your project's `mise.toml` or
+`rokit.toml`, so every machine and CI runner gets the same version. Without
+`--alias`, Rokit names the command `rbx-deploy`.
 
 The precompiled binaries attached to every release need no Rust toolchain.
 Building from source does, at the MSRV declared in the workspace manifest.

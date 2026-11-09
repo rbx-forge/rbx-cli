@@ -2,18 +2,23 @@
 
 Unified Roblox Open Cloud CLI. One binary, one install, every tool as a subcommand.
 
-Add it to your project's `rokit.toml`, then run `rokit install`:
+With [mise](https://mise.jdx.dev):
 
-```toml
-[tools]
-rbx = "rbx-forge/rbx-deploy@0.12.0"
+```sh
+mise use --pin github:rbx-forge/rbx-deploy
 ```
 
-The command is `rbx`: short, because you type it all day.
-Prefer `rokit add`? Pass the alias explicitly, or you get an `rbx-deploy`
-command instead: `rokit add rbx-forge/rbx-deploy --alias rbx`.
+With [Rokit](https://github.com/rojo-rbx/rokit):
 
-Not using Rokit? Every release publishes one archive per platform on the
+```sh
+rokit add rbx-forge/rbx-deploy --alias rbx
+```
+
+Either one writes the latest release into your project's `mise.toml` or
+`rokit.toml`, so every machine and CI runner gets the same version. The command
+is `rbx`. Without `--alias`, Rokit names it `rbx-deploy`.
+
+Neither? Every release publishes one archive per platform on the
 [releases page](https://github.com/rbx-forge/rbx-deploy/releases), with a
 `SHA256SUMS` beside them. The sums only catch a corrupt download, since they
 sit in the same release as the archives. What proves an archive was built by
@@ -101,7 +106,7 @@ The commands above reconcile state you declared in your repo, and are safe to ru
 
 Their writes are dry-run by default and need `--apply`. `--env all` is refused: each env is a different experience, and no command touching live players should fan out because it matched a glob.
 
-**A second binary would make the boundary visible in the command name, and it is not on offer.** Rokit resolves one artifact per repository, so of two published binaries only one could ever be installed through it. It would not be the boundary that matters in any case: Roblox binds an API key to its scopes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
+**These commands now ship as a tool of their own, [rbx-ops](https://github.com/rbx-forge/rbx-ops),** with the same flags, and leave `rbx` in its next release. The binary was never the boundary that matters, though: Roblox binds an API key to its scopes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
 
 **Keep read and write in separate keys**: that is the boundary. The key that ends up in a shell history during a debugging session should be the one that cannot ban anybody.
 
@@ -337,7 +342,7 @@ Deliberate omissions, with the reasoning, so "why not X?" is a link rather than
 a debate.
 
 **Building the `.rbxl` from source.** That is [rojo](https://rojo.space)'s job,
-and it does it well. Composition through Rokit is the design: rojo builds the
+and it does it well. Composition is the design: rojo builds the
 place file, `rbx place upload` ships it. A tool that did both would be worse at
 each, and would have to keep pace with rojo's project format forever.
 

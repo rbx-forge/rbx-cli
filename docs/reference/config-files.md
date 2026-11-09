@@ -14,7 +14,7 @@ Every key in these files is described by a JSON Schema your editor can load: see
 
 ## Lockfiles
 
-Most of these have a lockfile beside them (`<config>.lock.toml`) tracking remote ids and content hashes, which is how `sync` knows what exists already. `rbxrtbf.toml` does not, for the reason `rbxconfig.toml` needs no entry snapshot to compare against: the published templates are readable in full, so the remote state is a fetch rather than something that has to be remembered.
+Most of these have a lockfile beside them (`<config>.lock.toml`) tracking remote ids and content hashes, which is how `sync` knows what exists already. `rbxrtbf.toml` has none: the published templates are read back in full.
 
 !!! warning "Commit the lockfiles, and resolve their conflicts with care"
     A missing lock entry means "create". Losing one from `rbxshop.lock.toml` creates a second paid game pass on the next sync, and Roblox has no way to delete it. [Working in a team](../teams.md) is the procedure: which side to keep per file, and what concurrent syncs do per tool.

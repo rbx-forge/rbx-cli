@@ -145,10 +145,11 @@ Write remote state into the config and lockfile, as [above](#envs).
 | `--dry-run` | Show the changes, write nothing |
 | `--accept-remote` | When icons differ, download Roblox's |
 | `--accept-local` | When icons differ, keep yours and upload them on the next sync |
+| `--yes` / `-y` | Write without asking |
 
 ### rbx shop check
 
-Compare the config with Roblox for the targeted envs. Exits `0` in sync, `2` on drift, `1` if it could not answer.
+Compare the config with the lockfile, offline. Exits `0` in sync, `2` on drift, `1` if it could not answer. It does not contact Roblox: see [Comparing with Roblox](check.md#comparing-with-roblox).
 
 ### rbx shop codegen
 

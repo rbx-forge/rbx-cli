@@ -30,7 +30,7 @@ rbx init create-universe
 One that exists already:
 
 ```sh
-rbx import --universe-id 123456789 --env staging
+rbx import --universe-id 9876543211 --env staging
 ```
 
 Either way you get `rbxplace.toml`. Check it with `rbx env list`:
@@ -48,7 +48,7 @@ places.main = 123456789012345
 
 ## 3. Get a key
 
-In the Creator Hub, **Open Cloud > API Keys**: a key restricted to the staging universe with `universe-places:write`. Pass it through the environment, not a flag:
+In the Creator Hub, **Open Cloud > API Keys**: a key restricted to the staging universe with `universe-places:write`, plus the read scopes `rbx check` needs for each tool you configure ([Scopes by command](reference/scopes.md)). Pass it through the environment, not a flag:
 
 ```sh
 export RBX_API_KEY="..."
@@ -74,8 +74,8 @@ jobs:
   staging:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: jdx/mise-action@v5          # or CompeyDev/setup-rokit@v0.1.2
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5          # or CompeyDev/setup-rokit@v0.2.1
       - run: rojo build --output build.rbxl
       - run: rbx check --env staging
         env:

@@ -8,7 +8,7 @@ rbx shop sync --env all                            # passes, badges, products ev
 rbx check --env all                                # exit 2 on drift, for CI
 ```
 
-[Quick start](quickstart.md){ .md-button .md-button--primary } [Commands](env.md){ .md-button }
+[Quick start](quickstart.md){ .md-button .md-button--primary } [Commands](#commands){ .md-button }
 
 **One file per concern.** Places, metadata, live config, passes and right-to-be-forgotten templates each have their own TOML file and lockfile, all keyed by the envs in one `rbxplace.toml`.
 
@@ -51,6 +51,7 @@ Either one pins the latest release in your project. Archives for every platform 
 | [`completions`](completions.md) | Shell completions for `--env` and `--place` |
 
 Not in scope: anything without a file to reconcile from, like acting on a running game or managing API keys. See [What rbx does not do](reference/non-goals.md).
+
 ---
 
 A community tool under [MPL-2.0](https://github.com/rbx-forge/rbx-deploy/blob/main/LICENSE), not affiliated with Roblox Corporation. Source, changelog and contributing guide on [GitHub](https://github.com/rbx-forge/rbx-deploy).

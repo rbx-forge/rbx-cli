@@ -41,7 +41,7 @@ One exception: bash 3.2, the version macOS ships, has no `compopt` and falls bac
 
 ## `--place` is completed across every env
 
-Unless the file's envs hold genuinely different places, in which case some of what is offered belongs to another env: the completion does not read the `--env` you already typed. Doing so would mean parsing the command line in four shell languages to save a case that most `rbxplace.toml` files do not have. The command you eventually run says so if the place is not in the env.
+The completion does not read the `--env` you already typed, so when envs hold different places, some of what is offered belongs to another env. The command you run says so if the place is not in the env.
 
 ## Turning the dynamic part off
 

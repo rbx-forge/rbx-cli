@@ -11,5 +11,3 @@ Deliberate omissions, with the reasoning, so "why not X?" is a link rather than 
 **Managing API keys, opening Studio, downloading assets, switching Studio accounts.** Useful next to this tool, and none of them is a step in reconciling a repository with Roblox. Nothing here depends on a tool that does them.
 
 **`destroy`.** The platform cannot really delete a universe, a badge or a game pass; it can archive some of them and refuses on others. A `destroy` that silently means "archive" is a command whose name lies at the worst possible moment, and the risk of getting that wrong is not worth what it buys today. Ask again if Roblox ships real deletion.
-
-**Running Luau in the cloud.** A plausible future (post-deploy smoke tests against a live server are the obvious use) but out of scope now. It needs an execution model and a security story that nothing here currently has.

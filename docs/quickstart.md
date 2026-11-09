@@ -48,7 +48,7 @@ places.main = 123456789012345
 
 ## 3. Get a key
 
-In the Creator Hub, **Open Cloud > API Keys**: a key restricted to the staging universe with `universe-places:write`, plus the read scopes `rbx check` needs for each tool you configure ([Scopes by command](reference/scopes.md)). Pass it through the environment, not a flag:
+In the Creator Hub, **Open Cloud > API Keys**: a key restricted to the staging universe with `universe-places:write`. Pass it through the environment, not a flag:
 
 ```sh
 export RBX_API_KEY="..."
@@ -77,15 +77,35 @@ jobs:
       - uses: actions/checkout@v7
       - uses: jdx/mise-action@v5          # or CompeyDev/setup-rokit@v0.2.1
       - run: rojo build --output build.rbxl
-      - run: rbx check --env staging
-        env:
-          RBX_API_KEY: ${{ secrets.RBX_API_KEY }}
+      - run: rbx check --env staging --offline
       - run: rbx place upload --env staging --file build.rbxl --yes
         env:
           RBX_API_KEY: ${{ secrets.RBX_API_KEY }}
 ```
 
-`rbx check` exits `2` on drift. Promote to production by hand, or behind a manual approval:
+`rbx check --offline` needs no key, and exits `2` when the repository disagrees with itself: a config not synced, a generated module out of date.
+
+Whether Roblox still matches the repository is a separate question, asked on a schedule so a change made on the Creator Dashboard does not block a deploy. Give it a second key holding read scopes only ([Scopes by command](reference/scopes.md)):
+
+```yaml title=".github/workflows/drift.yml"
+name: Drift
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  roblox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: jdx/mise-action@v5
+      - run: rbx check --env all       # exit 2 when Roblox moved
+        env:
+          RBX_API_KEY: ${{ secrets.RBX_READ_KEY }}
+```
+
+Promote to production by hand, or behind a manual approval:
 
 ```sh
 rbx place promote --from staging --to prod

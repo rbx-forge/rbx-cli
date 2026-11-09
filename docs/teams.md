@@ -38,7 +38,7 @@ rbx shop check --env <name>
 
 ## What a green check means
 
-`shop/lockfile`, `shop/codegen` and `meta/lockfile` compare committed files with each other, not with Roblox. After a merge, a clean `rbx check` means the config and the lockfile agree; it cannot see a resource dropped from both. `rbx shop pull --dry-run` and `rbx meta pull --dry-run` are the comparison with Roblox, so run them after any merge you are unsure of.
+`shop/lockfile`, `shop/codegen` and `meta/lockfile` compare committed files with each other, not with Roblox: after a merge, a clean row means the config and the lockfile agree, and cannot see a resource dropped from both. `shop/live` and `meta/live` compare the lockfile with Roblox, and report that resource as on Roblox and not in the lockfile. Run `rbx check` with a key after any merge you are unsure of.
 
 ## Concurrent syncs
 
@@ -57,4 +57,4 @@ There is no locking: nothing notices that the lockfile or Roblox changed while a
 - **Commit the lockfile in the same commit as the change that caused it**, so it reviews as one change.
 - **Never `--env all` from two places at once.** It walks every env with one lockfile in memory.
 - **Never hand-edit a lockfile** outside a conflict. A mistyped `id` cannot be recovered.
-- **Run `rbx check --offline` on every pull request**, and `rbx shop pull --env all --dry-run` on a schedule to catch drift from Roblox. See [`rbx check`](check.md).
+- **Run `rbx check --offline` on every pull request**, and `rbx check --env all` on a schedule to catch drift from Roblox. See [`rbx check`](check.md).

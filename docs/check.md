@@ -42,7 +42,7 @@ A tool is checked when its config file is in the directory.
 Only the `live` checks need a key, and they are skipped when there is nothing to compare (no `--env`, no target universe, or nothing synced yet). So a keyless run exits `0` on a clean repository, and `--offline` is fast enough for a pre-commit hook.
 
 !!! warning "Clean means the files agree with each other"
-    `shop/lockfile` and `meta/lockfile` never ask Roblox. A resource dropped from both the config and the lockfile reports clean.
+    `shop/lockfile` and `meta/lockfile` never ask Roblox, so a resource dropped from both the config and the lockfile reports clean there. `shop/live` reports it as on Roblox and not in the lockfile.
 
 ### Comparing with Roblox
 

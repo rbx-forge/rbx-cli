@@ -23,7 +23,7 @@
 # duplicated: `SUMMARY.md` is gone.
 
 site_name: rbx-deploy
-site_description: Unified Roblox Open Cloud CLI. One binary, one install, every tool as a subcommand.
+site_description: Declarative deployment for Roblox. Describe an experience in TOML files you commit, and rbx makes Roblox match them.
 site_url: https://rbx-forge.github.io/rbx-deploy/
 repo_url: https://github.com/rbx-forge/rbx-deploy
 repo_name: rbx-forge/rbx-deploy

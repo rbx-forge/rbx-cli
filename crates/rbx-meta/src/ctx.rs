@@ -57,6 +57,21 @@ impl<'a> MetaCtx<'a> {
     /// rather than merely avoided. `GlobalFlags::resolve_envs` states the same
     /// rule for the universe-only tools.
     pub fn resolve_targets(&self, config: &Config) -> Result<Vec<(String, u64, u64)>> {
+        // `--universe-id` stands in for `[experience]`: the same standalone
+        // target, under the same `default` lock section, so a directory with
+        // no `rbxplace.toml` works. It wins over `--env`, as everywhere else.
+        if let Some(universe_id) = self.global.universe_id {
+            let place_id = match self.global.place_id.as_slice() {
+                [id] => *id,
+                [] => bail!(
+                    "--universe-id needs --place-id here: the name, description and server \
+                     size are written to a place"
+                ),
+                _ => bail!("rbx meta acts on one place: pass --place-id once"),
+            };
+            return Ok(vec![(DEFAULT_ENV.to_string(), universe_id, place_id)]);
+        }
+
         let Some(selector) = self.global.env_selector()? else {
             let Some(exp) = &config.experience else {
                 bail!(
@@ -176,6 +191,39 @@ name = "Declared"
 
     fn config(dir: &TempDir) -> Config {
         Config::load(&dir.path().join("rbxmeta.toml")).expect("load config")
+    }
+
+    /// `--universe-id` and `--place-id` stand in for `[experience]`, and win
+    /// over both it and `--env`.
+    #[test]
+    fn ids_on_the_command_line_are_the_standalone_target() {
+        let dir = repo();
+        let mut global = flags(&dir, Some("dev"), None);
+        global.universe_id = Some(1234567890);
+        global.place_id = vec![109876543210987];
+        let ctx = MetaCtx {
+            config: dir.path().join("rbxmeta.toml"),
+            global: &global,
+        };
+
+        assert_eq!(
+            ctx.resolve_targets(&config(&dir)).expect("resolve ids"),
+            vec![(DEFAULT_ENV.to_string(), 1234567890, 109876543210987)]
+        );
+    }
+
+    #[test]
+    fn a_universe_id_without_a_place_id_is_refused() {
+        let dir = repo();
+        let mut global = flags(&dir, None, None);
+        global.universe_id = Some(1234567890);
+        let ctx = MetaCtx {
+            config: dir.path().join("rbxmeta.toml"),
+            global: &global,
+        };
+
+        let error = ctx.resolve_targets(&config(&dir)).unwrap_err().to_string();
+        assert!(error.contains("--place-id"), "{error}");
     }
 
     #[test]

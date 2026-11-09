@@ -63,6 +63,15 @@ impl<'a> ShopCtx<'a> {
     /// - No `--env`: fall back to `[experience]` in `rbxshop.toml` and
     ///   return a single target under the sentinel env name `default`.
     pub fn resolve_envs(&self, config: &Config) -> Result<Vec<EnvTarget>> {
+        // `--universe-id` stands in for `[experience]`: the same standalone
+        // target, under the same `default` lock section, so a directory with
+        // no `rbxplace.toml` works. It wins over `--env`, as everywhere else.
+        if let Some(universe_id) = self.global.universe_id {
+            return Ok(vec![EnvTarget {
+                name: DEFAULT_ENV.to_string(),
+                universe_id,
+            }]);
+        }
         match self.env() {
             Some(value) => {
                 let places = places::PlacesFile::load(self.places_path())?;
@@ -187,6 +196,26 @@ mod tests {
             products: Default::default(),
             envs: Default::default(),
         }
+    }
+
+    /// `--universe-id` is the standalone target `[experience]` is, with no
+    /// `rbxplace.toml` and no `[experience]` at all.
+    #[test]
+    fn a_universe_id_alone_is_the_standalone_target() {
+        let dir = tempdir().unwrap();
+        let mut global = make_global(dir.path().join("rbxplace.toml"));
+        global.universe_id = Some(1234567890);
+        let ctx = ShopCtx {
+            config: dir.path().join("rbxshop.toml"),
+            global: &global,
+            base_url: None,
+        };
+
+        let targets = ctx.resolve_envs(&empty_config()).unwrap();
+
+        assert_eq!(targets.len(), 1);
+        assert_eq!(targets[0].name, DEFAULT_ENV);
+        assert_eq!(targets[0].universe_id, 1234567890);
     }
 
     #[test]

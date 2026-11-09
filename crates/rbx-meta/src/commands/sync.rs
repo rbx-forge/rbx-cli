@@ -175,9 +175,12 @@ pub async fn run(ctx: &MetaCtx<'_>, dry_run: bool, yes: bool) -> Result<()> {
     // the first client knows is the account every env is written as.
     let account = clients[0].known_account().await;
     let envs: Vec<&str> = pending.iter().map(|p| p.env.as_str()).collect();
+    // A bare `--universe-id` names no env, so no `confirm` can be read for
+    // it: such a write is always asked about, or needs `--yes`.
     confirm_destructive(
         &rbx_core::session::as_account(account.as_ref(), &apply_prompt(&envs)),
-        ctx.env().is_some() && any_env_requires_confirm(ctx.places_path(), &envs),
+        ctx.global.universe_id.is_some()
+            || (ctx.env().is_some() && any_env_requires_confirm(ctx.places_path(), &envs)),
         yes,
     )?;
 

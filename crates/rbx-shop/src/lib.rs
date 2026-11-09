@@ -11,6 +11,7 @@ pub mod gifts;
 pub mod json;
 pub mod lockfile;
 mod preflight;
+mod remote;
 mod toml_write;
 
 use std::path::PathBuf;

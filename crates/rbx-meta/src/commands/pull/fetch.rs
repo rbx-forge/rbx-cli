@@ -5,11 +5,12 @@ use std::collections::BTreeSet;
 use anyhow::Result;
 use colored::Colorize;
 
-use crate::api::models::ApiSocialLink;
+use crate::api::legacy::UniverseConfigLegacy;
+use crate::api::models::{ApiSocialLink, Place, Universe};
 use crate::api::RbxClient;
 
 use crate::config::{
-    AnimationType, Audience, AvatarType, CollisionType, Config, EnvOverlay, Game, Genre,
+    Access, AnimationType, Audience, AvatarType, CollisionType, Config, EnvOverlay, Game, Genre,
     JointPositioningType, PaidAccess, PrivateServer, ServerFill, SocialLink, Visibility,
 };
 use crate::ctx::MetaCtx;
@@ -57,140 +58,20 @@ pub(super) async fn fetch_env(
         universe_id,
         place_id
     );
-    let universe = client.get_universe().await?;
-    let place = client.get_place().await?;
-
-    let (remote_server_fill, remote_allow_copying) = if client.has_cookie() {
-        match client.get_place_legacy().await {
-            Ok(legacy) => (
-                ServerFill::from_legacy(
-                    legacy.social_slot_type.as_deref(),
-                    legacy.custom_social_slots_count,
-                ),
-                legacy.copying_allowed,
-            ),
-            Err(e) => {
-                eprintln!(
-                    "warning: legacy place fetch failed ({}). Skipping cookie-only place fields.",
-                    e
-                );
-                (None, None)
-            }
-        }
-    } else {
-        (None, None)
-    };
-
-    // One read, several fields. `permissions` and the avatar scale tables are
-    // deliberately absent from it: Roblox exposes no GET that returns them,
-    // so they are write-only and `pull` leaves whatever the config says.
-    // A failure warns and yields an empty configuration, which is exactly the
-    // right shape: every field then resolves to `None`, meaning "not
-    // confirmed", and `reconcile_lock` keeps the previous lock entry rather
-    // than recording what the config asked for. No separate flag is needed:
-    // the absence *is* the signal, and it covers a value Roblox sent that this
-    // build does not recognise just as well as a call that never happened.
-    let universe_config = match client.get_universe_config_legacy().await {
-        Ok(cfg) => cfg,
-        Err(e) => {
-            eprintln!(
-                "warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
-                e
-            );
-            Default::default()
-        }
-    };
-    let remote_studio_access = universe_config.studio_access_to_apis_allowed;
-
-    // `None` on failure, not the lockfile's value.
-    //
-    // Feeding the lock back in here looked like a graceful fallback and was
-    // not: `diff_apply_opt` writes whatever it is given into the *config* and
-    // lists it under "Config updates", so a user who edited `beta_mode` and
-    // pulled while this endpoint was down had their edit silently replaced by
-    // the old value and reported as something Roblox had said. `None` means
-    // "not confirmed", `diff_apply_opt` then leaves the config alone, and
-    // `reconcile_lock` carries the previous value into the lock where it
-    // belongs.
-    let remote_beta_mode = if client.has_cookie() {
-        match client.get_beta_mode().await {
-            Ok(v) => v,
-            Err(e) => {
-                eprintln!(
-                    "warning: experience-releases fetch failed ({}). Skipping beta_mode.",
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        None
-    };
-
-    // From the develop host and not from Open Cloud's `visibility`, which has
-    // no word for "limited" and reports a Limited ⟩ Playtesters universe as
-    // PRIVATE. Anonymous, so this works without a cookie. See `Access`.
-    let remote_access = match client.get_universe_access().await {
-        Ok(v) => v,
-        Err(e) => {
-            eprintln!(
-                "warning: audience fetch failed ({}). Skipping visibility.",
-                e
-            );
-            None
-        }
-    };
-    let (remote_visibility, remote_audience) = match remote_access.clone() {
-        Some(access) => {
-            let (v, a) = access.into_parts();
-            (Some(v), a)
-        }
-        None => (None, None),
-    };
+    let remote = read_remote(&client).await?;
 
     // Everything that came from an endpoint allowed to fail, gathered before
     // the differential apply mutates the config. `reconcile_lock` needs the
     // *confirmed* values, and after `diff_apply_opt` has run the config no
     // longer distinguishes what was read from what was already written.
-    let confirmed = ConfirmedReads {
-        access: remote_access,
-        allow_copying: remote_allow_copying,
-        server_fill: remote_server_fill.clone(),
-        studio_access_to_apis_allowed: remote_studio_access,
-        beta_mode: remote_beta_mode,
-        genre: universe_config
-            .genre
-            .as_ref()
-            .and_then(|v| v.resolve(Genre::from_legacy, Genre::from_api_name)),
-        paid_access: match universe_config.is_for_sale {
-            Some(true) => universe_config
-                .price
-                .map(|price| PaidAccess::Paid { price }),
-            Some(false) => Some(PaidAccess::Free),
-            None => None,
-        },
-        avatar_kind: universe_config
-            .universe_avatar_type
-            .as_ref()
-            .and_then(|v| v.resolve(AvatarType::from_legacy, AvatarType::from_api_name)),
-        avatar_animation: universe_config
-            .universe_animation_type
-            .as_ref()
-            .and_then(|v| v.resolve(AnimationType::from_legacy, AnimationType::from_api_name)),
-        avatar_collision: universe_config
-            .universe_collision_type
-            .as_ref()
-            .and_then(|v| v.resolve(CollisionType::from_legacy, CollisionType::from_api_name)),
-        avatar_joint_positioning: universe_config
-            .universe_joint_positioning_type
-            .as_ref()
-            .and_then(|v| {
-                v.resolve(
-                    JointPositioningType::from_legacy,
-                    JointPositioningType::from_api_name,
-                )
-            }),
-    };
+    let confirmed = remote.confirmed();
+    let universe = &remote.universe;
+    let universe_config = &remote.universe_config;
+    let (remote_visibility, remote_audience) = remote.visibility_and_audience();
+    let remote_allow_copying = remote.allow_copying;
+    let remote_server_fill = remote.server_fill.clone();
+    let remote_studio_access = universe_config.studio_access_to_apis_allowed;
+    let remote_beta_mode = remote.beta_mode;
 
     // -----------------------------------------------------------------------
     // Differential apply on the in-memory config
@@ -202,21 +83,21 @@ pub(super) async fn fetch_env(
     diff_apply_opt(
         &mut config.game.name,
         &mut overlay.name,
-        place.display_name.clone().or(universe.display_name.clone()),
+        remote.name(),
         "name",
         &mut changes,
     );
     diff_apply_opt(
         &mut config.game.description,
         &mut overlay.description,
-        place.description.clone().or(universe.description.clone()),
+        remote.description(),
         "description",
         &mut changes,
     );
     diff_apply_opt(
         &mut config.game.server_size,
         &mut overlay.server_size,
-        place.server_size,
+        remote.place.server_size,
         "server_size",
         &mut changes,
     );
@@ -339,13 +220,10 @@ pub(super) async fn fetch_env(
     );
 
     // private_server (atomic)
-    let remote_private_server = universe
-        .private_server_price_robux
-        .map(|price| PrivateServer { price });
     diff_apply_opt(
         &mut config.game.private_server,
         &mut overlay.private_server,
-        remote_private_server,
+        remote.private_server(),
         "private_server",
         &mut changes,
     );
@@ -458,6 +336,201 @@ pub(super) async fn fetch_env(
     }
 
     Ok((client, confirmed))
+}
+
+/// Everything one env's read got back from Roblox, before anything local is
+/// touched.
+///
+/// Shared by `pull`, which folds it into the config, and by the live check,
+/// which compares it with the lockfile: one read, one set of conversions, so
+/// the two cannot disagree about what Roblox said.
+///
+/// `None` throughout means "not confirmed": the call failed, needed a cookie
+/// that was not given, or answered with a value this build does not know.
+pub(crate) struct RemoteRead {
+    pub universe: Universe,
+    pub place: Place,
+    pub server_fill: Option<ServerFill>,
+    pub allow_copying: Option<bool>,
+    pub universe_config: UniverseConfigLegacy,
+    pub beta_mode: Option<bool>,
+    pub access: Option<Access>,
+}
+
+impl RemoteRead {
+    pub(crate) fn visibility_and_audience(
+        &self,
+    ) -> (Option<Visibility>, Option<BTreeSet<Audience>>) {
+        match self.access.clone() {
+            Some(access) => {
+                let (v, a) = access.into_parts();
+                (Some(v), a)
+            }
+            None => (None, None),
+        }
+    }
+
+    pub(crate) fn name(&self) -> Option<String> {
+        self.place
+            .display_name
+            .clone()
+            .or(self.universe.display_name.clone())
+    }
+
+    pub(crate) fn description(&self) -> Option<String> {
+        self.place
+            .description
+            .clone()
+            .or(self.universe.description.clone())
+    }
+
+    pub(crate) fn private_server(&self) -> Option<PrivateServer> {
+        self.universe
+            .private_server_price_robux
+            .map(|price| PrivateServer { price })
+    }
+
+    /// What the reads allowed to fail confirmed, in the shape
+    /// `reconcile_lock` takes.
+    pub(crate) fn confirmed(&self) -> ConfirmedReads {
+        let universe_config = &self.universe_config;
+        ConfirmedReads {
+            access: self.access.clone(),
+            allow_copying: self.allow_copying,
+            server_fill: self.server_fill.clone(),
+            studio_access_to_apis_allowed: universe_config.studio_access_to_apis_allowed,
+            beta_mode: self.beta_mode,
+            genre: universe_config
+                .genre
+                .as_ref()
+                .and_then(|v| v.resolve(Genre::from_legacy, Genre::from_api_name)),
+            paid_access: match universe_config.is_for_sale {
+                Some(true) => universe_config
+                    .price
+                    .map(|price| PaidAccess::Paid { price }),
+                Some(false) => Some(PaidAccess::Free),
+                None => None,
+            },
+            avatar_kind: universe_config
+                .universe_avatar_type
+                .as_ref()
+                .and_then(|v| v.resolve(AvatarType::from_legacy, AvatarType::from_api_name)),
+            avatar_animation: universe_config
+                .universe_animation_type
+                .as_ref()
+                .and_then(|v| v.resolve(AnimationType::from_legacy, AnimationType::from_api_name)),
+            avatar_collision: universe_config
+                .universe_collision_type
+                .as_ref()
+                .and_then(|v| v.resolve(CollisionType::from_legacy, CollisionType::from_api_name)),
+            avatar_joint_positioning: universe_config
+                .universe_joint_positioning_type
+                .as_ref()
+                .and_then(|v| {
+                    v.resolve(
+                        JointPositioningType::from_legacy,
+                        JointPositioningType::from_api_name,
+                    )
+                }),
+        }
+    }
+}
+
+/// Read one env from Roblox. Writes nothing; warns on stderr for each read
+/// it had to skip.
+pub(crate) async fn read_remote(client: &RbxClient) -> Result<RemoteRead> {
+    let universe = client.get_universe().await?;
+    let place = client.get_place().await?;
+
+    let (server_fill, allow_copying) = if client.has_cookie() {
+        match client.get_place_legacy().await {
+            Ok(legacy) => (
+                ServerFill::from_legacy(
+                    legacy.social_slot_type.as_deref(),
+                    legacy.custom_social_slots_count,
+                ),
+                legacy.copying_allowed,
+            ),
+            Err(e) => {
+                eprintln!(
+                    "warning: legacy place fetch failed ({}). Skipping cookie-only place fields.",
+                    e
+                );
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    // One read, several fields. `permissions` and the avatar scale tables are
+    // deliberately absent from it: Roblox exposes no GET that returns them,
+    // so they are write-only and `pull` leaves whatever the config says.
+    // A failure warns and yields an empty configuration, which is exactly the
+    // right shape: every field then resolves to `None`, meaning "not
+    // confirmed", and `reconcile_lock` keeps the previous lock entry rather
+    // than recording what the config asked for. No separate flag is needed:
+    // the absence *is* the signal, and it covers a value Roblox sent that this
+    // build does not recognise just as well as a call that never happened.
+    let universe_config = match client.get_universe_config_legacy().await {
+        Ok(cfg) => cfg,
+        Err(e) => {
+            eprintln!(
+                "warning: universe config fetch failed ({}). Skipping the cookie-only universe fields.",
+                e
+            );
+            Default::default()
+        }
+    };
+
+    // `None` on failure, not the lockfile's value.
+    //
+    // Feeding the lock back in here looked like a graceful fallback and was
+    // not: `diff_apply_opt` writes whatever it is given into the *config* and
+    // lists it under "Config updates", so a user who edited `beta_mode` and
+    // pulled while this endpoint was down had their edit silently replaced by
+    // the old value and reported as something Roblox had said. `None` means
+    // "not confirmed", `diff_apply_opt` then leaves the config alone, and
+    // `reconcile_lock` carries the previous value into the lock where it
+    // belongs.
+    let beta_mode = if client.has_cookie() {
+        match client.get_beta_mode().await {
+            Ok(v) => v,
+            Err(e) => {
+                eprintln!(
+                    "warning: experience-releases fetch failed ({}). Skipping beta_mode.",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // From the develop host and not from Open Cloud's `visibility`, which has
+    // no word for "limited" and reports a Limited ⟩ Playtesters universe as
+    // PRIVATE. Anonymous, so this works without a cookie. See `Access`.
+    let access = match client.get_universe_access().await {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!(
+                "warning: audience fetch failed ({}). Skipping visibility.",
+                e
+            );
+            None
+        }
+    };
+
+    Ok(RemoteRead {
+        universe,
+        place,
+        server_fill,
+        allow_copying,
+        universe_config,
+        beta_mode,
+        access,
+    })
 }
 
 /// Put `audience` in the layer that holds this env's `visibility`, after the
@@ -579,7 +652,7 @@ mod audience_tests {
 
         assert_eq!(
             base.access(),
-            Some(crate::config::Access::Limited([Audience::Friends].into()))
+            Some(Access::Limited([Audience::Friends].into()))
         );
         assert_eq!(overlay, EnvOverlay::default());
     }

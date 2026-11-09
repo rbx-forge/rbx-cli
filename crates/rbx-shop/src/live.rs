@@ -15,6 +15,8 @@ use std::collections::{BTreeMap, HashSet};
 use anyhow::Result;
 use reqwest::StatusCode;
 
+use rbx_core::api::needs_scope;
+
 use crate::api::RbxClient;
 use crate::lockfile::{BadgeLock, EnvLock, PassLock, ProductLock};
 
@@ -51,7 +53,11 @@ async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
     // lockfile rather than read: see `remote::pass_lock`.
     let pass_by_id: BTreeMap<u64, &PassLock> =
         env_lock.passes.values().map(|l| (l.id, l)).collect();
-    for pass in client.list_all_game_passes().await? {
+    for pass in client
+        .list_all_game_passes()
+        .await
+        .map_err(|e| needs_scope(e, "game-pass:read", "the game pass listing"))?
+    {
         if let Some(id) = pass.id {
             let prior = pass_by_id.get(&id).copied();
             remote
@@ -62,7 +68,11 @@ async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
 
     let product_by_id: BTreeMap<u64, &ProductLock> =
         env_lock.products.values().map(|l| (l.id, l)).collect();
-    for product in client.list_all_developer_products().await? {
+    for product in client
+        .list_all_developer_products()
+        .await
+        .map_err(|e| needs_scope(e, "developer-product:read", "the developer product listing"))?
+    {
         if let Some(id) = product.id {
             let prior = product_by_id.get(&id).copied();
             remote
@@ -71,7 +81,11 @@ async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
         }
     }
 
-    for badge in client.list_all_badges(env_lock.universe_id).await? {
+    for badge in client
+        .list_all_badges(env_lock.universe_id)
+        .await
+        .map_err(|e| needs_scope(e, "legacy-badge:manage", "the badge listing"))?
+    {
         if let Some(id) = badge.id {
             remote
                 .badges
@@ -94,7 +108,13 @@ async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
             }
             // Gone, which `compare_read` reports.
             Err(error) if rbx_core::api::is_api_status(&error, StatusCode::NOT_FOUND) => {}
-            Err(error) => return Err(error),
+            Err(error) => {
+                return Err(needs_scope(
+                    error,
+                    "legacy-badge:manage",
+                    "a disabled badge read",
+                ))
+            }
         }
     }
 

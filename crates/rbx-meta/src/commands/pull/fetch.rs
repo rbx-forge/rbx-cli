@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 
 use anyhow::Result;
 use colored::Colorize;
+use rbx_core::api::needs_scope;
 
 use crate::api::legacy::UniverseConfigLegacy;
 use crate::api::models::{ApiSocialLink, Place, Universe};
@@ -445,8 +446,14 @@ impl RemoteRead {
 /// Read one env from Roblox. Writes nothing; warns on stderr for each read
 /// it had to skip.
 pub(crate) async fn read_remote(client: &RbxClient) -> Result<RemoteRead> {
-    let universe = client.get_universe().await?;
-    let place = client.get_place().await?;
+    let universe = client
+        .get_universe()
+        .await
+        .map_err(|e| needs_scope(e, "universe:read", "the universe read"))?;
+    let place = client
+        .get_place()
+        .await
+        .map_err(|e| needs_scope(e, "universe.place:read", "the place read"))?;
 
     let (server_fill, allow_copying) = if client.has_cookie() {
         match client.get_place_legacy().await {

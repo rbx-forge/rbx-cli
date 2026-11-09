@@ -44,13 +44,16 @@ Only `config/live` and `rtbf/live` need a key, and they are skipped when there i
 
 ### Comparing with Roblox
 
-`rbx shop pull --dry-run` and `rbx meta pull --dry-run` show how Roblox differs from the repository. In CI, on a checkout nothing else uses, pull and let git judge:
+`rbx shop pull --dry-run` and `rbx meta pull --dry-run` show how Roblox differs from the repository. Both exit `0` either way.
+
+For the shop in CI, on a checkout nothing else uses, pull and let git judge:
 
 ```sh
 rbx shop pull --env prod --yes
-rbx meta pull --env prod --yes
 git diff --exit-code       # fails on any difference, and shows it
 ```
+
+Not for `meta`: `meta pull` rewrites the layout of `rbxmeta.toml` even when nothing changed, so the diff is mostly noise.
 
 Rows are `tool/check [env]`; without `--env` they read `[default]`.
 

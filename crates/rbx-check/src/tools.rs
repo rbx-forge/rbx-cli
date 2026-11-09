@@ -577,6 +577,11 @@ pub async fn shop_live(
 
 /// The row a `live` check reports: drift with each difference, or clean, and
 /// either way what it did not compare, so a clean row is never read as more.
+///
+/// The summary names no fix, unlike the `lockfile` rows: which one applies
+/// depends on the difference. A changed value is brought in by `pull` or
+/// replaced by `sync --overwrite-newer`, and a resource made by hand can only
+/// be adopted.
 fn compared_row(
     tool: &'static str,
     differences: Vec<String>,

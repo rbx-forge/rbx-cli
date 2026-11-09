@@ -89,6 +89,20 @@ impl SyncPlan {
         }
     }
 
+    /// Whether applying this plan writes `field` of the resource `key`.
+    ///
+    /// What `sync` asks to tell a value changed on Roblox that the plan would
+    /// replace from one it leaves alone.
+    pub fn writes(&self, kind: ResourceKind, key: &str, field: &str) -> bool {
+        self.actions(kind).iter().any(|action| {
+            action.name == key
+                && matches!(
+                    &action.action,
+                    Action::Update { changes } if changes.iter().any(|c| c.field == field)
+                )
+        })
+    }
+
     pub fn has_changes(&self) -> bool {
         ResourceKind::ALL
             .iter()

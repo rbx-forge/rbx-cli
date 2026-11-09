@@ -25,20 +25,36 @@ use crate::config::{
 };
 use crate::ctx::ShopCtx;
 use crate::diff::{build_sync_plan, Action, FieldChange, ResourceAction, SyncPlan};
-use crate::lockfile::{BadgeLock, EnvLock, Lockfile, PassLock, ProductLock};
+use crate::lockfile::{BadgeLock, EnvLock, Lockfile, PassLock, ProductLock, DEFAULT_ENV};
+use crate::refresh::{refresh, Refreshed};
 use rbx_core::confirm::confirm_destructive;
+use rbx_core::newer::{self, Newer};
 use rbx_core::owner::OwnerType;
 use rbx_core::places::PlacesFile;
 use rbx_core::EnvTarget;
 
-pub async fn run(
-    ctx: &ShopCtx<'_>,
-    dry_run: bool,
-    only: Option<Vec<ResourceKind>>,
-    badge_cost: u64,
-    yes: bool,
-    allow_duplicate_names: bool,
-) -> Result<()> {
+/// What the command line asked of one run.
+#[derive(Debug, Clone, Default)]
+pub struct Options {
+    pub dry_run: bool,
+    /// The kinds to sync. `None` is all of them.
+    pub only: Option<Vec<ResourceKind>>,
+    pub badge_cost: u64,
+    pub yes: bool,
+    pub allow_duplicate_names: bool,
+    /// Write over what was changed on Roblox since the last sync or pull.
+    pub overwrite_newer: bool,
+}
+
+pub async fn run(ctx: &ShopCtx<'_>, options: Options) -> Result<()> {
+    let Options {
+        dry_run,
+        only,
+        badge_cost,
+        yes,
+        allow_duplicate_names,
+        overwrite_newer,
+    } = options;
     let config = Config::load_merged(&ctx.config)?;
     let config_dir = ctx.config.parent().unwrap_or(Path::new("."));
     let lockfile_path = config_dir.join(crate::lockfile::LOCKFILE_NAME);
@@ -69,91 +85,166 @@ pub async fn run(
         }
     }
 
-    // For a multi-env sync (--env all), confirm once up front if ANY target
-    // env has `confirm = true` in rbxplace.toml: there's no per-env per-plan
-    // prompt because we'd hit it mid-loop after starting writes elsewhere.
-    // Dry-run skips both: no writes to gate.
-    //
-    // A bare `--universe-id` names no env, so no `confirm` can be read for
-    // it: such a write is always asked about, or needs `--yes`.
-    if !dry_run && ctx.global.universe_id.is_some() {
-        confirm_destructive(
-            &format!("Apply rbx shop sync to universe {}?", envs[0].universe_id),
-            true,
-            yes,
-        )?;
-    } else if !dry_run && ctx.env().is_some() {
-        let env_requires_confirm = PlacesFile::load(ctx.places_path())
-            .ok()
-            .map(|pf| {
-                envs.iter()
-                    .any(|t| pf.get(&t.name).map(|e| e.confirm()).unwrap_or(false))
-            })
-            .unwrap_or(false);
-        let label: String = envs
-            .iter()
-            .map(|t| t.name.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        confirm_destructive(
-            &format!("Apply rbx shop sync to env(s): [{}]?", label),
-            env_requires_confirm,
-            yes,
-        )?;
-    }
+    let syncing: Vec<ResourceKind> = ResourceKind::ALL
+        .into_iter()
+        .filter(|kind| only.as_ref().is_none_or(|kinds| kinds.contains(kind)))
+        .collect();
 
-    let mut any_synced = false;
+    // Planning pass. It lists Roblox and writes nothing there, for every env
+    // before the first one is applied: that is what lets one refusal, and one
+    // confirmation, cover the whole run. A prompt inside a single loop is
+    // reached after earlier envs have already been written, which is no
+    // longer a question anyone can answer no to.
+    let mut planned: Vec<PlannedEnv> = Vec::new();
     for env_target in &envs {
         if envs.len() > 1 {
             println!("\n{} {}", "env:".bold(), env_target.name.bold());
         }
-        let synced = sync_one_env(
-            ctx,
-            &config,
-            config_dir,
-            &mut lockfile,
-            &lockfile_path,
-            env_target,
-            dry_run,
-            only.as_ref(),
-            badge_cost,
-            allow_duplicate_names,
-        )
-        .await?;
-        any_synced |= synced;
+        planned.push(
+            plan_env(
+                ctx,
+                &config,
+                config_dir,
+                &lockfile,
+                env_target,
+                &syncing,
+                allow_duplicate_names,
+            )
+            .await?,
+        );
     }
 
-    if !dry_run {
-        if any_synced {
-            println!("{} Sync complete.", "✓".green());
+    // After the plans, so whoever is refused has already seen what would have
+    // gone. Before the dry run returns, so a preview cannot report a plan the
+    // real run refuses.
+    report_newer(ctx, &planned, overwrite_newer)?;
+
+    let pending: Vec<&PlannedEnv> = planned.iter().filter(|p| p.has_work(&syncing)).collect();
+
+    if dry_run {
+        if !pending.is_empty() {
+            println!("\nDry run: no changes applied.");
         }
-        if config.codegen.output.is_some() {
-            codegen::generate(&config, &lockfile, config_dir)?;
+        return Ok(());
+    }
+
+    if !pending.is_empty() {
+        confirm(ctx, &pending, yes)?;
+
+        // The badge quota of every env, before the first write to any of
+        // them: passes are applied before badges, so learning it from Roblox
+        // halfway leaves an env holding the passes and some of the badges.
+        for p in &pending {
+            if p.creates_a_badge(&syncing) {
+                let client = ctx.client(p.universe_id, config.icons.bleed);
+                crate::preflight::guard_badge_quota(&client, p.universe_id, &p.plan, badge_cost)
+                    .await?;
+            }
         }
+    }
+
+    // What the listings found, recorded before the first write: each resource
+    // applied below then moves its entry from what Roblox had to what it was
+    // sent, and a run that stops halfway leaves the lockfile describing Roblox
+    // as it is. With nothing to apply, this is the whole of the run, and what
+    // lets `check` agree with a `sync` that found Roblox already holding what
+    // the config asks for.
+    if record_seen(&mut lockfile, &planned) {
+        lockfile.save(&lockfile_path)?;
+        if pending.is_empty() {
+            println!(
+                "{}",
+                format!(
+                    "{} now records what Roblox has.",
+                    crate::lockfile::LOCKFILE_NAME
+                )
+                .dimmed()
+            );
+        }
+    }
+
+    for p in &pending {
+        if envs.len() > 1 {
+            println!("\n{} {}", "env:".bold(), p.env.bold());
+        }
+        apply_env(
+            ctx,
+            &config,
+            p,
+            &syncing,
+            badge_cost,
+            &mut lockfile,
+            &lockfile_path,
+        )
+        .await?;
+    }
+
+    if !pending.is_empty() {
+        println!("{} Sync complete.", "✓".green());
+    }
+    if config.codegen.output.is_some() {
+        codegen::generate(&config, &lockfile, config_dir)?;
     }
 
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn sync_one_env(
+/// One env as the planning pass left it, carried to the apply pass.
+///
+/// Every env is kept, not only the ones with work: an env whose plan is empty
+/// can still have been listed holding something the lockfile does not record.
+struct PlannedEnv {
+    env: String,
+    universe_id: u64,
+    resources: ResolvedResources,
+    plan: SyncPlan,
+    /// The lock section as Roblox was listed to stand, which is what `plan`
+    /// was built against. See [`crate::refresh`].
+    seen: EnvLock,
+    /// Values changed on Roblox since the lockfile recorded them, that `plan`
+    /// would write over.
+    newer: Vec<String>,
+}
+
+impl PlannedEnv {
+    /// Whether applying the plan sends anything, for the kinds in play.
+    fn has_work(&self, syncing: &[ResourceKind]) -> bool {
+        syncing
+            .iter()
+            .flat_map(|kind| self.plan.actions(*kind))
+            .any(|action| !matches!(action.action, Action::Skip))
+    }
+
+    /// Only creating a badge needs the quota and whoever pays for it, and
+    /// resolving the owner can fail, so a run that only updates badges must
+    /// not ask.
+    fn creates_a_badge(&self, syncing: &[ResourceKind]) -> bool {
+        syncing.contains(&ResourceKind::Badge)
+            && self
+                .plan
+                .badges
+                .iter()
+                .any(|action| matches!(action.action, Action::Create))
+    }
+}
+
+/// Plan one env: list what Roblox has, bring the lock section up to date with
+/// it, and diff the config against that.
+async fn plan_env(
     ctx: &ShopCtx<'_>,
     config: &Config,
     config_dir: &Path,
-    lockfile: &mut Lockfile,
-    lockfile_path: &Path,
+    lockfile: &Lockfile,
     env_target: &EnvTarget,
-    dry_run: bool,
-    only: Option<&Vec<ResourceKind>>,
-    badge_cost: u64,
+    syncing: &[ResourceKind],
     allow_duplicate_names: bool,
-) -> Result<bool> {
+) -> Result<PlannedEnv> {
     let resources = config.resolve_env(Some(&env_target.name))?;
     Config::validate_icon_paths(&resources, config_dir)?;
     Config::validate_pricing(&resources)?;
 
-    // Snapshot the env's lock section, building a fresh one if missing.
-    let env_lock_snapshot = lockfile
+    // The env's lock section as recorded, or a fresh one if it has none.
+    let recorded = lockfile
         .env(&env_target.name)
         .cloned()
         .unwrap_or_else(|| EnvLock {
@@ -161,97 +252,174 @@ async fn sync_one_env(
             ..Default::default()
         });
 
-    let plan = build_sync_plan(&resources, &env_lock_snapshot, config_dir)?;
+    // Roblox's side, listed before anything is planned. The plan below is the
+    // config against what Roblox holds now, so a price edited on the Creator
+    // Dashboard is in it. Planned against the lockfile alone, that edit was
+    // invisible: the two local files agreed and the run said up to date.
+    let client = ctx.client(env_target.universe_id, config.icons.bleed);
+    let remote = crate::live::read(&client, &recorded, syncing).await?;
+    let Refreshed { lock: seen, gone } = refresh(&recorded, &remote, syncing);
+
+    let plan = build_sync_plan(&resources, &seen, config_dir)?;
+    let newer: Vec<String> = crate::live::changed_fields(&recorded, &seen)
+        .into_iter()
+        .filter(|changed| plan.writes(changed.kind, &changed.key, changed.field))
+        .map(|changed| changed.to_string())
+        .collect();
 
     for message in &plan.undeclared {
         println!("{} {}", "!".yellow(), message);
     }
-
-    if !plan.has_changes() {
-        println!("{} Everything is up to date.", "✓".green());
-        // Ensure lockfile carries the right universe_id even if no resource changed.
-        lockfile.env_mut(&env_target.name, env_target.universe_id);
-        return Ok(false);
+    for line in &gone {
+        println!("{} {line}. Its entry is kept as recorded.", "!".yellow());
     }
 
-    let should_sync =
-        |kind: ResourceKind| -> bool { only.is_none_or(|kinds| kinds.contains(&kind)) };
-
-    for kind in ResourceKind::ALL {
-        if should_sync(kind) {
-            for action in plan.actions(kind) {
-                print_action(kind, action);
+    if plan.has_changes() {
+        for kind in syncing {
+            for action in plan.actions(*kind) {
+                print_action(*kind, action);
             }
         }
+        println!("\n{}", plan.summary());
+    } else {
+        println!("{} Everything is up to date.", "✓".green());
     }
 
-    println!("\n{}", plan.summary());
-
-    if dry_run {
-        println!("\nDry run: no changes applied.");
-        // Said out loud, because the plan above is incomplete in one specific
-        // way and a reader has no way to tell from it. The duplicate-name guard
-        // asks Roblox what already exists, and a dry run deliberately never
-        // opens a connection, so a plan that says "create" here can still be
-        // refused by the real run.
-        //
-        // The alternative was to run the guard during the dry run, which would
-        // cost this command its offline property for the sake of a preview.
-        // `rbx shop check` is the online comparison.
-        let creating = ResourceKind::ALL
-            .into_iter()
-            .flat_map(|kind| plan.actions(kind))
-            .any(|a| matches!(a.action, Action::Create));
-        if creating {
-            println!(
-                "{}",
-                "  Roblox was not contacted, so nothing above was compared against \
-                 what already exists there. The real run does that, and refuses on \
-                 a name collision."
-                    .dimmed()
-            );
-        }
-        return Ok(false);
-    }
-
-    let client = ctx.client(env_target.universe_id, config.icons.bleed);
-
-    // Before the first write, and before the badge-payment lookup below: this
-    // is the last point where the run can be abandoned having changed nothing.
-    // A collision found here costs a listing call; the same collision found
-    // one line later costs a duplicate paid product that Roblox will not
-    // delete. See `preflight`.
-    let syncing: Vec<ResourceKind> = ResourceKind::ALL
-        .into_iter()
-        .filter(|k| should_sync(*k))
-        .collect();
+    // On the listing just made, so a dry run makes this check too. A collision
+    // found here costs nothing; the same collision found after a create costs
+    // a duplicate paid product that Roblox will not delete. See `preflight`.
     crate::preflight::guard(
-        &client,
-        env_target.universe_id,
         &plan,
         &resources,
-        &syncing,
+        syncing,
+        &remote,
         &env_target.name,
         allow_duplicate_names,
-    )
-    .await?;
+    )?;
 
-    // Only creating a badge needs to know who pays for it, and resolving the
-    // owner can fail, so a run that only updates badges must not ask.
-    let creating_a_badge = should_sync(ResourceKind::Badge)
-        && plan
-            .badges
-            .iter()
-            .any(|a| matches!(a.action, Action::Create));
+    Ok(PlannedEnv {
+        env: env_target.name.clone(),
+        universe_id: env_target.universe_id,
+        resources,
+        plan,
+        seen,
+        newer,
+    })
+}
 
-    if creating_a_badge {
-        crate::preflight::guard_badge_quota(&client, env_target.universe_id, &plan, badge_cost)
-            .await?;
+/// Ask before applying, when an env that is about to be written asked for it.
+///
+/// Only the envs with work are named and looked at: an env with `confirm =
+/// true` that this run leaves untouched has nothing to confirm.
+///
+/// A bare `--universe-id` names no env, so no `confirm` can be read for it:
+/// such a write is always asked about, or needs `--yes`.
+fn confirm(ctx: &ShopCtx<'_>, pending: &[&PlannedEnv], yes: bool) -> Result<()> {
+    if ctx.global.universe_id.is_some() {
+        return confirm_destructive(
+            &format!(
+                "Apply rbx shop sync to universe {}?",
+                pending[0].universe_id
+            ),
+            true,
+            yes,
+        );
     }
+    if ctx.env().is_none() {
+        return Ok(());
+    }
+    let env_requires_confirm = PlacesFile::load(ctx.places_path())
+        .ok()
+        .map(|pf| {
+            pending
+                .iter()
+                .any(|p| pf.get(&p.env).map(|e| e.confirm()).unwrap_or(false))
+        })
+        .unwrap_or(false);
+    let label: String = pending
+        .iter()
+        .map(|p| p.env.as_str())
+        .collect::<Vec<_>>()
+        .join(", ");
+    confirm_destructive(
+        &format!("Apply rbx shop sync to env(s): [{}]?", label),
+        env_requires_confirm,
+        yes,
+    )
+}
+
+/// Stop a run that would write over what was changed on Roblox, or say what it
+/// replaces when that was asked for. See [`rbx_core::newer`].
+fn report_newer(ctx: &ShopCtx<'_>, planned: &[PlannedEnv], overwrite_newer: bool) -> Result<()> {
+    let changed: Vec<Newer<'_>> = planned
+        .iter()
+        .filter(|p| !p.newer.is_empty())
+        .map(|p| Newer {
+            env: &p.env,
+            values: &p.newer,
+        })
+        .collect();
+    let envs: Vec<&str> = changed.iter().map(|newer| newer.env).collect();
+    // A target named by id on the command line has no env to name in the
+    // hint, so the hint carries the id.
+    let by_id = ctx
+        .global
+        .universe_id
+        .map(|universe_id| format!("--universe-id {universe_id}"));
+
+    newer::report(
+        &changed,
+        overwrite_newer,
+        &ctx.config,
+        &newer::pull_hint("shop", &envs, DEFAULT_ENV, by_id.as_deref()),
+    )
+}
+
+/// Record what the listings found, for every env planned. Returns whether a
+/// section changed, which is when the file is worth writing.
+///
+/// Every env gets its section in memory, with its universe id, whether or not
+/// anything changed: the generated code is written from the lockfile as it
+/// stands at the end of the run, and reads the universe from there.
+fn record_seen(lockfile: &mut Lockfile, planned: &[PlannedEnv]) -> bool {
+    let mut changed = false;
+    for p in planned {
+        let section = lockfile.env_mut(&p.env, p.universe_id);
+        if *section != p.seen {
+            *section = p.seen.clone();
+            changed = true;
+        }
+    }
+    changed
+}
+
+/// Send one env's plan to Roblox, recording each resource in the lockfile as
+/// it lands.
+async fn apply_env(
+    ctx: &ShopCtx<'_>,
+    config: &Config,
+    planned: &PlannedEnv,
+    syncing: &[ResourceKind],
+    badge_cost: u64,
+    lockfile: &mut Lockfile,
+    lockfile_path: &Path,
+) -> Result<()> {
+    let PlannedEnv {
+        env,
+        universe_id,
+        resources,
+        plan,
+        ..
+    } = planned;
+    let env_target = EnvTarget {
+        name: env.clone(),
+        universe_id: *universe_id,
+    };
+    let client = ctx.client(*universe_id, config.icons.bleed);
 
     let apply = Apply {
-        badge_payment_source: if creating_a_badge {
-            match resolve_payment_source(&client, ctx, config, &env_target.name).await? {
+        badge_payment_source: if planned.creates_a_badge(syncing) {
+            match resolve_payment_source(&client, ctx, config, env).await? {
                 OwnerType::User => 1,
                 OwnerType::Group => 2,
             }
@@ -262,41 +430,41 @@ async fn sync_one_env(
         badge_cost,
     };
 
-    if should_sync(ResourceKind::Pass) {
+    if syncing.contains(&ResourceKind::Pass) {
         apply_kind::<PassKind>(
             &apply,
-            &resources,
-            &plan,
+            resources,
+            plan,
             lockfile,
             lockfile_path,
-            env_target,
+            &env_target,
         )
         .await?;
     }
-    if should_sync(ResourceKind::Badge) {
+    if syncing.contains(&ResourceKind::Badge) {
         apply_kind::<BadgeKind>(
             &apply,
-            &resources,
-            &plan,
+            resources,
+            plan,
             lockfile,
             lockfile_path,
-            env_target,
+            &env_target,
         )
         .await?;
     }
-    if should_sync(ResourceKind::Product) {
+    if syncing.contains(&ResourceKind::Product) {
         apply_kind::<ProductKind>(
             &apply,
-            &resources,
-            &plan,
+            resources,
+            plan,
             lockfile,
             lockfile_path,
-            env_target,
+            &env_target,
         )
         .await?;
     }
 
-    Ok(true)
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

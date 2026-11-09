@@ -66,6 +66,8 @@ fn product_item(id: u64) -> String {
 
 struct Shop {
     dir: tempfile::TempDir,
+    /// Whether `sync` runs with `--overwrite-newer`.
+    overwrite_newer: bool,
 }
 
 impl Shop {
@@ -74,6 +76,7 @@ impl Shop {
     fn new(config: &str) -> Self {
         let shop = Self {
             dir: tempfile::tempdir().unwrap(),
+            overwrite_newer: false,
         };
         std::fs::write(shop.config_path(), config).unwrap();
         std::fs::write(
@@ -113,6 +116,45 @@ impl Shop {
 
     fn env_lock(&self) -> EnvLock {
         self.lock().env(ENV).cloned().unwrap()
+    }
+
+    /// Roblox as the lockfile recorded it: the listings `sync` reads before it
+    /// plans, answering with every locked resource exactly as it was recorded,
+    /// and with nothing when there is no lockfile.
+    ///
+    /// Mounted by `sync_with`, after whatever the test mounted itself, and
+    /// wiremock answers with the earliest match: a test that says what Roblox
+    /// holds is answered by its own listing, and every other test gets the
+    /// state in which nothing was changed on Roblox since the last sync.
+    async fn mount_recorded(&self, server: &MockServer) {
+        let recorded = if self.lock_path().exists() {
+            self.lock().env(ENV).cloned().unwrap_or_default()
+        } else {
+            EnvLock::default()
+        };
+
+        let passes: Vec<serde_json::Value> = recorded.passes.values().map(listed_pass).collect();
+        let products: Vec<serde_json::Value> =
+            recorded.products.values().map(listed_product).collect();
+        // The listing returns enabled badges only; a disabled one is read by
+        // id.
+        let mut badges = Vec::new();
+        for badge in recorded.badges.values() {
+            let body = json!({
+                "id": badge.id,
+                "name": badge.name,
+                "description": badge.description,
+                "enabled": badge.enabled,
+                "iconImageId": badge.icon_asset_id,
+            });
+            if badge.enabled {
+                badges.push(body);
+            } else {
+                mock(server, "GET", format!("/v1/badges/{}", badge.id), body).await;
+            }
+        }
+
+        mount_existing(server, json!(passes), json!(badges), json!(products)).await;
     }
 
     async fn sync(&self, server: &MockServer, dry_run: bool) -> Result<()> {
@@ -156,8 +198,64 @@ impl Shop {
             global: &global,
             base_url: Some(server.uri()),
         };
-        run(&ctx, dry_run, only, 0, true, allow_duplicate_names).await
+        self.mount_recorded(server).await;
+        run(
+            &ctx,
+            Options {
+                dry_run,
+                only,
+                badge_cost: 0,
+                yes: true,
+                allow_duplicate_names,
+                overwrite_newer: self.overwrite_newer,
+            },
+        )
+        .await
     }
+}
+
+/// A pass as Roblox lists it, holding what `locked` recorded.
+fn listed_pass(locked: &PassLock) -> serde_json::Value {
+    let mut pass = json!({
+        "gamePassId": locked.id,
+        "name": locked.name,
+        "isForSale": locked.for_sale,
+    });
+    if let Some(price) = locked.price {
+        pass["priceInformation"] = json!({ "defaultPriceInRobux": price });
+    }
+    if let Some(description) = &locked.description {
+        pass["description"] = json!(description);
+    }
+    if let Some(icon) = locked.icon_asset_id {
+        pass["iconAssetId"] = json!(icon);
+    }
+    if let Some(managed) = locked.managed_pricing {
+        pass["isManagedPricingEnabled"] = json!(managed);
+    }
+    pass
+}
+
+/// A developer product as Roblox lists it, holding what `locked` recorded.
+fn listed_product(locked: &ProductLock) -> serde_json::Value {
+    let mut product = json!({
+        "productId": locked.id,
+        "name": locked.name,
+        "isForSale": locked.for_sale,
+        // Roblox never lists a product off sale as on the store page.
+        "storePageEnabled": locked.store_page && locked.for_sale,
+        "priceInformation": { "defaultPriceInRobux": locked.price },
+    });
+    if let Some(description) = &locked.description {
+        product["description"] = json!(description);
+    }
+    if let Some(icon) = locked.icon_asset_id {
+        product["iconImageAssetId"] = json!(icon);
+    }
+    if let Some(managed) = locked.managed_pricing {
+        product["isManagedPricingEnabled"] = json!(managed);
+    }
+    product
 }
 
 // ── request inspection ──
@@ -320,24 +418,53 @@ async fn mount_creates_only(server: &MockServer) {
 
 // ── the dry-run invariant ──
 
-/// The invariant the whole command hangs on. No mocks are mounted, so any
-/// request at all would 404 and surface as an error too, but the count is
-/// asserted directly, because "it happened to fail" is not the property.
+/// The invariant the whole command hangs on. A dry run reads what the real
+/// run reads, so its plan is the real one, and sends nothing that changes
+/// anything: no create endpoint is mounted, so a write would 404 and surface
+/// as an error too, but the count is asserted directly, because "it happened
+/// to fail" is not the property.
 #[tokio::test]
-async fn a_dry_run_sends_no_request_and_writes_no_lockfile() {
+async fn a_dry_run_changes_nothing_on_roblox_and_writes_no_lockfile() {
     let shop = Shop::new(ONE_OF_EACH);
     let server = MockServer::start().await;
 
     shop.sync(&server, true).await.unwrap();
 
+    let reqs = requests(&server).await;
+    assert_eq!(
+        reqs.iter().filter(|r| is_mutating(r)).count(),
+        0,
+        "a dry run must not write to Roblox"
+    );
     assert!(
-        requests(&server).await.is_empty(),
-        "a dry run must not talk to Roblox at all"
+        !reqs.is_empty(),
+        "a dry run lists Roblox, or its plan is not the real one"
     );
     assert!(
         !shop.lock_path().exists(),
         "a dry run must not write a lockfile"
     );
+}
+
+/// The name guard runs on the listing a dry run made, so a plan that says
+/// "create" has already been compared with what exists, and the preview is
+/// refused where the real run would be.
+#[tokio::test]
+async fn a_dry_run_is_stopped_by_a_name_that_already_exists() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        json!([{ "gamePassId": 111, "name": "VIP" }]),
+        json!([]),
+        json!([]),
+    )
+    .await;
+
+    let err = shop.sync(&server, true).await.unwrap_err().to_string();
+
+    assert!(err.contains("VIP"), "{err}");
+    assert!(err.contains("111"), "{err}");
 }
 
 /// The control for the test above: the same fixture, applied for real,
@@ -385,11 +512,10 @@ async fn only_passes_leaves_badges_and_products_untouched() {
     assert!(env.products.is_empty());
 }
 
-/// Nothing to do means nothing sent, and, as it stands, no lockfile
-/// rewrite either. Pinned so that a future change to the up-to-date path
-/// is a deliberate one.
+/// Nothing to do means nothing written, on Roblox or in the lockfile: with
+/// Roblox holding what was recorded, the file is not even rewritten.
 #[tokio::test]
-async fn an_up_to_date_shop_sends_nothing() {
+async fn an_up_to_date_shop_writes_nothing() {
     let shop = Shop::new(
         r#"
 [passes.VIP]
@@ -406,7 +532,8 @@ price = 499
 
     shop.sync(&server, false).await.unwrap();
 
-    assert!(requests(&server).await.is_empty());
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
     assert_eq!(
         std::fs::read_to_string(shop.lock_path()).unwrap(),
         lock_toml,
@@ -918,9 +1045,9 @@ for_sale = false
 
 // ── an update sends what changed and nothing else ──
 
-/// The plan is built against the lockfile, so a price edited on the Creator
-/// Dashboard is invisible to it. An update that resent every field would put
-/// that price back the next time anything else about the pass changed.
+/// An update sends the fields the plan changes, and those alone: a field
+/// that was not compared, or that Roblox reported unfaithfully, must not ride
+/// along and be rewritten because something else about the pass changed.
 #[tokio::test]
 async fn a_pass_description_change_sends_only_the_description() {
     let shop = Shop::new(
@@ -1314,12 +1441,11 @@ async fn a_sync_leaving_badges_out_does_not_read_the_quota() {
     assert_eq!(count(&reqs, "POST", &pass_collection()), 1);
 }
 
-/// A sync with nothing to create asks Roblox nothing about what exists. The
-/// listing needs read scopes the write-only key of an update-only pipeline
-/// does not carry, so making it unconditional would break those keys for a
-/// check that could not have found anything.
+/// `--only passes` lists passes alone. Each listing needs its own read scope,
+/// and a key narrowed to one kind must not be asked for the scopes of the
+/// others.
 #[tokio::test]
-async fn a_sync_with_no_creates_does_not_list_anything() {
+async fn a_sync_narrowed_to_one_kind_lists_that_kind_alone() {
     let shop = Shop::new(
         r#"
 [passes.VIP]
@@ -1346,13 +1472,422 @@ price = 499
     )
     .await;
 
+    shop.sync_only(&server, false, Some(vec![ResourceKind::Pass]))
+        .await
+        .unwrap();
+
+    let reqs = requests(&server).await;
+    let read: Vec<String> = reqs
+        .iter()
+        .filter(|r| !is_mutating(r))
+        .map(|r| r.url.path().to_string())
+        .collect();
+    assert_eq!(read, vec![format!("{}/creator", pass_collection())]);
+    assert_eq!(count(&reqs, "PATCH", &pass_item(111)), 1);
+}
+
+// ── Roblox changed outside the repository ──
+
+const VIP_AT_499: &str = r#"
+[passes.VIP]
+price = 499
+"#;
+
+/// A lockfile recording the pass `VIP_AT_499` declares, as last synced.
+fn vip_locked_at_499() -> String {
+    format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.passes.VIP]\nid = 4242\nname = \"VIP\"\nprice = 499\n\
+         for_sale = true\nregional_pricing = false\n"
+    )
+}
+
+/// The passes listing alone holding `passes`, with no badge and no product.
+async fn mount_passes(server: &MockServer, passes: serde_json::Value) {
+    mount_existing(server, passes, json!([]), json!([])).await;
+}
+
+/// The report that started this: a price edited on the Creator Dashboard, the
+/// two local files in agreement, and `sync` answering "everything is up to
+/// date". The run is refused before anything is sent or recorded, and names
+/// both ways out.
+#[tokio::test]
+async fn a_price_edited_on_roblox_stops_the_sync_and_names_both_ways_out() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 599 }
+        }]),
+    )
+    .await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(
+        err.contains("pass 'VIP' price: lockfile 499, Roblox 599"),
+        "names the value: {err}"
+    );
+    assert!(
+        err.contains("`rbx shop pull --env dev`"),
+        "names the way to keep it: {err}"
+    );
+    assert!(
+        err.contains("--overwrite-newer"),
+        "names the way to replace it: {err}"
+    );
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
+    assert_eq!(
+        std::fs::read_to_string(shop.lock_path()).unwrap(),
+        vip_locked_at_499(),
+        "a refused run records nothing"
+    );
+}
+
+/// A preview must not show a plan the real run refuses.
+#[tokio::test]
+async fn a_dry_run_is_refused_the_same_way() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 599 }
+        }]),
+    )
+    .await;
+
+    let err = shop.sync(&server, true).await.unwrap_err().to_string();
+
+    assert!(err.contains("--overwrite-newer"), "{err}");
+}
+
+/// Asked for, the repository's price is put back, and that field alone is
+/// sent.
+#[tokio::test]
+async fn overwrite_newer_puts_the_repository_value_back() {
+    let mut shop = Shop::new(VIP_AT_499);
+    shop.overwrite_newer = true;
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 599 }
+        }]),
+    )
+    .await;
+    mock(
+        &server,
+        "PATCH",
+        pass_item(4242),
+        json!({ "gamePassId": 4242 }),
+    )
+    .await;
+
     shop.sync(&server, false).await.unwrap();
 
     let reqs = requests(&server).await;
-    assert_eq!(
-        reqs.iter().filter(|r| !is_mutating(r)).count(),
-        0,
-        "an update-only sync must not read the catalogues"
+    let patch = only(&reqs, "PATCH", &pass_item(4242));
+    assert_eq!(field(patch, "price").as_deref(), Some("499"));
+    assert_eq!(field(patch, "name"), None);
+    assert_eq!(shop.env_lock().passes["VIP"].price, Some(499));
+}
+
+/// The case that costs money to get wrong: a pass taken off sale by hand, in
+/// a hurry, on the Creator Dashboard. The next sync must not put it back on
+/// sale because the config still says so.
+#[tokio::test]
+async fn a_pass_taken_off_sale_on_roblox_is_not_put_back_on_sale_unasked() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": false,
+            "priceInformation": { "defaultPriceInRobux": 499 }
+        }]),
+    )
+    .await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(
+        err.contains("pass 'VIP' for_sale: lockfile true, Roblox false"),
+        "{err}"
     );
-    assert_eq!(count(&reqs, "PATCH", &pass_item(111)), 1);
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
+}
+
+/// A resource is the one its id says it is. Renamed on Roblox, it is reported
+/// under the config's key and never planned as a second resource to create.
+#[tokio::test]
+async fn a_resource_renamed_on_roblox_is_reported_under_its_key() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP Gold", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 499 }
+        }]),
+    )
+    .await;
+    mount_creates_only(&server).await;
+
+    let err = shop.sync(&server, false).await.unwrap_err().to_string();
+
+    assert!(
+        err.contains(r#"pass 'VIP' name: lockfile "VIP", Roblox "VIP Gold""#),
+        "{err}"
+    );
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 0);
+}
+
+/// Roblox already holds the price the config now asks for, and the lockfile
+/// is behind. Nothing is sent, and the lockfile catches up, or `check` would
+/// go on reporting a change no sync could apply.
+#[tokio::test]
+async fn roblox_already_holding_what_the_config_asks_updates_the_lockfile_alone() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 999 }
+        }]),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
+    assert_eq!(shop.env_lock().passes["VIP"].price, Some(999));
+}
+
+/// The same finding on a dry run is shown and not recorded.
+#[tokio::test]
+async fn a_dry_run_never_brings_the_lockfile_up_to_date() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([{
+            "gamePassId": 4242, "name": "VIP", "isForSale": true,
+            "priceInformation": { "defaultPriceInRobux": 999 }
+        }]),
+    )
+    .await;
+
+    shop.sync(&server, true).await.unwrap();
+
+    assert_eq!(
+        std::fs::read_to_string(shop.lock_path()).unwrap(),
+        vip_locked_at_499()
+    );
+}
+
+/// A pass made by hand on Roblox, tracked by no entry: nothing is sent for
+/// it and nothing is recorded, so the run is the no-op it would be without
+/// it.
+#[tokio::test]
+async fn a_resource_made_by_hand_on_roblox_is_left_alone() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_passes(
+        &server,
+        json!([
+            {
+                "gamePassId": 4242, "name": "VIP", "isForSale": true,
+                "priceInformation": { "defaultPriceInRobux": 499 }
+            },
+            {
+                "gamePassId": 9, "name": "Made by hand", "isForSale": true,
+                "priceInformation": { "defaultPriceInRobux": 25 }
+            }
+        ]),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
+    assert_eq!(
+        std::fs::read_to_string(shop.lock_path()).unwrap(),
+        vip_locked_at_499()
+    );
+}
+
+/// A pass the lockfile tracks and Roblox stopped listing keeps its entry.
+/// Dropped, the plan would create a second pass, which cannot be deleted.
+#[tokio::test]
+async fn a_tracked_resource_roblox_does_not_list_is_never_created_again() {
+    let shop = Shop::new(VIP_AT_499);
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    mount_no_existing(&server).await;
+    mount_creates_only(&server).await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 0);
+    assert_eq!(shop.env_lock().passes["VIP"].id, 4242);
+}
+
+/// Off sale, Roblox answers that a product is not on the store page, whatever
+/// the config wants for the day it is back on sale. That answer must not read
+/// as a change, or the run would be refused, and plan the same write, forever.
+#[tokio::test]
+async fn a_product_off_sale_that_wants_the_store_page_is_up_to_date() {
+    let shop = Shop::new(
+        r#"
+[products.Coins]
+price = 99
+for_sale = false
+store_page = true
+"#,
+    );
+    let lock_toml = format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.products.Coins]\nid = 3131\nname = \"Coins\"\nprice = 99\n\
+         for_sale = false\nregional_pricing = false\nstore_page = true\n"
+    );
+    shop.write_lock(&lock_toml);
+    let server = MockServer::start().await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(reqs.iter().filter(|r| is_mutating(r)).count(), 0);
+    assert_eq!(
+        std::fs::read_to_string(shop.lock_path()).unwrap(),
+        lock_toml
+    );
+}
+
+/// One env changed on Roblox refuses the whole run, before the env that is
+/// fine gets written: a run that applied `dev` and then refused `prod` is the
+/// half-applied run the planning pass exists to prevent.
+#[tokio::test]
+async fn one_env_changed_on_roblox_refuses_the_whole_run() {
+    const PROD: u64 = 66778899002;
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    std::fs::write(
+        shop.places_path(),
+        format!("[{ENV}]\nuniverse_id = {UNIVERSE}\n\n[prod]\nuniverse_id = {PROD}\n"),
+    )
+    .unwrap();
+    shop.write_lock(&format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.passes.VIP]\nid = 4242\nname = \"VIP\"\nprice = 499\n\
+         for_sale = true\nregional_pricing = false\n\n\
+         [envs.prod]\nuniverse_id = {PROD}\n\n\
+         [envs.prod.passes.VIP]\nid = 5252\nname = \"VIP\"\nprice = 499\n\
+         for_sale = true\nregional_pricing = false\n"
+    ));
+    let server = MockServer::start().await;
+    // `dev` holds what was recorded, so its plan is the config's own change.
+    // `prod` had its price edited on Roblox.
+    for (universe, id, price) in [(UNIVERSE, 4242, 499), (PROD, 5252, 599)] {
+        mock(
+            &server,
+            "GET",
+            format!("/game-passes/v1/universes/{universe}/game-passes/creator"),
+            json!({ "gamePasses": [{
+                "gamePassId": id, "name": "VIP", "isForSale": true,
+                "priceInformation": { "defaultPriceInRobux": price }
+            }], "nextPageToken": "" }),
+        )
+        .await;
+        mock(
+            &server,
+            "GET",
+            format!("/v1/universes/{universe}/badges"),
+            json!({ "data": [], "nextPageCursor": "" }),
+        )
+        .await;
+        mock(
+            &server,
+            "GET",
+            format!("/developer-products/v2/universes/{universe}/developer-products/creator"),
+            json!({ "developerProducts": [], "nextPageToken": "" }),
+        )
+        .await;
+    }
+    mock(
+        &server,
+        "PATCH",
+        pass_item(4242),
+        json!({ "gamePassId": 4242 }),
+    )
+    .await;
+
+    let global = GlobalFlags {
+        api_key: Some("test-key".into()),
+        cookie: None,
+        no_auto_cookie: true,
+        auto_cookie: false,
+        env: Some("all".into()),
+        place: None,
+        places: shop.places_path(),
+        universe_id: None,
+        place_id: Vec::new(),
+    };
+    let ctx = ShopCtx {
+        config: shop.config_path(),
+        global: &global,
+        base_url: Some(server.uri()),
+    };
+    let err = run(
+        &ctx,
+        Options {
+            yes: true,
+            ..Options::default()
+        },
+    )
+    .await
+    .unwrap_err()
+    .to_string();
+
+    assert!(err.contains("[prod]"), "{err}");
+    assert!(!err.contains("[dev]"), "only the env that changed: {err}");
+    let reqs = requests(&server).await;
+    assert_eq!(
+        reqs.iter().filter(|r| is_mutating(r)).count(),
+        0,
+        "dev must not be written when prod refuses"
+    );
 }

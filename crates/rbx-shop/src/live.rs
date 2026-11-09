@@ -11,6 +11,7 @@
 //! lockfile, so the two cannot disagree about what Roblox said.
 
 use std::collections::{BTreeMap, HashSet};
+use std::fmt;
 
 use anyhow::Result;
 use reqwest::StatusCode;
@@ -18,6 +19,7 @@ use reqwest::StatusCode;
 use rbx_core::api::needs_scope;
 
 use crate::api::RbxClient;
+use crate::config::ResourceKind;
 use crate::lockfile::{BadgeLock, EnvLock, PassLock, ProductLock};
 
 /// What one env's comparison found.
@@ -41,79 +43,90 @@ pub(crate) struct RemoteLocks {
 /// Compare one env's lock section with what Roblox lists now.
 pub async fn compare(api_key: String, env_lock: &EnvLock) -> Result<LiveReport> {
     let client = RbxClient::new(Some(api_key), env_lock.universe_id, true);
-    let remote = read(&client, env_lock).await?;
+    let remote = read(&client, env_lock, &ResourceKind::ALL).await?;
     Ok(compare_read(env_lock, &remote))
 }
 
-/// The reads `pull` makes, converted the way `pull` converts them.
-async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
+/// The reads `pull` makes, converted the way `pull` converts them, for the
+/// kinds asked for. A kind left out is not listed, so a key narrowed to
+/// `--only passes` is not asked for a scope it does not need.
+pub(crate) async fn read(
+    client: &RbxClient,
+    env_lock: &EnvLock,
+    kinds: &[ResourceKind],
+) -> Result<RemoteLocks> {
     let mut remote = RemoteLocks::default();
 
-    // `prior` matters only for regional pricing, which is kept from the
-    // lockfile rather than read: see `remote::pass_lock`.
-    let pass_by_id: BTreeMap<u64, &PassLock> =
-        env_lock.passes.values().map(|l| (l.id, l)).collect();
-    for pass in client
-        .list_all_game_passes()
-        .await
-        .map_err(|e| needs_scope(e, "game-pass:read", "the game pass listing"))?
-    {
-        if let Some(id) = pass.id {
-            let prior = pass_by_id.get(&id).copied();
-            remote
-                .passes
-                .insert(id, crate::remote::pass_lock(&pass, id, prior));
-        }
-    }
-
-    let product_by_id: BTreeMap<u64, &ProductLock> =
-        env_lock.products.values().map(|l| (l.id, l)).collect();
-    for product in client
-        .list_all_developer_products()
-        .await
-        .map_err(|e| needs_scope(e, "developer-product:read", "the developer product listing"))?
-    {
-        if let Some(id) = product.id {
-            let prior = product_by_id.get(&id).copied();
-            remote
-                .products
-                .insert(id, crate::remote::product_lock(&product, id, prior));
-        }
-    }
-
-    for badge in client
-        .list_all_badges(env_lock.universe_id)
-        .await
-        .map_err(|e| needs_scope(e, "legacy-badge:manage", "the badge listing"))?
-    {
-        if let Some(id) = badge.id {
-            remote
-                .badges
-                .insert(id, crate::remote::badge_lock(&badge, id, true));
-        }
-    }
-    // Disabled badges are not listed. Read the locked ones the listing left
-    // out by id, as `pull` does, or every disabled badge would read as gone.
-    let listed: HashSet<u64> = remote.badges.keys().copied().collect();
-    for locked in env_lock.badges.values() {
-        if listed.contains(&locked.id) {
-            continue;
-        }
-        match client.get_badge(locked.id).await {
-            Ok(badge) => {
-                remote.badges.insert(
-                    locked.id,
-                    crate::remote::badge_lock(&badge, locked.id, false),
-                );
+    // `prior` speaks for what Roblox does not report faithfully: see
+    // `crate::remote`.
+    if kinds.contains(&ResourceKind::Pass) {
+        let pass_by_id: BTreeMap<u64, &PassLock> =
+            env_lock.passes.values().map(|l| (l.id, l)).collect();
+        for pass in client
+            .list_all_game_passes()
+            .await
+            .map_err(|e| needs_scope(e, "game-pass:read", "the game pass listing"))?
+        {
+            if let Some(id) = pass.id {
+                let prior = pass_by_id.get(&id).copied();
+                remote
+                    .passes
+                    .insert(id, crate::remote::pass_lock(&pass, id, prior));
             }
-            // Gone, which `compare_read` reports.
-            Err(error) if rbx_core::api::is_api_status(&error, StatusCode::NOT_FOUND) => {}
-            Err(error) => {
-                return Err(needs_scope(
-                    error,
-                    "legacy-badge:manage",
-                    "a disabled badge read",
-                ))
+        }
+    }
+
+    if kinds.contains(&ResourceKind::Product) {
+        let product_by_id: BTreeMap<u64, &ProductLock> =
+            env_lock.products.values().map(|l| (l.id, l)).collect();
+        for product in client.list_all_developer_products().await.map_err(|e| {
+            needs_scope(e, "developer-product:read", "the developer product listing")
+        })? {
+            if let Some(id) = product.id {
+                let prior = product_by_id.get(&id).copied();
+                remote
+                    .products
+                    .insert(id, crate::remote::product_lock(&product, id, prior));
+            }
+        }
+    }
+
+    if kinds.contains(&ResourceKind::Badge) {
+        for badge in client
+            .list_all_badges(env_lock.universe_id)
+            .await
+            .map_err(|e| needs_scope(e, "legacy-badge:manage", "the badge listing"))?
+        {
+            if let Some(id) = badge.id {
+                remote
+                    .badges
+                    .insert(id, crate::remote::badge_lock(&badge, id, true));
+            }
+        }
+        // Disabled badges are not listed. Read the locked ones the listing
+        // left out by id, as `pull` does, or every disabled badge would read
+        // as gone.
+        let listed: HashSet<u64> = remote.badges.keys().copied().collect();
+        for locked in env_lock.badges.values() {
+            if listed.contains(&locked.id) {
+                continue;
+            }
+            match client.get_badge(locked.id).await {
+                Ok(badge) => {
+                    remote.badges.insert(
+                        locked.id,
+                        crate::remote::badge_lock(&badge, locked.id, false),
+                    );
+                }
+                // Gone, which `compare_read` reports.
+                Err(error) if rbx_core::api::is_api_status(&error, StatusCode::NOT_FOUND) => {}
+                Err(error) => {
+                    return Err(needs_scope(
+                        error,
+                        "legacy-badge:manage",
+                        "a disabled badge read",
+                    ))
+                }
             }
         }
     }
@@ -121,17 +134,73 @@ async fn read(client: &RbxClient, env_lock: &EnvLock) -> Result<RemoteLocks> {
     Ok(remote)
 }
 
+/// One field of one resource that two lock entries hold differently.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Difference {
+    pub kind: ResourceKind,
+    /// The key in `rbxshop.toml`.
+    pub key: String,
+    /// The field, named as `diff::FieldChange` names it, so a difference can
+    /// be matched with the plan entry that would write over it.
+    pub field: &'static str,
+    locked: String,
+    live: String,
+}
+
+impl fmt::Display for Difference {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{} '{}' {}: lockfile {}, Roblox {}",
+            self.kind.label(),
+            self.key,
+            self.field,
+            self.locked,
+            self.live
+        )
+    }
+}
+
+/// The fields a section brought up to date with Roblox holds differently from
+/// the recorded one, for the resources both have.
+///
+/// `sync` asks this of the section it plans against: these are the values
+/// changed on Roblox since the lockfile was written. See `crate::refresh`.
+pub(crate) fn changed_fields(recorded: &EnvLock, seen: &EnvLock) -> Vec<Difference> {
+    let mut out = Vec::new();
+    for (key, locked) in &recorded.passes {
+        if let Some(live) = seen.passes.get(key) {
+            compare_pass(key, locked, live, &mut out);
+        }
+    }
+    for (key, locked) in &recorded.badges {
+        if let Some(live) = seen.badges.get(key) {
+            compare_badge(key, locked, live, &mut out);
+        }
+    }
+    for (key, locked) in &recorded.products {
+        if let Some(live) = seen.products.get(key) {
+            compare_product(key, locked, live, &mut out);
+        }
+    }
+    out
+}
+
 /// The comparison itself, apart from the network.
 pub(crate) fn compare_read(env_lock: &EnvLock, remote: &RemoteLocks) -> LiveReport {
     let mut out = Vec::new();
+    // Each resource's fields, rendered as soon as they are compared so the
+    // report keeps them beside the resource they belong to.
+    let mut fields = Vec::new();
 
     let mut tracked = HashSet::new();
     for (key, locked) in &env_lock.passes {
         tracked.insert(locked.id);
         match remote.passes.get(&locked.id) {
-            Some(live) => compare_pass(key, locked, live, &mut out),
-            None => out.push(gone("pass", key, locked.id)),
+            Some(live) => compare_pass(key, locked, live, &mut fields),
+            None => out.push(gone(ResourceKind::Pass, key, locked.id)),
         }
+        out.extend(fields.drain(..).map(|d| d.to_string()));
     }
     untracked(
         "pass",
@@ -144,9 +213,10 @@ pub(crate) fn compare_read(env_lock: &EnvLock, remote: &RemoteLocks) -> LiveRepo
     for (key, locked) in &env_lock.products {
         tracked.insert(locked.id);
         match remote.products.get(&locked.id) {
-            Some(live) => compare_product(key, locked, live, &mut out),
-            None => out.push(gone("product", key, locked.id)),
+            Some(live) => compare_product(key, locked, live, &mut fields),
+            None => out.push(gone(ResourceKind::Product, key, locked.id)),
         }
+        out.extend(fields.drain(..).map(|d| d.to_string()));
     }
     untracked(
         "product",
@@ -159,9 +229,10 @@ pub(crate) fn compare_read(env_lock: &EnvLock, remote: &RemoteLocks) -> LiveRepo
     for (key, locked) in &env_lock.badges {
         tracked.insert(locked.id);
         match remote.badges.get(&locked.id) {
-            Some(live) => compare_badge(key, locked, live, &mut out),
-            None => out.push(gone("badge", key, locked.id)),
+            Some(live) => compare_badge(key, locked, live, &mut fields),
+            None => out.push(gone(ResourceKind::Badge, key, locked.id)),
         }
+        out.extend(fields.drain(..).map(|d| d.to_string()));
     }
     untracked(
         "badge",
@@ -175,13 +246,16 @@ pub(crate) fn compare_read(env_lock: &EnvLock, remote: &RemoteLocks) -> LiveRepo
         not_compared: vec![
             "regional_pricing: Roblox reports it as on whenever managed pricing is".to_string(),
             "icon files: the comparison is on the icon id Roblox holds".to_string(),
+            "store_page of a product off sale, and a price Roblox leaves out: the lockfile's \
+             stands"
+                .to_string(),
         ],
     }
 }
 
 /// Destructured without `..`: a field added to `PassLock` does not compile
 /// here until it is compared or set aside with a reason.
-fn compare_pass(key: &str, locked: &PassLock, live: &PassLock, out: &mut Vec<String>) {
+fn compare_pass(key: &str, locked: &PassLock, live: &PassLock, out: &mut Vec<Difference>) {
     let PassLock {
         id: _,
         name,
@@ -195,7 +269,7 @@ fn compare_pass(key: &str, locked: &PassLock, live: &PassLock, out: &mut Vec<Str
         regional_pricing: _,
         managed_pricing,
     } = locked;
-    let mut field = Field::new("pass", key, out);
+    let mut field = Field::new(ResourceKind::Pass, key, out);
     field.check("name", name, &live.name);
     field.check("price", price, &live.price);
     field.description(description, &live.description);
@@ -205,7 +279,7 @@ fn compare_pass(key: &str, locked: &PassLock, live: &PassLock, out: &mut Vec<Str
 }
 
 /// As `compare_pass`.
-fn compare_product(key: &str, locked: &ProductLock, live: &ProductLock, out: &mut Vec<String>) {
+fn compare_product(key: &str, locked: &ProductLock, live: &ProductLock, out: &mut Vec<Difference>) {
     let ProductLock {
         id: _,
         name,
@@ -218,7 +292,7 @@ fn compare_product(key: &str, locked: &ProductLock, live: &ProductLock, out: &mu
         managed_pricing,
         store_page,
     } = locked;
-    let mut field = Field::new("product", key, out);
+    let mut field = Field::new(ResourceKind::Product, key, out);
     field.check("name", name, &live.name);
     field.check("price", price, &live.price);
     field.description(description, &live.description);
@@ -229,7 +303,7 @@ fn compare_product(key: &str, locked: &ProductLock, live: &ProductLock, out: &mu
 }
 
 /// As `compare_pass`.
-fn compare_badge(key: &str, locked: &BadgeLock, live: &BadgeLock, out: &mut Vec<String>) {
+fn compare_badge(key: &str, locked: &BadgeLock, live: &BadgeLock, out: &mut Vec<Difference>) {
     let BadgeLock {
         id: _,
         name,
@@ -238,15 +312,19 @@ fn compare_badge(key: &str, locked: &BadgeLock, live: &BadgeLock, out: &mut Vec<
         icon_asset_id,
         icon_hash: _,
     } = locked;
-    let mut field = Field::new("badge", key, out);
+    let mut field = Field::new(ResourceKind::Badge, key, out);
     field.check("name", name, &live.name);
     field.description(description, &live.description);
     field.check("enabled", enabled, &live.enabled);
     field.check("icon", icon_asset_id, &live.icon_asset_id);
 }
 
-fn gone(kind: &str, key: &str, id: u64) -> String {
-    format!("{kind} '{key}' ({id}): in the lockfile, not on Roblox")
+/// A resource the lockfile tracks and Roblox does not list.
+pub(crate) fn gone(kind: ResourceKind, key: &str, id: u64) -> String {
+    format!(
+        "{} '{key}' ({id}): in the lockfile, not on Roblox",
+        kind.label()
+    )
 }
 
 /// Resources Roblox has and no lock entry tracks: made by hand, or by another
@@ -266,21 +344,21 @@ fn untracked<'a>(
     }
 }
 
-/// The differences of one resource, each line naming it.
+/// The differences of one resource, each one naming it.
 struct Field<'a> {
-    kind: &'static str,
+    kind: ResourceKind,
     key: &'a str,
-    out: &'a mut Vec<String>,
+    out: &'a mut Vec<Difference>,
 }
 
 impl<'a> Field<'a> {
-    fn new(kind: &'static str, key: &'a str, out: &'a mut Vec<String>) -> Self {
+    fn new(kind: ResourceKind, key: &'a str, out: &'a mut Vec<Difference>) -> Self {
         Self { kind, key, out }
     }
 
-    fn check<T: PartialEq + Show>(&mut self, field: &str, locked: &T, live: &T) {
+    fn check<T: PartialEq + Show>(&mut self, field: &'static str, locked: &T, live: &T) {
         if locked != live {
-            self.push(field, &locked.show(), &live.show());
+            self.push(field, locked.show(), live.show());
         }
     }
 
@@ -292,25 +370,33 @@ impl<'a> Field<'a> {
             live.as_deref().unwrap_or(""),
         );
         if locked != live {
-            self.push("description", &format!("{locked:?}"), &format!("{live:?}"));
+            self.push("description", format!("{locked:?}"), format!("{live:?}"));
         }
     }
 
     /// A field the lockfile may not record yet: a lockfile written before it
     /// existed holds nothing to compare, and is not a difference.
-    fn recorded<T: PartialEq + Show>(&mut self, field: &str, locked: &Option<T>, live: &Option<T>) {
+    fn recorded<T: PartialEq + Show>(
+        &mut self,
+        field: &'static str,
+        locked: &Option<T>,
+        live: &Option<T>,
+    ) {
         if let (Some(locked), Some(live)) = (locked, live) {
             if locked != live {
-                self.push(field, &locked.show(), &live.show());
+                self.push(field, locked.show(), live.show());
             }
         }
     }
 
-    fn push(&mut self, field: &str, locked: &str, live: &str) {
-        self.out.push(format!(
-            "{} '{}' {field}: lockfile {locked}, Roblox {live}",
-            self.kind, self.key
-        ));
+    fn push(&mut self, field: &'static str, locked: String, live: String) {
+        self.out.push(Difference {
+            kind: self.kind,
+            key: self.key.to_string(),
+            field,
+            locked,
+            live,
+        });
     }
 }
 

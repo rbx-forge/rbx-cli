@@ -10,6 +10,7 @@ pub mod diff;
 pub mod engine_echo;
 pub mod live;
 pub mod lockfile;
+mod refresh;
 
 use std::path::PathBuf;
 
@@ -48,6 +49,9 @@ pub enum MetaCommands {
     },
 
     /// Sync local config to Roblox.
+    ///
+    /// Reads Roblox first, so the plan is the config against what Roblox
+    /// holds now, a dry run included.
     Sync {
         /// Show what would change without applying.
         #[arg(long)]
@@ -56,6 +60,15 @@ pub enum MetaCommands {
         /// Skip confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
+
+        /// Replace what was changed on Roblox since the last sync or pull.
+        ///
+        /// A value the lockfile recorded and Roblox no longer holds was
+        /// changed there, on the Creator Hub or from another checkout. A plan
+        /// that would write over it is refused: `rbx meta pull` brings those
+        /// values in, and this flag replaces them with the config's.
+        #[arg(long)]
+        overwrite_newer: bool,
     },
 
     /// Check config validity and diff against lockfile.
@@ -96,7 +109,21 @@ pub async fn run(cli: MetaCli, global: &GlobalFlags) -> Result<()> {
             universe_id,
             place_id,
         } => commands::init::run(&ctx, from_remote, universe_id, place_id).await,
-        MetaCommands::Sync { dry_run, yes } => commands::sync::run(&ctx, dry_run, yes).await,
+        MetaCommands::Sync {
+            dry_run,
+            yes,
+            overwrite_newer,
+        } => {
+            commands::sync::run(
+                &ctx,
+                commands::sync::Options {
+                    dry_run,
+                    yes,
+                    overwrite_newer,
+                },
+            )
+            .await
+        }
         MetaCommands::Check => commands::check::run(&ctx).await,
         MetaCommands::Pull {
             dry_run,

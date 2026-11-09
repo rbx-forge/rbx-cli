@@ -44,12 +44,21 @@ With `--env`, ids come from `rbxplace.toml`; with `--universe-id` and `--place-i
 
 ### rbx meta sync
 
-Send the fields that differ from the lockfile, and update the lockfile after each call.
+Read Roblox, send the fields where it differs from the config, and record each call in the lockfile.
 
 | Flag | Description |
 | --- | --- |
-| `--dry-run` | Show what would change |
+| `--dry-run` | Show what would change. Reads Roblox, sends nothing |
 | `--yes` / `-y` | Skip the confirmation |
+| `--overwrite-newer` | Replace what was changed on Roblox since your last sync or pull |
+
+!!! warning "A change made on Roblox is not overwritten silently"
+    If Roblox holds another value than the lockfile recorded (an edit on the Creator Hub, a sync from another branch or machine) and the config would replace it, `sync` shows the plan and refuses, a dry run included. `rbx meta pull` brings those values in; `--overwrite-newer` replaces them.
+
+What the plan compares the config with:
+
+- **Roblox**, for every field it returns. A field unset in both the config and the lockfile is not managed: `sync` never writes it, and never removes a social link or private servers that neither file mentions.
+- **The lockfile**, for the cookie-only fields when no cookie is given, for the fields Roblox returns from no endpoint (`permissions`, the avatar scales and asset overrides, `engine_avatar_settings`), and for the media, by content hash.
 
 Checked before anything is sent:
 
@@ -77,6 +86,8 @@ Write live metadata into the config and lockfile, preserving comments.
 
 With an env, downloads go to `<media.dir>/<env>/` and the paths are written to that env's overlay, so envs never overwrite each other's files. Downloads are what Roblox serves now (512x512 icon, 768x432 thumbnails), not necessarily the original upload. An image already downloaded and unchanged is skipped.
 
+A social link or private servers that Roblox no longer has are removed from the env's overlay. When `[game]` declares them, they apply to every env and an overlay cannot unset a key: the file is left as it is, `pull` says so, and the next `sync` sets them again. Remove them from `[game]` to keep them off.
+
 ### Per-tool flags
 
 | Flag | Description |
@@ -85,9 +96,11 @@ With an env, downloads go to `<media.dir>/<env>/` and the paths are written to t
 
 ## Lockfile
 
-`rbxmeta.lock.toml` records, per env, the universe, the place, and the last state applied (media as content hashes and Roblox image ids). Without `--env` the section is `[envs.default]`. Commit it.
+`rbxmeta.lock.toml` records, per env, the universe, the place, and what Roblox held at the last `sync` or `pull` (media as content hashes and Roblox image ids). It is what tells a change made in the config from a change made on Roblox. Without `--env` the section is `[envs.default]`. Commit it.
 
 ## Required API scopes
+
+`sync` reads before it writes, so it needs the read scope beside each write scope.
 
 | Resource | Scopes |
 | --- | --- |

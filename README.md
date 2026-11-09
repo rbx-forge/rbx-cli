@@ -22,7 +22,7 @@ Either one writes the latest release into your project's `mise.toml` or `rokit.t
 
 Neither? Every release publishes one archive per platform on the [releases page](https://github.com/rbx-forge/rbx-deploy/releases). `gh attestation verify <archive> --repo rbx-forge/rbx-deploy` proves an archive was built by this repository's release workflow; the `SHA256SUMS` beside them only catch a corrupt download. On Linux, take `x86_64-unknown-linux-musl` if the gnu build reports a missing `GLIBC_...` version.
 
-## Thirty seconds
+## Usage
 
 One `rbxplace.toml` maps env names to universes and places, and every command resolves `--env` through it:
 
@@ -60,17 +60,6 @@ The [quick start](https://rbx-forge.github.io/rbx-deploy/quickstart/) walks the 
 | [`rbx shop`](./docs/shop.md) | Game passes, badges and developer products, with typed Luau codegen |
 | [`rbx probe`](./docs/probe.md) | A raw authenticated request to any Open Cloud path. Hidden from `--help` |
 | [`rbx completions`](./docs/completions.md) | Shell completions that read your `rbxplace.toml` at TAB time |
-
-## Moved to their own tools
-
-These commands now ship separately, with the same flags. `rbx` 0.12 still carries them, and the next release removes them.
-
-| Was | Now |
-| --- | --- |
-| `rbx servers`, `analytics`, `ban`, `group`, `restart`, `data`, `memorystore`, `message`, `secret`, `ads`, `user` | [rbx-ops](https://rbx-forge.github.io/rbx-ops/) |
-| `rbx apikey`, `rbx doctor` | [rbx-apikey](https://rbx-forge.github.io/rbx-apikey/) |
-| `rbx open` | [rbx-open](https://github.com/rbx-forge/rbx-open) |
-| `rbx download` | [rbx-download](https://github.com/rbx-forge/rbx-download) |
 
 ## Reference
 

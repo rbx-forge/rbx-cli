@@ -51,10 +51,6 @@ Either one pins the latest release in your project. Archives for every platform 
 | [`completions`](completions.md) | Shell completions for `--env` and `--place` |
 
 Not in scope: anything without a file to reconcile from, like acting on a running game or managing API keys. See [What rbx does not do](reference/non-goals.md).
-
-!!! info "Moved to their own tools"
-    Live operations are now [rbx-ops](https://rbx-forge.github.io/rbx-ops/), API keys [rbx-apikey](https://rbx-forge.github.io/rbx-apikey/), and `open` and `download` are [rbx-open](https://github.com/rbx-forge/rbx-open) and [rbx-download](https://github.com/rbx-forge/rbx-download). Same flags. `rbx` 0.12 still carries them, and the next release removes them.
-
 ---
 
 A community tool under [MPL-2.0](https://github.com/rbx-forge/rbx-deploy/blob/main/LICENSE), not affiliated with Roblox Corporation. Source, changelog and contributing guide on [GitHub](https://github.com/rbx-forge/rbx-deploy).

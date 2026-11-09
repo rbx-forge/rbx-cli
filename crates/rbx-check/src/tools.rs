@@ -464,7 +464,7 @@ pub async fn shop_live(
     global: &GlobalFlags,
     offline: bool,
 ) -> Vec<ToolReport> {
-    use rbx_shop::lockfile::{Lockfile, LOCKFILE_NAME};
+    use rbx_shop::lockfile::{EnvLock, Lockfile, LOCKFILE_NAME};
 
     if offline {
         return vec![ToolReport::new(
@@ -475,44 +475,66 @@ pub async fn shop_live(
         )];
     }
 
+    // No lockfile, or no section for an env, compares with an empty one
+    // rather than skipping: a universe never synced is clean when it is
+    // empty, and every pass, product or badge made by hand in it is named.
     let lockfile_path = config_path
         .parent()
         .unwrap_or(Path::new("."))
         .join(LOCKFILE_NAME);
-    if !lockfile_path.exists() {
-        return vec![ToolReport::new(
-            "shop",
-            "live",
-            Outcome::Skipped,
-            "no lockfile: nothing synced or pulled yet",
-        )];
-    }
-    let lockfile = match Lockfile::load(&lockfile_path) {
-        Ok(l) => l,
-        Err(err) => {
-            return vec![ToolReport::new(
-                "shop",
-                "live",
-                Outcome::Error,
-                one_line(&err),
-            )]
+    let lockfile = if lockfile_path.exists() {
+        match Lockfile::load(&lockfile_path) {
+            Ok(l) => l,
+            Err(err) => {
+                return vec![ToolReport::new(
+                    "shop",
+                    "live",
+                    Outcome::Error,
+                    one_line(&err),
+                )]
+            }
         }
+    } else {
+        Lockfile::default()
     };
+    // The universe of the standalone block, for an env with no section.
+    let experience = rbx_shop::config::Config::load_merged(config_path)
+        .ok()
+        .and_then(|config| config.experience)
+        .map(|experience| experience.universe_id);
 
     let mut reports = Vec::new();
     for env in envs {
         let label = env_label(env.as_deref());
-        let Some(env_lock) = lockfile.env(&label) else {
-            reports.push(
-                ToolReport::new(
-                    "shop",
-                    "live",
-                    Outcome::Skipped,
-                    "nothing synced or pulled for this env yet",
-                )
-                .env(&label),
-            );
-            continue;
+        let empty;
+        let env_lock = match lockfile.env(&label) {
+            Some(env_lock) => env_lock,
+            None => {
+                let universe = global
+                    .universe_id
+                    .or_else(|| {
+                        env.as_deref()
+                            .and_then(|e| resolve_universe(global, e).ok())
+                    })
+                    .or(experience);
+                let Some(universe_id) = universe else {
+                    reports.push(
+                        ToolReport::new(
+                            "shop",
+                            "live",
+                            Outcome::Skipped,
+                            "no universe to compare: pass --env, or set [experience] in rbxshop.toml",
+                        )
+                        .env(&label),
+                    );
+                    continue;
+                };
+                empty = EnvLock {
+                    universe_id,
+                    ..Default::default()
+                };
+                &empty
+            }
         };
         // `shop/lockfile` reports a section recorded for another universe;
         // comparing that universe with Roblox would answer the wrong question.

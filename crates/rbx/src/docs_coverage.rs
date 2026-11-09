@@ -64,9 +64,38 @@ const PAGES: &[(&str, &str)] = &[
     ("memorystore", "ops/memorystore.md"),
     ("message", "ops/message.md"),
     ("ads", "ops/ads.md"),
-    ("probe", "ops/probe.md"),
+    ("probe", "probe.md"),
     ("completions", "completions.md"),
 ];
+
+/// Top-level commands that now ship as a tool of their own, with the tool that
+/// documents them.
+///
+/// Their pages here are short pages naming that tool, so their flags are
+/// written down there and not here. `rbx` still carries the commands until the
+/// release that removes them, and this list goes with them.
+const MOVED: &[(&str, &str)] = &[
+    ("apikey", "rbx-apikey"),
+    ("doctor", "rbx-apikey"),
+    ("open", "rbx-open"),
+    ("download", "rbx-download"),
+    ("secret", "rbx-ops"),
+    ("user", "rbx-ops"),
+    ("servers", "rbx-ops"),
+    ("analytics", "rbx-ops"),
+    ("ban", "rbx-ops"),
+    ("group", "rbx-ops"),
+    ("restart", "rbx-ops"),
+    ("data", "rbx-ops"),
+    ("memorystore", "rbx-ops"),
+    ("message", "rbx-ops"),
+    ("ads", "rbx-ops"),
+];
+
+fn moved(path: &str) -> bool {
+    let top = path.split_whitespace().next().unwrap_or_default();
+    MOVED.iter().any(|(name, _)| *name == top)
+}
 
 /// Flags that exist and are deliberately written down nowhere, each with the
 /// reason.
@@ -275,7 +304,9 @@ fn every_flag_is_written_down_somewhere() {
     let mut undocumented = Vec::new();
 
     for flag in &found {
-        if deliberate(&flag.long).is_some() {
+        // A global of `rbx` itself is reached through the commands that stay
+        // too, so skipping the moved ones never skips it.
+        if deliberate(&flag.long).is_some() || moved(&flag.path) {
             continue;
         }
 

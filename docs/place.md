@@ -219,7 +219,7 @@ rbx place fetch --env prod --write
 | --- | --- | --- |
 | `command` | string | `upload`, `promote` or `rollback` |
 | `ok` | boolean | `false` if a target failed (the exit code is non-zero too) |
-| `env` | string | The env written to (the target, for `promote`) |
+| `env` | string | The env written to (the target, for `promote`). Absent for a target named by id |
 | `from_env` | string | `promote` only |
 | `universe_id` | string | |
 | `published` | boolean | Always `true` for `rollback` |
@@ -255,7 +255,11 @@ VERSION=$(rbx place upload --env staging --file build.rbxl --yes --json | jq -r 
 
 ## Without `rbxplace.toml`
 
-`--place-id` works for the reads (`download`, `versions`). The writes refuse it: `confirm` lives on an env, and the receipt reports one.
+`--place-id` names the place for the reads (`download`, `versions`). The writes `upload` and `rollback` take `--universe-id` beside it, always ask first (or need `--yes`), and leave `env` out of their receipt. `promote` copies an env to an env and takes no ids. `fetch` shows a universe's places with `--universe-id` alone; `--write` needs `--env`.
+
+```sh
+rbx place upload --universe-id 9876543210 --place-id 123456789012345 --file build.rbxl --yes
+```
 
 ## Required API scopes
 

@@ -29,9 +29,19 @@ export RBX_API_KEY="..."
 rbx probe "cloud/v2/universes/{universe}" --universe-id 66778899001
 ```
 
-The reconciling commands still read their own TOML for *what* to apply: `shop`, `meta` and `config` take `--universe-id` for *where*, and the declaration for everything else.
+The reconciling commands still read their own TOML for *what* to apply, and take the ids for *where*:
 
-An id that `rbxplace.toml` maps to an env with `confirm = true` still prompts. Any other id does not, since it names a place outside the project.
+| Command | Ids |
+| --- | --- |
+| `shop` | `--universe-id`, in place of `[experience]` or `--env` |
+| `rtbf` | `--universe-id`, in place of `--env` |
+| `meta` | `--universe-id` and `--place-id`, in place of `[experience]` or `--env` |
+| `place upload`, `place rollback` | `--universe-id` and `--place-id` |
+| `place download`, `place versions` | `--place-id` |
+| `config` | `--universe-id`, with `--env` still naming the section of `rbxconfig.toml` |
+| `place promote` | none: it copies an env to an env |
+
+**A write to a bare id always asks first**, or needs `--yes`: no env says whether it should, the way `confirm = true` does. A `--json` receipt for it has no `env`.
 
 ## Built-in help
 

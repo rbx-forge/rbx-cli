@@ -42,38 +42,19 @@ const PAGES: &[(&str, &str)] = &[
     ("init", "init.md"),
     ("import", "import.md"),
     ("env", "env.md"),
-    ("apikey", "apikey.md"),
-    ("doctor", "doctor.md"),
     ("check", "check.md"),
     ("status", "check.md"),
     ("place", "place.md"),
     ("meta", "meta.md"),
     ("config", "config.md"),
-    ("secret", "secret.md"),
     ("rtbf", "rtbf.md"),
     ("shop", "shop.md"),
-    ("open", "open.md"),
-    ("download", "download.md"),
-    ("user", "user.md"),
-    ("servers", "ops/servers.md"),
-    ("analytics", "ops/analytics.md"),
-    ("ban", "ops/ban.md"),
-    ("group", "ops/group.md"),
-    ("restart", "ops/restart.md"),
-    ("data", "ops/data.md"),
-    ("memorystore", "ops/memorystore.md"),
-    ("message", "ops/message.md"),
-    ("ads", "ops/ads.md"),
     ("probe", "probe.md"),
     ("completions", "completions.md"),
 ];
 
-/// Top-level commands that now ship as a tool of their own, with the tool that
-/// documents them.
-///
-/// Their pages here are short pages naming that tool, so their flags are
-/// written down there and not here. `rbx` still carries the commands until the
-/// release that removes them, and this list goes with them.
+/// Top-level commands still compiled in but documented by the tool that now
+/// ships them, so they have no page here. The list goes when the commands do.
 const MOVED: &[(&str, &str)] = &[
     ("apikey", "rbx-apikey"),
     ("doctor", "rbx-apikey"),
@@ -246,7 +227,7 @@ fn every_top_level_command_has_a_page() {
 
     for sub in command.get_subcommands() {
         let name = sub.get_name();
-        if name == "help" {
+        if name == "help" || moved(name) {
             continue;
         }
         if page_for(name).is_none() {

@@ -149,7 +149,7 @@ Write remote state into the config and lockfile, as [above](#envs).
 
 ### rbx shop check
 
-Compare the config with the lockfile, offline. Exits `0` in sync, `2` on drift, `1` if it could not answer. It does not contact Roblox: see [Comparing with Roblox](check.md#comparing-with-roblox).
+Compare the config with the lockfile, offline. Exits `0` in sync, `2` on drift, `1` if it could not answer. It does not contact Roblox: `rbx check` does, in its `shop/live` row. See [Comparing with Roblox](check.md#comparing-with-roblox).
 
 ### rbx shop codegen
 

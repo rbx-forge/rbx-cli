@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Each run lists what it did not compare: the cookie-only fields without a
   cookie, the fields Roblox never returns, and the media. `rbx check` never
   asks for a cookie: pass one, or `--auto-cookie`.
+- **`rbx check` compares the shop with Roblox too, in a `shop/live` row per
+  env**, the same way: what Roblox lists against the lockfile. A price edited
+  on the Creator Dashboard, an item taken off sale, deleted, or created by
+  hand fails the run with exit `2`. A lockfile written before a field was
+  recorded (`managed_pricing`) is not a difference, so an upgrade raises no
+  false alarm.
 
 - **`-a` is short for `--api-key`**, the way `-e` is for `--env`, on every
   command. The flag is still the place a key is least safe: prefer

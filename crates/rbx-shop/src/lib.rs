@@ -9,6 +9,7 @@ mod ctx;
 pub mod diff;
 pub mod gifts;
 pub mod json;
+pub mod live;
 pub mod lockfile;
 mod preflight;
 mod remote;
@@ -100,9 +101,9 @@ pub enum ShopCommands {
         ///
         /// Every field Roblox returns, including the ids the table truncates
         /// nothing of but the description column crowds out. This says what
-        /// Roblox has; `shop show --json` says what the repo declares. How the
-        /// two differ is `rbx shop pull --dry-run`. Field names are documented
-        /// in docs/shop.md.
+        /// Roblox has; `shop show --json` says what the repo declares. Whether
+        /// Roblox moved since the last sync is the `shop/live` row of
+        /// `rbx check`. Field names are documented in docs/shop.md.
         #[arg(long)]
         json: bool,
     },

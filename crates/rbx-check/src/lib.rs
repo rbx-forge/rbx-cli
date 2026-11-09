@@ -207,7 +207,11 @@ async fn gather(dir: &Path, offline: bool, global: &GlobalFlags) -> Result<Repor
                 rows.extend(tools::env_root(&entry.path, &envs, offline, &develop).await);
                 rows
             }
-            discovery::Tool::Shop => tools::shop(&entry.path, &envs, global),
+            discovery::Tool::Shop => {
+                let mut rows = tools::shop(&entry.path, &envs, global);
+                rows.extend(tools::shop_live(&entry.path, &envs, global, offline).await);
+                rows
+            }
             discovery::Tool::Meta => {
                 let mut rows = tools::meta(&entry.path, &envs);
                 rows.extend(tools::meta_live(&entry.path, &envs, global, offline).await);

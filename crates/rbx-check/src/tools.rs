@@ -456,6 +456,136 @@ fn shop_codegen(
     }
 }
 
+/// `shop/live`: Roblox against the lockfile, per env. See `rbx_shop::live`
+/// for why the lockfile and not the config.
+pub async fn shop_live(
+    config_path: &Path,
+    envs: &[Option<String>],
+    global: &GlobalFlags,
+    offline: bool,
+) -> Vec<ToolReport> {
+    use rbx_shop::lockfile::{Lockfile, LOCKFILE_NAME};
+
+    if offline {
+        return vec![ToolReport::new(
+            "shop",
+            "live",
+            Outcome::Skipped,
+            "--offline: comparing against Roblox needs an API key",
+        )];
+    }
+
+    let lockfile_path = config_path
+        .parent()
+        .unwrap_or(Path::new("."))
+        .join(LOCKFILE_NAME);
+    if !lockfile_path.exists() {
+        return vec![ToolReport::new(
+            "shop",
+            "live",
+            Outcome::Skipped,
+            "no lockfile: nothing synced or pulled yet",
+        )];
+    }
+    let lockfile = match Lockfile::load(&lockfile_path) {
+        Ok(l) => l,
+        Err(err) => {
+            return vec![ToolReport::new(
+                "shop",
+                "live",
+                Outcome::Error,
+                one_line(&err),
+            )]
+        }
+    };
+
+    let mut reports = Vec::new();
+    for env in envs {
+        let label = env_label(env.as_deref());
+        let Some(env_lock) = lockfile.env(&label) else {
+            reports.push(
+                ToolReport::new(
+                    "shop",
+                    "live",
+                    Outcome::Skipped,
+                    "nothing synced or pulled for this env yet",
+                )
+                .env(&label),
+            );
+            continue;
+        };
+        // `shop/lockfile` reports a section recorded for another universe;
+        // comparing that universe with Roblox would answer the wrong question.
+        let target = env
+            .as_deref()
+            .and_then(|e| resolve_universe(global, e).ok());
+        if target.is_some_and(|universe| env_lock.tracks_another_universe(universe)) {
+            reports.push(
+                ToolReport::new(
+                    "shop",
+                    "live",
+                    Outcome::Skipped,
+                    "the lockfile tracks another universe: see shop/lockfile",
+                )
+                .env(&label),
+            );
+            continue;
+        }
+        let Some(key) = global.api_key.clone() else {
+            reports.push(
+                ToolReport::new(
+                    "shop",
+                    "live",
+                    Outcome::Error,
+                    "no API key: pass --api-key, set RBX_API_KEY, or run with --offline",
+                )
+                .env(&label),
+            );
+            continue;
+        };
+
+        let report = match rbx_shop::live::compare(key, env_lock).await {
+            Ok(live) => compared_row("shop", live.differences, live.not_compared),
+            Err(err) => ToolReport::new("shop", "live", Outcome::Error, one_line(&err)),
+        };
+        reports.push(report.env(&label));
+    }
+    reports
+}
+
+/// The row a `live` check reports: drift with each difference, or clean, and
+/// either way what it did not compare, so a clean row is never read as more.
+fn compared_row(
+    tool: &'static str,
+    differences: Vec<String>,
+    not_compared: Vec<String>,
+) -> ToolReport {
+    let not_compared = not_compared
+        .into_iter()
+        .map(|line| format!("not compared: {line}"));
+    if differences.is_empty() {
+        ToolReport::new(tool, "live", Outcome::Clean, "matches the lockfile")
+            .details(not_compared.collect::<Vec<String>>())
+    } else {
+        let n = differences.len();
+        ToolReport::new(
+            tool,
+            "live",
+            Outcome::Drift,
+            format!(
+                "{n} difference{} on Roblox since the last sync or pull",
+                if n == 1 { "" } else { "s" }
+            ),
+        )
+        .details(
+            differences
+                .into_iter()
+                .chain(not_compared)
+                .collect::<Vec<String>>(),
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
 // meta / rbxmeta.toml
 // ---------------------------------------------------------------------------
@@ -615,33 +745,7 @@ pub async fn meta_live(
         };
 
         let report = match rbx_meta::live::compare(key, cookie.clone(), env_lock).await {
-            Ok(live) => {
-                let not_compared = live
-                    .not_compared
-                    .iter()
-                    .map(|line| format!("not compared: {line}"));
-                if live.differences.is_empty() {
-                    ToolReport::new("meta", "live", Outcome::Clean, "matches the lockfile")
-                        .details(not_compared.collect::<Vec<String>>())
-                } else {
-                    let n = live.differences.len();
-                    ToolReport::new(
-                        "meta",
-                        "live",
-                        Outcome::Drift,
-                        format!(
-                            "{n} field{} changed on Roblox since the last sync or pull",
-                            if n == 1 { "" } else { "s" }
-                        ),
-                    )
-                    .details(
-                        live.differences
-                            .into_iter()
-                            .chain(not_compared)
-                            .collect::<Vec<String>>(),
-                    )
-                }
-            }
+            Ok(live) => compared_row("meta", live.differences, live.not_compared),
             Err(err) => ToolReport::new("meta", "live", Outcome::Error, one_line(&err)),
         };
         reports.push(report.env(&label));

@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Roblox developer toolkit (subcommands: shop, place, meta, config, apikey, init, open, download)"
+description = "Declarative deployment for Roblox: places, metadata, passes and products, live config, kept in step with TOML files you commit"
 
 [[bin]]
 name = "rbx"

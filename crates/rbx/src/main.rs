@@ -25,10 +25,10 @@ use rbx_core::GlobalFlags;
 #[command(
     name = "rbx",
     version,
-    about = "Roblox developer toolkit",
-    long_about = "Unified Roblox Open Cloud CLI. Each subcommand maps to a domain \
-                  (bootstrap, API keys, place files, metadata, config, monetization, Studio launch). \
-                  Per-subcommand help: `rbx <subcommand> --help`."
+    about = "Declarative deployment for Roblox",
+    long_about = "Declarative deployment for Roblox. Describe an experience in TOML files you \
+                  commit, and rbx makes Roblox match them. Per-subcommand help: \
+                  `rbx <subcommand> --help`."
 )]
 struct Cli {
     #[command(flatten)]

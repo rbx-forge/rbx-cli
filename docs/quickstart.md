@@ -105,6 +105,8 @@ jobs:
           RBX_API_KEY: ${{ secrets.RBX_READ_KEY }}
 ```
 
+It compares what Roblox has with the lockfiles, in the `shop/live` and `meta/live` rows: see [Comparing with Roblox](check.md#comparing-with-roblox). The read key needs the scopes listed for `check` on [Scopes by command](reference/scopes.md).
+
 Promote to production by hand, or behind a manual approval:
 
 ```sh

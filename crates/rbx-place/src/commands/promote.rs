@@ -163,6 +163,8 @@ pub async fn run(
         println!("{}", format!("{:.1} KB", size_kb).green());
         println!();
     }
+    // Before the first target: every target would be refused the same bytes.
+    crate::api::check_place_file_size(data.len(), &format!("{from}/{src_name} v{src_version}"))?;
 
     // (target_name, target_id, new_version)
     let mut results: Vec<(String, u64, u64)> = Vec::new();

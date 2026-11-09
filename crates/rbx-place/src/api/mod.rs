@@ -11,6 +11,32 @@ use models::*;
 /// Open Cloud equivalent.
 const DEVELOP_HOST: &str = "https://develop.roblox.com";
 
+/// The largest place file the upload endpoint accepts: 150 MiB, that size
+/// included.
+///
+/// The spec documents no limit. Measured against a test place on 2026-11-09:
+/// 157,286,400 bytes created a version, 157,286,401 bytes were refused within
+/// a second with `400 InvalidRequest: Request upload was interrupted before
+/// completion`. That message reads like a dropped connection and invites a
+/// retry, which sends the same file to the same refusal.
+pub const MAX_PLACE_FILE_BYTES: usize = 150 * 1024 * 1024;
+
+/// Refuses a place file Roblox would refuse, before anything is sent.
+///
+/// `what` names the file in the error: a path for an upload, the source place
+/// for a promotion.
+pub fn check_place_file_size(len: usize, what: &str) -> Result<()> {
+    if len > MAX_PLACE_FILE_BYTES {
+        bail!(
+            "{what} is {len} bytes ({:.1} MiB), over the {MAX_PLACE_FILE_BYTES} bytes (150 MiB) \
+             Roblox accepts for a place file. Roblox would refuse it with a 400 that reads \
+             \"Request upload was interrupted before completion\", and retrying would not help.",
+            len as f64 / (1024.0 * 1024.0),
+        );
+    }
+    Ok(())
+}
+
 /// Turn the 409 that place writes answer with into the sentence that explains
 /// it.
 ///
@@ -93,6 +119,11 @@ impl RbxClient {
         data: Bytes,
         published: bool,
     ) -> Result<u64> {
+        // Outside the retry loop: an oversized file is never sent, not even
+        // once. The commands check earlier, with the file's name; this is the
+        // guarantee for every caller.
+        check_place_file_size(data.len(), "The place file")?;
+
         let version_type = if published { "Published" } else { "Saved" };
         let url = self.base.join(&format!(
             "/universes/v1/{}/places/{}/versions?versionType={}",
@@ -435,6 +466,41 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(version, 42);
+    }
+
+    #[test]
+    fn the_size_limit_includes_150_mib_itself() {
+        assert!(check_place_file_size(MAX_PLACE_FILE_BYTES, "build.rbxl").is_ok());
+
+        let error = check_place_file_size(MAX_PLACE_FILE_BYTES + 1, "build.rbxl")
+            .expect_err("one byte over is refused")
+            .to_string();
+        assert!(
+            error.starts_with("build.rbxl is 157286401 bytes"),
+            "got: {error}"
+        );
+        assert!(error.contains("150 MiB"), "got: {error}");
+    }
+
+    #[tokio::test]
+    async fn an_oversized_file_is_never_sent() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "versionNumber": 42
+            })))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let oversized = Bytes::from(vec![0u8; MAX_PLACE_FILE_BYTES + 1]);
+        let error = client(&server)
+            .upload_place(UNIVERSE, PLACE, oversized, true)
+            .await
+            .expect_err("an oversized file is refused")
+            .to_string();
+        assert!(error.contains("150 MiB"), "got: {error}");
+        // `expect(0)` is checked when the server drops, at the end of the test.
     }
 
     /// The page token carries reserved characters on purpose: it is opaque, so

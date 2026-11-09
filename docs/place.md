@@ -72,6 +72,8 @@ By default, uploads are saved as drafts. Use `--published` to publish live.
 
 If the target place has an active Team Create session, the upload fails immediately with a clear message rather than returning a generic error.
 
+A file over 150 MiB (157,286,400 bytes) is refused before anything is sent. Roblox accepts exactly 150 MiB and refuses one byte more, with a 400 that reads `Request upload was interrupted before completion`; retrying sends the same file to the same refusal. The spec documents no limit: this one was measured on 2026-11-09.
+
 If the environment has `confirm = true`, a confirmation prompt is shown before uploading.
 
 ### `--env all` and groups
@@ -198,6 +200,8 @@ rbx place promote --from staging --to prod --log deploy.json       # write trace
 | `--json` | Write the result to stdout as one JSON document instead of the progress lines |
 
 If the target environment has `confirm = true`, a confirmation prompt is shown before uploading.
+
+The 150 MiB limit of `upload` applies here too: a source version over it is refused after the download, before any target is written.
 
 `--env` is not how promote names an env: `--from` and `--to` are, one each. A plural `--env` (`all`, or a group) selects nothing here and is refused rather than silently ignored. Run promote once per pair of envs.
 

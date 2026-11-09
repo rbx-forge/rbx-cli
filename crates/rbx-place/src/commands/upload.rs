@@ -85,6 +85,9 @@ pub async fn run(
     let data = Bytes::from(
         std::fs::read(file).with_context(|| format!("Failed to read file: {}", file.display()))?,
     );
+    // Before the plan, the prompt and every request: the file is the same for
+    // every place, so one that is too large is refused once, up front.
+    crate::api::check_place_file_size(data.len(), &file.display().to_string())?;
     let size_kb = data.len() as f64 / 1024.0;
     let version_type = if published { "published" } else { "saved" };
 

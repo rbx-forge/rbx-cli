@@ -5,7 +5,7 @@ use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy}
 use reqwest::multipart;
 
 use super::models::{DeveloperProduct, ListDeveloperProductsResponse};
-use super::{icon_part, Pricing, RbxClient, WRITE_POLICY};
+use super::{icon_part, FieldUpdate, Pricing, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_developer_products(&self) -> Result<Vec<DeveloperProduct>> {
@@ -99,17 +99,11 @@ impl RbxClient {
         super::parse_created("product", &response.text().await?)
     }
 
-    #[allow(clippy::too_many_arguments)]
+    /// Send the fields in `update`, and only those.
     pub async fn update_developer_product(
         &self,
         id: u64,
-        name: &str,
-        description: Option<&str>,
-        price: u64,
-        icon_path: Option<&Path>,
-        is_for_sale: bool,
-        pricing: Pricing,
-        store_page_enabled: bool,
+        update: &FieldUpdate<'_>,
     ) -> Result<DeveloperProduct> {
         let api_key = self.api_key_header()?.to_string();
         let url = {
@@ -124,20 +118,18 @@ impl RbxClient {
         // state being sent. So setting isForSale=false while the product is
         // currently on the store page fails with InvalidIsForSale, even if
         // storePageEnabled=false is sent in the same request.
-        // Workaround: first remove from store page, then set off sale.
-        if !is_for_sale {
+        // Workaround: first remove from store page, then set off sale. Only
+        // when this update takes the product off sale: one that is off sale
+        // already needs nothing, and sending `isForSale=true` to it would put
+        // it back on sale for the length of the call.
+        if update.is_for_sale == Some(false) {
             // An update sets fields to fixed values, so sending it twice lands
             // the same state: the full retry is safe here, unlike a create.
             execute_with_retry_policy(
                 || async {
-                    let disable_store_form = pricing.apply(
-                        multipart::Form::new()
-                            .text("name", name.to_string())
-                            .text("description", description.unwrap_or("").to_string())
-                            .text("isForSale", "true")
-                            .text("storePageEnabled", "false")
-                            .text("price", price.to_string()),
-                    );
+                    let disable_store_form = multipart::Form::new()
+                        .text("isForSale", "true")
+                        .text("storePageEnabled", "false");
                     Ok(self
                         .client
                         .patch(&url)
@@ -155,25 +147,14 @@ impl RbxClient {
             .context("disabling the store page")?;
         }
 
-        let effective_store_page = store_page_enabled && is_for_sale;
-
-        let icon = icon_path
+        let icon = update
+            .icon
             .map(|path| rbx_core::image::process_image(path, self.bleed))
             .transpose()?;
 
         let response = execute_with_retry_policy(
             || async {
-                let mut form = pricing.apply(
-                    multipart::Form::new()
-                        .text("name", name.to_string())
-                        .text("description", description.unwrap_or("").to_string())
-                        .text("isForSale", is_for_sale.to_string())
-                        .text("storePageEnabled", effective_store_page.to_string())
-                        .text("price", price.to_string()),
-                );
-                if let Some(bytes) = &icon {
-                    form = form.part("imageFile", icon_part(bytes)?);
-                }
+                let form = update.form(icon.as_deref(), "imageFile")?;
                 Ok(self
                     .client
                     .patch(&url)

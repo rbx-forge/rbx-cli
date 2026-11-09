@@ -52,6 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`shop sync` sends only the fields that changed when it updates a pass or
+  a product.** It sent every field, so a price edited on the Creator
+  Dashboard went back to the config's value, without a word, the next time
+  any other field of that item changed. A pass or product put back on sale
+  still sends its price, and a product already off sale is no longer briefly
+  put back on sale by an update.
 - **`place upload` and `place promote` refuse a file over 150 MiB before
   sending it.** Roblox refuses one with `400 Request upload was interrupted
   before completion`, which reads like a dropped connection and invites a retry

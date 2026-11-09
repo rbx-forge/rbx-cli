@@ -67,12 +67,13 @@ fn parse_created<T: serde::de::DeserializeOwned>(what: &str, body: &str) -> Resu
 ///
 /// An enum rather than two booleans so a request that sets both cannot be
 /// built in the first place.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Pricing {
     /// Send neither field, leaving whatever Roblox already has. That matters
     /// because Roblox now enables managed pricing by itself on passes: a
     /// write that always sent one of these fields would silently turn off
     /// something nobody asked to turn off.
+    #[default]
     Untouched,
     /// Send the deprecated `isRegionalPricingEnabled`.
     Regional(bool),
@@ -113,6 +114,56 @@ impl Pricing {
             Some((name, value)) => form.text(name, value.to_string()),
             None => form,
         }
+    }
+}
+
+/// The fields one update of a pass or a product sends.
+///
+/// `None` leaves a field as Roblox has it: both update endpoints take a
+/// multipart body in which no field is required. Sending only what the plan
+/// changed is what keeps a value edited on the Creator Dashboard from being
+/// put back silently by an update about something else.
+#[derive(Debug, Default)]
+pub struct FieldUpdate<'a> {
+    pub name: Option<&'a str>,
+    /// `Some("")` clears the description.
+    pub description: Option<&'a str>,
+    pub price: Option<u64>,
+    pub is_for_sale: Option<bool>,
+    pub pricing: Pricing,
+    /// Developer products only.
+    pub store_page: Option<bool>,
+    pub icon: Option<&'a std::path::Path>,
+}
+
+impl FieldUpdate<'_> {
+    /// The multipart body for these fields. `icon` is the processed image,
+    /// sent as `icon_field`: the two endpoints name that part differently.
+    pub(crate) fn form(
+        &self,
+        icon: Option<&[u8]>,
+        icon_field: &'static str,
+    ) -> Result<multipart::Form> {
+        let mut form = self.pricing.apply(multipart::Form::new());
+        if let Some(name) = self.name {
+            form = form.text("name", name.to_string());
+        }
+        if let Some(description) = self.description {
+            form = form.text("description", description.to_string());
+        }
+        if let Some(price) = self.price {
+            form = form.text("price", price.to_string());
+        }
+        if let Some(for_sale) = self.is_for_sale {
+            form = form.text("isForSale", for_sale.to_string());
+        }
+        if let Some(store_page) = self.store_page {
+            form = form.text("storePageEnabled", store_page.to_string());
+        }
+        if let Some(bytes) = icon {
+            form = form.part(icon_field, icon_part(bytes)?);
+        }
+        Ok(form)
     }
 }
 

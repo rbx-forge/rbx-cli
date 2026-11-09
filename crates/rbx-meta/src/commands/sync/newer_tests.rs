@@ -78,7 +78,7 @@ async fn sync(dir: &TempDir, env: &str, options: Options, roblox: Canned) -> Res
         config: dir.path().join("rbxmeta.toml"),
         global: &global,
     };
-    run_with(&ctx, options, None, &roblox).await
+    run_with(&ctx, options, &|| None, &roblox).await
 }
 
 const APPLY: Options = Options {
@@ -298,49 +298,92 @@ async fn a_link_added_on_roblox_and_declared_nowhere_is_left_alone() {
     assert_eq!(lockfile_bytes(&dir), before);
 }
 
-/// The hint is a command that can be pasted, for the target the run had.
-#[test]
-fn the_pull_hint_is_spelled_for_the_target() {
-    let planned = |env: &str| PlannedEnv {
-        env: env.to_string(),
-        universe_id: 1234567890,
-        place_id: 109876543210987,
-        game: Game::default(),
-        media: MediaConfig::default(),
-        plan: SyncPlan::default(),
-        seen: GameLock::default(),
-        newer: vec!["name: lockfile \"a\", Roblox \"b\"".to_string()],
-    };
-    let dir = tempfile::tempdir().unwrap();
-    let (prod, dev, standalone) = (planned("prod"), planned("dev"), planned(DEFAULT_ENV));
-
-    let named = flags(&dir, Some("all"));
+/// The question of the Studio session is raised only when the cookie has
+/// something to do. A config that declares no cookie-only field reads nothing
+/// with it, so a sync of such a config never asks.
+#[tokio::test]
+async fn the_cookie_is_asked_for_only_when_a_field_needs_it() {
+    let dir = repo(Some("Declared"));
+    let global = flags(&dir, Some("dev"));
     let ctx = MetaCtx {
         config: dir.path().join("rbxmeta.toml"),
-        global: &named,
+        global: &global,
     };
-    assert_eq!(pull_hint(&ctx, &[&prod]), "`rbx meta pull --env prod`");
-    assert_eq!(
-        pull_hint(&ctx, &[&dev, &prod]),
-        "`rbx meta pull --env <name>` for each env listed"
+    let asked = std::cell::Cell::new(0);
+    let resolve = || {
+        asked.set(asked.get() + 1);
+        None
+    };
+
+    run_with(
+        &ctx,
+        DRY_RUN,
+        &resolve,
+        &Canned::always(|| place_named("Declared")),
+    )
+    .await
+    .unwrap();
+    assert_eq!(asked.get(), 0, "nothing here is read or written with it");
+
+    std::fs::write(
+        dir.path().join("rbxmeta.toml"),
+        "[game]\nname = \"Declared\"\nbeta_mode = true\n",
+    )
+    .unwrap();
+    run_with(
+        &ctx,
+        DRY_RUN,
+        &resolve,
+        &Canned::always(|| place_named("Declared")),
+    )
+    .await
+    .unwrap();
+    assert_eq!(asked.get(), 1, "`beta_mode` is read back with the cookie");
+}
+
+/// A target named by id has no env to put in the hint: the hint carries the
+/// ids, so it is still a command that can be pasted.
+#[tokio::test]
+async fn a_target_named_by_id_gets_a_hint_with_its_ids() {
+    let dir = repo(None);
+    let mut lockfile = Lockfile {
+        version: LOCKFILE_VERSION,
+        ..Default::default()
+    };
+    lockfile.envs.insert(
+        DEFAULT_ENV.to_string(),
+        EnvLock {
+            universe_id: 1234567890,
+            place_id: 109876543210987,
+            game: GameLock {
+                name: Some("Declared".to_string()),
+                ..Default::default()
+            },
+            media: Default::default(),
+        },
     );
+    lockfile.save(&dir.path().join(LOCKFILE_NAME)).unwrap();
 
-    let bare = flags(&dir, None);
+    let mut global = flags(&dir, None);
+    global.universe_id = Some(1234567890);
+    global.place_id = vec![109876543210987];
     let ctx = MetaCtx {
         config: dir.path().join("rbxmeta.toml"),
-        global: &bare,
+        global: &global,
     };
-    assert_eq!(pull_hint(&ctx, &[&standalone]), "`rbx meta pull`");
 
-    let mut by_id = flags(&dir, None);
-    by_id.universe_id = Some(1234567890);
-    by_id.place_id = vec![109876543210987];
-    let ctx = MetaCtx {
-        config: dir.path().join("rbxmeta.toml"),
-        global: &by_id,
-    };
-    assert_eq!(
-        pull_hint(&ctx, &[&standalone]),
-        "`rbx meta pull --universe-id 1234567890 --place-id 109876543210987`"
+    let err = run_with(
+        &ctx,
+        DRY_RUN,
+        &|| None,
+        &Canned::always(|| place_named("Renamed on the site")),
+    )
+    .await
+    .expect_err("Roblox was changed");
+
+    assert!(
+        format!("{err:#}")
+            .contains("`rbx meta pull --universe-id 1234567890 --place-id 109876543210987`"),
+        "{err:#}"
     );
 }

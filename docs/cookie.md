@@ -10,7 +10,7 @@
 | `rbx init list-groups` | "The groups you are in" needs a session | **required** |
 | `rbx init list-universes`, `list-places` | These listings are public | not needed |
 | `rbx meta init`, `rbx meta pull` | Reading `server_fill`, `allow_copying`, `studio_access_to_apis_allowed`, `beta_mode`. Without a cookie they are skipped and reported | optional |
-| `rbx meta sync` | Writing those fields, plus `visibility`, `audience`, and the experience's own icon and thumbnails | **required for those fields** |
+| `rbx meta sync` | Reading those fields back before it plans, when the config declares one: without a cookie they are compared with the lockfile. Writing them, plus `visibility`, `audience`, and the experience's own icon and thumbnails | optional to read, **required to write those fields** |
 | `rbx import` | Its place listing is public; the `meta` step it runs resolves the cookie as usual | not needed for the listing |
 
 Everything else (`place`, `config`, `shop`, `rtbf`, `check`, `env`, `probe`) is key-only or offline. A `403` from Open Cloud is never retried with the cookie.

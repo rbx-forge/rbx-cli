@@ -16,7 +16,7 @@ use serde::Serialize;
 
 use crate::api::RbxClient;
 use crate::commands::pull::{read_remote, toml_spelling, RemoteRead};
-use crate::config::{SocialLink, Visibility};
+use crate::config::{Avatar, Devices, SocialLink, SocialLinks, Visibility};
 use crate::lockfile::{EnvLock, GameLock};
 
 /// What one env's comparison found.
@@ -74,55 +74,83 @@ pub async fn compare(
 
 /// The comparison itself, apart from the network.
 pub(crate) fn compare_read(lock: &GameLock, remote: &RemoteRead, has_cookie: bool) -> LiveReport {
+    // Destructured without `..`: a field added to `GameLock`, or to a table
+    // inside it, does not compile here until it is compared below or set
+    // aside with its reason.
+    let GameLock {
+        name,
+        description,
+        server_size,
+        voice_chat,
+        allow_copying,
+        visibility,
+        audience,
+        studio_access_to_apis_allowed,
+        beta_mode,
+        private_server,
+        devices:
+            Devices {
+                desktop,
+                mobile,
+                tablet,
+                console,
+                vr,
+            },
+        social_links:
+            SocialLinks {
+                facebook,
+                twitter,
+                youtube,
+                twitch,
+                discord,
+                roblox_group,
+                guilded,
+            },
+        server_fill,
+        // Write-only: returned by no endpoint, listed in `WRITE_ONLY`.
+        permissions: _,
+        avatar:
+            Avatar {
+                kind,
+                animation,
+                collision,
+                joint_positioning,
+                min_scale: _,
+                max_scale: _,
+                asset_overrides: _,
+            },
+        paid_access,
+        genre,
+        engine_avatar_settings_hash: _,
+    } = lock;
     let mut c = Comparison::default();
     let universe = &remote.universe;
 
-    c.recorded("name", &lock.name, remote.name());
-    c.recorded("description", &lock.description, remote.description());
-    c.recorded("server_size", &lock.server_size, remote.place.server_size);
-    c.recorded("voice_chat", &lock.voice_chat, universe.voice_chat_enabled);
-    c.recorded(
-        "devices.desktop",
-        &lock.devices.desktop,
-        universe.desktop_enabled,
-    );
-    c.recorded(
-        "devices.mobile",
-        &lock.devices.mobile,
-        universe.mobile_enabled,
-    );
-    c.recorded(
-        "devices.tablet",
-        &lock.devices.tablet,
-        universe.tablet_enabled,
-    );
-    c.recorded(
-        "devices.console",
-        &lock.devices.console,
-        universe.console_enabled,
-    );
-    c.recorded("devices.vr", &lock.devices.vr, universe.vr_enabled);
+    c.recorded("name", name, remote.name());
+    c.recorded("description", description, remote.description());
+    c.recorded("server_size", server_size, remote.place.server_size);
+    c.recorded("voice_chat", voice_chat, universe.voice_chat_enabled);
+    c.recorded("devices.desktop", desktop, universe.desktop_enabled);
+    c.recorded("devices.mobile", mobile, universe.mobile_enabled);
+    c.recorded("devices.tablet", tablet, universe.tablet_enabled);
+    c.recorded("devices.console", console, universe.console_enabled);
+    c.recorded("devices.vr", vr, universe.vr_enabled);
 
     // Absence is a value for these two: no table means no private servers,
     // and a platform with no link has none on Roblox either.
-    c.exact(
-        "private_server",
-        &lock.private_server,
-        &remote.private_server(),
-    );
-    let links = &lock.social_links;
+    c.exact("private_server", private_server, &remote.private_server());
     for (platform, locked, live) in [
-        ("facebook", &links.facebook, &universe.facebook_social_link),
-        ("twitter", &links.twitter, &universe.twitter_social_link),
-        ("youtube", &links.youtube, &universe.youtube_social_link),
-        ("twitch", &links.twitch, &universe.twitch_social_link),
-        ("discord", &links.discord, &universe.discord_social_link),
+        ("facebook", facebook, &universe.facebook_social_link),
+        ("twitter", twitter, &universe.twitter_social_link),
+        ("youtube", youtube, &universe.youtube_social_link),
+        ("twitch", twitch, &universe.twitch_social_link),
+        ("discord", discord, &universe.discord_social_link),
         (
             "roblox_group",
-            &links.roblox_group,
+            roblox_group,
             &universe.roblox_group_social_link,
         ),
-        ("guilded", &links.guilded, &universe.guilded_social_link),
+        ("guilded", guilded, &universe.guilded_social_link),
     ] {
         let live = live.as_ref().map(SocialLink::from);
         if locked != &live {
@@ -135,44 +163,36 @@ pub(crate) fn compare_read(lock: &GameLock, remote: &RemoteRead, has_cookie: boo
     }
 
     // Read anonymously, so a key and no cookie still compares it.
-    let (visibility, audience) = remote.visibility_and_audience();
-    match visibility {
+    let (live_visibility, live_audience) = remote.visibility_and_audience();
+    match live_visibility {
         Some(live) => {
-            c.recorded("visibility", &lock.visibility, Some(live));
-            if live == Visibility::Limited && lock.visibility == Some(live) {
-                c.recorded("audience", &lock.audience, audience);
+            c.recorded("visibility", visibility, Some(live));
+            if live == Visibility::Limited && *visibility == Some(live) {
+                c.recorded("audience", audience, live_audience);
             }
         }
-        None if lock.visibility.is_some() => c.unconfirmed.push("visibility"),
+        None if visibility.is_some() => c.unconfirmed.push("visibility"),
         None => {}
     }
 
     if has_cookie {
         let read = remote.confirmed();
-        c.recorded("allow_copying", &lock.allow_copying, read.allow_copying);
-        c.recorded("server_fill", &lock.server_fill, read.server_fill);
+        c.recorded("allow_copying", allow_copying, read.allow_copying);
+        c.recorded("server_fill", server_fill, read.server_fill);
         c.recorded(
             "studio_access_to_apis_allowed",
-            &lock.studio_access_to_apis_allowed,
+            studio_access_to_apis_allowed,
             read.studio_access_to_apis_allowed,
         );
-        c.recorded("beta_mode", &lock.beta_mode, read.beta_mode);
-        c.recorded("genre", &lock.genre, read.genre);
-        c.recorded("paid_access", &lock.paid_access, read.paid_access);
-        c.recorded("avatar.type", &lock.avatar.kind, read.avatar_kind);
-        c.recorded(
-            "avatar.animation",
-            &lock.avatar.animation,
-            read.avatar_animation,
-        );
-        c.recorded(
-            "avatar.collision",
-            &lock.avatar.collision,
-            read.avatar_collision,
-        );
+        c.recorded("beta_mode", beta_mode, read.beta_mode);
+        c.recorded("genre", genre, read.genre);
+        c.recorded("paid_access", paid_access, read.paid_access);
+        c.recorded("avatar.type", kind, read.avatar_kind);
+        c.recorded("avatar.animation", animation, read.avatar_animation);
+        c.recorded("avatar.collision", collision, read.avatar_collision);
         c.recorded(
             "avatar.joint_positioning",
-            &lock.avatar.joint_positioning,
+            joint_positioning,
             read.avatar_joint_positioning,
         );
     }

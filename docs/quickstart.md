@@ -4,21 +4,24 @@ Clone to a deployed staging place, on one page.
 
 Every other page here explains one command in depth. This one does the opposite: it walks the whole path once, with the files written out, and links to the depth where you would want it rather than before. If you already have an experience on Roblox, skip to [Adopt what exists](#2b-adopt-what-exists).
 
-What you need first: a Roblox account, and [Rokit](https://github.com/rojo-rbx/rokit) to pin the tools.
+What you need first: a Roblox account, and [mise](https://mise.jdx.dev) or [Rokit](https://github.com/rojo-rbx/rokit) to pin the tools.
 
 ## 1. Pin the tools
 
 Everything below is version-pinned in the repository, so a new machine and a CI runner get the same binaries.
 
-```toml title="rokit.toml"
-[tools]
-rbx = "rbx-forge/rbx-deploy@0.12.0"
-rojo = "rojo-rbx/rojo@7.7.0"
-```
+=== "mise"
 
-```sh
-rokit install
-```
+    ```sh
+    mise use --pin github:rbx-forge/rbx-deploy github:rojo-rbx/rojo
+    ```
+
+=== "Rokit"
+
+    ```sh
+    rokit add rbx-forge/rbx-deploy --alias rbx
+    rokit add rojo-rbx/rojo
+    ```
 
 `rbx` and `rojo` do different halves of the job and neither replaces the other. Rojo turns a directory of `.luau` files into a `.rbxl`. `rbx` puts that file on Roblox, and manages everything about the experience that is not the file: metadata, live config, passes, keys.
 
@@ -140,7 +143,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: CompeyDev/setup-rokit@v0.1.2
+      - uses: jdx/mise-action@v5          # or CompeyDev/setup-rokit@v0.1.2
       - run: rojo build --output build.rbxl
       - run: rbx check --env staging
         env:

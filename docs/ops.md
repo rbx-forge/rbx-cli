@@ -29,28 +29,27 @@ They do a different kind of work from the rest of `rbx`, and mixing them up is h
 
 Banning a player has no desired state in a TOML file: it is a consequence of what happened in your game last night. So it is not something a tool reconciling your repo against Roblox should be doing on a push.
 
-**A second binary would make the boundary visible in the command name, and it is not on offer.** Rokit resolves one artifact per repository, so of two published binaries only one could ever be installed through it. Dispatching on the name the binary was invoked by does not rescue it either: Rokit's shim passes the stored binary's own path as `argv[0]`, identically for every alias. Measured 2026-08-13 by replacing the stored binary with a probe.
-
-It would not be the boundary that *holds* in any case. Roblox binds an API key to its scopes and universes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
+**The boundary that holds is the key, not the binary.** Roblox binds an API key to its scopes and universes when you create it, so a deploy key cannot ban anybody whichever binary calls it.
 
 **Keep read and write in separate keys.** That is the boundary that holds, and it is the one worth arranging your `rbxapikey.toml` around. The same argument splits a key per environment, and `envs` written as a table of named groups does that from one declaration rather than three copied blocks: see [One key per environment](./apikey.md#one-key-per-environment).
 
 ## Install
 
-Nothing separate to install. `rbx` carries these commands:
+These commands now ship as a tool of their own, `rbx-ops`, with the same flags, and leave `rbx` in its next release:
 
-```toml
-# rokit.toml
-[tools]
-rbx = "rbx-forge/rbx-deploy@0.12.0"
-```
+=== "mise"
 
-```sh
-rokit install
-rbx servers list --env prod
-```
+    ```sh
+    mise use --pin github:rbx-forge/rbx-ops
+    ```
 
-One binary, one archive per platform, which is what makes it installable at all: see [why they are marked out](#why-they-are-marked-out) for what the old second binary cost.
+=== "Rokit"
+
+    ```sh
+    rokit add rbx-forge/rbx-ops
+    ```
+
+`rbx` 0.12 still carries them: `rbx servers list --env prod` and `rbx-ops servers list --env prod` do the same thing.
 
 ## Getting a key
 

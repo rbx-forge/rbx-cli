@@ -4,7 +4,7 @@ Launch and steer Roblox ad campaigns.
 
 See [ops.md](../ops.md) for install, keys and the safety model.
 
-This page describes `main`. Check `rbx --version` against what your `rokit.toml` pins.
+This page describes `main`. Check `rbx --version` against what your `mise.toml` or `rokit.toml` pins.
 
 
 **This command spends real money.** Every write is dry-run by default and needs `--apply`, and `launch` prints what a run will cost before it asks.

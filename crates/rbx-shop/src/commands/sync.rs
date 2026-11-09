@@ -18,7 +18,7 @@ use std::path::Path;
 use anyhow::{bail, Result};
 use colored::Colorize;
 
-use crate::api::{Pricing, RbxClient};
+use crate::api::{FieldUpdate, Pricing, RbxClient};
 use crate::codegen;
 use crate::config::{
     resolve_name, BadgeConfig, Config, PassConfig, ProductConfig, ResolvedResources, ResourceKind,
@@ -540,7 +540,7 @@ impl Appliable for PassKind {
         apply: &Apply,
         r: Resolved<'_, Self::Cfg>,
         prior: Self::Lock,
-        _changes: &[FieldChange],
+        changes: &[FieldChange],
     ) -> Result<Self::Lock> {
         let Resolved {
             cfg,
@@ -550,20 +550,24 @@ impl Appliable for PassKind {
             icon_hash,
         } = r;
         let send_icon = changed_icon(icon, icon_hash.as_deref(), prior.icon_hash.as_deref());
+        let for_sale_changed = changed(changes, "for_sale");
+        let update = FieldUpdate {
+            name: changed(changes, "name").then_some(display_name),
+            description: changed(changes, "description")
+                .then(|| cfg.description.as_deref().unwrap_or("")),
+            // A pass put back on sale takes its price with it: the spec does
+            // not say what Roblox does with an on-sale pass sent no price.
+            price: (changed(changes, "price") || (for_sale_changed && cfg.for_sale))
+                .then_some(cfg.price)
+                .flatten(),
+            is_for_sale: for_sale_changed.then_some(cfg.for_sale),
+            pricing: pricing_update(changes, cfg.regional_pricing, cfg.managed_pricing),
+            store_page: None,
+            icon: send_icon,
+        };
 
         print!("  Updating pass '{}'...", key);
-        let result = apply
-            .client
-            .update_game_pass(
-                prior.id,
-                display_name,
-                cfg.description.as_deref(),
-                cfg.price,
-                send_icon,
-                cfg.for_sale,
-                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
-            )
-            .await?;
+        let result = apply.client.update_game_pass(prior.id, &update).await?;
         println!(" {}", "done".green());
 
         Ok(PassLock {
@@ -642,7 +646,7 @@ impl Appliable for ProductKind {
         apply: &Apply,
         r: Resolved<'_, Self::Cfg>,
         prior: Self::Lock,
-        _changes: &[FieldChange],
+        changes: &[FieldChange],
     ) -> Result<Self::Lock> {
         let Resolved {
             cfg,
@@ -652,20 +656,27 @@ impl Appliable for ProductKind {
             icon_hash,
         } = r;
         let send_icon = changed_icon(icon, icon_hash.as_deref(), prior.icon_hash.as_deref());
+        let for_sale_changed = changed(changes, "for_sale");
+        let update = FieldUpdate {
+            name: changed(changes, "name").then_some(display_name),
+            description: changed(changes, "description")
+                .then(|| cfg.description.as_deref().unwrap_or("")),
+            // As for passes: back on sale, the price goes with it.
+            price: (changed(changes, "price") || (for_sale_changed && cfg.for_sale))
+                .then_some(cfg.price),
+            is_for_sale: for_sale_changed.then_some(cfg.for_sale),
+            pricing: pricing_update(changes, cfg.regional_pricing, cfg.managed_pricing),
+            // A product off sale is never on the store page, so a change of
+            // either field sends the page state the two of them now imply.
+            store_page: (changed(changes, "store_page") || for_sale_changed)
+                .then_some(cfg.store_page && cfg.for_sale),
+            icon: send_icon,
+        };
 
         print!("  Updating product '{}'...", key);
         let result = apply
             .client
-            .update_developer_product(
-                prior.id,
-                display_name,
-                cfg.description.as_deref(),
-                cfg.price,
-                send_icon,
-                cfg.for_sale,
-                Pricing::from_config(cfg.regional_pricing, cfg.managed_pricing),
-                cfg.store_page,
-            )
+            .update_developer_product(prior.id, &update)
             .await?;
         println!(" {}", "done".green());
 
@@ -818,6 +829,21 @@ fn changed_icon<'a>(
         icon
     } else {
         None
+    }
+}
+
+/// Whether the plan changes `field`.
+fn changed(changes: &[FieldChange], field: &str) -> bool {
+    changes.iter().any(|c| c.field == field)
+}
+
+/// The pricing field to send: the config's, when the plan changes either of
+/// the two pricing keys, and none otherwise.
+fn pricing_update(changes: &[FieldChange], regional: bool, managed: Option<bool>) -> Pricing {
+    if changed(changes, "regional_pricing") || changed(changes, "managed_pricing") {
+        Pricing::from_config(regional, managed)
+    } else {
+        Pricing::Untouched
     }
 }
 

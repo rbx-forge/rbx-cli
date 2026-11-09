@@ -916,6 +916,151 @@ for_sale = false
     assert!(!shop.env_lock().products["Coins"].for_sale);
 }
 
+// ── an update sends what changed and nothing else ──
+
+/// The plan is built against the lockfile, so a price edited on the Creator
+/// Dashboard is invisible to it. An update that resent every field would put
+/// that price back the next time anything else about the pass changed.
+#[tokio::test]
+async fn a_pass_description_change_sends_only_the_description() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+description = "Now with a hat"
+"#,
+    );
+    shop.write_lock(&format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.passes.VIP]\nid = 4242\nname = \"VIP\"\nprice = 499\n\
+         for_sale = true\nregional_pricing = false\n"
+    ));
+    let server = MockServer::start().await;
+    mock(
+        &server,
+        "PATCH",
+        pass_item(4242),
+        json!({ "gamePassId": 4242 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let patch = only(&reqs, "PATCH", &pass_item(4242));
+    assert_eq!(
+        field(patch, "description").as_deref(),
+        Some("Now with a hat")
+    );
+    for untouched in ["price", "name", "isForSale", "isManagedPricingEnabled"] {
+        assert_eq!(field(patch, untouched), None, "{untouched} did not change");
+    }
+}
+
+#[tokio::test]
+async fn a_product_description_change_sends_only_the_description() {
+    let shop = Shop::new(
+        r#"
+[products.Coins]
+price = 99
+store_page = true
+description = "A bag of coins"
+"#,
+    );
+    shop.write_lock(&format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.products.Coins]\nid = 3131\nname = \"Coins\"\nprice = 99\n\
+         for_sale = true\nregional_pricing = false\nstore_page = true\n"
+    ));
+    let server = MockServer::start().await;
+    mock(
+        &server,
+        "PATCH",
+        product_item(3131),
+        json!({ "productId": 3131 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let patch = only(&reqs, "PATCH", &product_item(3131));
+    assert_eq!(
+        field(patch, "description").as_deref(),
+        Some("A bag of coins")
+    );
+    for untouched in ["price", "name", "isForSale", "storePageEnabled"] {
+        assert_eq!(field(patch, untouched), None, "{untouched} did not change");
+    }
+}
+
+/// The store-page workaround is for taking a product off sale. A product
+/// already off sale must not get it: its first patch sends `isForSale=true`.
+#[tokio::test]
+async fn updating_a_product_already_off_sale_sends_one_patch() {
+    let shop = Shop::new(
+        r#"
+[products.Coins]
+price = 99
+for_sale = false
+description = "Retired"
+"#,
+    );
+    shop.write_lock(&format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.products.Coins]\nid = 3131\nname = \"Coins\"\nprice = 99\n\
+         for_sale = false\nregional_pricing = false\nstore_page = false\n"
+    ));
+    let server = MockServer::start().await;
+    mock(
+        &server,
+        "PATCH",
+        product_item(3131),
+        json!({ "productId": 3131 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let patch = only(&reqs, "PATCH", &product_item(3131));
+    assert_eq!(field(patch, "isForSale"), None);
+    assert_eq!(field(patch, "description").as_deref(), Some("Retired"));
+}
+
+/// Back on sale, the price goes with `isForSale`, even though the price
+/// itself did not change.
+#[tokio::test]
+async fn a_pass_put_back_on_sale_sends_its_price() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 499
+"#,
+    );
+    shop.write_lock(&format!(
+        "version = 2\n\n[envs.{ENV}]\nuniverse_id = {UNIVERSE}\n\n\
+         [envs.{ENV}.passes.VIP]\nid = 4242\nname = \"VIP\"\nprice = 499\n\
+         for_sale = false\nregional_pricing = false\n"
+    ));
+    let server = MockServer::start().await;
+    mock(
+        &server,
+        "PATCH",
+        pass_item(4242),
+        json!({ "gamePassId": 4242 }),
+    )
+    .await;
+
+    shop.sync(&server, false).await.unwrap();
+
+    let reqs = requests(&server).await;
+    let patch = only(&reqs, "PATCH", &pass_item(4242));
+    assert_eq!(field(patch, "isForSale").as_deref(), Some("true"));
+    assert_eq!(field(patch, "price").as_deref(), Some("499"));
+    assert_eq!(field(patch, "name"), None);
+}
+
 /// Every request `sync` makes is authenticated; an unauthenticated one
 /// would 401 in production and read here as a mock-shape problem.
 #[tokio::test]

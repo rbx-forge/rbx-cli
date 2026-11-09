@@ -5,7 +5,7 @@ use rbx_core::api::{execute_create_with_retry_policy, execute_with_retry_policy}
 use reqwest::multipart;
 
 use super::models::{GamePass, ListGamePassesResponse};
-use super::{icon_part, Pricing, RbxClient, WRITE_POLICY};
+use super::{icon_part, FieldUpdate, Pricing, RbxClient, WRITE_POLICY};
 
 impl RbxClient {
     pub async fn list_all_game_passes(&self) -> Result<Vec<GamePass>> {
@@ -101,17 +101,8 @@ impl RbxClient {
         super::parse_created("pass", &response.text().await?)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn update_game_pass(
-        &self,
-        id: u64,
-        name: &str,
-        description: Option<&str>,
-        price: Option<u64>,
-        icon_path: Option<&Path>,
-        is_for_sale: bool,
-        pricing: Pricing,
-    ) -> Result<GamePass> {
+    /// Send the fields in `update`, and only those.
+    pub async fn update_game_pass(&self, id: u64, update: &FieldUpdate<'_>) -> Result<GamePass> {
         let api_key = self.api_key_header()?.to_string();
         let url = {
             let cloud = &self.hosts.cloud;
@@ -121,24 +112,14 @@ impl RbxClient {
             ))
         };
 
-        let icon = icon_path
+        let icon = update
+            .icon
             .map(|path| rbx_core::image::process_image(path, self.bleed))
             .transpose()?;
 
         let response = execute_with_retry_policy(
             || async {
-                let mut form = pricing.apply(
-                    multipart::Form::new()
-                        .text("name", name.to_string())
-                        .text("description", description.unwrap_or("").to_string())
-                        .text("isForSale", is_for_sale.to_string()),
-                );
-                if let Some(p) = price {
-                    form = form.text("price", p.to_string());
-                }
-                if let Some(bytes) = &icon {
-                    form = form.part("file", icon_part(bytes)?);
-                }
+                let form = update.form(icon.as_deref(), "file")?;
                 Ok(self
                     .client
                     .patch(&url)

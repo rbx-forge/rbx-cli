@@ -73,7 +73,16 @@ pub async fn run(
     // env has `confirm = true` in rbxplace.toml: there's no per-env per-plan
     // prompt because we'd hit it mid-loop after starting writes elsewhere.
     // Dry-run skips both: no writes to gate.
-    if !dry_run && ctx.env().is_some() {
+    //
+    // A bare `--universe-id` names no env, so no `confirm` can be read for
+    // it: such a write is always asked about, or needs `--yes`.
+    if !dry_run && ctx.global.universe_id.is_some() {
+        confirm_destructive(
+            &format!("Apply rbx shop sync to universe {}?", envs[0].universe_id),
+            true,
+            yes,
+        )?;
+    } else if !dry_run && ctx.env().is_some() {
         let env_requires_confirm = PlacesFile::load(ctx.places_path())
             .ok()
             .map(|pf| {

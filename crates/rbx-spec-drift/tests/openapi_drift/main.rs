@@ -258,11 +258,10 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
 /// it: the usual cause is a new URL-building shape that needs supporting, not
 /// a number that needs editing.
 ///
-/// It was 60 until the live-operation, API key and asset download commands
-/// left the workspace, taking their clients with them. Extraction found 50
-/// afterwards, every one of them in a crate that still ships, so the floor
-/// moved with the codebase rather than with the extractor.
-const MINIMUM_ENDPOINTS: usize = 40;
+/// Set to what extraction finds today, 50 (39 checked, 11 known undocumented),
+/// minus a margin of 2: room for an endpoint to be dropped on purpose, and too
+/// little for a broken shape to hide in.
+const MINIMUM_ENDPOINTS: usize = 48;
 
 /// Crates that depend on the HTTP layer and still contribute no endpoint to
 /// this check, with the reason each is legitimate.

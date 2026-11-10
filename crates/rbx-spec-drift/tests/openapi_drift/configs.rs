@@ -2,7 +2,8 @@
 //! extractor therefore cannot see.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use crate::{extract::*, paths::*, spec::*};
 /// The one file whose URLs are reassembled by hand, and its endpoints.
@@ -19,6 +20,7 @@ use crate::{extract::*, paths::*, spec::*};
 /// this shape deliberately: teaching the general extractor to follow a
 /// `String`-returning helper is a much larger change, and a narrow check that
 /// runs beats a general one that does not exist.
+///
 /// Relative to the rbx-core package root, not to this workspace: see
 /// [`rbx_core_root`].
 pub(crate) const CONFIGS_CLIENT: &str = "src/api/configs.rs";
@@ -29,10 +31,25 @@ pub(crate) const CONFIGS_CLIENT: &str = "src/api/configs.rs";
 /// the root manifest decides where rbx-core comes from: a path in this
 /// workspace or a git checkout pinned by tag. Either way the check reads the
 /// code that is actually built.
-pub(crate) fn rbx_core_root(root: &Path) -> std::path::PathBuf {
+///
+/// Asked once per test binary, since the answer cannot change during a run,
+/// and with `--offline`: the lockfile already pins every source, and a git
+/// checkout is on disk by the time this test was compiled against it.
+pub(crate) fn rbx_core_root(root: &Path) -> PathBuf {
+    static ROOT: OnceLock<PathBuf> = OnceLock::new();
+    ROOT.get_or_init(|| ask_cargo_for_rbx_core(root)).clone()
+}
+
+fn ask_cargo_for_rbx_core(root: &Path) -> PathBuf {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let out = std::process::Command::new(cargo)
-        .args(["metadata", "--format-version", "1", "--manifest-path"])
+        .args([
+            "metadata",
+            "--format-version",
+            "1",
+            "--offline",
+            "--manifest-path",
+        ])
         .arg(root.join("Cargo.toml"))
         .output()
         .expect("cargo metadata should run");

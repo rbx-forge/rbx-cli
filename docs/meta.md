@@ -100,11 +100,11 @@ A social link or private servers that Roblox no longer has are removed from the 
 
 ## Required API scopes
 
-The two read scopes are the ones Roblox's specification names for reading the universe and the place, and Roblox does not check them: measured on 2026-11-10, a key holding neither reads both. So `sync`, which reads before it writes, runs with the write scopes alone.
+Reading the universe and the place needs no scope: Roblox's specification names `universe:read` and `universe.place:read` for those reads, and Roblox does not check them (measured on 2026-11-10, a key holding neither reads both). So `sync`, which reads before it writes, runs with the write scopes alone.
 
 | Resource | Scopes |
 | --- | --- |
-| Universe | `universe:read`, `universe:write` |
-| Place | `universe.place:read`, `universe.place:write` |
+| Universe | `universe:write` to write; reading needs none |
+| Place | `universe.place:write` to write; reading needs none |
 | Home Page thumbnails | `universe.thumbnail:read`, `universe.thumbnail:write` |
 | Translated media | not established; if an upload is refused, this is the scope to look for. Reading media needs none |

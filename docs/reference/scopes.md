@@ -11,7 +11,7 @@ What the Open Cloud API key needs for each command, gathered from the command pa
 | [`env`](../env.md) | none: local file only | |
 | [`check`, `status`](../check.md) | the read scopes of each tool it finds configured; `--offline` needs none | |
 | [`place`](../place.md) | `asset:read` (versions), `legacy-asset:manage` (download, promote source), `universe:read` (places) | `universe-places:write` (upload, promote), `asset:write` (rollback) |
-| [`meta`](../meta.md) | `universe:read`, `universe.place:read` | `universe:write`, `universe.place:write`; a cookie for the fields Open Cloud does not expose |
+| [`meta`](../meta.md) | none: Roblox does not check `universe:read` or `universe.place:read` on the universe and place reads | `universe:write`, `universe.place:write`; a cookie for the fields Open Cloud does not expose |
 | [`config`](../config.md) | `universe:read` | `universe:write` |
 | [`rtbf`](../rtbf.md) | `universe:read` (check, pull), `universe-datastores.control:list` (verify) | `universe:write` (sync) |
 | [`shop`](../shop.md) | `game-pass:read`, `developer-product:read`, `legacy-badge:manage`; `legacy-asset:manage` for icons as stored | `game-pass:write`, `developer-product:write`, `legacy-universe.badge:write`, `legacy-universe.badge:manage-and-spend-robux` |

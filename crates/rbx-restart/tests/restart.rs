@@ -414,3 +414,66 @@ async fn a_missing_scope_says_to_check_which_key_is_loaded() {
     );
     assert!(error.contains("RBX_API_KEY"), "got: {error}");
 }
+
+/// A 503 is Roblox not answering, which is not Roblox refusing: the restart
+/// may have been launched before the answer was lost. It goes out once, and
+/// the error says where to look before launching another.
+#[tokio::test]
+async fn a_launch_roblox_did_not_confirm_is_not_sent_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+
+    let error = run(
+        cli(&["launch", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+
+    let text = format!("{error:#}");
+    assert!(text.contains("may have been launched"), "{text}");
+    assert!(text.contains("restart status"), "{text}");
+    let posts = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method == wiremock::http::Method::POST)
+        .count();
+    assert_eq!(posts, 1, "the launch must go out once");
+}
+
+/// Roblox answers 2xx and the body does not parse: the restart is launched,
+/// and the error has to say so before somebody launches another.
+#[tokio::test]
+async fn a_launch_whose_answer_cannot_be_read_says_it_is_launched() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_forecast(&server, 42, 7).await;
+    Mock::given(method("POST"))
+        .and(path(format!(
+            "/server-management/v1/universes/{UNIVERSE}/restarts"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+        .mount(&server)
+        .await;
+
+    let error = run(
+        cli(&["launch", "--apply", "--yes"], &server),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+
+    let text = format!("{error:#}");
+    assert!(text.contains("Roblox launched the restart"), "{text}");
+    assert!(text.contains("restart status"), "{text}");
+}

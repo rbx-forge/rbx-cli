@@ -32,8 +32,8 @@ use reqwest::{Client, StatusCode};
 use serde::Deserialize;
 
 use rbx_core::api::{
-    build_client, encode_query_value, execute_json, execute_with_retry, explain_missing_scope,
-    is_api_status, ApiBase,
+    build_client, encode_query_value, execute_create_with_retry_policy, execute_json,
+    execute_with_retry, explain_missing_scope, is_api_status, unconfirmed, ApiBase, RetryPolicy,
 };
 use rbx_core::confirm::confirm_always;
 use rbx_core::output::{self, OutputFormat};
@@ -99,6 +99,10 @@ pub enum OrderedCommand {
         #[arg(long)]
         no_create: bool,
 
+        /// Actually write it.
+        #[arg(long)]
+        apply: bool,
+
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
@@ -121,6 +125,10 @@ pub enum OrderedCommand {
         #[arg(allow_negative_numbers = true)]
         amount: i64,
 
+        /// Actually write it.
+        #[arg(long)]
+        apply: bool,
+
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long = "yes")]
         yes: bool,
@@ -130,6 +138,10 @@ pub enum OrderedCommand {
     Delete {
         /// Entry id.
         entry: String,
+
+        /// Actually remove it.
+        #[arg(long)]
+        apply: bool,
 
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long = "yes")]
@@ -368,17 +380,36 @@ impl Api {
         let url = self
             .base
             .join(&format!("{}:increment", self.entry_path(entry)));
-        execute_json(|| async {
-            Ok(self
-                .client
-                .post(&url)
-                .header("x-api-key", &self.api_key)
-                .json(&serde_json::json!({ "amount": amount }))
-                .send()
-                .await?)
-        })
+        // Resent on a 429 only. An increment is not idempotent, and a 5xx or
+        // a timeout does not say whether Roblox applied it: sending it again
+        // would add the amount twice.
+        let response = execute_create_with_retry_policy(
+            || async {
+                Ok(self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &self.api_key)
+                    .json(&serde_json::json!({ "amount": amount }))
+                    .send()
+                    .await?)
+            },
+            &RetryPolicy::default(),
+        )
         .await
         .map_err(explain_missing_scope)
+        .map_err(|error| {
+            unconfirmed(
+                error,
+                "Roblox did not confirm the increment, and it may have been applied. Read the \
+                 entry before running this again.",
+            )
+        })?;
+        let text = response
+            .text()
+            .await
+            .context(crate::api::INCREMENT_APPLIED)?;
+        serde_json::from_str(&text)
+            .with_context(|| format!("{} It answered: {text}", crate::api::INCREMENT_APPLIED))
     }
 
     async fn delete(&self, entry: &str) -> Result<()> {
@@ -536,11 +567,12 @@ pub async fn run(
             entry,
             value,
             no_create,
+            apply,
             yes,
         } => {
-            // The previous value is named in the prompt rather than left to be
-            // looked up: this write destroys it, and there is no revision
-            // history on this resource to get it back from.
+            // The previous value is named rather than left to be looked up:
+            // this write destroys it, and there is no revision history on this
+            // resource to get it back from.
             let before = api.get(&entry).await?;
             let was = match &before {
                 Some(e) => e.value_i64().to_string(),
@@ -548,6 +580,15 @@ pub async fn run(
             };
             if before.is_none() && no_create {
                 bail!("No entry `{entry}`, and --no-create was given.");
+            }
+            println!("{}", format!("entry {entry}").bold());
+            println!("  current    {was}");
+            println!("  new        {value}");
+
+            if !apply {
+                println!();
+                println!("{}", "Nothing written. Re-run with --apply.".yellow());
+                return Ok(());
             }
             confirm_always(&format!("Set `{entry}` to {value}? (currently {was})"), yes)?;
 
@@ -561,7 +602,23 @@ pub async fn run(
             Ok(())
         }
 
-        OrderedCommand::Increment { entry, amount, yes } => {
+        OrderedCommand::Increment {
+            entry,
+            amount,
+            apply,
+            yes,
+        } => {
+            // The current value is not shown: reading it first would
+            // reintroduce the lost update this endpoint exists to avoid, by
+            // inviting a decision made on a number that has already moved.
+            println!("{}", format!("entry {entry}").bold());
+            println!("  change     {amount:+}");
+
+            if !apply {
+                println!();
+                println!("{}", "Nothing written. Re-run with --apply.".yellow());
+                return Ok(());
+            }
             confirm_always(&format!("Add {amount} to `{entry}`?"), yes)?;
             let written = api
                 .increment(&entry, amount)
@@ -576,7 +633,7 @@ pub async fn run(
             Ok(())
         }
 
-        OrderedCommand::Delete { entry, yes } => {
+        OrderedCommand::Delete { entry, apply, yes } => {
             let before = api.get(&entry).await?;
             let Some(before) = before else {
                 // Nothing to delete is not a failure, and reporting it as one
@@ -585,6 +642,17 @@ pub async fn run(
                 println!("{}", format!("No entry `{entry}`; nothing to do.").dimmed());
                 return Ok(());
             };
+            println!("{}", format!("entry {entry}").bold());
+            println!("  current    {}", before.value_i64());
+
+            if !apply {
+                println!();
+                println!(
+                    "{}",
+                    "Nothing removed. Re-run with --apply to delete.".yellow()
+                );
+                return Ok(());
+            }
             confirm_always(
                 &format!(
                     "Delete `{entry}` (currently {})? This is not recoverable.",

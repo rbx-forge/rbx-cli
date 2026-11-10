@@ -379,3 +379,36 @@ async fn a_refused_message_produces_no_document() {
         "a malformed payload must not reach the network"
     );
 }
+
+/// A 503 is Roblox not answering, which is not Roblox refusing: the message
+/// may have been published before the answer was lost. Sent again, every
+/// listening server would get it twice, so it goes out once and the error says
+/// so.
+#[tokio::test]
+async fn a_publish_roblox_did_not_confirm_is_not_sent_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(PUBLISH_PATH))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+
+    let error = run(
+        cli(
+            &["--topic", "cache", "--message", "reload", "--apply"],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+
+    let text = format!("{error:#}");
+    assert!(text.contains("may have been published"), "{text}");
+    assert_eq!(
+        server.received_requests().await.unwrap().len(),
+        1,
+        "the message must go out once"
+    );
+}

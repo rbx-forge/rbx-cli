@@ -18,7 +18,8 @@ use colored::Colorize;
 use reqwest::Client;
 
 use rbx_core::api::{
-    build_client, execute_json, execute_with_retry, explain_missing_scope, require_api_key, ApiBase,
+    build_client, execute_create_with_retry_policy, execute_json, explain_missing_scope,
+    require_api_key, unconfirmed, ApiBase, RetryPolicy,
 };
 use rbx_core::confirm::confirm_always;
 use rbx_core::GlobalFlags;
@@ -148,19 +149,36 @@ impl Api {
             "/server-management/v1/universes/{}/restarts",
             self.universe_id
         ));
-        let response = execute_with_retry(|| {
-            let request = self
-                .client
-                .post(&url)
-                .header("x-api-key", &self.api_key)
-                .json(body);
-            async move { request.send().await.map_err(Into::into) }
-        })
+        // Resent on a 429 only. A 5xx or a timeout does not say whether the
+        // restart was launched, and launching it again would close servers a
+        // second time.
+        let response = execute_create_with_retry_policy(
+            || {
+                let request = self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &self.api_key)
+                    .json(body);
+                async move { request.send().await.map_err(Into::into) }
+            },
+            &RetryPolicy::default(),
+        )
         .await
-        .map_err(explain_missing_scope)?;
+        .map_err(explain_missing_scope)
+        .map_err(|error| {
+            unconfirmed(
+                error,
+                "Roblox did not confirm the restart, and it may have been launched. Check \
+                 `rbx restart status` before running this again.",
+            )
+        })?;
 
-        let text = response.text().await?;
-        serde_json::from_str(&text).with_context(|| format!("parsing the restart response: {text}"))
+        // A 2xx is in hand from here on: the restart is launched whatever
+        // happens to the body.
+        const LAUNCHED: &str = "Roblox launched the restart, but its answer could not be read. \
+                                Check `rbx restart status` rather than running this again.";
+        let text = response.text().await.context(LAUNCHED)?;
+        serde_json::from_str(&text).with_context(|| format!("{LAUNCHED} It answered: {text}"))
     }
 }
 

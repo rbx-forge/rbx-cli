@@ -146,6 +146,22 @@ pub async fn run(
     }
 
     // -----------------------------------------------------------------------
+    // Save config back to the toml (preserves comments via toml_edit)
+    // -----------------------------------------------------------------------
+    // Before the lockfile, on purpose. A lockfile that records what Roblox has
+    // beside a config still holding the old values reads to `sync` as a change
+    // made in the config: it would write the old values back over what this
+    // pull was run to keep. The other way round, a config that says what
+    // Roblox has beside a lockfile that is behind, costs nothing: `sync` finds
+    // nothing to send and brings the lockfile up to date.
+    write_config_toml(&ctx.config, &config)?;
+    println!(
+        "\n{} {}",
+        "Updated".green().bold(),
+        ctx.config.display().to_string().cyan()
+    );
+
+    // -----------------------------------------------------------------------
     // Persist the resolved game state for every env in the lockfile.
     // -----------------------------------------------------------------------
     // Each entry from the snapshot that env's own read produced, never from the
@@ -163,19 +179,9 @@ pub async fn run(
     }
     lockfile.save(&lockfile_path)?;
     println!(
-        "\n{} {}",
-        "Updated".green().bold(),
-        lockfile_path.display().to_string().cyan()
-    );
-
-    // -----------------------------------------------------------------------
-    // Save config back to the toml (preserves comments via toml_edit)
-    // -----------------------------------------------------------------------
-    write_config_toml(&ctx.config, &config)?;
-    println!(
         "{} {}",
         "Updated".green().bold(),
-        ctx.config.display().to_string().cyan()
+        lockfile_path.display().to_string().cyan()
     );
 
     Ok(())

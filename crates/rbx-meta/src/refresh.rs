@@ -98,8 +98,10 @@ pub(crate) fn refresh(game: &Game, lock: &GameLock, remote: &RemoteRead) -> Refr
         engine_avatar_settings_hash,
     } = lock;
     let universe = &remote.universe;
-    // Every field here is `None` without a cookie, which is the unconfirmed
-    // case: the lockfile then stands, with no branch on the cookie needed.
+    // `None` here is the unconfirmed case, whatever caused it, and the lockfile
+    // then stands. That is every cookie-only field when no cookie was given,
+    // so no branch on the cookie is needed. `access` is read anonymously, and
+    // is `None` only when that read failed.
     let read = remote.confirmed();
     let mut walk = Walk::default();
 

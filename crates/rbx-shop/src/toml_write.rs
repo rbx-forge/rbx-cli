@@ -214,8 +214,19 @@ fn ensure_table<'a>(parent: &'a mut Table, key: &str) -> &'a mut Table {
         fresh.set_implicit(true);
         parent.insert(key, Item::Table(fresh));
     }
-    parent[key]
-        .as_table_mut()
+    // A table written inline (`VIP = { price = 499 }`) is valid TOML and loads
+    // like any other, but to `toml_edit` it is a value and not a table. It is
+    // rewritten as a standard table, which changes how that one table is
+    // spelled and nothing it says: reaching into it as a table found nothing,
+    // and the write-back stopped there.
+    let item = &mut parent[key];
+    if let Some(table) = item
+        .as_inline_table()
+        .map(|inline| inline.clone().into_table())
+    {
+        *item = Item::Table(table);
+    }
+    item.as_table_mut()
         .expect("rbxshop.toml section is not a table")
 }
 

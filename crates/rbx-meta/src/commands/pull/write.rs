@@ -402,7 +402,7 @@ pub(super) fn sync_envs_tables(doc: &mut DocumentMut, config: &Config) {
     }
 
     // Remove envs from the doc that are not in the config anymore.
-    if let Some(envs) = doc.get_mut("envs").and_then(|i| i.as_table_mut()) {
+    if let Some(envs) = doc.get_mut("envs").and_then(table_mut) {
         let to_remove: Vec<String> = envs
             .iter()
             .filter_map(|(k, _)| {
@@ -429,9 +429,7 @@ pub(super) fn write_env_overlay(doc: &mut DocumentMut, env: &str, overlay: &EnvO
     if !envs_table.contains_key(env) {
         envs_table.insert(env, Item::Table(Table::new()));
     }
-    let t = envs_table[env]
-        .as_table_mut()
-        .expect("env entry is not a table");
+    let t = table_mut(&mut envs_table[env]).expect("env entry is not a table");
 
     set_opt_str(t, "name", overlay.name.as_deref());
     set_opt_str(t, "description", overlay.description.as_deref());
@@ -492,7 +490,7 @@ pub(super) fn write_media_overlay(doc: &mut DocumentMut, parent: &str, media: &M
 }
 
 pub(super) fn remove_env_section(doc: &mut DocumentMut, env: &str) {
-    if let Some(envs) = doc.get_mut("envs").and_then(|i| i.as_table_mut()) {
+    if let Some(envs) = doc.get_mut("envs").and_then(table_mut) {
         envs.remove(env);
         if envs.is_empty() {
             doc.remove("envs");
@@ -800,6 +798,45 @@ name = "dev name"
 
         let reparsed = Config::load(&path).expect("re-parse through serde");
         assert_eq!(reparsed, empty);
+    }
+
+    /// Tables written inline are valid TOML and load like any other. The
+    /// write-back used to stop on the first one with a panic, in a `pull` that
+    /// had already written the lockfile: every spelling a user can pick has to
+    /// take an edit, and a removal.
+    #[test]
+    fn tables_written_inline_take_edits_and_removals() {
+        let (_dir, path) = seed(
+            r#"[game]
+name = "old name"
+private_server = { price = 100 }
+devices = { desktop = true }
+
+[game.social_links]
+discord = { title = "Discord", url = "https://example.test/discord" }
+twitter = { title = "Twitter", url = "https://example.test/twitter" }
+
+[envs]
+dev = { name = "dev name" }
+"#,
+        );
+
+        let mut config = Config::load(&path).expect("load seed");
+        config.game.private_server = Some(PrivateServer { price: 50 });
+        config.game.devices.mobile = Some(false);
+        config.game.social_links.discord = Some(social("Community"));
+        config.game.social_links.twitter = None;
+        config.envs.get_mut("dev").expect("dev overlay").server_size = Some(12);
+
+        write_config_toml(&path, &config).expect("write through the toml_edit mirror");
+
+        let reparsed = Config::load(&path).expect("re-parse through serde");
+        assert_eq!(
+            reparsed,
+            config,
+            "--- file written ---\n{}",
+            std::fs::read_to_string(&path).unwrap_or_default()
+        );
     }
 
     /// Round-trip with user comments and an env overlay: the mirror exists only

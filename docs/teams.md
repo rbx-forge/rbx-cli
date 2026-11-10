@@ -55,6 +55,7 @@ There is no locking: nothing notices that the lockfile or Roblox changed while a
 - **One writer at a time per env.** The cheapest fix by far.
 - **Creates are reviewed, updates are automated.** An update is reversed by editing the TOML and syncing again; a create cannot be reversed and may spend Robux. Put `rbx shop sync --dry-run` in the pull request, let CI run updates, and have a person run the syncs that create.
 - **Commit the lockfile in the same commit as the change that caused it**, so it reviews as one change.
+- **A job that syncs commits the lockfile back, or passes `--overwrite-newer`.** `sync` records what it wrote in the lockfile. A job that throws that file away sees its own last write as a change made on Roblox on the next run, and is refused. `--overwrite-newer` is the setting for a pipeline where the repository always wins.
 - **Never `--env all` from two places at once.** It walks every env with one lockfile in memory.
 - **Never hand-edit a lockfile** outside a conflict. A mistyped `id` cannot be recovered.
 - **Run `rbx check --offline` on every pull request**, and `rbx check --env all` on a schedule to catch drift from Roblox. See [`rbx check`](check.md).

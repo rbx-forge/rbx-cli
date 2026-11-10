@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A product off sale that wants the store page, and a price Roblox leaves
   out, no longer read as changed on Roblox** in `shop/live` and in `pull`:
   the lockfile's value stands for them.
+- **`rbx meta pull` and `rbx shop pull` take a table written inline**, such
+  as `discord = { title = "...", url = "..." }` or `VIP = { price = 499 }`.
+  The write-back stopped on it with a panic. Both now write the config before
+  the lockfile, so a pull that fails halfway leaves `sync` refusing as it
+  should, and not putting the old values back.
 
 ## [0.14.0] - 2026-11-09
 

@@ -355,3 +355,33 @@ fn a_config_of_only_known_keys_reports_nothing() {
 fn an_unparseable_document_reports_no_unknown_keys() {
     assert!(unknown_root_keys("[[[not toml").is_empty());
 }
+
+/// A resource written inline is valid TOML and loads like any other. The
+/// write-back used to stop on it with a panic, in a `pull` that had already
+/// written the lockfile.
+#[test]
+fn a_resource_written_as_an_inline_table_is_written_back() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write(
+        dir.path(),
+        r#"[passes]
+VIP = { price = 499, description = "VIP access" }
+
+[products]
+Coins = { price = 50 }
+"#,
+    );
+
+    let mut config = Config::load(&path).unwrap();
+    config.passes.get_mut("VIP").unwrap().price = Some(599);
+    config.save_in_place(&path).unwrap();
+
+    let reloaded = Config::load(&path).unwrap();
+    assert_eq!(reloaded.passes["VIP"].price, Some(599));
+    assert_eq!(
+        reloaded.passes["VIP"].description.as_deref(),
+        Some("VIP access"),
+        "what the table said besides the edit is kept"
+    );
+    assert_eq!(reloaded.products["Coins"].price, 50);
+}

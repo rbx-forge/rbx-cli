@@ -8,11 +8,31 @@ use toml_edit::{value, Array, DocumentMut, Item, Table};
 
 use crate::config::{Audience, Genre, ServerFill, SocialLink, Visibility};
 
+/// The table at `item`, whichever way the file spells it.
+///
+/// A table written inline (`private_server = { price = 100 }`) is valid TOML
+/// and loads like any other, but to `toml_edit` it is a value and not a table,
+/// so reaching into it as one found nothing. It is rewritten as a standard
+/// table here, which changes how that one table is spelled and nothing it
+/// says.
+///
+/// `None` for anything else, which a config that loaded cannot hold where a
+/// table belongs.
+pub(super) fn table_mut(item: &mut Item) -> Option<&mut Table> {
+    if let Some(table) = item
+        .as_inline_table()
+        .map(|inline| inline.clone().into_table())
+    {
+        *item = Item::Table(table);
+    }
+    item.as_table_mut()
+}
+
 pub(super) fn ensure_table<'a>(doc: &'a mut DocumentMut, key: &str) -> &'a mut Table {
     if !doc.contains_key(key) {
         doc.insert(key, Item::Table(Table::new()));
     }
-    doc[key].as_table_mut().expect("section is not a table")
+    table_mut(&mut doc[key]).expect("section is not a table")
 }
 
 /// Walk a dotted parent path (e.g. "envs.dev") to get a mutable subtable, then
@@ -27,9 +47,7 @@ pub(super) fn ensure_subtable<'a>(
     if !current.contains_key(child) {
         current.insert(child, Item::Table(Table::new()));
     }
-    current = current[child]
-        .as_table_mut()
-        .expect("subsection is not a table");
+    current = table_mut(&mut current[child]).expect("subsection is not a table");
     current
 }
 
@@ -47,9 +65,7 @@ pub(super) fn ensure_path<'a>(doc: &'a mut DocumentMut, parts: &[&str]) -> &'a m
         if !current.contains_key(p) {
             current.insert(p, Item::Table(Table::new()));
         }
-        current = current[*p]
-            .as_table_mut()
-            .expect("intermediate is not a table");
+        current = table_mut(&mut current[*p]).expect("intermediate is not a table");
     }
     current
 }
@@ -58,7 +74,7 @@ pub(super) fn remove_subtable(doc: &mut DocumentMut, parent: &str, child: &str) 
     let parts: Vec<&str> = parent.split('.').collect();
     let mut current = doc.as_table_mut();
     for p in &parts {
-        match current.get_mut(p).and_then(|i| i.as_table_mut()) {
+        match current.get_mut(p).and_then(table_mut) {
             Some(t) => current = t,
             None => return,
         }
@@ -149,9 +165,8 @@ pub(super) fn set_social(
             if !social.contains_key(platform) {
                 social.insert(platform, Item::Table(Table::new()));
             }
-            let platform_t = social[platform]
-                .as_table_mut()
-                .expect("platform entry is not a table");
+            let platform_t =
+                table_mut(&mut social[platform]).expect("platform entry is not a table");
             set_value(platform_t, "title", value(l.title.clone()));
             set_value(platform_t, "url", value(l.url.clone()));
         }
@@ -160,15 +175,12 @@ pub(super) fn set_social(
             let parts: Vec<&str> = parent.split('.').collect();
             let mut current = doc.as_table_mut();
             for p in &parts {
-                match current.get_mut(p).and_then(|i| i.as_table_mut()) {
+                match current.get_mut(p).and_then(table_mut) {
                     Some(t) => current = t,
                     None => return,
                 }
             }
-            if let Some(social) = current
-                .get_mut("social_links")
-                .and_then(|i| i.as_table_mut())
-            {
+            if let Some(social) = current.get_mut("social_links").and_then(table_mut) {
                 social.remove(platform);
             }
         }

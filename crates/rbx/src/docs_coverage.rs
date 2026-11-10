@@ -31,9 +31,8 @@ const DOCS: &str = "../../docs";
 /// Mirrors the `nav` in `mkdocs.yml`, which is where a reader is sent from, so
 /// the mapping is read off the site rather than invented here. It is spelled
 /// out rather than parsed because `nav` is prose in places (`rbx check and rbx
-/// status` covers two commands under one page),
-/// and a parser for that would be guessing at exactly the entries that need a
-/// decision.
+/// status` covers two commands under one page), and a parser for that would be
+/// guessing at exactly the entries that need a decision.
 ///
 /// Every top-level subcommand must appear, `probe` included: it is hidden from
 /// the command list but fully supported and documented, so being hidden buys it
@@ -52,31 +51,6 @@ const PAGES: &[(&str, &str)] = &[
     ("probe", "probe.md"),
     ("completions", "completions.md"),
 ];
-
-/// Top-level commands still compiled in but documented by the tool that now
-/// ships them, so they have no page here. The list goes when the commands do.
-const MOVED: &[(&str, &str)] = &[
-    ("apikey", "rbx-apikey"),
-    ("doctor", "rbx-apikey"),
-    ("open", "rbx-open"),
-    ("download", "rbx-download"),
-    ("secret", "rbx-ops"),
-    ("user", "rbx-ops"),
-    ("servers", "rbx-ops"),
-    ("analytics", "rbx-ops"),
-    ("ban", "rbx-ops"),
-    ("group", "rbx-ops"),
-    ("restart", "rbx-ops"),
-    ("data", "rbx-ops"),
-    ("memorystore", "rbx-ops"),
-    ("message", "rbx-ops"),
-    ("ads", "rbx-ops"),
-];
-
-fn moved(path: &str) -> bool {
-    let top = path.split_whitespace().next().unwrap_or_default();
-    MOVED.iter().any(|(name, _)| *name == top)
-}
 
 /// Flags that exist and are deliberately written down nowhere, each with the
 /// reason.
@@ -209,7 +183,7 @@ fn every_top_level_command_has_a_page() {
 
     for sub in command.get_subcommands() {
         let name = sub.get_name();
-        if name == "help" || moved(name) {
+        if name == "help" {
             continue;
         }
         if page_for(name).is_none() {
@@ -267,9 +241,7 @@ fn every_flag_is_written_down_somewhere() {
     let mut undocumented = Vec::new();
 
     for flag in &found {
-        // A global of `rbx` itself is reached through the commands that stay
-        // too, so skipping the moved ones never skips it.
-        if deliberate(&flag.long).is_some() || moved(&flag.path) {
+        if deliberate(&flag.long).is_some() {
             continue;
         }
 

@@ -16,7 +16,6 @@ on:
     workflows:
       - Supply chain
       - Update OpenAPI spec
-      - Scope catalog drift
     types: [completed]
 
 permissions:

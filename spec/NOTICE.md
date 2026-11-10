@@ -1,4 +1,4 @@
-# Notice — vendored Roblox OpenAPI document
+# Notice: vendored Roblox OpenAPI document
 
 `spec/openapi.json` is an **unmodified byte-for-byte snapshot** of the Roblox
 Creator Docs OpenAPI document. It is vendored here so the API-drift test can
@@ -8,7 +8,7 @@ run offline and deterministically, without a network call in CI.
 - **Upstream document:** `content/en-us/reference/cloud/openapi.json`
 - **Pinned commit:** see [`source.json`](source.json) for the exact 40-character
   commit SHA and date this copy was taken from, and for the permalink to that
-  revision — `https://github.com/{repository}/blob/{commit}/{document}`.
+  revision: `https://github.com/{repository}/blob/{commit}/{document}`.
 
 This file deliberately names no SHA of its own. It used to carry a permalink
 with the commit written into it, which went stale the first time the
@@ -20,7 +20,7 @@ right revision, the copy that nobody updates is the one to remove.
 ## License
 
 `Roblox/creator-docs` publishes under the **Creative Commons Attribution 4.0
-International (CC BY 4.0)** license — confirmed both by the GitHub license API
+International (CC BY 4.0)** license, confirmed both by the GitHub license API
 (`spdx_id: CC-BY-4.0`) and by the text of the repository's own `LICENSE` file,
 which is the standard CC BY 4.0 legal code:
 

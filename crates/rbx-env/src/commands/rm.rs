@@ -474,7 +474,7 @@ pub fn run(places_path: &Path, env: &str, dry_run: bool, yes: bool) -> Result<()
             "{}",
             "  A key with an empty `envs` falls back to [settings] default_envs, so it\n  \
              may now target envs it never named; an empty group targets nothing at all.\n  \
-             Decide what each one should do before the next `rbx-apikey sync`."
+             Decide what each one should do before the next `rbx-apikey update`."
                 .dimmed()
         );
     }

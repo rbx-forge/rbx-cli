@@ -194,12 +194,20 @@ pub async fn run(
         println!("  {} Saved to {}", "✓".green(), dl.save_path.display());
     }
 
-    new_lockfile.save(&lockfile_path)?;
+    // The config before the lockfile, on purpose. A lockfile that records what
+    // Roblox has beside a config still holding the old values reads to `sync`
+    // as a change made in the config: it would write the old values back over
+    // what this pull was run to keep. The other way round costs nothing:
+    // `sync` finds nothing to send and brings the lockfile up to date, and a
+    // resource that reached the config without its lock entry is stopped by
+    // the name check before it is created a second time.
+    //
     // Written back through toml_edit, not reserialised: the user's comments,
     // key order, and any key rbx does not model all have to survive a pull.
     for file in &files {
         file.config.save_in_place(&file.path)?;
     }
+    new_lockfile.save(&lockfile_path)?;
 
     println!("{} Pull complete.", "✓".green());
 

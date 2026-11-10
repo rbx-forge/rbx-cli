@@ -371,7 +371,7 @@ fn report_newer(ctx: &ShopCtx<'_>, planned: &[PlannedEnv], overwrite_newer: bool
         &changed,
         overwrite_newer,
         &ctx.config,
-        &newer::pull_hint("shop", &envs, DEFAULT_ENV, by_id.as_deref()),
+        &newer::pull_hint_for("rbx shop pull", &envs, DEFAULT_ENV, by_id.as_deref()),
     )
 }
 

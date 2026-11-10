@@ -258,10 +258,11 @@ const KNOWN_UNDOCUMENTED: &[(&str, &str, &str)] = &[
 /// it: the usual cause is a new URL-building shape that needs supporting, not
 /// a number that needs editing.
 ///
-/// Set to what extraction finds today, 50 (39 checked, 11 known undocumented),
-/// minus a margin of 2: room for an endpoint to be dropped on purpose, and too
-/// little for a broken shape to hide in.
-const MINIMUM_ENDPOINTS: usize = 48;
+/// Set to what extraction finds today, 47, minus a margin of 2: room for an
+/// endpoint to be dropped on purpose, and too little for a broken shape to
+/// hide in. Only `crates/` is read, so what rbx-core calls is not counted:
+/// its own repository answers for it.
+const MINIMUM_ENDPOINTS: usize = 45;
 
 /// Crates that depend on the HTTP layer and still contribute no endpoint to
 /// this check, with the reason each is legitimate.

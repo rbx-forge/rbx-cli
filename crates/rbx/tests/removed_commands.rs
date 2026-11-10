@@ -13,10 +13,6 @@
 //!
 //! The one place these commands may still be named is the `### Removed` entry
 //! of `[Unreleased]`, which exists to say what each one became.
-//!
-//! `crates/rbx-core` is skipped: it is a copy of the rbx-core library, kept
-//! identical to that library's own sources until the workspace takes it as a
-//! git dependency, so its wording is that library's to change.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -126,11 +122,10 @@ fn no_file_names_a_removed_command() {
     collect(&root.join("crates"), &["rs", "md", "toml"], &mut files);
     collect(&root.join("docs"), &["md"], &mut files);
     files.push(root.join("README.md"));
-    let core = root.join("crates").join("rbx-core");
 
     let mut offenders = Vec::new();
     for path in &files {
-        if path.starts_with(&core) || path.file_name().is_some_and(|name| name == SELF) {
+        if path.file_name().is_some_and(|name| name == SELF) {
             continue;
         }
         let Ok(text) = fs::read_to_string(path) else {

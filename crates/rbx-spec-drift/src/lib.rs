@@ -5,4 +5,5 @@
 //! source tree and the vendored `spec/openapi.json` as plain data.
 //!
 //! See `spec/NOTICE.md` for the provenance of the vendored document and the
-//! the "Open Cloud API drift check" section of CONTRIBUTING.md for how to refresh it.
+//! "Open Cloud API drift check" section of CONTRIBUTING.md for how to refresh
+//! it.

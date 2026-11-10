@@ -122,17 +122,18 @@ declined.
 
 ## What runs automatically
 
-Seven things, and nothing else. There is no release-plz and no auto-merge:
+Eight things, and nothing else. There is no release-plz and no auto-merge:
 every version bump is a deliberate act.
 
 | What | Trigger | Does |
 | --- | --- | --- |
 | `lefthook` (local) | `git commit` | `cargo fmt --check`, `cargo clippy -D warnings`, `cargo doc` with warnings denied |
-| `.github/workflows/ci.yml` | push / PR on `main` | eight jobs: Test, Rustfmt, Clippy, Doc, Schemas up to date, Shell completions, plus a Windows leg and a cross-target job (macOS check + musl build) |
-| `.github/workflows/supply-chain.yml` | PR touching the dependency graph, **and weekly** | `cargo deny check` for advisories, licenses, bans and sources |
-| `.github/workflows/release.yml` | pushing a `v*` tag | builds four targets (Linux x86-64 gnu and musl, Windows x86-64, macOS aarch64), zips them, generates `SHA256SUMS`, creates the GitHub Release |
-| `.github/workflows/update-openapi.yml` | daily, 06:17 UTC | refreshes the vendored Roblox OpenAPI document and opens a PR if it changed |
-| `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` | builds the MkDocs site from `docs/`; deploys to GitHub Pages on `main` only |
+| `.github/workflows/ci.yml` | push / PR on `main` | eleven jobs: Test, Rustfmt, Punctuation, Clippy, No unused dependencies, Schemas up to date, Doc, MSRV (1.88), Shell completions, plus a Windows leg (platform-dependent crates) and a cross-target job (macOS check, musl build) |
+| `.github/workflows/supply-chain.yml` | push / PR on `main` touching the dependency graph, **and weekly** (Monday 06:00 UTC) | `cargo deny check` for advisories, licenses, bans and sources |
+| `.github/workflows/release.yml` | pushing a `v*` tag | builds four targets (Linux x86-64 gnu and musl, Windows x86-64, macOS aarch64), zips them, generates `SHA256SUMS`, attests build provenance, creates the GitHub Release |
+| `.github/workflows/update-openapi.yml` | daily, 06:17 UTC | refreshes the vendored Roblox OpenAPI document, runs the drift check against it, and opens a PR if it changed |
+| `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` or `mkdocs.yml` | builds the MkDocs site from `docs/`; deploys to GitHub Pages on `main` only |
+| `.github/workflows/scheduled-failure.yml` | a scheduled run of Supply chain or Update OpenAPI spec failing | opens an issue for that workflow, or comments on the one already open |
 | Dependabot | monthly, 06:00 Paris | one grouped PR bumping GitHub Actions versions |
 
 The heavy jobs run on Linux, where runners bill at 1x; macOS is a
@@ -179,7 +180,7 @@ publishes in [`Roblox/creator-docs`][creator-docs] (`content/en-us/reference/clo
 `spec/NOTICE.md` carries the attribution: the document is CC BY 4.0, unlike
 the rest of this repository.
 
-The test in `crates/rbx-spec-drift/tests/openapi_drift.rs` reads every Roblox
+The test in `crates/rbx-spec-drift/tests/openapi_drift/main.rs` reads every Roblox
 URL the workspace builds and asserts each path still exists in that snapshot.
 Matching is structural and host-aware: literal segments must match exactly,
 `{...}` segments are wildcards (our Rust variable names never have to agree

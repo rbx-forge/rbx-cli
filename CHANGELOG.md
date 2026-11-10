@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-10
+
 ### Changed
 
 - **`rbx meta sync` and `rbx shop sync` read Roblox before they plan.** The
@@ -23,8 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`sync --dry-run` needs a key**, since it reads Roblox, and a read key is
   enough for it. `rbx shop sync` lists the kinds it syncs on every run, where
   it listed them only before a create. `rbx meta sync` reads the universe and
-  the place, and Roblox accepts the place read with `universe.place:write`,
-  so no `universe.place:read` is needed beside it.
+  the place, and Roblox does not check `universe:read` or
+  `universe.place:read` on those two reads, so a key that synced metadata
+  before needs no new scope.
 - **`rbx shop sync` plans every env before it writes the first**, and asks
   its one confirmation after showing the plans, only when an env has work.
   The name check that guards a create runs on the same listing, so a dry run

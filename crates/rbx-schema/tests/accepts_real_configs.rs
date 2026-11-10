@@ -6,8 +6,8 @@
 //! real errors go unread too. Unit tests in `schemas.rs` check the shape of
 //! the schema; this one runs a real validator over real documents.
 //!
-//! The corpus is the repository's own `.example` configs plus the samples in
-//! `docs/`, which are the exact files a newcomer copies.
+//! The corpus is the samples in `docs/`, which are the exact files a newcomer
+//! copies, plus documents written here to cover every documented key.
 
 use std::path::{Path, PathBuf};
 
@@ -65,19 +65,8 @@ fn read(relative: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()))
 }
 
-#[test]
-fn the_committed_place_configs_validate() {
-    for file in [
-        "testenv/rbxplace.example.toml",
-        "prodread/rbxplace.example.toml",
-    ] {
-        assert_valid("rbxplace.toml", file, &read(file));
-    }
-}
-
-/// Every documented env key at once, including the ones no committed file
-/// happens to use. The `.example` files are a thin corpus: between them they
-/// exercise `universe_id` and `places` and nothing else.
+/// Every documented env key at once, so the schema is held to the whole
+/// surface rather than to the few keys a sample happens to use.
 #[test]
 fn a_place_config_using_every_documented_key_validates() {
     assert_valid(

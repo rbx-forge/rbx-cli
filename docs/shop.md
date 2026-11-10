@@ -306,4 +306,4 @@ rbx shop show --flat           # one list with a type column
 
 ## Attributions
 
-Alpha bleeding is adapted from [Asphalt](https://github.com/jackTabsCode/asphalt) (MIT), which adapted it from [Tarmac](https://github.com/Roblox/tarmac) (MIT). Notices in [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-deploy/blob/main/THIRD-PARTY-NOTICES.md).
+Alpha bleeding is adapted from [Asphalt](https://github.com/jackTabsCode/asphalt) (MIT), which adapted it from [Tarmac](https://github.com/Roblox/tarmac) (MIT). The code lives in [rbx-core](https://github.com/rbx-forge/rbx-core), and its notices in that repository's [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-core/blob/main/THIRD-PARTY-NOTICES.md).

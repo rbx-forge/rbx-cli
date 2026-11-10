@@ -76,7 +76,7 @@ The [quick start](https://rbx-forge.github.io/rbx-deploy/quickstart/) walks the 
 
 ## Prior art and thanks
 
-- **[Asphalt](https://github.com/jackTabsCode/asphalt)** (MIT): the lockfile-and-codegen pattern `rbx shop` uses for assets, and the alpha-bleed implementation, which is **adapted code**, not just inspiration. Notice in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+- **[Asphalt](https://github.com/jackTabsCode/asphalt)** (MIT): the lockfile-and-codegen pattern `rbx shop` uses for assets, and the alpha-bleed implementation, which is **adapted code**, not just inspiration. It lives in [rbx-core](https://github.com/rbx-forge/rbx-core), whose [THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-core/blob/main/THIRD-PARTY-NOTICES.md) carries the notice.
 - **[Tarmac](https://github.com/Roblox/tarmac)** (MIT), where that alpha bleed originates; Asphalt adapted it first. Same notice file.
 - **[Mantle](https://github.com/blake-mealey/mantle)**: the declarative-IaC precedent for Roblox, and the origin of the `rbx_cookie` crate this tool depends on.
 - **[rbxcloud](https://github.com/Sleitnick/rbxcloud)**: the "a CLI for Open Cloud" precedent.

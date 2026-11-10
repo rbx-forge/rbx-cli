@@ -9,75 +9,11 @@ This file covers code and data that live *in this repository*. It is not a
 dependency manifest: the licenses of crates pulled in by Cargo are recorded in
 `Cargo.lock` and in each dependency's own repository.
 
----
-
-## Asphalt: MIT
-
-- Upstream: <https://github.com/jackTabsCode/asphalt>
-- Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
-
-The alpha-bleed implementation (the flood fill that rewrites fully transparent
-pixels to the color of their nearest opaque neighbor) is adapted from Asphalt's
-version. Asphalt itself adapted it from Tarmac; see the next section.
-
-```
-MIT License
-
-Copyright (c) 2024 Jack Taylor
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
----
-
-## Tarmac: MIT
-
-- Upstream: <https://github.com/Roblox/tarmac>
-- Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
-  (indirectly, through Asphalt)
-
-Tarmac is where the alpha-bleed algorithm originates. The chain is
-Tarmac → Asphalt → this repository, so both notices apply to the same file.
-
-```
-MIT License
-
-Copyright (c) 2020 Roblox Corporation
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
+The alpha bleed applied to icons and thumbnails before upload is adapted from
+Asphalt and Tarmac (both MIT) and lives in
+[rbx-core](https://github.com/rbx-forge/rbx-core), a dependency, whose
+[THIRD-PARTY-NOTICES.md](https://github.com/rbx-forge/rbx-core/blob/main/THIRD-PARTY-NOTICES.md)
+carries both notices.
 
 ---
 

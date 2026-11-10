@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A refused universe or place read no longer names a scope.** `rbx meta`
+  and the `meta/live` row of `rbx check` said the key needed `universe:read`
+  or `universe.place:read`, which Roblox does not check on those two reads,
+  so the hint sent you after a scope that was never the cause. The error now
+  says which read failed and gives Roblox's answer.
+
 ## [0.16.0] - 2026-11-10
 
 ### Changed

@@ -56,8 +56,8 @@ Listed at the end of every run:
 
 | Step | Scopes |
 | --- | --- |
-| Universe | `universe:read` |
+| Universe | none: Roblox does not check `universe:read` on this read |
 | Places | none (the listing is public) |
 | Shop | `game-pass:read`, `developer-product:read`, `legacy-badge:manage`; `legacy-asset:manage` for icons as stored |
-| Meta | `universe:read`, `universe.place:read` |
+| Meta | as for [`meta`](meta.md#required-api-scopes), whose universe and place reads Roblox does not check |
 | Config | `universe:read` |

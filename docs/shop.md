@@ -302,7 +302,7 @@ rbx shop show --flat           # one list with a type column
 | Products | `developer-product:read`, `developer-product:write` |
 | Badges | `legacy-badge:manage` to read; `legacy-universe.badge:write` and `legacy-universe.badge:manage-and-spend-robux` to create |
 | Icons | `legacy-asset:manage` to download them as stored; without it, a rescaled copy from the public thumbnail service |
-| Badge payer | `universe:read`, optional: falls back to `[owner]` |
+| Badge payer | none: Roblox does not check `universe:read` on the universe read; a failed read falls back to `[owner]` |
 
 ## Attributions
 

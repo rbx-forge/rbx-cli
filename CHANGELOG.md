@@ -47,6 +47,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   list in `rbxapikey.toml`, it told you to decide before the next apikey
   `sync`, a command no tool has. It now names `rbx-apikey update`, which
   applies the file to the key.
+- **`rbx config sync`, `rbx config rollback` and `rbx rtbf sync` no longer
+  resend a write that may have gone through.** The draft, the publish and the
+  restore were retried like a read after a 5xx or a timeout, which could
+  apply them twice. They are sent once; the error then says to check the
+  revisions (`rbx config versions`), or read the draft back, before running
+  the command again. A 429 and a failure to connect, which sent nothing, are
+  still retried.
+- **`rbx shop sync` retries a create whose connection failed**, as it retries
+  a 429: nothing was sent. A timeout once connected is still reported as a
+  create that may have landed.
+- **A long wait before a retry says what Roblox answered:** `Rate limited by
+  Roblox` after a 429, `Roblox answered 503 Service Unavailable, retrying`
+  after a 5xx. Every wait called itself a rate limit.
+- **`--overwrite-newer` on `rbx meta sync` and `rbx shop sync` writes its note
+  to stderr.** The line saying what it replaces went to stdout, where it broke
+  the `--json` document.
+- **A lockfile written by a newer version says to update the tool that wrote
+  it**, rather than naming `rbx`, and the warning for an unknown key in
+  `rbxplace.toml` names the version of the library that ignored it.
 
 ## [0.16.0] - 2026-11-10
 

@@ -16,7 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   killed partway, or a disk that filled, left the file empty, and an empty
   lockfile reads as nothing ever having been created. The content is now
   staged in a sibling file and renamed over the lockfile, so an interrupted
-  write leaves it as it was.
+  write leaves it as it was. A staged copy left by a killed run is removed by
+  the next write.
+- **A file that holds a key secret is never emptied before it is written.**
+  `rbxapikey.lock.toml` and a secret file were truncated, then written. They
+  are now written over in place, cut to length afterwards, and given their old
+  content back if a step fails, so a full disk leaves them as they were. They
+  are not staged in a sibling file: that copy would hold the secret under a
+  name the ignore rule for the first does not cover.
 
 ## [0.15.0] - 2026-11-10
 

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-10
+
 ### Removed
 
 - **Breaking: every command that does not reconcile a committed file.** `rbx`

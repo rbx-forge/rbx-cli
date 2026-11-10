@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   or `universe.place:read`, which Roblox does not check on those two reads,
   so the hint sent you after a scope that was never the cause. The error now
   says which read failed and gives Roblox's answer.
+- **An error row in `rbx check` and `rbx status` shows the cause.** It printed
+  the outermost message only, which is often just the step that failed
+  ("reading the universe"). The row now carries the whole chain on one line,
+  status and Roblox's message included.
 - **`rbx env rm` names a command that exists.** When it empties a key's env
   list in `rbxapikey.toml`, it told you to decide before the next
   `rbx apikey sync`, a command no tool has. It now names

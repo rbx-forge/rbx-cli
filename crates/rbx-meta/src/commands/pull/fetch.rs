@@ -753,3 +753,38 @@ mod audience_tests {
         assert_eq!(base.audience, set(&[Audience::Playtesters]));
     }
 }
+
+#[cfg(test)]
+mod read_remote_tests {
+    use super::*;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const UNIVERSE: u64 = 66778899001;
+
+    /// A refused read says which read it was and keeps Roblox's answer under
+    /// it, without naming a scope Roblox does not check there.
+    #[tokio::test]
+    async fn a_refused_universe_read_keeps_the_status_and_message() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/cloud/v2/universes/{UNIVERSE}")))
+            .respond_with(
+                ResponseTemplate::new(403).set_body_string(r#"{"message":"Access denied"}"#),
+            )
+            .mount(&server)
+            .await;
+        let client = RbxClient::new(Some("test-key".into()), None, UNIVERSE, 1, false, None)
+            .with_base_url(server.uri());
+
+        let Err(error) = read_remote(&client).await else {
+            panic!("a 403 on the universe read must fail the read");
+        };
+        let text = format!("{error:#}");
+
+        assert!(text.starts_with("reading the universe: "), "{text}");
+        assert!(text.contains("403"), "{text}");
+        assert!(text.contains("Access denied"), "{text}");
+        assert!(!text.contains("universe:read"), "{text}");
+    }
+}

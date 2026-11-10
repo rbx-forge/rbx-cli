@@ -305,7 +305,7 @@ mod tests {
             "the error must name the version this build knows: {msg}"
         );
         assert!(
-            msg.contains("update rbx"),
+            msg.contains("update that tool"),
             "the error must point at the upgrade: {msg}"
         );
     }

@@ -6,12 +6,12 @@ their own attribution requirements. Those licenses are reproduced in full
 below, with the derived file named for each.
 
 This file covers code and data that live *in this repository*. It is not a
-dependency manifest — the licenses of crates pulled in by Cargo are recorded in
+dependency manifest: the licenses of crates pulled in by Cargo are recorded in
 `Cargo.lock` and in each dependency's own repository.
 
 ---
 
-## Asphalt — MIT
+## Asphalt: MIT
 
 - Upstream: <https://github.com/jackTabsCode/asphalt>
 - Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
@@ -46,7 +46,7 @@ SOFTWARE.
 
 ---
 
-## Tarmac — MIT
+## Tarmac: MIT
 
 - Upstream: <https://github.com/Roblox/tarmac>
 - Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
@@ -81,7 +81,7 @@ SOFTWARE.
 
 ---
 
-## Roblox Creator Docs OpenAPI document — CC BY 4.0
+## Roblox Creator Docs OpenAPI document: CC BY 4.0
 
 `spec/openapi.json` is a vendored, unmodified snapshot of the OpenAPI document
 Roblox publishes in [`Roblox/creator-docs`](https://github.com/Roblox/creator-docs),

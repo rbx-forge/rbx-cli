@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::RbxClient;
 
 // The baseplate template is the default for create_universe / create_place
-// here and the whole of what `rbx open --new` opens, so it lives in rbx-core
-// and is re-exported rather than written down twice.
+// here, and other tools built on rbx-core open it too, so it lives there and
+// is re-exported rather than written down twice.
 pub use rbx_core::templates::DEFAULT_TEMPLATE_PLACE_ID;
 
 #[derive(Debug, Deserialize, Serialize)]

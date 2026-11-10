@@ -207,7 +207,7 @@ fn the_matcher_finds_a_command_and_spares_the_file_names() {
         commands_that_do_not_exist(r#"error(`rbxshop: unknown universe`)"#, &retired).is_empty()
     );
     // The fixed form must not be flagged by the very check that asked for it.
-    assert!(commands_that_do_not_exist("run `rbx apikey status --remote`", &retired).is_empty());
+    assert!(commands_that_do_not_exist("run `rbx shop sync --dry-run`", &retired).is_empty());
 }
 
 /// The names are derived, so a broken derivation would silently guard nothing.

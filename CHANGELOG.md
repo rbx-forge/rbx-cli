@@ -44,9 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ("reading the universe"). The row now carries the whole chain on one line,
   status and Roblox's message included.
 - **`rbx env rm` names a command that exists.** When it empties a key's env
-  list in `rbxapikey.toml`, it told you to decide before the next
-  `rbx apikey sync`, a command no tool has. It now names
-  `rbx-apikey update`, which applies the file to the key.
+  list in `rbxapikey.toml`, it told you to decide before the next apikey
+  `sync`, a command no tool has. It now names `rbx-apikey update`, which
+  applies the file to the key.
 
 ## [0.16.0] - 2026-11-10
 

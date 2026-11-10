@@ -95,8 +95,8 @@ clap = { version = "4", features = ["derive", "env"] }
 clap_complete = "4"
 # Not `features = ["full"]`. This workspace has zero `tokio::spawn`; tokio is
 # here as reqwest's runtime, plus the few pieces the CLI touches directly:
-# `macros` for `#[tokio::main]` and `#[tokio::test]`, `time` for retry backoff
-# and analytics polling, `sync` for the `Mutex` guarding cached API lookups.
+# `macros` for `#[tokio::main]` and `#[tokio::test]`, `time` for retry backoff,
+# `sync` for the `Mutex` guarding cached API lookups.
 # "full" additionally pulls in fs, io-util, net, process, signal: compile cost
 # for surface nothing calls. Adding one back is a one-line, considered change.
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }

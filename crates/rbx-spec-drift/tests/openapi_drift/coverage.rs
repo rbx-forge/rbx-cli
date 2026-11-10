@@ -13,9 +13,8 @@ use crate::{extract::*, paths::*, spec::*};
 /// answer this one, because an endpoint nobody calls contributes nothing to a
 /// scan of call sites, so the spec can document a capability for months and
 /// nothing says so. `Cloud_ListDataStores` sat there unimplemented until
-/// somebody asked in conversation how to list an experience's data stores; it
-/// shipped as `rbx data stores` in 0.6.0, and nothing in CI had ever mentioned
-/// it.
+/// somebody asked in conversation how to list an experience's data stores,
+/// and nothing in CI had ever mentioned it.
 ///
 /// **Scope is derived, not curated.** An endpoint is reported only when this
 /// workspace already calls something in the same [`family`], so the several

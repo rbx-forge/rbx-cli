@@ -65,8 +65,8 @@ infrastructure:
 ## Concurrency: sequential on purpose
 
 The workspace is async and has **zero** `tokio::spawn`. That is the design, not
-an omission. `--env all`, multi-place uploads and multi-asset downloads all run
-one after another.
+an omission. `--env all`, multi-place uploads and media downloads all run one
+after another.
 
 Two reasons, and they are worth more than the seconds parallelism would save:
 

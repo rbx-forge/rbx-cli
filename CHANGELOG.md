@@ -41,6 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restart or delivered the message twice. The error says the request may have
   landed and how to check. A 429 is still retried: it is a refusal before
   anything happened.
+- **`rbx apikey update --all` records each key in the lockfile as soon as
+  Roblox has taken its update.** It saved once at the end, so a refusal or a
+  "no" on a later key lost the record of the keys already updated, including
+  where a migrated secret had moved to after its old file was deleted.
+- **`rbx apikey prune` stops on a config or a lockfile it cannot read.** It
+  read either as empty, which labelled every key of the project UNTRACKED and
+  deleted it without its record, then overwrote the unreadable lockfile with
+  an empty one. A file that is there and cannot be looked at stops it too.
+- **`rbx apikey prune` and `delete --all` record each key as soon as Roblox
+  has deleted it.** They saved once at the end, so a run stopped at the
+  question about a secret file kept listing keys that no longer existed.
 
 ## [0.15.0] - 2026-11-10
 

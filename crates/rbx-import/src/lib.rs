@@ -38,9 +38,9 @@ use rbx_core::GlobalFlags;
 pub struct ImportCli {
     /// Universe to adopt.
     ///
-    /// Read over Open Cloud, so the API key needs `universe:read`. The place
-    /// list comes from the legacy host, which needs a cookie only when the
-    /// universe is private.
+    /// Read over Open Cloud with the API key, which Roblox answers without
+    /// checking `universe:read`. The place list comes from the legacy host,
+    /// which needs a cookie only when the universe is private.
     ///
     /// The env this lands under comes from the global `--env`, as everywhere
     /// else: an existing `rbxplace.toml` keeps every other env, its `[owner]`

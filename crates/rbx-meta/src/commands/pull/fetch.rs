@@ -2,9 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use colored::Colorize;
-use rbx_core::api::needs_scope;
 
 use crate::api::legacy::UniverseConfigLegacy;
 use crate::api::models::{ApiSocialLink, Place, Universe};
@@ -501,14 +500,15 @@ impl RemoteRead {
 /// Read one env from Roblox. Writes nothing; warns on stderr for each read
 /// it had to skip.
 pub(crate) async fn read_remote(client: &RbxClient) -> Result<RemoteRead> {
+    // No scope hint on these two: Roblox does not check `universe:read` or
+    // `universe.place:read` here (measured on 2026-11-10, a key holding
+    // neither reads both), so a refusal has another cause, and naming a scope
+    // would send the reader after the wrong one.
     let universe = client
         .get_universe()
         .await
-        .map_err(|e| needs_scope(e, "universe:read", "the universe read"))?;
-    let place = client
-        .get_place()
-        .await
-        .map_err(|e| needs_scope(e, "universe.place:read", "the place read"))?;
+        .context("reading the universe")?;
+    let place = client.get_place().await.context("reading the place")?;
 
     let (server_fill, allow_copying) = if client.has_cookie() {
         match client.get_place_legacy().await {

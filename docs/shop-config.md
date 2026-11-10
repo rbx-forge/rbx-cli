@@ -68,7 +68,7 @@ As passes, with `price` **required**, plus `store_page` (bool, default `false`):
 
 ## `[owner]`
 
-`type` (`"user"` or `"group"`) and `id`. Only read when creating a badge, to say who pays: Roblox charges the universe's owner. You rarely need it, since `sync` asks Roblox who owns the universe (with `universe:read`). It is the fallback when that fails, before `[<env>.owner]` and `[owner]` in `rbxplace.toml`.
+`type` (`"user"` or `"group"`) and `id`. Only read when creating a badge, to say who pays: Roblox charges the universe's owner. You rarely need it, since `sync` asks Roblox who owns the universe. It is the fallback when that fails, before `[<env>.owner]` and `[owner]` in `rbxplace.toml`.
 
 ## `[codegen]`
 

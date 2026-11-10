@@ -229,7 +229,7 @@ impl RbxClient {
     /// `Ok(None)` rather than an error when Roblox answers without either
     /// field, and the caller treats a failed call as "no answer" too: this is
     /// a convenience over a declaration that still works, not a new hard
-    /// requirement. `universe:read` is what it needs.
+    /// requirement. Roblox answers it without checking `universe:read`.
     pub async fn universe_owner(&self) -> Result<Option<OwnerType>> {
         let api_key = self.api_key_header()?.to_string();
         let url = {

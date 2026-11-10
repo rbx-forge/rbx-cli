@@ -478,14 +478,14 @@ async fn apply_env(
 /// Roblox already knows. A badge on a group-owned game is paid from group
 /// funds and one on a user-owned game from the user's, with no way to cross
 /// them, so the answer follows from ownership, and ownership is a field on
-/// the universe that `universe:read` returns. Asking removes a whole class of
-/// wrong answer: a config saying `user` for a group-owned game is a create
+/// the universe that the universe read returns. Asking removes a whole class
+/// of wrong answer: a config saying `user` for a group-owned game is a create
 /// Roblox refuses, and nothing local would have caught it.
 ///
-/// It is a preference, not a requirement. A key without `universe:read` gets
-/// an error from the call, which is treated as "no answer" and falls through
-/// to `[owner]` in `rbxshop.toml`, then `rbxplace.toml`. That is what keeps
-/// this from adding a scope to every key that syncs a shop.
+/// It is a preference, not a requirement. Roblox answers the read without
+/// checking `universe:read`, and a call that fails anyway is treated as "no
+/// answer" and falls through to `[owner]` in `rbxshop.toml`, then
+/// `rbxplace.toml`. So it adds no scope to a key that syncs a shop.
 async fn resolve_payment_source(
     client: &RbxClient,
     ctx: &ShopCtx<'_>,

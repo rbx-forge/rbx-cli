@@ -151,7 +151,7 @@ fn every_request_body_matches_the_schema_the_spec_documents() {
     let spec = load_document(&root);
 
     for (file, struct_name, schema_name, omitted) in REQUEST_BODIES {
-        // The configs client lives in rbx-core, outside this workspace.
+        // The configs client lives in rbx-core, wherever the manifest takes it from.
         let source = if *file == CONFIGS_CLIENT {
             crate::configs::rbx_core_root(&root).join(file)
         } else {

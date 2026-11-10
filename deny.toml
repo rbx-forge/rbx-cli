@@ -117,7 +117,6 @@ deny = []
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-# crates.io, plus one git dependency: rbx-core, the library the rbx-forge tools
-# share, pinned by tag. Any other git source is refused.
+# crates.io only. This workspace has no git dependencies and no vendored
+# registry, and the day it grows one should be the day this file changes.
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-allow-git = ["https://github.com/rbx-forge/rbx-core"]

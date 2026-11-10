@@ -5,7 +5,7 @@ This project is licensed under [MPL-2.0](./LICENSE). Some files in it are
 their own attribution requirements. Those licenses are reproduced in full
 below, with the derived file named for each.
 
-This file covers code and data that live *in this repository*, and the one adapted file the binary takes from rbx-core. It is not a
+This file covers code and data that live *in this repository*. It is not a
 dependency manifest — the licenses of crates pulled in by Cargo are recorded in
 `Cargo.lock` and in each dependency's own repository.
 
@@ -14,7 +14,7 @@ dependency manifest — the licenses of crates pulled in by Cargo are recorded i
 ## Asphalt — MIT
 
 - Upstream: <https://github.com/jackTabsCode/asphalt>
-- Derived file: `src/image/alpha_bleed.rs` in [rbx-core](https://github.com/rbx-forge/rbx-core), compiled into the `rbx` binary
+- Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
 
 The alpha-bleed implementation (the flood fill that rewrites fully transparent
 pixels to the color of their nearest opaque neighbor) is adapted from Asphalt's
@@ -49,7 +49,7 @@ SOFTWARE.
 ## Tarmac — MIT
 
 - Upstream: <https://github.com/Roblox/tarmac>
-- Derived file: `src/image/alpha_bleed.rs` in [rbx-core](https://github.com/rbx-forge/rbx-core), compiled into the `rbx` binary
+- Derived file in this repository: `crates/rbx-core/src/image/alpha_bleed.rs`
   (indirectly, through Asphalt)
 
 Tarmac is where the alpha-bleed algorithm originates. The chain is

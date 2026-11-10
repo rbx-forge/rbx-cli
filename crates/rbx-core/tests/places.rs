@@ -1,0 +1,801 @@
+#![allow(clippy::unwrap_used)]
+use rbx_core::owner::OwnerType;
+use rbx_core::places::{
+    is_reserved_env_name, resolve, resolve_places_path, resolve_universe_id, unknown_keys,
+    unknown_keys_warning, PlacesFile, PLACES_FILE, RESERVED_ENV_NAMES,
+};
+use tempfile::tempdir;
+
+fn write_places(content: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("rbxplace.toml");
+    std::fs::write(&path, content).unwrap();
+    (dir, path)
+}
+
+#[test]
+fn loads_multi_env_file() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[dev.places]
+main = 1001
+
+[prod]
+universe_id = 200
+[prod.places]
+main = 2001
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.env_names(), vec!["dev", "prod"]);
+    assert_eq!(places.get("dev").unwrap().universe_id, 100);
+    assert_eq!(places.get("prod").unwrap().universe_id, 200);
+}
+
+#[test]
+fn an_unknown_env_field_still_loads_but_is_reported() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+confirm = true
+some_unknown_field = "x"
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    // Loading must not fail: a key from a newer release has to stay readable,
+    // or upgrading the file would mean upgrading every machine at once.
+    assert_eq!(places.get("dev").unwrap().universe_id, 100);
+    // But it must not be silent either: that is the whole defect.
+    assert_eq!(places.unknown.len(), 1);
+    assert_eq!(places.unknown[0].table, "dev");
+    assert_eq!(places.unknown[0].key, "some_unknown_field");
+}
+
+#[test]
+fn a_key_the_binary_predates_is_reported_the_same_as_a_typo() {
+    // The reported case: `codegen` landed after v0.7.0, so a v0.7.0 binary
+    // swallowed it and generated the env anyway. From the outside that was
+    // indistinguishable from the key not existing. Simulated here with a name
+    // no release will ever have, since this build does know `codegen`.
+    let unknown = unknown_keys("[assets]\nuniverse_id = 1\ncodegen_from_the_future = false\n");
+    assert_eq!(unknown.len(), 1);
+    assert_eq!(unknown[0].table, "assets");
+    assert_eq!(unknown[0].key, "codegen_from_the_future");
+    // The hint names what the table does take, so a typo is fixable on sight.
+    assert!(unknown[0].known.contains(&"universe_id"));
+}
+
+#[test]
+fn every_documented_env_key_is_accepted() {
+    // The list is hand-maintained against three structs in three crates, so a
+    // key that gains a field but not a list entry would warn on a correct
+    // file: noise that gets the warning ignored.
+    let unknown = unknown_keys(
+        r#"
+[owner]
+type = "group"
+id = 1
+
+[codegen]
+output = "src/shared/Envs.luau"
+
+[prod]
+universe_id = 200
+confirm = true
+env = "Production"
+codegen = true
+root = "lobby"
+owner = { type = "user", id = 42 }
+[prod.places]
+main = 2001
+lobby = 2002
+"#,
+    );
+    assert!(unknown.is_empty(), "got {unknown:?}");
+}
+
+#[test]
+fn place_names_are_data_and_never_reported_as_keys() {
+    // `[<env>.places]` holds arbitrary names. Linting them would warn on
+    // every real file.
+    let unknown = unknown_keys("[dev]\nuniverse_id = 1\n[dev.places]\nwhatever_name = 5\n");
+    assert!(unknown.is_empty(), "got {unknown:?}");
+}
+
+#[test]
+fn the_reserved_tables_are_checked_against_their_own_keys() {
+    let unknown = unknown_keys(
+        r#"
+[owner]
+type = "group"
+id = 1
+nickname = "x"
+
+[codegen]
+outputs = "typo.luau"
+
+[dev]
+universe_id = 1
+owner = { type = "user", id = 42, note = "inline" }
+"#,
+    );
+    let found: Vec<(&str, &str)> = unknown
+        .iter()
+        .map(|k| (k.table.as_str(), k.key.as_str()))
+        .collect();
+    assert_eq!(
+        found,
+        vec![
+            ("codegen", "outputs"),
+            ("dev.owner", "note"),
+            ("owner", "nickname"),
+        ]
+    );
+}
+
+#[test]
+fn a_file_that_does_not_parse_reports_nothing() {
+    // The typed parse owns that error, and reports it with a line number the
+    // lint cannot produce. Two complaints about one broken file is worse.
+    assert!(unknown_keys("[dev\nuniverse_id =").is_empty());
+}
+
+#[test]
+fn nothing_unknown_produces_no_warning() {
+    assert!(unknown_keys_warning(std::path::Path::new("rbxplace.toml"), &[]).is_none());
+}
+
+#[test]
+fn the_warning_names_the_key_the_table_and_what_the_table_accepts() {
+    // The wording is the whole point of the warning (an ignored key looks
+    // exactly like an honoured one from the outside) and it used to be
+    // unreachable from a test, sitting behind a process-global "warn once"
+    // set that the first test to touch a path would mute for every later one.
+    let unknown = unknown_keys("[prod]\nuniverse_id = 1\nconfrm = true\n");
+    let warning = unknown_keys_warning(std::path::Path::new("rbxplace.toml"), &unknown)
+        .expect("a misspelled key should warn");
+
+    assert!(warning.contains("rbxplace.toml"), "got: {warning}");
+    assert!(warning.contains("confrm"), "got: {warning}");
+    assert!(warning.contains("[prod]"), "got: {warning}");
+    assert!(warning.contains("universe_id"), "known keys: {warning}");
+    assert!(
+        warning.contains("1 unrecognised key,"),
+        "singular, not 'key(s)': {warning}"
+    );
+    assert!(
+        warning.contains(env!("CARGO_PKG_VERSION")),
+        "the version is what makes 'from a newer release' checkable: {warning}"
+    );
+}
+
+#[test]
+fn resolve_universe_id_only() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+"#,
+    );
+    assert_eq!(resolve_universe_id(&path, "dev").unwrap(), 100);
+}
+
+#[test]
+fn resolve_universe_and_place_with_main_default() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[dev.places]
+main = 1001
+lobby = 1002
+"#,
+    );
+    let (u, p) = resolve(&path, "dev", None).unwrap();
+    assert_eq!(u, 100);
+    assert_eq!(p, 1001);
+}
+
+#[test]
+fn resolve_picks_single_place_when_no_main() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[dev.places]
+solo = 999
+"#,
+    );
+    let (u, p) = resolve(&path, "dev", None).unwrap();
+    assert_eq!(u, 100);
+    assert_eq!(p, 999);
+}
+
+#[test]
+fn resolve_errors_on_ambiguous_places() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[dev.places]
+a = 1
+b = 2
+"#,
+    );
+    let err = resolve(&path, "dev", None).unwrap_err().to_string();
+    assert!(err.contains("multiple places"));
+    assert!(err.contains("a, b"));
+}
+
+#[test]
+fn the_start_place_is_main_unless_root_names_another() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+places.main = 1001
+places.lobby = 1002
+
+[prod]
+universe_id = 200
+root = "lobby"
+places.main = 2001
+places.lobby = 2002
+
+[shop_only]
+universe_id = 300
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(
+        places.get("dev").unwrap().root_place(),
+        Some(("main", 1001))
+    );
+    assert_eq!(
+        places.get("prod").unwrap().root_place(),
+        Some(("lobby", 2002))
+    );
+    assert_eq!(places.get("shop_only").unwrap().root_place(), None);
+}
+
+/// A lone place is not assumed to be the start place: it may be a second
+/// place whose root was never recorded, and a wrong id is worse than none.
+#[test]
+fn a_single_place_that_is_not_main_is_not_taken_for_the_root() {
+    let (_d, path) = write_places("[dev]\nuniverse_id = 100\nplaces.lobby = 1002\n");
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.get("dev").unwrap().root_place(), None);
+}
+
+#[test]
+fn a_root_that_names_no_place_is_refused_with_the_places_that_exist() {
+    let (_d, path) = write_places(
+        "[prod]\nuniverse_id = 200\nroot = \"lobbby\"\nplaces.main = 2001\nplaces.lobby = 2002\n",
+    );
+    let err = PlacesFile::load(&path).unwrap_err().to_string();
+    assert!(err.contains("root = \"lobbby\""), "got: {err}");
+    assert!(err.contains("Available: lobby, main"), "got: {err}");
+}
+
+#[test]
+fn resolve_defaults_to_the_declared_root_over_main() {
+    let (_d, path) = write_places(
+        "[dev]\nuniverse_id = 100\nroot = \"lobby\"\nplaces.main = 1\nplaces.lobby = 2\n",
+    );
+    let (_, p) = resolve(&path, "dev", None).unwrap();
+    assert_eq!(p, 2);
+}
+
+#[test]
+fn resolve_respects_explicit_place_override() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[dev.places]
+main = 1
+lobby = 2
+"#,
+    );
+    let (_, p) = resolve(&path, "dev", Some("lobby")).unwrap();
+    assert_eq!(p, 2);
+}
+
+#[test]
+fn resolve_errors_on_unknown_env_with_available_list() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+[prod]
+universe_id = 200
+"#,
+    );
+    let err = resolve_universe_id(&path, "staging")
+        .unwrap_err()
+        .to_string();
+    assert!(err.contains("'staging' not found"));
+    assert!(err.contains("dev"));
+    assert!(err.contains("prod"));
+}
+
+#[test]
+fn confirm_defaults_to_false_when_absent() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(!places.get("dev").unwrap().confirm());
+}
+
+#[test]
+fn confirm_returns_true_when_set() {
+    let (_d, path) = write_places(
+        r#"
+[prod]
+universe_id = 200
+confirm = true
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(places.get("prod").unwrap().confirm());
+}
+
+#[test]
+fn a_confirm_that_is_not_a_bool_fails_the_load_instead_of_reading_as_false() {
+    // The reason `confirm` is a typed field and not a string read out of the
+    // `_extra` map: quoting it is the mistake a YAML habit produces, and the
+    // old code answered it by silently disabling the prompt, on the env most
+    // likely to be prod.
+    let (_d, path) = write_places(
+        r#"
+[prod]
+universe_id = 200
+confirm = "true"
+"#,
+    );
+    let err = PlacesFile::load(&path).unwrap_err().to_string();
+    assert!(err.contains("Failed to parse"), "got: {err}");
+}
+
+#[test]
+fn resolve_errors_when_no_places_section() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+"#,
+    );
+    let err = resolve(&path, "dev", None).unwrap_err().to_string();
+    assert!(err.contains("no [<env>.places]"));
+}
+
+#[test]
+fn places_without_owner_block_returns_none() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(places.owner.is_none());
+    assert!(places.resolve_owner("dev").is_none());
+    assert!(places.resolve_owner("missing").is_none());
+}
+
+#[test]
+fn parses_top_level_owner_block() {
+    let (_d, path) = write_places(
+        r#"
+[owner]
+type = "group"
+id = 1234567
+
+[dev]
+universe_id = 100
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    let owner = places.owner.as_ref().unwrap();
+    assert_eq!(owner.kind, OwnerType::Group);
+    assert_eq!(owner.id, 1234567);
+    // env names must not include the reserved `owner` key.
+    assert_eq!(places.env_names(), vec!["dev"]);
+}
+
+#[test]
+fn resolve_owner_falls_back_to_top_level() {
+    let (_d, path) = write_places(
+        r#"
+[owner]
+type = "group"
+id = 7
+
+[dev]
+universe_id = 100
+
+[prod]
+universe_id = 200
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    let dev_owner = places.resolve_owner("dev").unwrap();
+    assert_eq!(dev_owner.kind, OwnerType::Group);
+    assert_eq!(dev_owner.id, 7);
+    // Same for prod, same id.
+    let prod_owner = places.resolve_owner("prod").unwrap();
+    assert_eq!(prod_owner.id, 7);
+}
+
+#[test]
+fn per_env_owner_overrides_top_level() {
+    let (_d, path) = write_places(
+        r#"
+[owner]
+type = "group"
+id = 7
+
+[dev]
+universe_id = 100
+owner = { type = "user", id = 42 }
+
+[prod]
+universe_id = 200
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    let dev_owner = places.resolve_owner("dev").unwrap();
+    assert_eq!(dev_owner.kind, OwnerType::User);
+    assert_eq!(dev_owner.id, 42);
+    // prod still inherits.
+    let prod_owner = places.resolve_owner("prod").unwrap();
+    assert_eq!(prod_owner.kind, OwnerType::Group);
+    assert_eq!(prod_owner.id, 7);
+}
+
+#[test]
+fn per_env_owner_works_without_top_level() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+owner = { type = "user", id = 99 }
+
+[prod]
+universe_id = 200
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(places.owner.is_none());
+    let dev_owner = places.resolve_owner("dev").unwrap();
+    assert_eq!(dev_owner.kind, OwnerType::User);
+    assert_eq!(dev_owner.id, 99);
+    // prod has no owner anywhere.
+    assert!(places.resolve_owner("prod").is_none());
+}
+
+#[test]
+fn codegen_is_a_reserved_section_not_an_env() {
+    // Without `codegen` declared as a known key, serde's flattened map would
+    // try to read this table as an env and fail on the missing universe_id:
+    // breaking every command that touches rbxplace.toml, not just codegen.
+    let (_d, path) = write_places(
+        r#"
+[codegen]
+output = "src/shared/Envs.luau"
+
+[dev]
+universe_id = 100
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.env_names(), vec!["dev".to_string()]);
+    assert_eq!(
+        places.codegen.unwrap().output.unwrap(),
+        std::path::PathBuf::from("src/shared/Envs.luau")
+    );
+}
+
+#[test]
+fn a_file_without_codegen_still_loads() {
+    let (_d, path) = write_places("[dev]\nuniverse_id = 100\n");
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(places.codegen.is_none());
+}
+
+#[test]
+fn two_sections_renaming_onto_the_same_env_are_rejected() {
+    // Not an alias: two envs with one name. Any lookup by name silently picks
+    // one of the two, and the generated module lists both as "dev".
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+
+[staging]
+universe_id = 555
+env = "dev"
+"#,
+    );
+    let err = PlacesFile::load(&path).unwrap_err().to_string();
+    assert!(err.contains("resolve to the name 'dev'"), "got: {err}");
+    assert!(err.contains("[dev]"), "got: {err}");
+    assert!(err.contains("[staging]"), "got: {err}");
+}
+
+#[test]
+fn two_env_overrides_colliding_with_each_other_are_rejected() {
+    let (_d, path) = write_places(
+        r#"
+[a]
+universe_id = 100
+env = "shared"
+
+[b]
+universe_id = 200
+env = "shared"
+"#,
+    );
+    let err = PlacesFile::load(&path).unwrap_err().to_string();
+    assert!(err.contains("resolve to the name 'shared'"), "got: {err}");
+}
+
+#[test]
+fn renaming_to_a_name_nothing_else_uses_is_fine() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+env = "Dev"
+
+[prod]
+universe_id = 200
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.get("dev").unwrap().env.as_deref(), Some("Dev"));
+}
+
+#[test]
+fn codegen_false_hides_an_env_from_generation_only() {
+    let (_d, path) = write_places(
+        r#"
+[dev]
+universe_id = 100
+
+[ci]
+universe_id = 555
+codegen = false
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+
+    // Still a normal env: --env resolves it, --env all includes it.
+    assert_eq!(
+        places.env_names(),
+        vec!["ci".to_string(), "dev".to_string()]
+    );
+    assert_eq!(places.get("ci").unwrap().universe_id, 555);
+
+    // Only generation filters it out.
+    assert_eq!(places.codegen_env_names(), vec!["dev".to_string()]);
+}
+
+#[test]
+fn envs_are_visible_to_game_code_unless_they_opt_out() {
+    let (_d, path) = write_places("[dev]\nuniverse_id = 100\n[prod]\nuniverse_id = 200\n");
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.codegen_env_names(), places.env_names());
+}
+
+/// The writers (rbx-init, rbx-import) refuse these names, and this is the one
+/// list they both read. It has to cover exactly the names this file already
+/// spells for itself: `all` for "every env", plus the two reserved tables.
+#[test]
+fn the_reserved_env_names_are_the_ones_the_loader_never_returns() {
+    assert!(is_reserved_env_name("all"));
+    assert!(is_reserved_env_name("owner"));
+    assert!(is_reserved_env_name("codegen"));
+    assert!(!is_reserved_env_name("prod"));
+
+    let (_d, path) = write_places(
+        r#"
+[owner]
+type = "user"
+id = 42
+
+[codegen]
+output = "src/shared/Envs.luau"
+
+[prod]
+universe_id = 100
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    for name in RESERVED_ENV_NAMES {
+        assert!(
+            !places.env_names().contains(&(*name).to_string()),
+            "`{name}` came back as an env"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// --dir / --places
+// ---------------------------------------------------------------------------
+
+/// The default `--places` means "next to everything else this command reads
+/// and writes", not "in the process's working directory". One rule, so `rbx
+/// import --dir` and `rbx check --dir` cannot disagree about the same
+/// directory.
+#[test]
+fn the_default_places_path_follows_dir() {
+    let dir = std::path::Path::new("game");
+    assert_eq!(
+        resolve_places_path(std::path::Path::new(PLACES_FILE), dir),
+        dir.join(PLACES_FILE)
+    );
+}
+
+/// An explicit `--places` is a shared env file that may well live outside the
+/// directory, so it wins.
+#[test]
+fn an_explicit_places_path_wins_over_dir() {
+    assert_eq!(
+        resolve_places_path(
+            std::path::Path::new("shared/envs.toml"),
+            std::path::Path::new("game")
+        ),
+        std::path::Path::new("shared/envs.toml")
+    );
+}
+
+/// The default `--dir` is `.`, so the default pair still resolves to the file
+/// in the working directory.
+#[test]
+fn the_default_pair_resolves_to_the_working_directory() {
+    let dir = std::path::Path::new(".");
+    assert_eq!(
+        resolve_places_path(std::path::Path::new(PLACES_FILE), dir),
+        dir.join(PLACES_FILE)
+    );
+}
+
+// ---------------------------------------------------------------------------
+// [groups]
+//
+// A group is an alias for a set of envs, and every one of these is a way the
+// alias could mean something other than what it says. All four are refused at
+// load so the answer is the same for every command in the suite.
+
+#[test]
+fn a_group_loads_and_keeps_its_declared_order() {
+    let (_d, path) = write_places(
+        r#"
+[groups]
+nonprod = ["staging", "dev"]
+live = ["prod"]
+
+[dev]
+universe_id = 100
+[staging]
+universe_id = 150
+[prod]
+universe_id = 200
+"#,
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.group("nonprod").unwrap(), ["staging", "dev"]);
+    assert_eq!(places.group("live").unwrap(), ["prod"]);
+    assert_eq!(places.group_names(), vec!["live", "nonprod"]);
+    // And it is not an env, which is the whole point.
+    assert_eq!(places.env_names(), vec!["dev", "prod", "staging"]);
+    assert!(places.get("nonprod").is_err());
+}
+
+#[test]
+fn the_groups_table_is_not_read_as_an_env() {
+    assert!(is_reserved_env_name("groups"));
+    assert!(RESERVED_ENV_NAMES.contains(&"groups"));
+
+    // Without the reservation this file would parse `[groups]` as an env with
+    // no `universe_id` and fail to load at all, for every tool in the suite.
+    let (_d, path) = write_places("[groups]\nnonprod = [\"dev\"]\n\n[dev]\nuniverse_id = 100\n");
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.env_names(), vec!["dev"]);
+
+    // And its keys are group names, so they are data rather than a fixed list:
+    // no unknown-key warning for any of them.
+    assert!(unknown_keys("[groups]\nwhatever = [\"dev\"]\n\n[dev]\nuniverse_id = 1\n").is_empty());
+}
+
+#[test]
+fn a_group_naming_an_env_that_does_not_exist_is_refused() {
+    let (_d, path) =
+        write_places("[groups]\nnonprod = [\"dev\", \"qa\"]\n\n[dev]\nuniverse_id = 100\n");
+    let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+    assert!(err.contains("group 'nonprod' names 'qa'"), "{err}");
+    assert!(err.contains("Available: dev"), "{err}");
+}
+
+/// Flat by construction: nesting is refused by the undeclared-env rule, and the
+/// message says so rather than leaving the author to guess why a name it can
+/// see is not accepted.
+#[test]
+fn a_group_naming_another_group_says_groups_are_flat() {
+    let (_d, path) = write_places(
+        "[groups]\ninner = [\"dev\"]\nouter = [\"inner\"]\n\n[dev]\nuniverse_id = 100\n",
+    );
+    let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+    assert!(err.contains("Groups are flat"), "{err}");
+}
+
+#[test]
+fn a_group_sharing_a_name_with_an_env_is_refused() {
+    let (_d, path) = write_places(
+        "[groups]\nstaging = [\"dev\"]\n\n[dev]\nuniverse_id = 100\n[staging]\nuniverse_id = 150\n",
+    );
+    let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+    assert!(err.contains("both a group and an env"), "{err}");
+}
+
+#[test]
+fn a_group_taking_a_reserved_name_is_refused() {
+    for name in ["all", "owner", "codegen", "groups"] {
+        let (_d, path) = write_places(&format!(
+            "[groups]\n{name} = [\"dev\"]\n\n[dev]\nuniverse_id = 100\n"
+        ));
+        let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+        assert!(err.contains("reserved name"), "{name}: {err}");
+    }
+}
+
+/// The same reasoning `rbxapikey.toml` already applies to its own env groups: a
+/// declaration that targets nothing is never what was meant.
+#[test]
+fn an_empty_group_is_refused() {
+    let (_d, path) = write_places("[groups]\nnonprod = []\n\n[dev]\nuniverse_id = 100\n");
+    let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+    assert!(err.contains("names no envs"), "{err}");
+}
+
+/// A file with no `[groups]` table is the overwhelmingly common case and must
+/// be untouched by any of the above.
+#[test]
+fn a_file_without_groups_is_unchanged() {
+    let (_d, path) = write_places("[dev]\nuniverse_id = 100\n");
+    let places = PlacesFile::load(&path).unwrap();
+    assert!(places.group_names().is_empty());
+    assert!(places.group("nonprod").is_none());
+    assert_eq!(resolve_universe_id(&path, "dev").unwrap(), 100);
+}
+
+/// Not a harmless typo: every fan-out walks the list in order, so a repeated
+/// env is planned and written twice. `rbx meta sync` would re-send a thumbnail
+/// upload from a plan built before the first write, leaving a duplicate image
+/// on Roblox.
+#[test]
+fn a_group_naming_one_env_twice_is_refused() {
+    let (_d, path) = write_places(
+        "[groups]\nnonprod = [\"dev\", \"staging\", \"dev\"]\n\n\
+         [dev]\nuniverse_id = 100\n[staging]\nuniverse_id = 150\n",
+    );
+    let err = format!("{:#}", PlacesFile::load(&path).unwrap_err());
+    assert!(err.contains("names 'dev' twice"), "{err}");
+
+    // The same env in two different groups is fine: they are separate walks.
+    let (_d, path) = write_places(
+        "[groups]\na = [\"dev\"]\nb = [\"dev\", \"staging\"]\n\n\
+         [dev]\nuniverse_id = 100\n[staging]\nuniverse_id = 150\n",
+    );
+    let places = PlacesFile::load(&path).unwrap();
+    assert_eq!(places.group("a").unwrap(), ["dev"]);
+    assert_eq!(places.group("b").unwrap(), ["dev", "staging"]);
+}

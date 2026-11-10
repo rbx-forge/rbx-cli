@@ -84,12 +84,11 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   windows:
-    # The crates whose behaviour depends on the platform are the ones that write
-    # files: `rbx-env` and `rbx-shop` edit TOML in place keeping CRLF endings,
-    # and name generated files after display names, where Windows refuses
-    # characters Linux accepts. The cookie detection that used to make this job
-    # necessary lives in rbx-core now, whose own CI runs on Windows; a bump of
-    # it changes Cargo.lock, which triggers this job too.
+    # The crates whose behaviour depends on the platform: `rbx-core`
+    # auto-detects the .ROBLOSECURITY cookie from a local Studio install, and
+    # `rbx-env` and `rbx-shop` edit TOML in place keeping CRLF endings, and
+    # name generated files after display names, where Windows refuses
+    # characters Linux accepts.
     #
     # Windows runners bill at 2x, so this is deliberately narrow: it only fires
     # when those crates or the lockfile change. A few runs a month.
@@ -112,7 +111,7 @@ jobs:
             exit 0
           fi
           if git diff --name-only "$base"..HEAD \
-             | grep -qE '^crates/rbx-(env|shop)/|^Cargo\.lock$|^\.github/workflows/ci\.yml$'; then
+             | grep -qE '^crates/rbx-(core|env|shop)/|^Cargo\.lock$|^\.github/workflows/ci\.yml$'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=false" >> "$GITHUB_OUTPUT"
@@ -123,7 +122,7 @@ jobs:
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
         if: steps.changed.outputs.run == 'true'
       - if: steps.changed.outputs.run == 'true'
-        run: cargo test -p rbx-env -p rbx-shop --locked
+        run: cargo test -p rbx-core -p rbx-env -p rbx-shop --locked
 
   cross:
     # The release workflow ships binaries for targets no other job here builds,

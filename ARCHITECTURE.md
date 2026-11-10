@@ -6,13 +6,13 @@ see the root `README.md` and each crate's `README.md`.
 
 ## Workspace layout
 
-The repo is a Cargo workspace: **one binary crate + one crate per domain**,
-on top of [rbx-core](https://github.com/rbx-forge/rbx-core), the library the
-rbx-forge tools share, pulled in as a git dependency pinned by tag.
+The repo is a Cargo workspace: **one binary crate + one crate per domain +
+one shared core**.
 
 ```
 crates/
   rbx          # the binary: clap parsing and dispatch only (src/main.rs)
+  rbx-core     # shared building blocks (no domain logic)
 
   # Reconciling what a repo declares
   rbx-init       # bootstrap groups / universes / places   -> rbx init
@@ -46,10 +46,8 @@ post-mortem is in [TODO.md](./TODO.md).
 
 ## rbx-core: the shared layer
 
-Everything reused across crates lives in rbx-core, in its own repository, so
-domain crates never duplicate infrastructure. Moving its pin is the only way a
-change there reaches this workspace: bump the tag in the root `Cargo.toml`,
-then `cargo update -p rbx-core`.
+Everything reused across crates lives here, so domain crates never duplicate
+infrastructure:
 
 - **`GlobalFlags`** (`env.rs`): the global CLI flags (`--api-key`, `--cookie`,
   `--env`, `--place`, `--places`) plus `resolve_cookie()` (explicit flag →
@@ -61,7 +59,6 @@ then `cargo update -p rbx-core`.
     and transient network errors, waiting as long as `retry-after` or
     `x-ratelimit-reset` asks on a 429, whichever is longer, then JSON-parse
     with the raw body kept in the error message.
-  - `download_asset`: Open Cloud asset download.
 - **`places`** / **`owner`** / **`env`**: `rbxplace.toml` parsing, the shared
   `[owner]` block, and env-target resolution.
 

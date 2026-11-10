@@ -1,12 +1,15 @@
-//! Open Cloud HTTP client with retry. Domain crates (`rbx-shop`, `rbx-meta`,
-//! etc.) wrap this for their endpoint-specific calls.
+//! Open Cloud HTTP client with retry and asset download. Domain crates
+//! (`rbx-shop`, `rbx-meta`, etc.) wrap this for their endpoint-specific
+//! calls.
 
+mod asset;
 mod base;
 mod configs;
 mod csrf;
 mod error;
 mod retry;
 
+pub use asset::{download_asset, download_asset_from};
 pub use base::{encode_query_value, explain_missing_scope, needs_scope, ApiBase, DEFAULT_API_BASE};
 pub use configs::{
     validate_entries, ConfigMetadata, ConfigSnapshot, ConfigsClient, DraftResult, PublishResult,
@@ -45,7 +48,7 @@ pub fn build_client() -> Client {
 }
 
 /// Like [`build_client`] but with a fixed `User-Agent`. Crates that hit the
-/// legacy/web Roblox endpoints (rbx-init) set one because some of
+/// legacy/web Roblox endpoints (rbx-apikey, rbx-init) set one because some of
 /// those endpoints reject the default reqwest agent. Falls back to a bare
 /// client if the builder ever fails, so a UA quirk can't take the tool down.
 pub fn build_client_with_user_agent(user_agent: &str) -> Client {

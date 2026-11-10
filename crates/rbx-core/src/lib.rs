@@ -17,13 +17,15 @@
 //!   shared so every lockfile refuses a future-version file the same way.
 //! - [`output`] : the one place that serializes a command's result to stdout,
 //!   so `--json` means the same thing everywhere.
+//! - [`users`] : turn `156`, `@name` or a pasted profile link into a user id.
+//!   Shared because every subcommand that acts on a player needs it.
 //! - [`session`] : one `users/authenticated` call, cached per process, so a
 //!   command that is about to write with the cookie finds out first that the
 //!   session is over.
 //! - [`universe`] : list a universe's places from the legacy `develop` host,
 //!   which is the only place that enumeration exists. Needs no credential, so
 //!   it works before a project has been configured.
-//! - [`api`] : Open Cloud HTTP client + retry.
+//! - [`api`] : Open Cloud HTTP client + retry + asset download.
 
 pub mod api;
 pub mod confirm;
@@ -39,5 +41,6 @@ pub mod places;
 pub mod session;
 pub mod templates;
 pub mod universe;
+pub mod users;
 
 pub use env::{EnvTarget, GlobalFlags};

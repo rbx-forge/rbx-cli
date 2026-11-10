@@ -31,10 +31,7 @@ use serde::Deserialize;
 use tokio::sync::Mutex;
 
 use crate::api::roblox_message;
-
-/// The legacy host that answers `users/authenticated`. Not Open Cloud: Open
-/// Cloud has no call that says whose session a cookie is.
-const USERS_HOST: &str = "https://users.roblox.com";
+use crate::users::USERS_HOST;
 
 /// What `rbx` says when Roblox refuses the cookie.
 ///

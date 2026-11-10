@@ -58,6 +58,7 @@ infrastructure:
     and transient network errors, waiting as long as `retry-after` or
     `x-ratelimit-reset` asks on a 429, whichever is longer, then JSON-parse
     with the raw body kept in the error message.
+  - `download_asset`: Open Cloud asset download.
 - **`places`** / **`owner`** / **`env`**: `rbxplace.toml` parsing, the shared
   `[owner]` block, and env-target resolution.
 

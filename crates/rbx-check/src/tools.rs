@@ -101,8 +101,12 @@ fn stale_detail(path: &Path) -> String {
 
 /// Collapse an error to a single line: a summary column that wraps is not a
 /// summary. The full text is still printed by whatever produced it.
+///
+/// The whole chain, not the outermost context: a context says which call
+/// failed, and only the cause under it says what Roblox answered, so the row
+/// would otherwise read "reading the universe" and nothing else.
 fn one_line(err: &anyhow::Error) -> String {
-    let text = format!("{err}");
+    let text = format!("{err:#}");
     match text.split('\n').next() {
         Some(first) if !first.trim().is_empty() => first.trim().to_string(),
         _ => text.trim().to_string(),
@@ -1245,6 +1249,27 @@ fn rtbf_fingerprints(templates: &Templates) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The shape `rbx meta`'s universe read fails with: Roblox's answer under
+    /// a context naming the read. The row has to carry both.
+    #[test]
+    fn an_error_row_carries_the_cause_under_the_context() {
+        let roblox = r#"API error 403 Forbidden: {"message":"Access denied"}"#;
+        let err = anyhow::anyhow!(roblox).context("reading the universe");
+
+        let row = one_line(&err);
+
+        assert!(row.starts_with("reading the universe: "), "{row}");
+        assert!(row.contains("403 Forbidden"), "{row}");
+        assert!(row.contains("Access denied"), "{row}");
+    }
+
+    #[test]
+    fn an_error_row_stays_on_one_line() {
+        let err = anyhow::anyhow!("first line\nsecond line").context("outer");
+
+        assert_eq!(one_line(&err), "outer: first line");
+    }
 
     fn generated(dir: &Path, name: &str, on_disk: &str, rendered: &str) -> GeneratedFile {
         std::fs::write(dir.join(name), on_disk).expect("write");

@@ -1188,3 +1188,77 @@ fn json_requires_yes_only_where_there_is_something_to_confirm() {
     assert!(parse(&["delete-store", "PlayerData", "--json", "--yes"]).is_ok());
     assert!(parse(&["restore-store", "PlayerData", "--json"]).is_ok());
 }
+
+/// A 503 is Roblox not answering, which is not Roblox refusing: the increment
+/// may have been applied before the answer was lost. Sent again, it would
+/// grant the currency twice, so it goes out once and the error says to read
+/// the entry first.
+#[tokio::test]
+async fn an_increment_roblox_did_not_confirm_is_not_sent_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        serde_json::json!({ "value": 500, "revisionId": "r1" }),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{ENTRY_PATH}:increment")))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+
+    let error = run(
+        cli(
+            &["increment", "Player_156", "--by", "50", "--apply", "--yes"],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+
+    let text = format!("{error:#}");
+    assert!(text.contains("may have been applied"), "{text}");
+    let posts = server
+        .received_requests()
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.method == wiremock::http::Method::POST)
+        .count();
+    assert_eq!(posts, 1, "the increment must go out once");
+}
+
+/// The other way an applied increment looked like a failure: Roblox answers
+/// 2xx and the body does not parse. The increment is in, and the error has to
+/// say so before somebody runs it a second time.
+#[tokio::test]
+async fn an_increment_whose_answer_cannot_be_read_says_it_is_applied() {
+    let dir = tempfile::tempdir().unwrap();
+    let server = MockServer::start().await;
+    mount_existing(
+        &server,
+        serde_json::json!({ "value": 500, "revisionId": "r1" }),
+    )
+    .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{ENTRY_PATH}:increment")))
+        .respond_with(ResponseTemplate::new(200).set_body_string("not json"))
+        .mount(&server)
+        .await;
+
+    let error = run(
+        cli(
+            &["increment", "Player_156", "--by", "50", "--apply", "--yes"],
+            &server,
+        ),
+        &flags(&places_file(dir.path())),
+    )
+    .await
+    .unwrap_err();
+
+    let text = format!("{error:#}");
+    assert!(text.contains("Roblox applied the increment"), "{text}");
+    assert!(text.contains("not json"), "the answer is shown: {text}");
+}

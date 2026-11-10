@@ -14,11 +14,19 @@ use anyhow::{Context, Result};
 use reqwest::{Client, StatusCode};
 
 use rbx_core::api::{
-    encode_query_value, execute_json, execute_with_retry, explain_missing_scope, is_api_status,
-    ApiBase,
+    encode_query_value, execute_create_with_retry_policy, execute_json, execute_with_retry,
+    explain_missing_scope, is_api_status, unconfirmed, ApiBase, RetryPolicy,
 };
 
 use crate::model::{DataStoreEntry, EntryList, EntryUpdate, SnapshotResult, StoreList};
+
+/// What an increment says once Roblox has answered 2xx and the answer itself
+/// is lost or does not parse: it is applied, and running it again adds the
+/// amount a second time.
+pub(crate) const INCREMENT_APPLIED: &str =
+    "Roblox applied the increment, but its answer could not be read. Read the entry rather than \
+     running this again.";
+
 /// Everything one request needs, resolved once per run.
 ///
 /// The fields are `pub(crate)` because the dispatch builds this, once per env,
@@ -220,19 +228,32 @@ impl Api {
     /// be lost with `set`.
     pub(crate) async fn increment(&self, entry: &str, by: i64) -> Result<DataStoreEntry> {
         let url = format!("{}:increment", self.entry_url(entry));
-        let response = execute_with_retry(|| {
-            let request = self
-                .client
-                .post(&url)
-                .header("x-api-key", &self.api_key)
-                .json(&serde_json::json!({ "amount": by }));
-            async move { request.send().await.map_err(Into::into) }
-        })
+        // Resent on a 429 only. An increment is not idempotent, and a 5xx or
+        // a timeout does not say whether Roblox applied it: sending it again
+        // would add the amount twice.
+        let response = execute_create_with_retry_policy(
+            || {
+                let request = self
+                    .client
+                    .post(&url)
+                    .header("x-api-key", &self.api_key)
+                    .json(&serde_json::json!({ "amount": by }));
+                async move { request.send().await.map_err(Into::into) }
+            },
+            &RetryPolicy::default(),
+        )
         .await
-        .map_err(explain_missing_scope)?;
-        let text = response.text().await?;
+        .map_err(explain_missing_scope)
+        .map_err(|error| {
+            unconfirmed(
+                error,
+                "Roblox did not confirm the increment, and it may have been applied. Read the \
+                 entry before running this again.",
+            )
+        })?;
+        let text = response.text().await.context(INCREMENT_APPLIED)?;
         serde_json::from_str(&text)
-            .with_context(|| format!("parsing the incremented entry: {text}"))
+            .with_context(|| format!("{INCREMENT_APPLIED} It answered: {text}"))
     }
 
     /// Take an experience-wide snapshot.

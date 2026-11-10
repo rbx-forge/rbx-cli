@@ -205,9 +205,36 @@ async fn set_sends_the_value_and_allows_creation() {
         .mount(&server)
         .await;
 
-    let (result, _) = exec(&["set", "Player_1", "42", "--yes"], &server).await;
+    let (result, _) = exec(&["set", "Player_1", "42", "--apply", "--yes"], &server).await;
 
     result.unwrap();
+}
+
+/// The rule every write here follows: without `--apply`, the command says
+/// what it would do and sends nothing. `--yes` skips a question, it does not
+/// stand in for `--apply`: on its own it wrote at once, and this resource
+/// keeps no revision to take an overwrite back from.
+#[tokio::test]
+async fn set_without_apply_writes_nothing() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ENTRIES}/Player_1")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(entry("Player_1", 5.0)))
+        .mount(&server)
+        .await;
+
+    for args in [
+        &["set", "Player_1", "42"][..],
+        &["set", "Player_1", "42", "--yes"][..],
+    ] {
+        let (result, requests) = exec(args, &server).await;
+
+        result.unwrap();
+        assert!(
+            requests.iter().all(|r| r.method.as_str() == "GET"),
+            "{args:?} must not write"
+        );
+    }
 }
 
 /// `--no-create` has to reach the request, not just the local check: the entry
@@ -228,7 +255,11 @@ async fn no_create_turns_off_allow_missing() {
         .mount(&server)
         .await;
 
-    let (result, _) = exec(&["set", "Player_1", "42", "--no-create", "--yes"], &server).await;
+    let (result, _) = exec(
+        &["set", "Player_1", "42", "--no-create", "--apply", "--yes"],
+        &server,
+    )
+    .await;
 
     result.unwrap();
 }
@@ -244,7 +275,11 @@ async fn no_create_on_a_missing_entry_fails_without_writing() {
         .mount(&server)
         .await;
 
-    let (result, requests) = exec(&["set", "ghost", "1", "--no-create", "--yes"], &server).await;
+    let (result, requests) = exec(
+        &["set", "ghost", "1", "--no-create", "--apply", "--yes"],
+        &server,
+    )
+    .await;
 
     assert!(result.is_err());
     assert!(
@@ -269,13 +304,34 @@ async fn increment_posts_an_amount_and_reads_nothing_first() {
         .mount(&server)
         .await;
 
-    let (result, requests) = exec(&["increment", "Player_1", "-5", "--yes"], &server).await;
+    let (result, requests) = exec(
+        &["increment", "Player_1", "-5", "--apply", "--yes"],
+        &server,
+    )
+    .await;
 
     result.unwrap();
     assert!(
         requests.iter().all(|r| r.method.as_str() == "POST"),
         "increment must not read before writing"
     );
+}
+
+/// Without `--apply` nothing leaves at all, not even a read: the dry run says
+/// what would be added and stops.
+#[tokio::test]
+async fn increment_without_apply_sends_nothing() {
+    let server = MockServer::start().await;
+
+    for args in [
+        &["increment", "Player_1", "-5"][..],
+        &["increment", "Player_1", "-5", "--yes"][..],
+    ] {
+        let (result, requests) = exec(args, &server).await;
+
+        result.unwrap();
+        assert!(requests.is_empty(), "{args:?} must send nothing");
+    }
 }
 
 // ── delete ──
@@ -289,10 +345,35 @@ async fn deleting_a_missing_entry_is_a_no_op_not_a_failure() {
         .mount(&server)
         .await;
 
-    let (result, requests) = exec(&["delete", "ghost", "--yes"], &server).await;
+    let (result, requests) = exec(&["delete", "ghost", "--apply", "--yes"], &server).await;
 
     result.unwrap();
     assert!(requests.iter().all(|r| r.method.as_str() == "GET"));
+}
+
+/// A delete here is not recoverable, so it is the write that most needs the
+/// rule: without `--apply` the entry is read, shown, and left where it is.
+#[tokio::test]
+async fn delete_without_apply_removes_nothing() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{ENTRIES}/Player_1")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(entry("Player_1", 7.0)))
+        .mount(&server)
+        .await;
+
+    for args in [
+        &["delete", "Player_1"][..],
+        &["delete", "Player_1", "--yes"][..],
+    ] {
+        let (result, requests) = exec(args, &server).await;
+
+        result.unwrap();
+        assert!(
+            requests.iter().all(|r| r.method.as_str() == "GET"),
+            "{args:?} must not delete"
+        );
+    }
 }
 
 #[tokio::test]
@@ -310,7 +391,7 @@ async fn deleting_an_existing_entry_sends_the_delete() {
         .mount(&server)
         .await;
 
-    let (result, _) = exec(&["delete", "Player_1", "--yes"], &server).await;
+    let (result, _) = exec(&["delete", "Player_1", "--apply", "--yes"], &server).await;
 
     result.unwrap();
 }
@@ -379,4 +460,28 @@ async fn every_page_asks_for_the_same_size() {
         sizes.windows(2).all(|w| w[0] == w[1]),
         "maxPageSize changed between pages: {sizes:?}"
     );
+}
+
+/// A 503 is Roblox not answering, which is not Roblox refusing: the increment
+/// may have been applied before the answer was lost. Sent again, it would add
+/// the amount twice, so it goes out once and the error says to read the entry
+/// first.
+#[tokio::test]
+async fn an_increment_roblox_did_not_confirm_is_not_sent_again() {
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path(format!("{ENTRIES}/Player_1:increment")))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+
+    let (result, requests) = exec(
+        &["increment", "Player_1", "50", "--apply", "--yes"],
+        &server,
+    )
+    .await;
+
+    let error = format!("{:#}", result.unwrap_err());
+    assert!(error.contains("may have been applied"), "{error}");
+    assert_eq!(requests.len(), 1, "the increment must go out once");
 }

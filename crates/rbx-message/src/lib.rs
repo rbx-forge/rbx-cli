@@ -37,7 +37,8 @@ use reqwest::Client;
 use serde::Serialize;
 
 use rbx_core::api::{
-    build_client, execute_with_retry, explain_missing_scope, require_api_key, ApiBase,
+    build_client, execute_create_with_retry_policy, explain_missing_scope, require_api_key,
+    unconfirmed, ApiBase, RetryPolicy,
 };
 use rbx_core::output::{self, OutputFormat};
 use rbx_core::GlobalFlags;
@@ -172,12 +173,25 @@ pub async fn run(cli: MessageCli, global: &GlobalFlags) -> Result<()> {
         message: &message,
     };
 
-    let response = execute_with_retry(|| {
-        let request = client.post(&url).header("x-api-key", &api_key).json(&body);
-        async move { request.send().await.map_err(Into::into) }
-    })
+    // Resent on a 429 only. A 5xx or a timeout does not say whether the
+    // message was published, and publishing it again delivers it twice to
+    // every server that is listening.
+    let response = execute_create_with_retry_policy(
+        || {
+            let request = client.post(&url).header("x-api-key", &api_key).json(&body);
+            async move { request.send().await.map_err(Into::into) }
+        },
+        &RetryPolicy::default(),
+    )
     .await
-    .map_err(explain_missing_scope)?;
+    .map_err(explain_missing_scope)
+    .map_err(|error| {
+        unconfirmed(
+            error,
+            "Roblox did not confirm the message, and it may have been published. Nothing reads \
+             a message back: sending it again may deliver it twice.",
+        )
+    })?;
 
     let status = response.status();
     if !status.is_success() {

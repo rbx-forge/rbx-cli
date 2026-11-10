@@ -564,8 +564,18 @@ fn resolve_group(flag: Option<u64>, global: &GlobalFlags) -> Result<u64> {
     let places = PlacesFile::load(path)?;
     // An env's own [owner] wins over the top-level one, which is how a project
     // keeps one env under a group and another under a user.
-    let env = global.env.as_deref().unwrap_or("");
-    let owner = places.resolve_owner(env).ok_or_else(|| {
+    //
+    // The env is checked before it is used. `all`, a group of envs, or a name
+    // the file does not have fell through to the top-level owner, so a typo
+    // acted on another group than the one meant, without a word.
+    let env = match global.env.as_deref() {
+        Some(value) => {
+            let selector = places.selector(value)?;
+            selector.single("owners")?.to_string()
+        }
+        None => String::new(),
+    };
+    let owner = places.resolve_owner(&env).ok_or_else(|| {
         anyhow::anyhow!(
             "{PLACES_FILE} declares no [owner], so there is no group to act on. \
              Pass `--group <id>`."
@@ -1124,4 +1134,103 @@ fn print_roles(roles: &[GroupRole], group_id: u64) {
          Use the Creator Hub."
             .dimmed()
     );
+}
+
+#[cfg(test)]
+mod resolve_group_tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+
+    /// A top-level owner, one env with an owner of its own, one without, and
+    /// a group of envs.
+    const PLACES: &str = r#"
+[owner]
+type = "group"
+id = 1000
+
+[groups]
+nonprod = ["dev", "staging"]
+
+[dev]
+universe_id = 100
+
+[staging]
+universe_id = 150
+owner = { type = "group", id = 2000 }
+"#;
+
+    fn global(dir: &tempfile::TempDir, env: Option<&str>) -> GlobalFlags {
+        let places = dir.path().join("rbxplace.toml");
+        std::fs::write(&places, PLACES).unwrap();
+        GlobalFlags {
+            api_key: None,
+            cookie: None,
+            no_auto_cookie: true,
+            auto_cookie: false,
+            env: env.map(String::from),
+            place: None,
+            places,
+            universe_id: None,
+            place_id: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_flag_wins_and_reads_no_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_group(Some(42), &global(&dir, Some("all"))).unwrap(),
+            42
+        );
+    }
+
+    #[test]
+    fn an_env_with_its_own_owner_names_that_group() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_group(None, &global(&dir, Some("staging"))).unwrap(),
+            2000
+        );
+    }
+
+    #[test]
+    fn an_env_without_one_and_no_env_at_all_name_the_top_level_owner() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            resolve_group(None, &global(&dir, Some("dev"))).unwrap(),
+            1000
+        );
+        assert_eq!(resolve_group(None, &global(&dir, None)).unwrap(), 1000);
+    }
+
+    /// The failure this guards: a name the file does not have fell through to
+    /// the top-level owner, so `--env stagin` ranked somebody in group 1000
+    /// when group 2000 was meant, without a word.
+    #[test]
+    fn an_env_the_file_does_not_have_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let err = resolve_group(None, &global(&dir, Some("stagin"))).unwrap_err();
+
+        let text = format!("{err:#}");
+        assert!(text.contains("'stagin' not found"), "{text}");
+        assert!(text.contains("staging"), "lists what exists: {text}");
+    }
+
+    /// `all` and a group of envs can name several owners. Acting on the
+    /// top-level one for all of them is a guess, and this is a write.
+    #[test]
+    fn a_selector_naming_several_envs_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+
+        for selector in ["all", "nonprod"] {
+            let err = resolve_group(None, &global(&dir, Some(selector))).unwrap_err();
+            let text = format!("{err:#}");
+            assert!(
+                text.contains("this command acts on one"),
+                "{selector}: {text}"
+            );
+        }
+    }
 }

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A lockfile is replaced in one step.** `rbxshop.lock.toml`,
+  `rbxmeta.lock.toml` and `rbxconfig.lock.toml` were written in place: a run
+  killed partway, or a disk that filled, left the file empty, and an empty
+  lockfile reads as nothing ever having been created. The content is now
+  staged in a sibling file and renamed over the lockfile, so an interrupted
+  write leaves it as it was.
+
 ## [0.15.0] - 2026-11-10
 
 ### Changed

@@ -38,11 +38,10 @@ subcommands in declaration order, so that enum *is* the `--help` output, which
 is why it reads as a user journey.
 
 **Every command reconciles state declared in a committed file, or reads the
-file.** Live operations, API key management, the Studio launcher and the asset
-downloader used to be subcommands too, and left the workspace in one change.
-They had no desired state a repository could hold, and keeping them here made
-a tool meant to run on every push also the one that could ban a player. The
-post-mortem is in [TODO.md](./TODO.md).
+file.** Acting on a running game, managing API keys, opening Studio and
+downloading assets are out of scope: none of them has a desired state a
+repository can hold, and a tool meant to run on every push should not be the
+one that can ban a player.
 
 ## rbx-core: the shared layer
 

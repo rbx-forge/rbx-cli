@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- **Breaking: every command that does not reconcile a committed file.** `rbx`
+  keeps `init`, `import`, `env`, `check`, `status`, `place`, `meta`, `config`,
+  `rtbf`, `shop`, `probe` and `completions`. The others are gone, and a script
+  calling one fails with `unrecognized subcommand`. Each runs in its own tool
+  now, under the same subcommand names:
+
+  | Was | Now |
+  | --- | --- |
+  | `rbx servers`, `analytics`, `ban`, `group`, `restart`, `data`, `memorystore`, `message`, `ads`, `secret`, `user` | `rbx-ops servers`, `rbx-ops data`, and so on |
+  | `rbx apikey <subcommand>` | `rbx-apikey <subcommand>` |
+  | `rbx doctor` | `rbx-apikey doctor` |
+  | `rbx open` | `rbx-open` |
+  | `rbx download` | `rbx-download` |
+
+  So `rbx data get` is `rbx-ops data get`, and `rbx apikey create --all` is
+  `rbx-apikey create --all`. Each installs with mise or Rokit
+  (`rokit add rbx-forge/rbx-ops`).
+- **`rbx check` no longer reports an `apikey/status` row.** It was always
+  skipped. `rbx env rm` still edits `rbxapikey.toml` and its lockfile, so an
+  env it removes does not linger there.
+- **`schemas/rbxapikey.schema.json`**, which `rbx-apikey` publishes with the
+  command it describes.
+
 ### Fixed
 
 - **A refused universe or place read no longer names a scope.** `rbx meta`

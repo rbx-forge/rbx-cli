@@ -1659,8 +1659,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-core"
-version = "0.1.1"
-source = "git+https://github.com/rbx-forge/rbx-core?tag=v0.1.1#1ccd4e95cec438082cef618539c2ac2cc2e8cea2"
+version = "0.16.0"
 dependencies = [
  "anyhow",
  "bit-vec",
@@ -1674,8 +1673,10 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "toml",
+ "wiremock",
 ]
 
 [[package]]

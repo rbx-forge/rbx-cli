@@ -19,16 +19,16 @@ use crate::{extract::*, paths::*, spec::*};
 /// this shape deliberately: teaching the general extractor to follow a
 /// `String`-returning helper is a much larger change, and a narrow check that
 /// runs beats a general one that does not exist.
-/// Relative to the rbx-core checkout, not to this workspace: see
+/// Relative to the rbx-core package root, not to this workspace: see
 /// [`rbx_core_root`].
 pub(crate) const CONFIGS_CLIENT: &str = "src/api/configs.rs";
 
 /// Where the rbx-core sources this workspace compiles against live.
 ///
-/// rbx-core is a git dependency pinned by tag, so its sources sit in cargo's
-/// checkout rather than under `crates/`. `cargo metadata` names that exact
-/// directory, so the check reads the code that is actually built, at the
-/// pinned tag, and moves with the pin.
+/// Asked of `cargo metadata` rather than written as `crates/rbx-core`, because
+/// the root manifest decides where rbx-core comes from: a path in this
+/// workspace or a git checkout pinned by tag. Either way the check reads the
+/// code that is actually built.
 pub(crate) fn rbx_core_root(root: &Path) -> std::path::PathBuf {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let out = std::process::Command::new(cargo)

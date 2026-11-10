@@ -52,6 +52,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`rbx apikey prune` and `delete --all` record each key as soon as Roblox
   has deleted it.** They saved once at the end, so a run stopped at the
   question about a secret file kept listing keys that no longer existed.
+- **`rbx apikey regenerate` writes the lockfile as soon as the new secret is
+  in it**, before it asks about an old secret file. It saved after that
+  question, so a run stopped there, or a save that failed, lost a secret
+  Roblox shows only once while the old one was already dead. A save that
+  fails now prints the secret to store by hand.
 
 ## [0.15.0] - 2026-11-10
 

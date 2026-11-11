@@ -29,13 +29,11 @@ on:
       - ".github/workflows/docs.yml"
   workflow_dispatch:
 
-# GITHUB_TOKEN starts read-only. `pages: write` is the deployment itself;
-# `id-token: write` is how actions/deploy-pages proves to the Pages service
-# that the artifact came from this run rather than from anywhere else.
+# GITHUB_TOKEN starts read-only, and stays that way for the build job: it runs
+# `pip install`, so whatever a package runs at install time gets this token.
+# The deploy job alone asks for more, below.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time, and never cancel one in flight: a half-published
 # artifact is a broken site. The opposite call from ci.yml, where cancelling a
@@ -101,6 +99,13 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `pages: write` is the deployment itself; `id-token: write` is how
+    # actions/deploy-pages proves to the Pages service that the artifact came
+    # from this run rather than from anywhere else. This job runs no code from
+    # the repository or from a package index.
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

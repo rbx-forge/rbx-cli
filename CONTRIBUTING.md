@@ -101,8 +101,8 @@ Signed-off-by: Your Name <your.email@example.com>
 
 That line is your statement that you wrote the patch or otherwise have the
 right to contribute it under this project's license: the full text is at
-<https://developercertificate.org/>. The `dco` GitHub app checks it on every
-PR; a missing sign-off is fixable with
+<https://developercertificate.org/>. No automated check enforces it: it is
+looked for in review, and a missing sign-off is fixable with
 `git commit --amend -s` (or `git rebase --signoff` for several commits) and a
 force-push.
 

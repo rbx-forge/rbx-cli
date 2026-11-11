@@ -30,11 +30,13 @@ all-features = true
 
 [advisories]
 version = 2
-# No blanket ignores. An advisory that genuinely does not apply gets its id
-# listed here *with the reason on the line above it*, so the next person can
-# re-judge it instead of inheriting a silent exception, and gets removed the
-# moment the dependency can move. Each entry also carries the date by which
-# it is looked at again, whether or not anything has moved.
+# No blanket ignores. An advisory that genuinely does not apply is listed in
+# cargo-deny's structured form, so the reason travels with the id and shows in
+# the report, and the next person can re-judge it instead of inheriting a
+# silent exception. The reason ends with the date by which it is looked at
+# again, whether or not anything has moved, and the entry is removed the
+# moment the dependency can move:
+#   { id = "RUSTSEC-0000-0000", reason = "why it does not apply; revisit by YYYY-MM-DD" },
 #
 # Empty since plist 1.10 moved to quick-xml 0.42, which carries the fixes for
 # RUSTSEC-2026-0194 and RUSTSEC-2026-0195 that were listed here.

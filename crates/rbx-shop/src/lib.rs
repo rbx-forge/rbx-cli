@@ -278,6 +278,7 @@ pub async fn run(cli: ShopCli, global: &GlobalFlags) -> Result<()> {
                     yes,
                     allow_duplicate_names,
                     overwrite_newer,
+                    interactive: rbx_core::output::is_interactive(),
                 },
             )
             .await

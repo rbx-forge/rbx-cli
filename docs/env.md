@@ -250,7 +250,7 @@ codegen = false                      # keep out of generated modules
 | `universe_id` | integer | required | The universe |
 | `places` | table | `{}` | Place name to id |
 | `root` | string | `main` | Which place is the start place. See [`root`](#root) |
-| `confirm` | bool | `false` | Prompt before `upload`, `sync`, `rollback`, `promote` |
+| `confirm` | bool | `false` | Prompt before `upload`, `sync`, `rollback`, `promote`. `shop sync` asks before a create even without it |
 | `env` | string | section name | What game code matches on. Two envs resolving to one name is an error |
 | `owner` | table | `[owner]` | Per-env owner |
 | `codegen` | bool | `true` | `false` keeps the env out of generated modules |

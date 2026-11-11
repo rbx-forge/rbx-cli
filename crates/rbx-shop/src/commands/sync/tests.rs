@@ -208,6 +208,7 @@ impl Shop {
                 yes: true,
                 allow_duplicate_names,
                 overwrite_newer: self.overwrite_newer,
+                interactive: false,
             },
         )
         .await
@@ -1890,4 +1891,170 @@ price = 999
         0,
         "dev must not be written when prod refuses"
     );
+}
+
+// ── asking before a create ──
+
+/// A run with nobody at the terminal, as CI is, targeting the universe in
+/// `[experience]` when `env` is `None` and the `dev` env of the fixture's
+/// `rbxplace.toml` otherwise.
+async fn sync_unattended(
+    shop: &Shop,
+    server: &MockServer,
+    env: Option<&str>,
+    yes: bool,
+) -> Result<()> {
+    let global = GlobalFlags {
+        api_key: Some("test-key".into()),
+        cookie: None,
+        no_auto_cookie: true,
+        auto_cookie: false,
+        env: env.map(Into::into),
+        place: None,
+        places: shop.places_path(),
+        universe_id: None,
+        place_id: Vec::new(),
+    };
+    let ctx = ShopCtx {
+        config: shop.config_path(),
+        global: &global,
+        base_url: Some(server.uri()),
+    };
+    run(
+        &ctx,
+        Options {
+            yes,
+            interactive: false,
+            ..Options::default()
+        },
+    )
+    .await
+}
+
+/// `[experience]` names no env, so no `confirm` can be read for it, and this
+/// used to apply without a question. A create cannot be undone, so it asks,
+/// and with nobody to answer it refuses before anything is written.
+#[tokio::test]
+async fn a_create_in_experience_mode_is_refused_unattended_without_yes() {
+    let shop = Shop::new(&format!(
+        "[experience]\nuniverse_id = {UNIVERSE}\n\n[passes.VIP]\nprice = 499\n"
+    ));
+    let server = MockServer::start().await;
+    mount_creates(&server).await;
+
+    let err = sync_unattended(&shop, &server, None, false)
+        .await
+        .unwrap_err()
+        .to_string();
+
+    assert!(err.contains("--yes"), "names the flag: {err}");
+    assert!(err.contains("cannot be undone"), "says why: {err}");
+    let reqs = requests(&server).await;
+    assert_eq!(
+        reqs.iter().filter(|r| is_mutating(r)).count(),
+        0,
+        "nothing may be written"
+    );
+    assert!(!shop.lock_path().exists(), "nothing may be recorded");
+}
+
+/// The control: the same run with `--yes` creates the pass.
+#[tokio::test]
+async fn a_create_in_experience_mode_goes_through_with_yes() {
+    let shop = Shop::new(&format!(
+        "[experience]\nuniverse_id = {UNIVERSE}\n\n[passes.VIP]\nprice = 499\n"
+    ));
+    let server = MockServer::start().await;
+    mount_creates(&server).await;
+
+    sync_unattended(&shop, &server, None, true).await.unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "POST", &pass_collection()), 1);
+    assert_eq!(shop.lock().env(DEFAULT_ENV).unwrap().passes["VIP"].id, 111);
+}
+
+/// An env without `confirm = true` asks too when the plan creates something.
+#[tokio::test]
+async fn a_create_on_an_env_without_confirm_is_refused_unattended_without_yes() {
+    let shop = Shop::new(ONE_OF_EACH);
+    let server = MockServer::start().await;
+    mount_creates(&server).await;
+
+    let err = sync_unattended(&shop, &server, Some(ENV), false)
+        .await
+        .unwrap_err()
+        .to_string();
+
+    assert!(err.contains("[dev]"), "{err}");
+    assert!(err.contains("3 resource(s)"), "{err}");
+    assert!(err.contains("--yes"), "{err}");
+    let reqs = requests(&server).await;
+    assert!(!reqs.iter().any(is_mutating), "nothing may be written");
+    assert_eq!(
+        count(&reqs, "GET", &badge_quota()),
+        0,
+        "refused before the quota is read"
+    );
+}
+
+/// A plan that only updates is asked about as before: not at all, on an env
+/// without `confirm = true`.
+#[tokio::test]
+async fn an_update_alone_is_not_asked_about() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    shop.mount_recorded(&server).await;
+    mock(
+        &server,
+        "PATCH",
+        pass_item(4242),
+        json!({ "gamePassId": 4242 }),
+    )
+    .await;
+
+    sync_unattended(&shop, &server, Some(ENV), false)
+        .await
+        .unwrap();
+
+    let reqs = requests(&server).await;
+    assert_eq!(count(&reqs, "PATCH", &pass_item(4242)), 1);
+}
+
+/// And as before, an env with `confirm = true` asks about an update, and with
+/// nobody to answer the refusal names `--yes` rather than the terminal.
+#[tokio::test]
+async fn an_update_to_an_env_with_confirm_is_refused_unattended_without_yes() {
+    let shop = Shop::new(
+        r#"
+[passes.VIP]
+price = 999
+"#,
+    );
+    std::fs::write(
+        shop.places_path(),
+        format!("[{ENV}]\nuniverse_id = {UNIVERSE}\nconfirm = true\n"),
+    )
+    .unwrap();
+    shop.write_lock(&vip_locked_at_499());
+    let server = MockServer::start().await;
+    shop.mount_recorded(&server).await;
+
+    let err = sync_unattended(&shop, &server, Some(ENV), false)
+        .await
+        .unwrap_err()
+        .to_string();
+
+    assert!(err.contains("--yes"), "{err}");
+    assert!(
+        !err.contains("cannot be undone"),
+        "nothing is created: {err}"
+    );
+    assert!(!requests(&server).await.iter().any(is_mutating));
 }

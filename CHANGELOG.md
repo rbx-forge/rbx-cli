@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **`rbx shop sync` asks before any plan that creates something.** It asked
+  only when an env had `confirm = true`, and never when the target came from
+  `[experience]`, yet Roblox cannot delete a pass or a developer product. The
+  question now comes whatever `confirm` says, and names how many resources it
+  creates. `--yes` skips it. With nobody at the terminal, a run that would ask
+  refuses before any write and says to pass `--yes`, rather than failing on an
+  error about the terminal. A plan that only updates asks when it did before.
+
 ### Security
 
 - **`quick-xml` 0.42, through `plist` 1.10.3**, for RUSTSEC-2026-0194 and

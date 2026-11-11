@@ -33,25 +33,12 @@ version = 2
 # No blanket ignores. An advisory that genuinely does not apply gets its id
 # listed here *with the reason on the line above it*, so the next person can
 # re-judge it instead of inheriting a silent exception, and gets removed the
-# moment the dependency can move.
-ignore = [
-    # RUSTSEC-2026-0194 and RUSTSEC-2026-0195, both denial of service in
-    # `quick-xml`'s XML parser, both fixed in 0.41.
-    #
-    # Not upgradable from here: `quick-xml` arrives through
-    # `rbx_cookie -> plist 1.9`, which pins the 0.39 line. Nothing in this
-    # workspace depends on it directly.
-    #
-    # Not reachable in a way that matters either. `plist` is the macOS half of
-    # cookie auto-detection, and the only document it parses is the local
-    # Safari/Studio cookie store on the machine running the command. An
-    # attacker who can write that file has already won, and a parser that takes
-    # too long on it costs one slow command.
-    #
-    # Revisit when `plist` releases against `quick-xml >= 0.41`.
-    "RUSTSEC-2026-0194",
-    "RUSTSEC-2026-0195",
-]
+# moment the dependency can move. Each entry also carries the date by which
+# it is looked at again, whether or not anything has moved.
+#
+# Empty since plist 1.10 moved to quick-xml 0.42, which carries the fixes for
+# RUSTSEC-2026-0194 and RUSTSEC-2026-0195 that were listed here.
+ignore = []
 
 [licenses]
 version = 2

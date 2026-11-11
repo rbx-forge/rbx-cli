@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **`quick-xml` 0.42, through `plist` 1.10.3**, for RUSTSEC-2026-0194 and
+  -0195: a crafted XML document could make the parser take quadratic time or
+  allocate without bound. On macOS it parses the local cookie store that Studio
+  cookie detection reads, so the exposure was a slow or failed command, not a
+  remote one.
+
 ## [0.17.0] - 2026-11-10
 
 ### Removed

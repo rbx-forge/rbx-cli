@@ -128,7 +128,7 @@ serde_json = "1"
 # that has it, behind a `schema` feature, so it stays out of the shipped
 # binary: only `rbx-schema` (source-built, never released) turns it on.
 schemars = { version = "0.8", default-features = false, features = ["derive"] }
-toml = "0.8"
+toml = "1.2"
 blake3 = "1"
 colored = "2"
 # Decoders only, and not every decoder: this workspace decodes an icon a user

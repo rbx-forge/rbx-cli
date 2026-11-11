@@ -33,8 +33,11 @@ pub(crate) const CONFIGS_CLIENT: &str = "src/api/configs.rs";
 /// code that is actually built.
 ///
 /// Asked once per test binary, since the answer cannot change during a run,
-/// and with `--offline`: the lockfile already pins every source, and a git
-/// checkout is on disk by the time this test was compiled against it.
+/// and with `--locked`, so the lockfile is read and never rewritten. Not with
+/// `--offline`: `cargo metadata` describes every package in the lockfile,
+/// including the ones only another platform builds, and a fresh machine has
+/// downloaded only its own. `--filter-platform` does not help, since it trims
+/// the resolve graph but still lists, and so fetches, every package.
 pub(crate) fn rbx_core_root(root: &Path) -> PathBuf {
     static ROOT: OnceLock<PathBuf> = OnceLock::new();
     ROOT.get_or_init(|| ask_cargo_for_rbx_core(root)).clone()
@@ -47,7 +50,7 @@ fn ask_cargo_for_rbx_core(root: &Path) -> PathBuf {
             "metadata",
             "--format-version",
             "1",
-            "--offline",
+            "--locked",
             "--manifest-path",
         ])
         .arg(root.join("Cargo.toml"))

@@ -160,16 +160,18 @@ jobs:
       # zig is one, ships the macOS libc headers, and installs in seconds,
       # which is the whole reason this stays off a 10x runner. It is also the
       # C toolchain the musl leg below needs, so one install covers both.
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.17.1
-      # From PyPI, not `taiki-e/install-action` or `cargo install`: the action
-      # has no recipe for this tool and falls back to a cargo-binstall old
-      # enough to reject `edition = "2024"` in cargo-zigbuild's own manifest,
-      # and `cargo install` would compile it from source on every run. Pinned
-      # by version and hash, with the Zig it pulls in: see
-      # requirements-zigbuild.txt.
-      - run: pip install --require-hashes -r requirements-zigbuild.txt
+      #
+      # cargo-zigbuild and zig both come from PyPI, not `taiki-e/install-action`
+      # or `cargo install`: the action has no recipe for this tool and falls
+      # back to a cargo-binstall old enough to reject `edition = "2024"` in
+      # cargo-zigbuild's own manifest, and `cargo install` would compile it
+      # from source on every run. Pinned by version and hash: see
+      # requirements-zigbuild.txt. Installed through `python3 -m pip` because
+      # cargo-zigbuild finds zig by running `python3 -m ziglang`, and the
+      # second line fails the step if that interpreter cannot.
+      - run: |
+          python3 -m pip install --require-hashes -r requirements-zigbuild.txt
+          python3 -m ziglang version
       # Matches the targets the release ships. Keep the two in step: a target
       # added to release.yml and not here is a target nobody compiles until tag
       # time again.

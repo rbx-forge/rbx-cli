@@ -3,16 +3,13 @@
 # file whose hash is not listed here, and refuses any dependency not pinned
 # here.
 #
-# ziglang is pinned here, and not only through setup-zig, because cargo-zigbuild
-# runs `python3 -m ziglang` before it looks for a `zig` on PATH: this wheel, not
-# the setup-zig install, is the Zig that compiles the release. Unpinned, it was
-# whatever PyPI served on the day of the tag. Keep its version equal to the
-# `version:` given to mlugg/setup-zig in ci.yml and release.yml, so the fallback
-# is the same compiler.
+# ziglang is the Zig that compiles the release: cargo-zigbuild runs
+# `python3 -m ziglang` before it looks for a `zig` on PATH, and nothing else
+# installs one. Unpinned, it was whatever PyPI served on the day of the tag.
 #
-# Only the manylinux x86_64 wheels: both jobs run on ubuntu-latest. To bump,
-# take the new version's hashes from its PyPI page ("Download files") and
-# change the setup-zig `version:` in the same commit.
+# Only the manylinux x86_64 wheels: both jobs run on ubuntu-latest. Dependabot
+# bumps this file with its hashes; by hand, take the new version's hashes from
+# its PyPI page ("Download files").
 cargo-zigbuild==0.23.0 \
     --hash=sha256:3a2e021435a5e3c8b3a70bfc490580a3af6952185aa5ffb722b005d1fbe000c9
 ziglang==0.17.1 \

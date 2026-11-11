@@ -73,7 +73,7 @@ impl RbxClient {
             .transpose()?;
 
         let response = execute_create_with_retry_policy(
-            || async {
+            || {
                 let mut form = pricing.apply(
                     multipart::Form::new()
                         .text("name", name.to_string())
@@ -82,15 +82,12 @@ impl RbxClient {
                         .text("price", price.to_string()),
                 );
                 if let Some(bytes) = &icon {
-                    form = form.part("imageFile", icon_part(bytes)?);
+                    form = form.part("imageFile", icon_part(bytes));
                 }
-                Ok(self
-                    .client
+                self.client
                     .post(&url)
                     .header("x-api-key", &api_key)
                     .multipart(form)
-                    .send()
-                    .await?)
             },
             &WRITE_POLICY,
         )
@@ -171,7 +168,7 @@ impl RbxClient {
                     form = form.text("storePageEnabled", store_page.to_string());
                 }
                 if let Some(bytes) = &icon {
-                    form = form.part("imageFile", icon_part(bytes)?);
+                    form = form.part("imageFile", icon_part(bytes));
                 }
                 Ok(self
                     .client

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **A download from Roblox's CDN follows a redirect to another host.**
+  `rbx place download`, `rbx place promote`, `rbx meta pull` and the icon
+  reads of `rbx shop pull` and `rbx shop init` send it with no key and follow
+  it wherever it goes. Every other request now stops at a redirect that leaves
+  the host it was sent to, so an API key never reaches another host.
+- **No error prints a signed download URL.** A failed download names the
+  CDN's host at most. `rbx meta pull` printed the whole URL when the CDN
+  refused, and a download that never got an answer printed it in every
+  command: a working download link in whatever log the error landed in. An
+  answer from the delivery API with no location to download is no longer
+  quoted either.
+
 ### Security
 
 - **`quick-xml` 0.42, through `plist` 1.10.3**, for RUSTSEC-2026-0194 and

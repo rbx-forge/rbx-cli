@@ -412,13 +412,30 @@ impl RbxClient {
     }
 
     /// Download raw bytes from a Roblox CDN URL.
+    ///
+    /// Sent with no credential and through every redirect, to another host
+    /// included, which the shared client would stop at. An error names the
+    /// URL's host and nothing else of it: a CDN URL can be signed, a working
+    /// download link in whatever log it lands in.
     pub async fn download_bytes(&self, url: &str) -> Result<Vec<u8>> {
-        let response = self.client.get(url).send().await?;
+        let host = reqwest::Url::parse(url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+            .unwrap_or_else(|| "the CDN".to_string());
+        let response = rbx_core::api::get_without_credentials(url)
+            .await
+            .with_context(|| format!("downloading from {host}"))?;
         let status = response.status();
         if !status.is_success() {
-            bail!("Failed to download from {}: {}", url, status);
+            bail!("Failed to download from {host}: {status}");
         }
-        Ok(response.bytes().await?.to_vec())
+        let bytes = response
+            .bytes()
+            .await
+            // reqwest names the URL in its error otherwise.
+            .map_err(reqwest::Error::without_url)
+            .with_context(|| format!("downloading from {host}"))?;
+        Ok(bytes.to_vec())
     }
 
     /// Reorder thumbnails. `image_ids` is the desired final order.
@@ -542,6 +559,74 @@ mod tests {
         let message = format!("{err:#}");
         assert!(message.contains("was uploaded"), "{message}");
         assert!(message.contains("rbx meta pull"), "{message}");
+    }
+
+    /// What a signed CDN URL carries, and what no error may print.
+    const SIGNATURE: &str = "signature=aaaaBBBBccccDDDD";
+
+    /// The CDN can redirect to another host. The shared client stops there,
+    /// so the download has to follow it on its own, and with no key.
+    #[tokio::test]
+    async fn a_download_follows_the_cdn_to_another_host() {
+        let cdn = MockServer::start().await;
+        let elsewhere = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/image"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}/blob?{SIGNATURE}", elsewhere.uri())),
+            )
+            .mount(&cdn)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/blob"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(vec![1, 2, 3]))
+            .mount(&elsewhere)
+            .await;
+
+        let bytes = client(&cdn)
+            .download_bytes(&format!("{}/image?{SIGNATURE}", cdn.uri()))
+            .await
+            .unwrap();
+
+        assert_eq!(bytes, vec![1, 2, 3]);
+        let reached = elsewhere.received_requests().await.unwrap();
+        assert!(reached.iter().all(|r| r.headers.get("x-api-key").is_none()));
+    }
+
+    /// A refusal from the CDN names its host and status, not the URL.
+    #[tokio::test]
+    async fn a_refused_download_does_not_print_the_signed_url() {
+        let cdn = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(403))
+            .mount(&cdn)
+            .await;
+
+        let err = client(&cdn)
+            .download_bytes(&format!("{}/secret-blob?{SIGNATURE}", cdn.uri()))
+            .await
+            .unwrap_err();
+
+        let shown = format!("{err:#}");
+        assert!(shown.contains("127.0.0.1"), "{shown}");
+        assert!(shown.contains("403"), "{shown}");
+        assert!(!shown.contains(SIGNATURE), "{shown}");
+        assert!(!shown.contains("secret-blob"), "{shown}");
+    }
+
+    /// The same for a download that never got an answer.
+    #[tokio::test]
+    async fn a_failed_download_does_not_print_the_signed_url() {
+        let server = MockServer::start().await;
+        let err = client(&server)
+            .download_bytes(&format!("http://127.0.0.1:1/secret-blob?{SIGNATURE}"))
+            .await
+            .unwrap_err();
+
+        let shown = format!("{err:#}");
+        assert!(!shown.contains(SIGNATURE), "{shown}");
+        assert!(!shown.contains("secret-blob"), "{shown}");
     }
 }
 

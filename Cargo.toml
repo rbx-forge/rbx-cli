@@ -84,7 +84,7 @@ print_stderr = "allow"
 [workspace.dependencies]
 # The library the crates here share, in a repository of its own and pinned by
 # tag: a change there reaches this workspace only when this line moves.
-rbx-core = { git = "https://github.com/rbx-forge/rbx-core", tag = "v0.1.4" }
+rbx-core = { git = "https://github.com/rbx-forge/rbx-core", tag = "v0.2.0" }
 anyhow = "1"
 # Refcounted buffer for request bodies a retry closure may have to send more
 # than once: cloning a `Bytes` bumps a counter instead of re-allocating the

@@ -122,8 +122,8 @@ declined.
 
 ## What runs automatically
 
-Eight things, and nothing else. There is no release-plz and no auto-merge:
-every version bump is a deliberate act.
+Eight things, and nothing else. There is no release-plz and no auto-merge: a
+release is cut by hand, and a Dependabot PR is merged by hand like any other.
 
 | What | Trigger | Does |
 | --- | --- | --- |
@@ -134,7 +134,7 @@ every version bump is a deliberate act.
 | `.github/workflows/update-openapi.yml` | daily, 06:17 UTC | refreshes the vendored Roblox OpenAPI document, runs the drift check against it, and opens a PR if it changed |
 | `.github/workflows/docs.yml` | push on `main`, PRs touching `docs/` or `mkdocs.yml` | builds the MkDocs site from `docs/`; deploys to GitHub Pages on `main` only |
 | `.github/workflows/scheduled-failure.yml` | a scheduled run of Supply chain or Update OpenAPI spec failing | opens an issue for that workflow, or comments on the one already open |
-| Dependabot | monthly, 06:00 Paris | one grouped PR bumping GitHub Actions versions |
+| Dependabot | weekly, Monday 06:00 Paris | version update PRs for cargo, GitHub Actions and pip (the two `requirements-*.txt`): patch updates grouped, each minor or major on its own |
 
 The heavy jobs run on Linux, where runners bill at 1x; macOS is a
 `cargo-zigbuild check` of the target the release ships rather than a rented
@@ -154,10 +154,15 @@ advisory is published against a version already in `Cargo.lock`: nothing in this
 repository moves, and a check that only ran on push would stay green until
 somebody happened to touch a manifest.
 
-Dependabot handles **GitHub Actions only**. Cargo version updates are off
-deliberately. Dependabot Security Alerts still open a PR when an advisory hits
-`Cargo.lock`; `cargo-deny` is the second half of that story, because it also
-answers the three questions an advisory feed does not, whether a license
+Dependabot proposes **cargo, GitHub Actions and pip** version updates, weekly.
+Only patch updates are grouped: Dependabot calls a 0.x to 0.(x+1) bump
+"minor", and for a 0.x crate that is a breaking change, so each minor or major
+bump gets its own PR and its own CI run. rbx-core is left out: moving its tag is
+a deliberate change, made with its changelog entry. Security-update PRs (one
+opened when an advisory hits `Cargo.lock`) are a repository setting, separate
+from `.github/dependabot.yml`. `cargo-deny` fails on an advisory whatever that
+setting says, and it also answers the three questions an advisory feed does
+not, whether a license
 reached a statically linked artifact it should not have, whether a crate came
 from an unexpected registry, and how much duplication the graph has grown.
 

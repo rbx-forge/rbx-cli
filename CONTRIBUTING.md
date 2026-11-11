@@ -32,7 +32,9 @@ The short version, which every domain crate follows:
 - `lib.rs`: the clap `Args`/`Subcommand` for that tool plus `run(...)`
   dispatch, and nothing else.
 - `api/`: a thin client newtype over `reqwest`, one method per endpoint, built
-  through `rbx_core::api::build_client*`.
+  through `rbx_core::api::build_client*`. A download from a URL an API
+  answered with, a CDN, goes through `rbx_core::api::get_without_credentials`
+  instead, and no error prints that URL: it is signed.
 - `commands/`: one module per subcommand. The logic lives here.
 - `config.rs` / `lockfile.rs`: the declarative `*.toml` model and, for
   stateful tools, the record of what was last synced to Roblox.

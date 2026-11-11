@@ -10,7 +10,6 @@ use rbx_core::api::{ApiBase, RetryPolicy};
 use rbx_core::owner::OwnerType;
 
 use colored::Colorize;
-use models::AssetDeliveryResponse;
 
 /// Named after the `Hosts` field it feeds, because `rbx-spec-drift` resolves
 /// which host a `.join(...)` reaches by looking up `const <RECEIVER>_HOST`
@@ -144,10 +143,15 @@ pub struct FieldUpdate<'a> {
 /// Built again for every attempt: a `Form` is consumed by the send, so a
 /// resend after a 429 needs a fresh one, while the image itself is processed
 /// once by the caller.
-pub(crate) fn icon_part(bytes: &[u8]) -> Result<multipart::Part> {
-    Ok(multipart::Part::bytes(bytes.to_vec())
+///
+/// Infallible because a create builds its request in a closure that cannot
+/// fail: `mime_str` errs only on a type that does not parse, and this one is a
+/// constant.
+pub(crate) fn icon_part(bytes: &[u8]) -> multipart::Part {
+    multipart::Part::bytes(bytes.to_vec())
         .file_name("icon.png")
-        .mime_str("image/png")?)
+        .mime_str("image/png")
+        .expect("image/png is a valid MIME type")
 }
 
 /// The two hosts this crate reaches.
@@ -329,27 +333,23 @@ impl RbxClient {
     }
 
     /// The preferred source: the asset as stored, behind `legacy-asset:manage`.
+    ///
+    /// rbx-core's download: the key goes to the delivery API and never to the
+    /// CDN it answers with, and no error it returns prints that signed URL.
     async fn icon_from_asset_delivery(&self, asset_id: u64) -> Result<Vec<u8>> {
-        let api_key = self.api_key_header()?.to_string();
-        let url = {
-            let cloud = &self.hosts.cloud;
-            cloud.join(&format!("/asset-delivery-api/v1/assetId/{}", asset_id))
-        };
-        let resp: AssetDeliveryResponse = rbx_core::api::execute_json(|| async {
-            Ok(self
-                .client
-                .get(&url)
-                .header("x-api-key", &api_key)
-                .send()
-                .await?)
-        })
-        .await?;
-        self.fetch_cdn(asset_id, &resp.location).await
+        let api_key = self.api_key_header()?;
+        rbx_core::api::download_asset_from(api_key, asset_id, &self.hosts.cloud).await
     }
 
-    /// Both sources hand back a CDN url; this is the hop neither can skip.
+    /// The hop to the CDN url the thumbnail service answered with.
+    ///
+    /// Sent with no credential and through every redirect, to another host
+    /// included, which the shared client would stop at. No error names the
+    /// url: one from Roblox's CDN is a working download link.
     async fn fetch_cdn(&self, asset_id: u64, location: &str) -> Result<Vec<u8>> {
-        let resp = self.client.get(location).send().await?;
+        let resp = rbx_core::api::get_without_credentials(location)
+            .await
+            .with_context(|| format!("downloading the icon of asset {asset_id} from the CDN"))?;
         let status = resp.status();
         if !status.is_success() {
             // The CDN location can be expired/locked or hit a transient error.
@@ -361,7 +361,13 @@ impl RbxClient {
                 status
             );
         }
-        Ok(resp.bytes().await?.to_vec())
+        let bytes = resp
+            .bytes()
+            .await
+            // reqwest names the url in its error otherwise.
+            .map_err(reqwest::Error::without_url)
+            .with_context(|| format!("downloading the icon of asset {asset_id} from the CDN"))?;
+        Ok(bytes.to_vec())
     }
 }
 
@@ -445,5 +451,126 @@ mod tests {
             Pricing::Managed(false).field(),
             Some(("isManagedPricingEnabled", false))
         );
+    }
+
+    mod icon_download {
+        #![allow(clippy::unwrap_used)]
+
+        use super::super::RbxClient;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        const ASSET: u64 = 7;
+
+        /// What a signed CDN URL carries, and what no error may print.
+        const SIGNATURE: &str = "signature=aaaaBBBBccccDDDD";
+
+        fn client(server: &MockServer) -> RbxClient {
+            RbxClient::new(Some("the-key".into()), 1, false).with_base_url(server.uri())
+        }
+
+        /// A CDN at `/cdn` on `api` that redirects to another host, which
+        /// serves the icon.
+        async fn redirecting_cdn(api: &MockServer) -> MockServer {
+            let elsewhere = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/cdn"))
+                .respond_with(
+                    ResponseTemplate::new(302)
+                        .insert_header("location", format!("{}/blob?{SIGNATURE}", elsewhere.uri())),
+                )
+                .mount(api)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/blob"))
+                .respond_with(ResponseTemplate::new(200).set_body_bytes(b"png".to_vec()))
+                .mount(&elsewhere)
+                .await;
+            elsewhere
+        }
+
+        fn no_key_reached(requests: &[wiremock::Request]) -> bool {
+            requests
+                .iter()
+                .all(|r| r.headers.get("x-api-key").is_none())
+        }
+
+        /// The delivery API's CDN can redirect to another host, which the
+        /// shared client stops at. The key stays behind.
+        #[tokio::test]
+        async fn the_stored_icon_follows_the_cdn_to_another_host() {
+            let api = MockServer::start().await;
+            let elsewhere = redirecting_cdn(&api).await;
+            Mock::given(method("GET"))
+                .and(path(format!("/asset-delivery-api/v1/assetId/{ASSET}")))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "location": format!("{}/cdn?{SIGNATURE}", api.uri())
+                })))
+                .mount(&api)
+                .await;
+
+            let bytes = client(&api).download_icon(ASSET).await.unwrap();
+
+            assert_eq!(bytes, b"png");
+            assert!(no_key_reached(
+                &elsewhere.received_requests().await.unwrap()
+            ));
+        }
+
+        /// The same for the thumbnail fallback's CDN.
+        #[tokio::test]
+        async fn the_thumbnail_follows_the_cdn_to_another_host() {
+            let api = MockServer::start().await;
+            let _elsewhere = redirecting_cdn(&api).await;
+            Mock::given(method("GET"))
+                .and(path(format!("/asset-delivery-api/v1/assetId/{ASSET}")))
+                .respond_with(ResponseTemplate::new(403))
+                .mount(&api)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/v1/assets"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": [{
+                        "state": "Completed",
+                        "imageUrl": format!("{}/cdn?{SIGNATURE}", api.uri())
+                    }]
+                })))
+                .mount(&api)
+                .await;
+
+            let bytes = client(&api).download_icon(ASSET).await.unwrap();
+
+            assert_eq!(bytes, b"png");
+        }
+
+        /// Both sources failing at the CDN: the error, which quotes both
+        /// failures, names neither signed URL.
+        #[tokio::test]
+        async fn a_failed_icon_download_does_not_print_the_signed_urls() {
+            let api = MockServer::start().await;
+            let unreachable = format!("http://127.0.0.1:1/secret-blob?{SIGNATURE}");
+            Mock::given(method("GET"))
+                .and(path(format!("/asset-delivery-api/v1/assetId/{ASSET}")))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({ "location": unreachable })),
+                )
+                .mount(&api)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/v1/assets"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "data": [{ "state": "Completed", "imageUrl": unreachable }]
+                })))
+                .mount(&api)
+                .await;
+
+            let error = client(&api).download_icon(ASSET).await.unwrap_err();
+
+            let shown = format!("{error:#}");
+            assert!(shown.contains("both icon sources failed"), "got {shown}");
+            assert!(!shown.contains(SIGNATURE), "got {shown}");
+            assert!(!shown.contains("secret-blob"), "got {shown}");
+        }
     }
 }

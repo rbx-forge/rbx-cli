@@ -156,13 +156,17 @@ impl RbxClient {
     // -------------------------------------------------------------------------
 
     /// Returns the CDN download URL for a place (latest if version is None).
+    ///
+    /// The answer is a signed URL, a working download link, so no error here
+    /// quotes the body that carries it: `execute_json` would, for a body that
+    /// does not parse.
     pub async fn get_download_url(&self, place_id: u64, version: Option<u64>) -> Result<String> {
         let url = self.base.join(&match version {
             Some(v) => format!("/asset-delivery-api/v1/assetId/{}/version/{}", place_id, v),
             None => format!("/asset-delivery-api/v1/assetId/{}", place_id),
         });
         let api_key = self.api_key.clone();
-        let resp: AssetDeliveryResponse = execute_json(|| async {
+        let response = execute_with_retry(|| async {
             Ok(self
                 .client
                 .get(&url)
@@ -171,25 +175,40 @@ impl RbxClient {
                 .await?)
         })
         .await?;
+        let body = response
+            .bytes()
+            .await
+            .map_err(reqwest::Error::without_url)?;
+        let resp: AssetDeliveryResponse = serde_json::from_slice(&body).map_err(|e| {
+            anyhow::anyhow!(
+                "the delivery API answered place {place_id} without a location to download: {e}"
+            )
+        })?;
         Ok(resp.location)
     }
 
     /// Download raw bytes from a CDN URL (no auth required).
     ///
+    /// Sent with no credential and through every redirect, to another host
+    /// included, which the shared client would stop at. No error names the
+    /// URL: it is signed, a working download link in whatever log it lands in.
+    ///
     /// Handing back the `Bytes` `reqwest` already produced saves a copy of the
     /// whole file, and it is what `upload_place` wants anyway: `promote`
     /// pipes one straight into the other.
     pub async fn download_from_url(&self, url: &str) -> Result<Bytes> {
-        let response = self
-            .client
-            .get(url)
-            .send()
+        let response = rbx_core::api::get_without_credentials(url)
             .await
             .context("Download request failed")?;
         if !response.status().is_success() {
             bail!("Download failed ({})", response.status());
         }
-        Ok(response.bytes().await?)
+        response
+            .bytes()
+            .await
+            // reqwest names the URL in its error otherwise.
+            .map_err(reqwest::Error::without_url)
+            .context("Download failed")
     }
 
     // -------------------------------------------------------------------------
@@ -624,5 +643,77 @@ mod tests {
 
         assert_eq!(places.len(), 2);
         assert_eq!(places[1].display_name, "Second");
+    }
+
+    /// What a signed CDN URL carries, and what no error may print.
+    const SIGNATURE: &str = "signature=aaaaBBBBccccDDDD";
+
+    /// The CDN can redirect to another host. The shared client stops there,
+    /// so the download has to follow it on its own, and with no key.
+    #[tokio::test]
+    async fn a_download_follows_the_cdn_to_another_host() {
+        let cdn = MockServer::start().await;
+        let elsewhere = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/place"))
+            .respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("location", format!("{}/blob?{SIGNATURE}", elsewhere.uri())),
+            )
+            .mount(&cdn)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/blob"))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(b"rbxl".to_vec()))
+            .mount(&elsewhere)
+            .await;
+
+        let bytes = client(&cdn)
+            .download_from_url(&format!("{}/place?{SIGNATURE}", cdn.uri()))
+            .await
+            .unwrap();
+
+        assert_eq!(&bytes[..], b"rbxl");
+        let reached = elsewhere.received_requests().await.unwrap();
+        assert!(reached.iter().all(|r| r.headers.get("x-api-key").is_none()));
+    }
+
+    /// A signed URL is a working download link: a failed download names
+    /// neither its path nor its signature.
+    #[tokio::test]
+    async fn a_failed_download_does_not_print_the_signed_url() {
+        let server = MockServer::start().await;
+        let error = client(&server)
+            .download_from_url(&format!("http://127.0.0.1:1/secret-blob?{SIGNATURE}"))
+            .await
+            .expect_err("nothing listens on port 1");
+
+        let shown = format!("{error:#}");
+        assert!(!shown.contains(SIGNATURE), "got {shown}");
+        assert!(!shown.contains("secret-blob"), "got {shown}");
+    }
+
+    /// An answer without a `location` still holds whatever Roblox put in it,
+    /// a signed URL under another name included: the error does not quote it.
+    #[tokio::test]
+    async fn a_delivery_answer_without_a_location_is_not_quoted() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/asset-delivery-api/v1/assetId/{PLACE}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "url": format!("https://cdn.test/secret-blob?{SIGNATURE}")
+            })))
+            .mount(&server)
+            .await;
+
+        let error = client(&server)
+            .get_download_url(PLACE, None)
+            .await
+            .expect_err("no location to download");
+
+        let shown = format!("{error:#}");
+        assert!(shown.contains("without a location"), "got {shown}");
+        assert!(!shown.contains(SIGNATURE), "got {shown}");
+        assert!(!shown.contains("secret-blob"), "got {shown}");
     }
 }

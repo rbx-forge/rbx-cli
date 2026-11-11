@@ -114,10 +114,3 @@ pub struct ListDeveloperProductsResponse {
     #[serde(rename = "nextPageToken")]
     pub next_page_token: Option<String>,
 }
-
-// ── Asset Delivery ──
-
-#[derive(Debug, Deserialize)]
-pub struct AssetDeliveryResponse {
-    pub location: String,
-}

@@ -55,7 +55,12 @@ workspace only when the tag in the root `Cargo.toml` moves, followed by
   `RBX_COOKIE` → Studio auto-detection).
 - **`api`**: the shared HTTP layer.
   - `build_client()` / `build_client_with_user_agent()`: the one place a
-    `reqwest::Client` is constructed (gzip + request timeout).
+    `reqwest::Client` is constructed (gzip + request timeout). It follows a
+    redirect only while it stays on the request's origin, so a key never
+    reaches another host.
+  - `get_without_credentials(url)`: the download from an address an API
+    answered with, such as a CDN. No credential, every redirect followed, and
+    no error that prints the URL, which is signed.
   - `execute_with_retry` / `execute_json` / `RetryPolicy`: retry on 429/5xx
     and transient network errors, waiting as long as `retry-after` or
     `x-ratelimit-reset` asks on a 429, whichever is longer, then JSON-parse

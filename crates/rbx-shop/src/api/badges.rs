@@ -103,7 +103,7 @@ impl RbxClient {
         // Create-only resend: a badge past the free quota costs Robux, and a
         // second one after a lost answer would be paid for twice.
         let response = execute_create_with_retry_policy(
-            || async {
+            || {
                 let mut form = multipart::Form::new()
                     .text("name", name.to_string())
                     .text("description", description.unwrap_or("").to_string())
@@ -111,15 +111,12 @@ impl RbxClient {
                     .text("expectedCost", expected_cost.to_string())
                     .text("isActive", "true".to_string());
                 if let Some(bytes) = &icon {
-                    form = form.part("files", icon_part(bytes)?);
+                    form = form.part("files", icon_part(bytes));
                 }
-                Ok(self
-                    .client
+                self.client
                     .post(&url)
                     .header("x-api-key", &api_key)
                     .multipart(form)
-                    .send()
-                    .await?)
             },
             &WRITE_POLICY,
         )
@@ -180,7 +177,7 @@ impl RbxClient {
         // Replacing an icon twice leaves the same icon: the full retry is safe.
         let response = execute_with_retry_policy(
             || async {
-                let form = multipart::Form::new().part("Files", icon_part(&bytes)?);
+                let form = multipart::Form::new().part("Files", icon_part(&bytes));
                 Ok(self
                     .client
                     .post(&url)

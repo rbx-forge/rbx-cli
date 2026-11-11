@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-11-11
+
 ### Changed
 
 - **`rbx shop sync` asks before any plan that creates something.** It asked
@@ -1480,7 +1482,13 @@ as. The cookie is never written to disk. See `docs/cookie.md`.
 documented field names and a `schema_version`. Ids are strings, prices are
 numbers, and an optional field is absent rather than null.
 
-[Unreleased]: https://github.com/rbx-forge/rbx-deploy/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/rbx-forge/rbx-deploy/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.17.0...v0.18.0
+[0.17.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.16.0...v0.17.0
+[0.16.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.15.0...v0.16.0
+[0.15.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.13.0...v0.14.0
+[0.13.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.11.0...v0.12.0
 [0.11.0]: https://github.com/rbx-forge/rbx-deploy/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/rbx-forge/rbx-deploy/compare/v0.10.0...v0.10.1

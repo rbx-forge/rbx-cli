@@ -134,6 +134,8 @@ List what Roblox has, then apply the config (base plus overlay) where it differs
 
 Every env is planned before the first one is written, and one confirmation covers the run.
 
+**A plan that creates anything always asks first**, whatever `confirm` says and with `[experience]` too: a create cannot be undone. A plan that only updates asks when an env it writes has `confirm = true`, or when the target is a bare `--universe-id`. With nobody at the terminal, a run that would ask refuses before any write and says to pass `--yes`.
+
 !!! warning "A change made on Roblox is not overwritten silently"
     If Roblox holds another value than the lockfile recorded (a price edited on the Creator Dashboard, a pass taken off sale, a sync from another branch or machine) and the config would replace it, `sync` shows the plan and refuses, a dry run included. `rbx shop pull` brings those values in; `--overwrite-newer` replaces them.
 

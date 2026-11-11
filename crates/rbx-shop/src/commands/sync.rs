@@ -44,6 +44,11 @@ pub struct Options {
     pub allow_duplicate_names: bool,
     /// Write over what was changed on Roblox since the last sync or pull.
     pub overwrite_newer: bool,
+    /// Whether somebody is there to answer the confirmation. Read once by the
+    /// caller rather than here, so a test can say there is nobody whatever
+    /// streams `cargo test` happens to inherit. The default is nobody, which
+    /// is the side that refuses.
+    pub interactive: bool,
 }
 
 pub async fn run(ctx: &ShopCtx<'_>, options: Options) -> Result<()> {
@@ -54,6 +59,7 @@ pub async fn run(ctx: &ShopCtx<'_>, options: Options) -> Result<()> {
         yes,
         allow_duplicate_names,
         overwrite_newer,
+        interactive,
     } = options;
     let config = Config::load_merged(&ctx.config)?;
     let config_dir = ctx.config.parent().unwrap_or(Path::new("."));
@@ -129,7 +135,7 @@ pub async fn run(ctx: &ShopCtx<'_>, options: Options) -> Result<()> {
     }
 
     if !pending.is_empty() {
-        confirm(ctx, &pending, yes)?;
+        confirm(ctx, &pending, &syncing, yes, interactive)?;
 
         // The badge quota of every env, before the first write to any of
         // them: passes are applied before badges, so learning it from Roblox
@@ -213,6 +219,15 @@ impl PlannedEnv {
             .iter()
             .flat_map(|kind| self.plan.actions(*kind))
             .any(|action| !matches!(action.action, Action::Skip))
+    }
+
+    /// How many resources applying the plan creates, for the kinds in play.
+    fn creates(&self, syncing: &[ResourceKind]) -> usize {
+        syncing
+            .iter()
+            .flat_map(|kind| self.plan.actions(*kind))
+            .filter(|action| matches!(action.action, Action::Create))
+            .count()
     }
 
     /// Only creating a badge needs the quota and whoever pays for it, and
@@ -307,45 +322,68 @@ async fn plan_env(
     })
 }
 
-/// Ask before applying, when an env that is about to be written asked for it.
+/// Ask before applying, once for the whole run.
 ///
-/// Only the envs with work are named and looked at: an env with `confirm =
-/// true` that this run leaves untouched has nothing to confirm.
+/// A plan that creates anything is always asked about: whatever `confirm`
+/// says, and with the target taken from `[experience]` too, where there is no
+/// env to say it. A create is the one write here that cannot be undone, since
+/// Roblox has no delete for a pass or a developer product.
+///
+/// A plan that only updates asks when an env about to be written has `confirm
+/// = true`. Only the envs with work are named and looked at: an env with
+/// `confirm = true` that this run leaves untouched has nothing to confirm.
 ///
 /// A bare `--universe-id` names no env, so no `confirm` can be read for it:
 /// such a write is always asked about, or needs `--yes`.
-fn confirm(ctx: &ShopCtx<'_>, pending: &[&PlannedEnv], yes: bool) -> Result<()> {
-    if ctx.global.universe_id.is_some() {
-        return confirm_destructive(
-            &format!(
-                "Apply rbx shop sync to universe {}?",
-                pending[0].universe_id
-            ),
-            true,
-            yes,
-        );
+///
+/// With nobody to ask, the refusal names `--yes`. `dialoguer` fails there with
+/// an IO error about a terminal, which tells somebody reading CI logs nothing
+/// they can act on.
+fn confirm(
+    ctx: &ShopCtx<'_>,
+    pending: &[&PlannedEnv],
+    syncing: &[ResourceKind],
+    yes: bool,
+    interactive: bool,
+) -> Result<()> {
+    let by_id = ctx.global.universe_id.is_some();
+    let named_envs = !by_id && ctx.env().is_some();
+
+    let env_requires_confirm = named_envs
+        && PlacesFile::load(ctx.places_path())
+            .ok()
+            .map(|pf| {
+                pending
+                    .iter()
+                    .any(|p| pf.get(&p.env).map(|e| e.confirm()).unwrap_or(false))
+            })
+            .unwrap_or(false);
+    let creates: usize = pending.iter().map(|p| p.creates(syncing)).sum();
+
+    let mut prompt = if named_envs {
+        let label: String = pending
+            .iter()
+            .map(|p| p.env.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!("Apply rbx shop sync to env(s): [{}]?", label)
+    } else {
+        format!(
+            "Apply rbx shop sync to universe {}?",
+            pending[0].universe_id
+        )
+    };
+    if creates > 0 {
+        prompt.push_str(&format!(
+            " It creates {creates} resource(s), which cannot be undone."
+        ));
     }
-    if ctx.env().is_none() {
-        return Ok(());
+
+    let required = creates > 0 || by_id || env_requires_confirm;
+    if required && !yes && !interactive {
+        bail!("{prompt}\n  Pass --yes to apply it. There is nobody to ask here.");
     }
-    let env_requires_confirm = PlacesFile::load(ctx.places_path())
-        .ok()
-        .map(|pf| {
-            pending
-                .iter()
-                .any(|p| pf.get(&p.env).map(|e| e.confirm()).unwrap_or(false))
-        })
-        .unwrap_or(false);
-    let label: String = pending
-        .iter()
-        .map(|p| p.env.as_str())
-        .collect::<Vec<_>>()
-        .join(", ");
-    confirm_destructive(
-        &format!("Apply rbx shop sync to env(s): [{}]?", label),
-        env_requires_confirm,
-        yes,
-    )
+    confirm_destructive(&prompt, required, yes)
 }
 
 /// Stop a run that would write over what was changed on Roblox, or say what it

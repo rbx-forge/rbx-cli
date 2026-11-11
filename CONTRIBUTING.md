@@ -166,11 +166,12 @@ not, whether a license
 reached a statically linked artifact it should not have, whether a crate came
 from an unexpected registry, and how much duplication the graph has grown.
 
-**That is not the same as nothing being wrong.** Alerts cover what GitHub's
-database knows and rates as worth interrupting for; `cargo audit` reads the
-RustSec advisory database and reports more, including unsound-but-unrated
-crates. Nothing in CI runs it today, which is why an external audit found
-advisories the Security tab was quiet about. Removing default features from
+**The Security tab is not the whole picture.** GitHub's alerts cover what its
+own database knows and rates as worth interrupting for. The RustSec advisory
+database reports more, including unsound-but-unrated crates, and that is the
+database `cargo deny check advisories` reads, in the Supply chain workflow on
+every dependency change and weekly. Before that check existed, an external
+audit found advisories the Security tab was quiet about. Removing default features from
 `image` and `rbx_cookie` took the dependency count from 424 to 354 and removed
 two of those advisories by removing the crates that carried them.
 

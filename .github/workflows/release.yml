@@ -74,9 +74,13 @@ jobs:
       # only when Cargo.lock does, which is what the key is built from.
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
       # Same pinned pair as ci.yml's cross job. Only the musl leg needs them.
+      # Zig is pinned by version on both paths, and the pip install by hash:
+      # see requirements-zigbuild.txt for why the wheel is the one that counts.
       - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         if: matrix.zig
-      - run: pip install cargo-zigbuild==0.23.0
+        with:
+          version: 0.17.1
+      - run: pip install --require-hashes -r requirements-zigbuild.txt
         if: matrix.zig
       # One binary.
       #

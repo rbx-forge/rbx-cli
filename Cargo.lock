@@ -1600,7 +1600,7 @@ dependencies = [
 
 [[package]]
 name = "rbx"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1626,7 +1626,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-check"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1646,7 +1646,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-config"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1686,7 +1686,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-env"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1702,7 +1702,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-import"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1722,7 +1722,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-init"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1740,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-meta"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1760,7 +1760,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-place"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-probe"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1794,7 +1794,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-rtbf"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1812,7 +1812,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-schema"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "boon",
@@ -1829,7 +1829,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-shop"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -1850,7 +1850,7 @@ dependencies = [
 
 [[package]]
 name = "rbx-spec-drift"
-version = "0.17.0"
+version = "0.18.0"
 dependencies = [
  "serde_json",
 ]

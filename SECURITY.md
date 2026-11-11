@@ -6,8 +6,9 @@ threat model worth stating plainly rather than leaving to inference.
 
 ## Reporting a vulnerability
 
-**Use GitHub private security advisories:**
-<https://github.com/rbx-forge/rbx-deploy/security/advisories/new>
+**Report it privately, through GitHub:** on this repository, open the
+**Security** tab and choose **Report a vulnerability**, or go straight to
+<https://github.com/rbx-forge/rbx-deploy/security/advisories/new>.
 
 Do not open a public issue for a vulnerability. Do not paste a real API key,
 cookie, or universe id you care about into a report: a redacted reproduction

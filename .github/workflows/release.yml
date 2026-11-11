@@ -73,15 +73,13 @@ jobs:
       # spends 126s of its 307s on the 416 crates in Cargo.lock, and those move
       # only when Cargo.lock does, which is what the key is built from.
       - uses: Swatinem/rust-cache@c8037a86dde8214a8310e9f54a8fc61ab362aa31 # v2
-      # Same pinned pair as ci.yml's cross job. Only the musl leg needs them.
-      # Zig is pinned by version on both paths, and the pip install by hash:
-      # see requirements-zigbuild.txt for why the wheel is the one that counts.
-      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        if: matrix.zig
-        with:
-          version: 0.17.1
-      - run: pip install --require-hashes -r requirements-zigbuild.txt
-        if: matrix.zig
+      # Same pinned pair as ci.yml's cross job, installed the same way: the
+      # wheel's zig is the one cargo-zigbuild runs (see
+      # requirements-zigbuild.txt). Only the musl leg needs them.
+      - if: matrix.zig
+        run: |
+          python3 -m pip install --require-hashes -r requirements-zigbuild.txt
+          python3 -m ziglang version
       # One binary.
       #
       # `--locked` matters more here than anywhere in ci.yml. Without it cargo

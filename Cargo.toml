@@ -143,7 +143,7 @@ bit-vec = "0.8"
 # brings a second copy of clap (2.34, beside our 4.x), `env_logger` and
 # `atty`: the last of which carries an advisory of its own.
 rbx_cookie = { version = "0.1", default-features = false }
-dialoguer = "0.11"
+dialoguer = "0.12"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3"
 wiremock = "0.6"
